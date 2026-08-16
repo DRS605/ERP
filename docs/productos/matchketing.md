@@ -4,6 +4,14 @@
 > módulo de ALXOR Core, no vive en este repositorio ni en su base de datos. Este documento está
 > aquí solo para no perderlo; cuando se apruebe, nace en su propio repositorio y su propia
 > solución.
+>
+> **Documentos del producto:**
+> 1. **`matchketing.md`** (este) — ideas de funcionamiento, visión e identidad visual.
+> 2. [`matchketing-funcionalidades.md`](matchketing-funcionalidades.md) — las 132 capacidades de
+>    HubSpot con un veredicto cada una.
+> 3. [`matchketing-diseno-tecnico-funcional.md`](matchketing-diseno-tecnico-funcional.md) — **el
+>    entregable previo al código**: alcance cerrado, decisiones tomadas, dominio, invariantes,
+>    esquema, API y orden de módulos.
 
 ---
 
@@ -438,17 +446,18 @@ Escrito aquí para poder decir que no dentro de un año:
 
 ---
 
-## 13. Preguntas abiertas
+## 13. Preguntas abiertas — **resueltas**
 
-1. **¿Público objetivo?** ¿El mismo que ALXOR Core (micropyme española, 1–10 personas) o pymes algo
-   mayores con equipo comercial de 3–15? Cambia el peso del reparto de leads y de los informes de
-   equipo.
-2. **¿B2B, B2C o los dos?** Si es solo B2B, `Cuenta` es obligatoria y el modelo se simplifica.
-3. **¿WhatsApp en el MVP?** En hostelería, servicios e instaladores puede pesar más que el email;
-   sube coste y complejidad (API oficial, plantillas aprobadas, coste por conversación).
-4. **¿Repositorio y despliegue separados desde el día uno?** Es lo coherente con la independencia;
-   confirmar antes de empezar.
-5. **Marca:** `.keting` no es un dominio real; habría que registrar `matchketing.com` / `.es` y usar
-   la grafía **match.keting** solo como identidad visual. Internamente, "Match".
-6. **¿Se comparte el `Nucleo` de ALXOR como paquete NuGet** o se duplica para no crear ninguna
-   dependencia entre productos?
+Todas están cerradas en el §1 de
+[`matchketing-diseno-tecnico-funcional.md`](matchketing-diseno-tecnico-funcional.md). En resumen:
+
+1. **Público**: micropyme española de 1–10 personas, con 1–3 comerciales.
+2. **B2B y B2C**: los dos; `Cuenta` es opcional.
+3. **WhatsApp**: fuera del MVP, a F2 (API oficial y coste por conversación son un módulo entero).
+4. **Repositorio y despliegue separados** desde el día uno: sí.
+5. **Marca**: registrar `matchketing.com` / `.es`; **match.keting** solo como grafía visual.
+6. **`Nucleo` de ALXOR**: se **duplica**, no se comparte. Son ~400 líneas y la independencia vale más
+   que no repetirse.
+
+Añadidas y también cerradas: **alcance del MVP** (cinco bloques, no las 44 funcionalidades del mapeo
+completo), **correo conectado** fuera del MVP, e **identidad** con login propio.
