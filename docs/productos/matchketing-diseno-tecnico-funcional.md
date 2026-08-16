@@ -5,6 +5,17 @@
 > repositorio, solución, base de datos y login propios. Este documento vive aquí solo para no
 > perderlo.
 >
+> **El módulo 1 ya está escrito**, en la carpeta [`matchketing/`](../../matchketing) de este mismo
+> repositorio. Es una ubicación **provisional**: la app de GitHub de la sesión no tiene permiso para
+> crear repositorios (`403 Resource not accessible by integration`), así que el código se dejó aquí
+> para no perderlo. Tiene su propia solución, su propia base de datos y ninguna referencia a ALXOR
+> Core. Para extraerlo con su historia cuando exista el repositorio `matchketing`:
+>
+> ```bash
+> git subtree split --prefix=matchketing -b matchketing-solo
+> git push git@github.com:<tu-cuenta>/matchketing.git matchketing-solo:main
+> ```
+>
 > Complementa a [`matchketing.md`](matchketing.md) (ideas y visión) y a
 > [`matchketing-funcionalidades.md`](matchketing-funcionalidades.md) (las 132 capacidades de HubSpot
 > con veredicto). Aquí ya **no hay preguntas abiertas**: están todas decididas en §1.
