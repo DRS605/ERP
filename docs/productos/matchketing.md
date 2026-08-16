@@ -375,6 +375,43 @@ recomendación de producto (cliente ↔ producto).
 
 ---
 
+## 10 bis. Identidad visual (paleta magenta)
+
+Idea rectora: **un solo color con voz y el resto en voz baja**. El magenta no decora, marca la
+siguiente acción. Los grises llevan un sesgo de ciruela para convivir con él sin ensuciarlo.
+
+**El punto del nombre es el logotipo.** No hace falta símbolo aparte: el punto que separa *match* de
+*keting* es el mismo que marca una sección, un dato en vivo o un contacto sin próximo paso.
+
+| Token | Claro | Oscuro | Uso |
+|---|---|---|---|
+| `--magenta` | `#D4006E` | `#FF4D9B` | Acción principal, el punto, la cifra de Match. 5,2:1 sobre blanco |
+| `--magenta-hover` | `#9B0050` | `#FF7DB6` | *Hover* y pulsado |
+| `--magenta-velo` | `#FCEEF4` | `#2E1220` | Fondo teñido: fila seleccionada, pestaña activa |
+| `--tinta` | `#170B12` | `#F7EFF3` | Texto y logotipo (negro con sesgo ciruela) |
+| `--grafito` | `#6B5A63` | `#B69EAA` | Texto secundario y estado «perdida» |
+| `--papel` | `#FBF8F9` | `#120810` | Fondo de página |
+| `--superficie` | `#FFFFFF` | `#1C1018` | Tarjetas |
+| `--trazo` | `#E9DDE3` | `#3A2430` | Filetes y bordes |
+| `--turquesa` | `#00767F` | `#3ED0D8` | **Uso único**: el factor *Momento* del Match |
+| `--verde` | `#0E7C5A` | `#2BB98A` | Ganada, cobrado |
+| `--ambar` | `#A66A00` | `#E0A83C` | Estancada, caduca |
+
+**No hay rojo en el sistema**: junto al magenta es ilegible. Los avisos van en ámbar y en texto.
+
+**Reglas del magenta.** Sí: un único botón principal por pantalla, la cifra de Match, el punto, la
+pestaña activa (en rosa velo, no en magenta pleno) y los enlaces. No: fondos grandes, degradados,
+cabeceras a sangre, errores, texto largo, ni tocando al turquesa o al verde.
+
+**Tipografía**: sin fuentes descargadas (la aplicación arranca instantánea y se ve igual en cualquier
+equipo). Tres papeles — titular en sans a peso 800 con interletraje muy cerrado (−0,035 em),
+afirmaciones en serif, y datos en monoespaciada con **números tabulares**. La personalidad la da el
+tratamiento, no una fuente exótica.
+
+El color nunca es el único portador de información: cada estado lleva punto, palabra y posición.
+
+---
+
 ## 11. Lo que NO vamos a hacer (anti-alcance)
 
 Escrito aquí para poder decir que no dentro de un año:
