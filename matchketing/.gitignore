@@ -1,6 +1,0 @@
-*.user
-.idea/
-.nuget/
-.vs/
-bin/
-obj/

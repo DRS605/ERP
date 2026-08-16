@@ -42,6 +42,9 @@ Productos:
 
 - **ALXOR Core Start** — el MVP de este documento (gestión diaria de una microempresa).
 - **ALXOR Core Pro** — evolución con funciones avanzadas (ver §14).
+- **match.keting** (CRM) — **aplicación totalmente independiente**, en su propio repositorio:
+  [`DRS605/CRM`](https://github.com/DRS605/CRM). Repositorio, solución, base de datos y login
+  propios; se integra con ALXOR Core por API y eventos, y solo si el cliente quiere.
 - **Questioner** (calidad), **Tuday** (control horario), **CostControl** (costes) — **aplicaciones
   totalmente independientes**, no forman parte del código de ALXOR Core.
 
@@ -344,7 +347,8 @@ añade sus eventos auditables.
 
 Pro añadirá (cuando lo pidan clientes reales): presupuestos, pedidos, albaranes, stock, compras
 avanzadas, contabilidad completa, CRM, etc., y el envío real a **AEAT (VeriFactu/SII)** activando
-los campos ya reservados. Questioner, Tuday y CostControl se integrarán vía **API + eventos**. Nada
+los campos ya reservados. match.keting, Questioner, Tuday y CostControl se integrarán vía
+**API + eventos**. Nada
 de esto condiciona ni entra en el código del MVP.
 
 ---
