@@ -353,12 +353,12 @@
       { t:"item", k:"inicio", l:"Inicio" },
       { t:"grupo", k:"ventas", l:"Ventas", items:[["presupuestos","Presupuestos"],["facturas","Facturas"],["tpv","TPV · Tickets"],["recurrentes","Periódicas"],["clientes","Clientes"],["cobros","Cobros"],["remesas","Remesas SEPA"]] },
       { t:"grupo", k:"compras", l:"Compras", items:[["solicitudes","Solicitudes"],["pedidos","Pedidos de compra"],["recepcion","Buzón de facturas"],["gastos","Gastos"],["proveedores","Proveedores"],["pagos","Pagos"],["conciliacion","Conciliación banco"]] },
-      { t:"grupo", k:"articulos", l:"Artículos", items:[["productos","Productos"]] },
+      { t:"grupo", k:"articulos", l:"Artículos", items:[["productos","Productos"],["inventario","Inventario / Almacenes"]] },
       { t:"item", k:"informes", l:"Informes" },
       { t:"item", k:"contabilidad", l:"Contabilidad" },
       { t:"item", k:"ajustes", l:"Ajustes" },
     ];
-    const TITULOS = { inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", informes:"Informes", contabilidad:"Contabilidad", ajustes:"Ajustes" };
+    const TITULOS = { inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", inventario:"Inventario / Almacenes", informes:"Informes", contabilidad:"Contabilidad", ajustes:"Ajustes" };
     function renderNav() {
       return NAV.map(n => {
         if (n.t === "item") return `<a class="navitem" data-k="${n.k}" onclick="ir('${n.k}')">${ICON[n.k]}<span>${n.l}</span></a>`;
@@ -454,7 +454,7 @@
     function ir(k){ closeMenu(); if(vista==="tpv" && k!=="tpv" && typeof tpvParar==="function") tpvParar(); vista=k;
       document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("active",a.dataset.k===k));
       document.getElementById("viewTitle").textContent=TITULOS[k]||k;
-      ({inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,clientes:vClientes,productos:vProductos,gastos:vGastos,solicitudes:vSolicitudes,pedidos:vPedidos,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,informes:vInformes,contabilidad:vContabilidad,ajustes:vAjustes}[k])();
+      ({inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,clientes:vClientes,productos:vProductos,gastos:vGastos,solicitudes:vSolicitudes,pedidos:vPedidos,inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,informes:vInformes,contabilidad:vContabilidad,ajustes:vAjustes}[k])();
     }
     const view = h => document.getElementById("view").innerHTML=h;
     const panel = (t,c,a="") => `<div class="panel">${(t||a)?`<div class="panel-head">${t?`<h2>${t}</h2>`:'<span></span>'}${a}</div>`:''}${c}</div>`;
@@ -799,6 +799,45 @@
       const cuerpo=gs.length?`<table><thead><tr><th>Concepto</th><th>Proveedor</th><th class="num">Total</th><th class="num">Pagado</th><th class="num">Pendiente</th><th class="right">Estado</th></tr></thead><tbody>${filas}</tbody></table>`:vacio("pagos","Nada que pagar aún","Cuando registres gastos verás aquí su estado de pago.");
       view(panel("Pagos a proveedores",cuerpo));
     }
+    // ---- Inventario: almacenes, ubicaciones, movimientos, stock ----
+    let _cacheAlm=[], _cacheProdInv=[];
+    const nombreProd = id => (_cacheProdInv.find(p=>p.id===id)||{}).nombre || id.slice(0,8);
+    async function vInventario(){
+      view('<div class="muted">Cargando…</div>');
+      const [alm,prods]=await Promise.all([api("/inventario/almacenes"),api("/productos").catch(()=>[])]);
+      _cacheAlm=alm; _cacheProdInv=prods;
+      const filasAlm=alm.map(a=>`<tr><td><strong>${a.codigo}</strong> · ${a.nombre}</td><td class="right" style="white-space:nowrap"><button class="btn small ghost" onclick="modalUbicacion('${a.id}')">+ Ubicación</button> <button class="btn small secondary" onclick="verStockAlmacen('${a.id}','${a.nombre.replace(/'/g,"")}')">Ver stock</button></td></tr>`).join("");
+      const tablaAlm=alm.length?`<table><thead><tr><th>Almacén</th><th class="right">Acciones</th></tr></thead><tbody>${filasAlm}</tbody></table>`
+        :vacio("productos","Sin almacenes","Crea tu primer almacén para llevar stock por ubicaciones.",`<button class="btn small" onclick="modalAlmacen()">+ Nuevo almacén</button>`);
+      view(panel("Almacenes",tablaAlm,`<span><button class="btn small ghost" onclick="modalMovimiento()">Registrar movimiento</button> <button class="btn small" onclick="modalAlmacen()">+ Nuevo almacén</button></span>`)
+        +`<div id="inv_stock"></div>`);
+    }
+    function modalAlmacen(){ abrir("Nuevo almacén",`<div class="grid2"><div><label>Código</label><input id="alm_cod" placeholder="CENTRAL"/></div><div><label>Nombre</label><input id="alm_nom" placeholder="Almacén central"/></div></div>`,
+      async()=>{ await api("/inventario/almacenes",{method:"POST",body:JSON.stringify({codigo:val("alm_cod"),nombre:val("alm_nom")})}); toast("Almacén creado.","ok"); vInventario(); }); }
+    function modalUbicacion(almId){ abrir("Nueva ubicación",`<div class="grid2"><div><label>Código</label><input id="ubi_cod" placeholder="A-1"/></div><div><label>Nombre (opcional)</label><input id="ubi_nom"/></div></div>`,
+      async()=>{ await api("/inventario/ubicaciones",{method:"POST",body:JSON.stringify({almacenId:almId,codigo:val("ubi_cod"),nombre:val("ubi_nom")||null})}); toast("Ubicación creada.","ok"); }); }
+    async function verStockAlmacen(almId,nombre){
+      const st=await api("/inventario/stock/almacen/"+almId);
+      const filas=st.map(s=>`<tr><td>${nombreProd(s.productoId)}</td><td class="muted">${s.ubicacionCodigo||'—'}</td><td class="num"><strong>${s.cantidad}</strong></td></tr>`).join("");
+      document.getElementById("inv_stock").innerHTML=panel("Stock · "+nombre, st.length?`<table><thead><tr><th>Artículo</th><th>Ubicación</th><th class="num">Cantidad</th></tr></thead><tbody>${filas}</tbody></table>`:'<p class="muted">Sin existencias en este almacén.</p>');
+    }
+    async function modalMovimiento(){
+      if(!_cacheAlm.length){ toast("Crea un almacén primero.","err"); return; }
+      const prodOpts=_cacheProdInv.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join("");
+      const almOpts=_cacheAlm.map(a=>`<option value="${a.id}">${a.codigo} · ${a.nombre}</option>`).join("");
+      abrir("Movimiento de stock",`
+        <label>Tipo</label><select id="mv_tipo" onchange="document.getElementById('mv_traspaso').style.display=(this.value==='traspaso')?'block':'none';document.getElementById('mv_simple').style.display=(this.value==='traspaso')?'none':'block'">
+          <option value="entrada">Entrada</option><option value="salida">Salida</option><option value="ajuste">Ajuste (recuento)</option><option value="traspaso">Traspaso</option></select>
+        <label>Artículo</label><select id="mv_prod">${prodOpts}</select>
+        <label>Cantidad</label><input id="mv_cant" type="number" step="0.001"/>
+        <div id="mv_simple"><label>Almacén</label><select id="mv_alm">${almOpts}</select></div>
+        <div id="mv_traspaso" style="display:none"><div class="grid2"><div><label>Almacén origen</label><select id="mv_almo">${almOpts}</select></div><div><label>Almacén destino</label><select id="mv_almd">${almOpts}</select></div></div></div>`,
+        async()=>{ const tipo=val("mv_tipo"), prod=val("mv_prod"), cant=Number(val("mv_cant")||0);
+          if(tipo==="traspaso"){ await api("/inventario/traspaso",{method:"POST",body:JSON.stringify({productoId:prod,cantidad:cant,almacenOrigenId:val("mv_almo"),almacenDestinoId:val("mv_almd")})}); }
+          else { await api("/inventario/"+tipo,{method:"POST",body:JSON.stringify({productoId:prod,almacenId:val("mv_alm"),cantidad:cant})}); }
+          toast("Movimiento registrado.","ok"); vInventario(); });
+    }
+
     // ---- Compras: solicitudes → pedidos → albarán → factura ----
     const estadoPillCompra = e => {
       const c = (e==="Facturado"||e==="Aprobada"||e==="Convertida")?"ok":(e==="Cancelado"||e==="Rechazada")?"wait":(e==="Recibido")?"part":"part";
