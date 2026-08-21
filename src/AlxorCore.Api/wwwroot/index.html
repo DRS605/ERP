@@ -45,9 +45,9 @@
 
     /* ---------- LOGIN (split) ---------- */
     .login { display: grid; grid-template-columns: 1.05fr .95fr; min-height: 100vh; }
-    .login .promo { background: var(--grad); color: #fff; padding: 56px 60px; display:flex; flex-direction:column; position: relative; overflow: hidden; }
-    .login .promo::before { content:""; position:absolute; width: 520px; height: 520px; right: -180px; top: -160px; background: rgba(255,255,255,.10); border-radius: 50%; }
-    .login .promo::after { content:""; position:absolute; width: 340px; height: 340px; left: -120px; bottom: -140px; background: rgba(255,255,255,.08); border-radius: 50%; }
+    .login .promo { background: linear-gradient(160deg, #1e293b, #0f172a 72%); color: #fff; padding: 56px 60px; display:flex; flex-direction:column; position: relative; overflow: hidden; }
+    .login .promo::before { content:""; position:absolute; width: 520px; height: 520px; right: -180px; top: -160px; background: radial-gradient(circle, rgba(34,211,238,.22), rgba(34,211,238,0) 70%); border-radius: 50%; }
+    .login .promo::after { content:""; position:absolute; width: 340px; height: 340px; left: -120px; bottom: -140px; background: rgba(255,255,255,.05); border-radius: 50%; }
     .promo .wordmark { color:#fff; position: relative; }
     .promo .mark { box-shadow: 0 6px 18px rgba(0,0,0,.28); }
     .promo .tag { color:#fff; background: rgba(255,255,255,.2); box-shadow:none; }
@@ -112,10 +112,10 @@
     .greet p { color: var(--muted); margin: 0; }
 
     /* Hero de bienvenida con carácter */
-    .hero { position:relative; overflow:hidden; background: var(--grad); color:#fff; border-radius: 22px;
-      padding: 26px 30px; margin-bottom: 24px; box-shadow: 0 14px 34px rgba(8,145,178,.30); }
-    .hero::before { content:""; position:absolute; width: 340px; height: 340px; right:-100px; top:-140px; background: rgba(255,255,255,.12); border-radius:50%; }
-    .hero::after { content:""; position:absolute; width: 220px; height: 220px; left:-80px; bottom:-130px; background: rgba(255,255,255,.08); border-radius:50%; }
+    .hero { position:relative; overflow:hidden; background: linear-gradient(155deg, #1e293b, #0f172a 72%); color:#fff; border-radius: 22px;
+      padding: 26px 30px; margin-bottom: 24px; box-shadow: 0 14px 34px rgba(15,23,42,.28); }
+    .hero::before { content:""; position:absolute; width: 380px; height: 380px; right:-110px; top:-150px; background: radial-gradient(circle, rgba(34,211,238,.28), rgba(34,211,238,0) 68%); border-radius:50%; }
+    .hero::after { content:""; position:absolute; width: 220px; height: 220px; left:-80px; bottom:-130px; background: rgba(255,255,255,.04); border-radius:50%; }
     .hero .eyebrow { position:relative; display:inline-flex; align-items:center; gap:7px; font-size:11.5px; font-weight:700; letter-spacing:.04em;
       text-transform:uppercase; background: rgba(255,255,255,.16); padding: 5px 11px; border-radius:999px; margin-bottom: 14px; }
     .hero .eyebrow .dot { width:7px; height:7px; border-radius:50%; background:#8ef0c6; box-shadow:0 0 8px #8ef0c6; }
