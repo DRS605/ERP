@@ -310,6 +310,20 @@
     let token=null, empresa=null, usuario=null, vista="inicio";
     const eur = n => (Number(n)||0).toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})+" €";
     const fdate = s => { if(!s) return ""; const p=String(s).slice(0,10).split("-"); return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:String(s); };
+
+    // --- Panel de inicio configurable por usuario (defaults según su rol) ---
+    const DASH_WIDGETS=[["kpis","Indicadores (KPIs)"],["evolucion","Gráfica · evolución mensual"],["gastos","Gráfica · reparto de gastos"],["facturas","Últimas facturas"],["periodicas","Próximas facturas automáticas"]];
+    const DASH_DEF={ propietario:["kpis","evolucion","gastos","facturas","periodicas"], usuario:["kpis","evolucion","facturas","periodicas"], solo_lectura:["kpis","evolucion","gastos"] };
+    const nombreRol = r => r==="propietario"?"Propietario":(r==="solo_lectura"?"Solo lectura":"Usuario");
+    function dashClave(){ return "dash_"+(empresa?.id||"")+"_"+(usuario?.id||""); }
+    function dashVisibles(){ const def=DASH_DEF[empresa?.rolCodigo]||DASH_DEF.usuario; try{ const s=localStorage.getItem(dashClave()); if(s){ const a=JSON.parse(s); if(Array.isArray(a)) return a; } }catch(e){} return def.slice(); }
+    function personalizarDash(){
+      const vis=new Set(dashVisibles());
+      const chks=DASH_WIDGETS.map(([k,l])=>`<label style="display:flex;align-items:center;gap:10px;font-weight:500;color:var(--ink);margin:4px 0;text-transform:none;font-size:14px"><input type="checkbox" id="dw_${k}" ${vis.has(k)?"checked":""} style="width:auto"/> ${l}</label>`).join("");
+      abrir("Personalizar mi panel",`<p class="muted" style="margin:0 0 14px">Elige qué mostrar en tu inicio. Se guarda solo para ti (rol: <strong>${nombreRol(empresa?.rolCodigo)}</strong>).</p>${chks}<p class="muted" style="font-size:12px;margin:14px 0 0"><a href="#" onclick="restablecerDash();return false" style="color:var(--accent);font-weight:650">Restablecer al panel por defecto de mi rol</a></p>`,
+        ()=>{ const sel=DASH_WIDGETS.map(([k])=>k).filter(k=>document.getElementById("dw_"+k).checked); try{ localStorage.setItem(dashClave(), JSON.stringify(sel)); }catch(e){} vInicio(); });
+    }
+    function restablecerDash(){ try{ localStorage.removeItem(dashClave()); }catch(e){} cerrarModal(); vInicio(); }
     const check = '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4"><path d="M20 6L9 17l-5-5"/></svg>';
     document.querySelector('.promo ul').innerHTML =
       ['Facturas, presupuestos y TPV en un clic','Tesorería, remesas SEPA y conciliación','Inventario, informes y modelos fiscales']
@@ -471,17 +485,41 @@
         <div class="kpi warn"><div class="top"><div class="chipico">${kIcon.cobro}</div></div><div class="lbl">Pendiente de cobro</div><div class="val ${d.pendienteCobro>0?'neg':''}">${eur(d.pendienteCobro)}</div></div>
         <div class="kpi"><div class="top"><div class="chipico">${kIcon.gasto}</div>${trend(gMes[mesIdx],gMes[mesIdx-1],true)}</div><div class="lbl">Gastos este mes</div><div class="val">${eur(d.gastadoMes)}</div></div>
         <div class="kpi pos"><div class="top"><div class="chipico">${kIcon.saldo||kIcon.pago}</div></div><div class="lbl">Beneficio del mes</div><div class="val ${benef<0?'neg':''}">${eur(benef)}</div></div></div>`;
-      const graficos=graficosHtml(facturas,gastos,anio);
+      // Widget: gráfica de evolución mensual.
+      const leyenda=`<div style="display:flex;gap:16px;margin-top:8px;font-size:12.5px"><span><span style="display:inline-block;width:11px;height:11px;border-radius:3px;background:#0891b2;vertical-align:-1px"></span> Facturación</span><span><span style="display:inline-block;width:11px;height:11px;border-radius:3px;background:#334155;vertical-align:-1px"></span> Gastos</span></div>`;
+      const evoW=panel(`Evolución mensual · ${anio}`,`<div style="overflow-x:auto">${barrasMensuales(fMes,gMes)}</div>${leyenda}`);
+      // Widget: reparto de gastos (donut).
+      const acum={}; (gastos||[]).forEach(g=>{ const k=(g.proveedorTexto||g.concepto||"Otros"); acum[k]=(acum[k]||0)+(Number(g.total)||0); });
+      let segs=Object.entries(acum).map(([label,value])=>({label,value})).sort((a,b)=>b.value-a.value);
+      const paletaG=["#0891b2","#22d3ee","#0e7490","#67e8f9","#334155","#64748b","#94a3b8"];
+      if(segs.length>6){ const resto=segs.slice(6).reduce((a,s)=>a+s.value,0); segs=segs.slice(0,6); segs.push({label:"Otros",value:resto}); }
+      segs=segs.map((s,i)=>({...s,color:paletaG[i%paletaG.length]}));
+      const gastosW=segs.length?panel(`Reparto de gastos · ${anio}`,donutSvg(segs)):panel(`Reparto de gastos · ${anio}`,'<p class="muted">Sin gastos registrados en '+anio+'.</p>');
+      // Widget: últimas facturas.
       const filas=facturas.slice(0,6).map(f=>`<tr><td><strong>${f.numeroCompleto}</strong></td><td>${f.clienteNombre}</td><td class="muted">${fdate(f.fechaEmision)}</td><td class="num"><strong>${eur(f.total)}</strong></td><td class="right"><span class="pill ok">${f.estado}</span></td></tr>`).join("");
       const tabla=facturas.length?`<table><thead><tr><th>Número</th><th>Cliente</th><th>Fecha</th><th class="num">Total</th><th class="right">Estado</th></tr></thead><tbody>${filas}</tbody></table>`
         :vacio("facturas","Aún no has emitido facturas","Crea tu primera factura y cóbrala en un minuto.",`<button class="btn small" onclick="modalFactura()">+ Nueva factura</button>`);
+      const facturasW=panel("Últimas facturas",tabla);
+      // Widget: próximas facturas automáticas.
       const activas=recurrentes.filter(r=>r.activa).sort((a,b)=>a.proximaEmision<b.proximaEmision?-1:1).slice(0,4);
-      let periodicas="";
+      let periodicasW="";
       if(activas.length){
         const pf=activas.map(r=>`<tr><td><strong>${r.nombre}</strong></td><td>${r.clienteNombre}</td><td class="muted">${r.periodicidad}</td><td class="muted">${fdate(r.proximaEmision)}</td><td class="num"><strong>${eur(r.total)}</strong></td></tr>`).join("");
-        periodicas=panel("Próximas facturas automáticas",`<table><thead><tr><th>Concepto</th><th>Cliente</th><th>Cada</th><th>Próxima</th><th class="num">Importe</th></tr></thead><tbody>${pf}</tbody></table>`,`<button class="btn small ghost" onclick="ir('recurrentes')">Gestionar</button>`);
+        periodicasW=panel("Próximas facturas automáticas",`<table><thead><tr><th>Concepto</th><th>Cliente</th><th>Cada</th><th>Próxima</th><th class="num">Importe</th></tr></thead><tbody>${pf}</tbody></table>`,`<button class="btn small ghost" onclick="ir('recurrentes')">Gestionar</button>`);
       }
-      view(hero+kpis+graficos+panel("Últimas facturas",tabla)+periodicas);
+      // Composición configurable: se muestran solo los widgets elegidos (o los por defecto del rol).
+      const W={ kpis, evolucion:evoW, gastos:gastosW, facturas:facturasW, periodicas:periodicasW };
+      const vis=dashVisibles(), vset=new Set(vis), hechos=new Set();
+      let cuerpo="";
+      vis.forEach(k=>{
+        if(hechos.has(k)||!W[k]) return;
+        if((k==="evolucion"&&vset.has("gastos"))||(k==="gastos"&&vset.has("evolucion"))){
+          cuerpo+=`<div class="grid2" style="align-items:start">${evoW}${gastosW}</div>`; hechos.add("evolucion"); hechos.add("gastos"); return;
+        }
+        cuerpo+=W[k]; hechos.add(k);
+      });
+      const barra=`<div style="display:flex;justify-content:flex-end;margin:-4px 0 12px"><button class="btn small ghost" onclick="personalizarDash()">⚙ Personalizar panel</button></div>`;
+      view(hero+barra+cuerpo);
     }
 
     async function vFacturas() {
