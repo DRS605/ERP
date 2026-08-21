@@ -3,13 +3,16 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ALXOR · Core One</title>
+  <title>ALXOR Evolution</title>
   <style>
     :root {
       /* Paleta: cian de acento contrastado con azul marino en el texto. */
-      --ink: #0b2a4a; --muted: #5c7186; --line: #e5ebf1; --bg: #f1f6f9; --surface: #ffffff;
-      --brand1: #17b6d6; --brand2: #0b6ea4; --accent: #0d94ba; --accent-soft: #e2f5fb;
-      --navy: #0b2a4a;
+      --ink: #0b2540; --muted: #5c7186; --line: #e4eaf1; --bg: #eaeff5; --surface: #ffffff;
+      --brand1: #18c0e0; --brand2: #0b6ea4; --accent: #0c8fb8; --accent-soft: #e2f6fb;
+      --navy: #0b2540;
+      /* Rail lateral oscuro (centro de mando) */
+      --side1: #0a2138; --side2: #0e3355; --side-ink: #dbe6f1; --side-muted: #8ea6be;
+      --side-hover: rgba(255,255,255,.06); --side-active: rgba(24,192,224,.16);
       --pos: #0f9d58; --neg: #e0533d; --warn: #c07d1a;
       --radius: 16px; --shadow: 0 1px 2px rgba(11,42,74,.05), 0 6px 18px rgba(11,42,74,.06);
       --grad: linear-gradient(135deg, #1cbcda, #0b5f96);
@@ -21,7 +24,7 @@
     button, input, select { font-family: inherit; }
     button { cursor: pointer; }
 
-    /* Brand mark — un "núcleo" con su órbita (guiño a Core One) */
+    /* Brand mark — un "núcleo" con su órbita (guiño a Evolution) */
     .mark { width: 36px; height: 36px; border-radius: 12px; background: var(--grad); position: relative; flex: none;
       box-shadow: 0 5px 14px rgba(23,182,214,.42); overflow: hidden; }
     .mark::before { content:""; position:absolute; inset: 8px; border: 2px solid rgba(255,255,255,.92); border-radius: 50%; }
@@ -62,32 +65,34 @@
     .error { color: var(--neg); font-size: 12.5px; margin-top: 12px; min-height: 16px; }
 
     /* ---------- APP shell ---------- */
-    .app { display:none; grid-template-columns: 248px 1fr; min-height: 100vh; }
-    .sidebar { background: var(--surface); border-right: 1px solid var(--line); padding: 20px 14px; display:flex; flex-direction:column; }
-    .sidebar .head { display:flex; align-items:center; justify-content:space-between; padding: 4px 8px 20px; }
-    .navlabel { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #9aa0a6; padding: 4px 12px 8px; font-weight: 600; }
-    nav a { display:flex; align-items:center; gap:11px; padding: 9px 12px; border-radius: 11px; color: var(--muted); font-weight:550; margin-bottom: 2px; position: relative; }
+    .app { display:none; grid-template-columns: 262px 1fr; min-height: 100vh; }
+    .sidebar { background: linear-gradient(185deg, var(--side2), var(--side1) 62%); color: var(--side-ink); padding: 18px 14px; display:flex; flex-direction:column; position:relative; }
+    .sidebar::after { content:""; position:absolute; top:0; right:0; width:1px; height:100%; background:linear-gradient(180deg, rgba(24,192,224,.5), rgba(24,192,224,0) 40%); }
+    .sidebar .head { display:flex; align-items:center; justify-content:space-between; padding: 6px 8px 18px; }
+    .sidebar .wordmark { color:#fff; }
+    .navlabel { font-size: 10.5px; text-transform: uppercase; letter-spacing: .12em; color: var(--side-muted); padding: 12px 12px 8px; font-weight: 700; }
+    nav a { display:flex; align-items:center; gap:11px; padding: 9px 12px; border-radius: 10px; color: var(--side-ink); font-weight:500; margin-bottom: 2px; position: relative; opacity:.86; }
     nav a svg { width: 18px; height: 18px; stroke: currentColor; fill:none; stroke-width: 1.8; }
-    nav a:hover { background:#f5f6f8; color: var(--ink); }
-    nav a.active { background: var(--accent-soft); color: var(--accent); }
-    nav a.active::before { content:""; position:absolute; left: -14px; top: 8px; bottom: 8px; width: 3px; background: var(--grad); border-radius: 0 3px 3px 0; }
-    .navhead { display:flex; align-items:center; gap:11px; padding: 9px 12px; border-radius: 11px; color: var(--muted); font-weight: 650; cursor: pointer; user-select:none; }
+    nav a:hover { background: var(--side-hover); color:#fff; opacity:1; }
+    nav a.active { background: var(--side-active); color:#fff; opacity:1; font-weight:650; }
+    nav a.active::before { content:""; position:absolute; left: -14px; top: 7px; bottom: 7px; width: 3px; background: var(--brand1); border-radius: 0 3px 3px 0; box-shadow:0 0 10px rgba(24,192,224,.7); }
+    .navhead { display:flex; align-items:center; gap:11px; padding: 9px 12px; border-radius: 10px; color: var(--side-ink); font-weight: 650; cursor: pointer; user-select:none; opacity:.92; }
     .navhead > svg:first-child { width:18px; height:18px; stroke: currentColor; fill:none; stroke-width:1.8; }
-    .navhead:hover { background:#f0f5f8; color: var(--ink); }
-    .navhead .chev { width:15px; height:15px; margin-left:auto; stroke: currentColor; fill:none; stroke-width:2; opacity:.55; transition: transform .18s; }
+    .navhead:hover { background: var(--side-hover); color:#fff; }
+    .navhead .chev { width:15px; height:15px; margin-left:auto; stroke: currentColor; fill:none; stroke-width:2; opacity:.5; transition: transform .18s; }
     .navgroup.closed .chev { transform: rotate(-90deg); }
     .subnav { overflow:hidden; max-height: 320px; transition: max-height .2s ease; }
     .navgroup.closed .subnav { max-height: 0; }
-    nav a.navsub { padding: 8px 12px 8px 40px; font-weight: 540; margin-bottom: 1px; }
+    nav a.navsub { padding: 8px 12px 8px 42px; font-weight: 480; margin-bottom: 1px; font-size:13.5px; }
     .sidebar .spacer { flex:1; }
-    .userbox { display:flex; align-items:center; gap:10px; padding: 10px; border-top: 1px solid var(--line); }
+    .userbox { display:flex; align-items:center; gap:10px; padding: 12px 10px 4px; border-top: 1px solid rgba(255,255,255,.10); margin-top:6px; }
     .userbox .avatar { width:34px; height:34px; }
     .userbox .who { line-height: 1.25; }
-    .userbox .who b { font-size: 13px; } .userbox .who span { font-size: 12px; color: var(--muted); }
+    .userbox .who b { font-size: 13px; color:#fff; } .userbox .who span { font-size: 12px; color: var(--side-muted); }
 
     .main { display:flex; flex-direction:column; min-width:0; }
-    .topbar { height: 66px; border-bottom: 1px solid var(--line); background: var(--surface); display:flex; align-items:center; justify-content:space-between; padding: 0 30px; }
-    .topbar .title { font-size: 16px; font-weight: 680; letter-spacing:-.01em; }
+    .topbar { height: 64px; border-bottom: 1px solid var(--line); background: var(--surface); display:flex; align-items:center; justify-content:space-between; padding: 0 28px; box-shadow: 0 1px 0 rgba(11,37,64,.03), 0 4px 16px rgba(11,37,64,.03); position:sticky; top:0; z-index:20; }
+    .topbar .title { font-size: 17px; font-weight: 750; letter-spacing:-.015em; color:var(--navy); }
     .company { display:flex; align-items:center; gap:10px; color:var(--muted); font-weight: 550; }
     .company .chip { display:flex; align-items:center; gap:8px; background:#f5f6f8; border:1px solid var(--line); padding: 6px 12px; border-radius: 999px; }
     .avatar { width:32px; height:32px; border-radius:50%; background: var(--grad); color:#fff; display:grid; place-items:center; font-weight:650; font-size:13px; flex:none; }
@@ -218,16 +223,16 @@
   <!-- LOGIN -->
   <div id="login" class="login">
     <div class="promo">
-      <div class="wordmark"><span class="mark"></span> ALXOR <span class="tag">Core One</span></div>
-      <h2>La gestión de tu negocio, sin manual.</h2>
-      <p class="lead">Factura, controla tus gastos y cobra a tiempo. Todo en un sitio, en menos clics.</p>
+      <div class="wordmark"><span class="mark"></span> ALXOR <span class="tag">Evolution</span></div>
+      <h2>El ERP que evoluciona con tu negocio.</h2>
+      <p class="lead">Facturación, tesorería, inventario e informes en una sola plataforma. Potente por dentro, simple por fuera.</p>
       <ul>
         <li>${'' /* placeholders replaced below */}</li>
       </ul>
     </div>
     <div class="panel">
       <div class="login-card">
-        <div class="wordmark" style="margin-bottom:26px"><span class="mark"></span> ALXOR <span class="tag">Core One</span></div>
+        <div class="wordmark" style="margin-bottom:26px"><span class="mark"></span> ALXOR <span class="tag">Evolution</span></div>
         <h1>Bienvenido de nuevo</h1>
         <p class="sub">Entra para gestionar tu empresa.</p>
         <label>Correo electrónico</label>
@@ -248,7 +253,7 @@
   <!-- APP -->
   <div id="app" class="app">
     <aside class="sidebar">
-      <div class="head"><div class="wordmark" style="font-size:17px"><span class="mark"></span> ALXOR</div><span class="tag">Core One</span></div>
+      <div class="head"><div class="wordmark" style="font-size:17px"><span class="mark"></span> ALXOR</div><span class="tag">Evolution</span></div>
       <div class="navlabel">Gestión</div>
       <nav id="nav"></nav>
       <div class="spacer"></div>
@@ -286,7 +291,7 @@
     const fdate = s => { if(!s) return ""; const p=String(s).slice(0,10).split("-"); return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:String(s); };
     const check = '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4"><path d="M20 6L9 17l-5-5"/></svg>';
     document.querySelector('.promo ul').innerHTML =
-      ['Emite una factura en menos de 5 minutos','IVA e IRPF calculados por ti','Libros de IVA listos para tu gestoría']
+      ['Facturas, presupuestos y TPV en un clic','Tesorería, remesas SEPA y conciliación','Inventario, informes y modelos fiscales']
       .map(t=>`<li>${check}${t}</li>`).join('');
 
     const ICON = {
