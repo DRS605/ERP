@@ -144,6 +144,7 @@ dotnet ef migrations add <Nombre> \
 | **Recepción de facturas de proveedor** (buzón de correo + contabilización) | ✅ Terminado |
 | **Contabilidad** (partida doble: plan PGC, asientos, diario, mayor, balance) | ✅ Terminado |
 | **Compras** (solicitud → pedido → albarán → factura) | ✅ Terminado |
+| **Inventario** (multi-almacén, ubicaciones, movimientos, ubicación por defecto) | ✅ Terminado |
 | **Tesorería** (cobros y pagos) | ✅ Terminado |
 | **Documentos** (PDF y email) | ✅ Terminado |
 | **Informes** (dashboard, libros de IVA, gestoría, beneficio) | ✅ Terminado |

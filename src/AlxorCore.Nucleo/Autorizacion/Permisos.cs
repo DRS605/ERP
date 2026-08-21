@@ -34,6 +34,10 @@ public static class Permisos
     public const string CompraLeer = "compra.leer";
     public const string CompraGestionar = "compra.gestionar";
 
+    // Inventario (multi-almacén, ubicaciones, movimientos)
+    public const string InventarioLeer = "inventario.leer";
+    public const string InventarioGestionar = "inventario.gestionar";
+
     // Terceros y catálogo
     public const string ClienteGestionar = "cliente.gestionar";
     public const string ProductoGestionar = "producto.gestionar";
@@ -55,6 +59,7 @@ public static class Permisos
         CobroRegistrar, PagoRegistrar,
         ContabilidadLeer, ContabilidadGestionar,
         CompraLeer, CompraGestionar,
+        InventarioLeer, InventarioGestionar,
         ClienteGestionar, ProductoGestionar,
         InformeLeer, DatosExportar,
         EmpresaAjustes, UsuarioGestionar,

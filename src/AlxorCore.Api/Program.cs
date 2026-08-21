@@ -14,6 +14,7 @@ using AlxorCore.Gastos.Infraestructura;
 using AlxorCore.Recepcion.Infraestructura;
 using AlxorCore.Contabilidad.Infraestructura;
 using AlxorCore.Compras.Infraestructura;
+using AlxorCore.Inventario.Infraestructura;
 using AlxorCore.Tesoreria.Infraestructura;
 using AlxorCore.Documentos.Infraestructura;
 using AlxorCore.Informes.Infraestructura;
@@ -43,6 +44,7 @@ builder.Services.AgregarModuloRecepcion(builder.Configuration);
 // Contabilidad va DESPUÉS de Recepción: sustituye su IContabilizador por el que decide según modo.
 builder.Services.AgregarModuloContabilidad(builder.Configuration);
 builder.Services.AgregarModuloCompras(builder.Configuration);
+builder.Services.AgregarModuloInventario(builder.Configuration);
 builder.Services.AgregarModuloTesoreria(builder.Configuration);
 builder.Services.AgregarModuloDocumentos();
 builder.Services.AgregarModuloInformes();
@@ -124,6 +126,7 @@ if (app.Environment.IsDevelopment())
     await ambito.ServiceProvider.GetRequiredService<AlxorCore.Recepcion.Infraestructura.RecepcionDbContext>().Database.MigrateAsync().ConfigureAwait(false);
     await ambito.ServiceProvider.GetRequiredService<AlxorCore.Contabilidad.Infraestructura.ContabilidadDbContext>().Database.MigrateAsync().ConfigureAwait(false);
     await ambito.ServiceProvider.GetRequiredService<AlxorCore.Compras.Infraestructura.ComprasDbContext>().Database.MigrateAsync().ConfigureAwait(false);
+    await ambito.ServiceProvider.GetRequiredService<AlxorCore.Inventario.Infraestructura.InventarioDbContext>().Database.MigrateAsync().ConfigureAwait(false);
     await ambito.ServiceProvider.GetRequiredService<AlxorCore.Tesoreria.Infraestructura.TesoreriaDbContext>().Database.MigrateAsync().ConfigureAwait(false);
     await ambito.ServiceProvider.GetRequiredService<AlxorCore.Auditoria.Infraestructura.AuditoriaDbContext>().Database.MigrateAsync().ConfigureAwait(false);
 
@@ -156,6 +159,7 @@ app.MapearGastos();
 app.MapearRecepcion();
 app.MapearContabilidad();
 app.MapearCompras();
+app.MapearInventario();
 app.MapearTesoreria();
 app.MapearDocumentos();
 app.MapearInformes();
