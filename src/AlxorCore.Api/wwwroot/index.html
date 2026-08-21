@@ -352,13 +352,13 @@
     const NAV = [
       { t:"item", k:"inicio", l:"Inicio" },
       { t:"grupo", k:"ventas", l:"Ventas", items:[["presupuestos","Presupuestos"],["facturas","Facturas"],["tpv","TPV · Tickets"],["recurrentes","Periódicas"],["clientes","Clientes"],["cobros","Cobros"],["remesas","Remesas SEPA"]] },
-      { t:"grupo", k:"compras", l:"Compras", items:[["recepcion","Buzón de facturas"],["gastos","Gastos"],["proveedores","Proveedores"],["pagos","Pagos"],["conciliacion","Conciliación banco"]] },
+      { t:"grupo", k:"compras", l:"Compras", items:[["solicitudes","Solicitudes"],["pedidos","Pedidos de compra"],["recepcion","Buzón de facturas"],["gastos","Gastos"],["proveedores","Proveedores"],["pagos","Pagos"],["conciliacion","Conciliación banco"]] },
       { t:"grupo", k:"articulos", l:"Artículos", items:[["productos","Productos"]] },
       { t:"item", k:"informes", l:"Informes" },
       { t:"item", k:"contabilidad", l:"Contabilidad" },
       { t:"item", k:"ajustes", l:"Ajustes" },
     ];
-    const TITULOS = { inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", informes:"Informes", contabilidad:"Contabilidad", ajustes:"Ajustes" };
+    const TITULOS = { inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", informes:"Informes", contabilidad:"Contabilidad", ajustes:"Ajustes" };
     function renderNav() {
       return NAV.map(n => {
         if (n.t === "item") return `<a class="navitem" data-k="${n.k}" onclick="ir('${n.k}')">${ICON[n.k]}<span>${n.l}</span></a>`;
@@ -454,7 +454,7 @@
     function ir(k){ closeMenu(); if(vista==="tpv" && k!=="tpv" && typeof tpvParar==="function") tpvParar(); vista=k;
       document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("active",a.dataset.k===k));
       document.getElementById("viewTitle").textContent=TITULOS[k]||k;
-      ({inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,clientes:vClientes,productos:vProductos,gastos:vGastos,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,informes:vInformes,contabilidad:vContabilidad,ajustes:vAjustes}[k])();
+      ({inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,clientes:vClientes,productos:vProductos,gastos:vGastos,solicitudes:vSolicitudes,pedidos:vPedidos,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,informes:vInformes,contabilidad:vContabilidad,ajustes:vAjustes}[k])();
     }
     const view = h => document.getElementById("view").innerHTML=h;
     const panel = (t,c,a="") => `<div class="panel">${(t||a)?`<div class="panel-head">${t?`<h2>${t}</h2>`:'<span></span>'}${a}</div>`:''}${c}</div>`;
@@ -799,6 +799,92 @@
       const cuerpo=gs.length?`<table><thead><tr><th>Concepto</th><th>Proveedor</th><th class="num">Total</th><th class="num">Pagado</th><th class="num">Pendiente</th><th class="right">Estado</th></tr></thead><tbody>${filas}</tbody></table>`:vacio("pagos","Nada que pagar aún","Cuando registres gastos verás aquí su estado de pago.");
       view(panel("Pagos a proveedores",cuerpo));
     }
+    // ---- Compras: solicitudes → pedidos → albarán → factura ----
+    const estadoPillCompra = e => {
+      const c = (e==="Facturado"||e==="Aprobada"||e==="Convertida")?"ok":(e==="Cancelado"||e==="Rechazada")?"wait":(e==="Recibido")?"part":"part";
+      return `<span class="pill ${c}">${e}</span>`;
+    };
+    function lineaSolHtml(){ return `<div class="cmp-lsol" style="display:grid;grid-template-columns:3fr 1fr;gap:8px;margin-bottom:6px"><input class="ls-desc" placeholder="Descripción"/><input class="ls-cant" type="number" step="0.001" placeholder="Cantidad"/></div>`; }
+    function lineaPedHtml(d,c,p){ return `<div class="cmp-lped" style="display:grid;grid-template-columns:3fr 1fr 1fr;gap:8px;margin-bottom:6px"><input class="lp-desc" placeholder="Descripción" value="${d||''}"/><input class="lp-cant" type="number" step="0.001" placeholder="Cantidad" value="${c??''}"/><input class="lp-prec" type="number" step="0.01" placeholder="Precio" value="${p??''}"/></div>`; }
+
+    async function vSolicitudes(){
+      view('<div class="muted">Cargando…</div>');
+      const ss=await api("/compras/solicitudes");
+      const acc=s=>{
+        const b=[];
+        if(s.estado==="Borrador"){ b.push(`<button class="btn small secondary" onclick="decidirSolicitud('${s.id}','aprobar')">Aprobar</button>`); b.push(`<button class="btn small ghost" onclick="decidirSolicitud('${s.id}','rechazar')">Rechazar</button>`); }
+        if(s.estado==="Aprobada"){ b.push(`<button class="btn small" style="width:auto;margin:0;padding:9px 14px" onclick="modalPedidoDesde('${s.id}')">→ Crear pedido</button>`); }
+        return b.join(" ");
+      };
+      const filas=ss.map(s=>`<tr><td><strong>${s.proveedorSugerido||'—'}</strong><div class="muted" style="font-size:12px">${s.lineas.length} línea(s)${s.notas?(' · '+s.notas):''}</div></td><td class="muted">${s.lineas.map(l=>l.descripcion+' ×'+l.cantidad).slice(0,2).join(', ')}${s.lineas.length>2?'…':''}</td><td class="right">${estadoPillCompra(s.estado)}</td><td class="right" style="white-space:nowrap">${acc(s)}</td></tr>`).join("");
+      const tabla=ss.length?`<table><thead><tr><th>Proveedor sugerido</th><th>Artículos</th><th class="right">Estado</th><th class="right">Acciones</th></tr></thead><tbody>${filas}</tbody></table>`
+        :vacio("compras","Sin solicitudes de compra","Crea una solicitud interna; al aprobarla podrás convertirla en pedido a proveedor.",`<button class="btn small" onclick="modalSolicitud()">+ Nueva solicitud</button>`);
+      view(panel("Solicitudes de compra",tabla,`<button class="btn small" onclick="modalSolicitud()">+ Nueva solicitud</button>`));
+    }
+    function modalSolicitud(){
+      abrir("Nueva solicitud de compra",`<div class="grid2"><div><label>Proveedor sugerido (opcional)</label><input id="sol_prov"/></div><div><label>Notas (opcional)</label><input id="sol_notas"/></div></div>
+        <label style="margin-top:12px">Artículos solicitados</label><div id="sol_lineas">${lineaSolHtml()+lineaSolHtml()}</div>
+        <button class="btn small secondary" style="margin-top:4px" onclick="document.getElementById('sol_lineas').insertAdjacentHTML('beforeend',lineaSolHtml())">+ Añadir línea</button>`,
+        async()=>{ const lineas=[...document.querySelectorAll('#sol_lineas .cmp-lsol')].map(r=>({descripcion:(r.querySelector('.ls-desc').value||'').trim(),cantidad:Number(r.querySelector('.ls-cant').value||0)})).filter(l=>l.descripcion&&l.cantidad>0);
+          await api("/compras/solicitudes",{method:"POST",body:JSON.stringify({proveedorSugerido:val("sol_prov")||null,notas:val("sol_notas")||null,lineas})});
+          toast("Solicitud creada.","ok"); vSolicitudes(); });
+    }
+    async function decidirSolicitud(id,accion){
+      try{ let body=null; if(accion==="rechazar"){ const m=prompt("Motivo del rechazo (opcional):")||""; body=JSON.stringify({motivo:m}); }
+        await api(`/compras/solicitudes/${id}/${accion}`,{method:"POST",body}); toast("Solicitud "+(accion==="aprobar"?"aprobada":"rechazada")+".","ok"); vSolicitudes();
+      }catch(e){ toast(e.message,"err"); }
+    }
+    async function modalPedidoDesde(solId){
+      const s=(await api("/compras/solicitudes")).find(x=>x.id===solId); if(!s){ toast("Solicitud no encontrada","err"); return; }
+      modalPedido(s.proveedorSugerido, s.lineas.map(l=>({d:l.descripcion,c:l.cantidad,p:''})), solId);
+    }
+
+    async function vPedidos(){
+      view('<div class="muted">Cargando…</div>');
+      const ps=await api("/compras/pedidos");
+      const acc=p=>{
+        const b=[];
+        if(p.estado==="Borrador") b.push(`<button class="btn small secondary" onclick="accionPedido('${p.id}','confirmar')">Confirmar</button>`);
+        if(p.estado==="Confirmado"||p.estado==="Recibido"){ b.push(`<button class="btn small secondary" onclick="modalRecibir('${p.id}')">Recibir</button>`); b.push(`<button class="btn small" style="width:auto;margin:0;padding:9px 14px" onclick="modalFacturarPedido('${p.id}')">Facturar</button>`); }
+        if(p.estado!=="Facturado"&&p.estado!=="Cancelado") b.push(`<button class="btn small ghost" onclick="accionPedido('${p.id}','cancelar')" title="Cancelar">✕</button>`);
+        return b.join(" ");
+      };
+      const filas=ps.map(p=>`<tr><td><strong>${p.proveedorTexto}</strong><div class="muted" style="font-size:12px">${fdate(p.fecha)} · ${p.lineas.length} línea(s)${p.recibidoCompleto?' · recibido':''}</div></td><td class="num">${eur(p.total)}</td><td class="right">${estadoPillCompra(p.estado)}</td><td class="right" style="white-space:nowrap">${acc(p)}</td></tr>`).join("");
+      const tabla=ps.length?`<table><thead><tr><th>Proveedor</th><th class="num">Total</th><th class="right">Estado</th><th class="right">Acciones</th></tr></thead><tbody>${filas}</tbody></table>`
+        :vacio("compras","Sin pedidos de compra","Crea un pedido a proveedor (o conviértelo desde una solicitud aprobada).",`<button class="btn small" onclick="modalPedido()">+ Nuevo pedido</button>`);
+      view(panel("Pedidos de compra",tabla,`<button class="btn small" onclick="modalPedido()">+ Nuevo pedido</button>`));
+    }
+    async function modalPedido(prov, lineas, solId){
+      const provs=await api("/proveedores").catch(()=>[]);
+      const opts=provs.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join("");
+      const filasIni=(lineas&&lineas.length?lineas:[{},{}]).map(l=>lineaPedHtml(l.d,l.c,l.p)).join("");
+      abrir("Nuevo pedido de compra",`<label>Proveedor (de la lista)</label><select id="ped_provid"><option value="">— Escribir a mano —</option>${opts}</select>
+        <label>o nombre del proveedor</label><input id="ped_provtxt" value="${prov||''}"/>
+        <label style="margin-top:12px">Líneas del pedido</label><div id="ped_lineas">${filasIni}</div>
+        <button class="btn small secondary" style="margin-top:4px" onclick="document.getElementById('ped_lineas').insertAdjacentHTML('beforeend',lineaPedHtml())">+ Añadir línea</button>`,
+        async()=>{ const provId=val("ped_provid")||null; const lin=[...document.querySelectorAll('#ped_lineas .cmp-lped')].map(r=>({descripcion:(r.querySelector('.lp-desc').value||'').trim(),cantidad:Number(r.querySelector('.lp-cant').value||0),precioUnitario:Number(r.querySelector('.lp-prec').value||0)})).filter(l=>l.descripcion&&l.cantidad>0);
+          await api("/compras/pedidos",{method:"POST",body:JSON.stringify({proveedorId:provId,proveedorTexto:provId?null:(val("ped_provtxt")||null),solicitudOrigenId:solId||null,lineas:lin})});
+          toast("Pedido creado.","ok"); ir('pedidos'); });
+    }
+    async function accionPedido(id,accion){ try{ await api(`/compras/pedidos/${id}/${accion}`,{method:"POST"}); toast("Pedido "+(accion==="confirmar"?"confirmado":"cancelado")+".","ok"); vPedidos(); }catch(e){ toast(e.message,"err"); } }
+    async function modalRecibir(id){
+      const p=await api("/compras/pedidos/"+id);
+      const filas=p.lineas.filter(l=>l.pendienteRecibir>0).map(l=>`<div class="cmp-rec" data-id="${l.id}" style="display:grid;grid-template-columns:3fr 1fr;gap:8px;margin-bottom:6px;align-items:center"><div>${l.descripcion} <span class="muted" style="font-size:12px">(pendiente ${l.pendienteRecibir})</span></div><input class="rec-cant" type="number" step="0.001" value="${l.pendienteRecibir}" max="${l.pendienteRecibir}"/></div>`).join("");
+      abrir("Recibir mercancía",`<div class="grid2"><div><label>Fecha</label><input id="rec_fecha" type="date" value="${new Date().toISOString().slice(0,10)}"/></div><div><label>Nº albarán proveedor (opcional)</label><input id="rec_ref"/></div></div>
+        <label style="margin-top:12px">Cantidades recibidas</label>${filas||'<p class="muted">Este pedido ya está recibido por completo.</p>'}`,
+        async()=>{ const lineas=[...document.querySelectorAll('.cmp-rec')].map(r=>({lineaPedidoId:r.dataset.id,cantidad:Number(r.querySelector('.rec-cant').value||0)})).filter(l=>l.cantidad>0);
+          if(!lineas.length) throw new Error("Indica alguna cantidad recibida.");
+          await api(`/compras/pedidos/${id}/recibir`,{method:"POST",body:JSON.stringify({fecha:val("rec_fecha"),referencia:val("rec_ref")||null,lineas})});
+          toast("Recepción registrada (albarán).","ok"); vPedidos(); });
+    }
+    function modalFacturarPedido(id){
+      const iva=["IVA21","IVA10","IVA4","IVA0"].map(c=>`<option value="${c}"${c==="IVA21"?" selected":""}>${c.replace("IVA","")+" %"}</option>`).join("");
+      abrir("Facturar pedido",`<p class="muted" style="margin:0 0 12px">Se generará el gasto con IVA soportado (y el asiento si la contabilidad está en modo Completo).</p>
+        <div class="grid2"><div><label>IVA</label><select id="fac_iva">${iva}</select></div><div><label>Retención IRPF (%)</label><input id="fac_irpf" type="number" step="0.01" value="0"/></div></div>`,
+        async()=>{ await api(`/compras/pedidos/${id}/facturar`,{method:"POST",body:JSON.stringify({codigoIva:val("fac_iva"),porcentajeIrpf:Number(val("fac_irpf")||0)})});
+          toast("Pedido facturado y contabilizado.","ok"); vPedidos(); });
+    }
+
     // ---- Contabilidad (partida doble: modo, diario, balance, asientos) ----
     async function vContabilidad() {
       view('<div class="muted">Cargando…</div>');
