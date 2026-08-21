@@ -139,6 +139,9 @@
     .kpi.warn .chipico { background:#fdf1e5; color: var(--warn); }
     .kpi.pos .chipico { background:#e7f6ee; color: var(--pos); }
     .kpi .val.neg { color: var(--neg); }
+    .kpi .top .trend { font-size: 12px; font-weight: 800; padding: 3px 8px; border-radius: 999px; }
+    .kpi .top .trend.up { color: var(--pos); background: rgba(15,157,88,.12); }
+    .kpi .top .trend.down { color: var(--neg); background: rgba(224,83,61,.12); }
 
     .panel { background: var(--surface); border:1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); overflow:hidden; }
     .panel + .panel { margin-top: 18px; }
@@ -444,10 +447,16 @@
 
     async function vInicio() {
       view('<div class="muted">Cargando…</div>');
-      const [d,facturas,recurrentes]=await Promise.all([api("/informes/dashboard"),api("/facturas"),api("/facturas-recurrentes").catch(()=>[])]);
+      const [d,facturas,recurrentes,gastos]=await Promise.all([api("/informes/dashboard"),api("/facturas"),api("/facturas-recurrentes").catch(()=>[]),api("/gastos").catch(()=>[])]);
       const fecha=new Date().toLocaleDateString("es-ES",{weekday:"long",day:"numeric",month:"long"});
       const hora=new Date().getHours(); const saludo=hora<13?"Buenos días":hora<20?"Buenas tardes":"Buenas noches";
       const nombre=(usuario?.nombre||"").split(" ")[0];
+      // Series mensuales del año en curso para calcular tendencia mes-a-mes.
+      const anio=new Date().getFullYear(), mesIdx=new Date().getMonth();
+      const serieMes=(arr,dk,filtro)=>{const r=Array(12).fill(0);(arr||[]).forEach(x=>{if(filtro&&!filtro(x))return;const s=(x[dk]||"").slice(0,10);if(s.slice(0,4)==String(anio)){const m=+s.slice(5,7)-1;if(m>=0&&m<12)r[m]+=Number(x.total)||0;}});return r;};
+      const fMes=serieMes(facturas,"fechaEmision",f=>f.estado==="Emitida"), gMes=serieMes(gastos,"fecha");
+      const trend=(a,b,inverso)=>{ if(mesIdx<1||!b) return ""; const p=((a-b)/b)*100; const up=p>=0; const bueno=inverso?!up:up; return `<span class="trend ${bueno?'up':'down'}" title="vs. mes anterior">${up?'▲':'▼'} ${Math.abs(p).toFixed(1)}%</span>`; };
+      const benef=(d.facturadoMes||0)-(d.gastadoMes||0);
       const hero=`<div class="hero">
         <span class="eyebrow"><span class="dot"></span>${fecha.charAt(0).toUpperCase()+fecha.slice(1)}</span>
         <h1>${saludo}, ${nombre} 👋</h1>
@@ -458,10 +467,11 @@
           <button class="btn line" onclick="modalGasto()">＋ Registrar gasto</button>
         </div></div>`;
       const kpis=`<div class="kpis">
-        <div class="kpi"><div class="top"><div class="chipico">${kIcon.fact}</div></div><div class="lbl">Facturado este mes</div><div class="val">${eur(d.facturadoMes)}</div></div>
+        <div class="kpi"><div class="top"><div class="chipico">${kIcon.fact}</div>${trend(fMes[mesIdx],fMes[mesIdx-1])}</div><div class="lbl">Facturado este mes</div><div class="val">${eur(d.facturadoMes)}</div></div>
         <div class="kpi warn"><div class="top"><div class="chipico">${kIcon.cobro}</div></div><div class="lbl">Pendiente de cobro</div><div class="val ${d.pendienteCobro>0?'neg':''}">${eur(d.pendienteCobro)}</div></div>
-        <div class="kpi"><div class="top"><div class="chipico">${kIcon.gasto}</div></div><div class="lbl">Gastos este mes</div><div class="val">${eur(d.gastadoMes)}</div></div>
-        <div class="kpi pos"><div class="top"><div class="chipico">${kIcon.pago}</div></div><div class="lbl">Pendiente de pago</div><div class="val">${eur(d.pendientePago)}</div></div></div>`;
+        <div class="kpi"><div class="top"><div class="chipico">${kIcon.gasto}</div>${trend(gMes[mesIdx],gMes[mesIdx-1],true)}</div><div class="lbl">Gastos este mes</div><div class="val">${eur(d.gastadoMes)}</div></div>
+        <div class="kpi pos"><div class="top"><div class="chipico">${kIcon.saldo||kIcon.pago}</div></div><div class="lbl">Beneficio del mes</div><div class="val ${benef<0?'neg':''}">${eur(benef)}</div></div></div>`;
+      const graficos=graficosHtml(facturas,gastos,anio);
       const filas=facturas.slice(0,6).map(f=>`<tr><td><strong>${f.numeroCompleto}</strong></td><td>${f.clienteNombre}</td><td class="muted">${fdate(f.fechaEmision)}</td><td class="num"><strong>${eur(f.total)}</strong></td><td class="right"><span class="pill ok">${f.estado}</span></td></tr>`).join("");
       const tabla=facturas.length?`<table><thead><tr><th>Número</th><th>Cliente</th><th>Fecha</th><th class="num">Total</th><th class="right">Estado</th></tr></thead><tbody>${filas}</tbody></table>`
         :vacio("facturas","Aún no has emitido facturas","Crea tu primera factura y cóbrala en un minuto.",`<button class="btn small" onclick="modalFactura()">+ Nueva factura</button>`);
@@ -471,7 +481,7 @@
         const pf=activas.map(r=>`<tr><td><strong>${r.nombre}</strong></td><td>${r.clienteNombre}</td><td class="muted">${r.periodicidad}</td><td class="muted">${fdate(r.proximaEmision)}</td><td class="num"><strong>${eur(r.total)}</strong></td></tr>`).join("");
         periodicas=panel("Próximas facturas automáticas",`<table><thead><tr><th>Concepto</th><th>Cliente</th><th>Cada</th><th>Próxima</th><th class="num">Importe</th></tr></thead><tbody>${pf}</tbody></table>`,`<button class="btn small ghost" onclick="ir('recurrentes')">Gestionar</button>`);
       }
-      view(hero+kpis+panel("Últimas facturas",tabla)+periodicas);
+      view(hero+kpis+graficos+panel("Últimas facturas",tabla)+periodicas);
     }
 
     async function vFacturas() {
