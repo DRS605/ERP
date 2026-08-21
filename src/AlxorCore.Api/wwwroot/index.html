@@ -338,6 +338,7 @@
       proveedores:'<svg viewBox="0 0 24 24"><path d="M3 9l2-5h14l2 5"/><path d="M4 9v11h16V9"/><path d="M9 20v-6h6v6"/></svg>',
       cobros:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9 12h6M12 9v6"/></svg>',
       informes:'<svg viewBox="0 0 24 24"><path d="M4 20V4M4 20h16"/><path d="M8 16v-5M13 16V8M18 16v-9"/></svg>',
+      contabilidad:'<svg viewBox="0 0 24 24"><path d="M4 4h13l3 3v13H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>',
       recurrentes:'<svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13-6l3 2"/><path d="M20 4v4h-4"/><path d="M20 12a8 8 0 0 1-13 6l-3-2"/><path d="M4 20v-4h4"/></svg>',
       tpv:'<svg viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 12h10"/></svg>',
       ajustes:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 0 1-4 0v-.1A1.7 1.7 0 0 0 7 19.4a1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9H1a2 2 0 0 1 0-4h.1A1.7 1.7 0 0 0 2.6 7a1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 9 1.6V1a2 2 0 0 1 4 0v.1A1.7 1.7 0 0 0 17 2.6a1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0 1.2 2.9H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>'
@@ -354,9 +355,10 @@
       { t:"grupo", k:"compras", l:"Compras", items:[["recepcion","Buzón de facturas"],["gastos","Gastos"],["proveedores","Proveedores"],["pagos","Pagos"],["conciliacion","Conciliación banco"]] },
       { t:"grupo", k:"articulos", l:"Artículos", items:[["productos","Productos"]] },
       { t:"item", k:"informes", l:"Informes" },
+      { t:"item", k:"contabilidad", l:"Contabilidad" },
       { t:"item", k:"ajustes", l:"Ajustes" },
     ];
-    const TITULOS = { inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", informes:"Informes", ajustes:"Ajustes" };
+    const TITULOS = { inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", informes:"Informes", contabilidad:"Contabilidad", ajustes:"Ajustes" };
     function renderNav() {
       return NAV.map(n => {
         if (n.t === "item") return `<a class="navitem" data-k="${n.k}" onclick="ir('${n.k}')">${ICON[n.k]}<span>${n.l}</span></a>`;
@@ -452,7 +454,7 @@
     function ir(k){ closeMenu(); if(vista==="tpv" && k!=="tpv" && typeof tpvParar==="function") tpvParar(); vista=k;
       document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("active",a.dataset.k===k));
       document.getElementById("viewTitle").textContent=TITULOS[k]||k;
-      ({inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,clientes:vClientes,productos:vProductos,gastos:vGastos,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,informes:vInformes,ajustes:vAjustes}[k])();
+      ({inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,clientes:vClientes,productos:vProductos,gastos:vGastos,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,informes:vInformes,contabilidad:vContabilidad,ajustes:vAjustes}[k])();
     }
     const view = h => document.getElementById("view").innerHTML=h;
     const panel = (t,c,a="") => `<div class="panel">${(t||a)?`<div class="panel-head">${t?`<h2>${t}</h2>`:'<span></span>'}${a}</div>`:''}${c}</div>`;
@@ -797,6 +799,69 @@
       const cuerpo=gs.length?`<table><thead><tr><th>Concepto</th><th>Proveedor</th><th class="num">Total</th><th class="num">Pagado</th><th class="num">Pendiente</th><th class="right">Estado</th></tr></thead><tbody>${filas}</tbody></table>`:vacio("pagos","Nada que pagar aún","Cuando registres gastos verás aquí su estado de pago.");
       view(panel("Pagos a proveedores",cuerpo));
     }
+    // ---- Contabilidad (partida doble: modo, diario, balance, asientos) ----
+    async function vContabilidad() {
+      view('<div class="muted">Cargando…</div>');
+      const anio=new Date().getFullYear();
+      const [modoR,diario,balance]=await Promise.all([
+        api("/contabilidad/modo"),
+        api("/contabilidad/diario?ejercicio="+anio),
+        api("/contabilidad/balance?ejercicio="+anio),
+      ]);
+      const modo=modoR.modo||"Simple";
+      const banner=`<div class="panel" style="padding:16px 18px;margin-bottom:18px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+        <div style="flex:1;min-width:240px"><strong>Modo de contabilidad</strong>
+          <div class="muted" style="font-size:12.5px;margin-top:2px">${modo==="Completo"?"Partida doble: cada factura de proveedor genera su asiento (libro diario y mayor).":"Un libro: contabilizar registra el gasto con IVA soportado. Sin asientos."}</div></div>
+        <select id="cont_modo" onchange="cambiarModoContab(this.value)" style="width:auto;min-width:180px">
+          <option value="Simple"${modo==="Simple"?" selected":""}>Simple (un libro)</option>
+          <option value="Completo"${modo==="Completo"?" selected":""}>Completo (partida doble)</option>
+        </select></div>`;
+      // Diario
+      const asientoHtml=a=>{
+        const ap=a.apuntes.map(p=>`<tr><td style="padding-left:24px" class="muted">${p.cuentaCodigo}${p.concepto?(' · '+p.concepto):''}</td><td class="num">${p.debe>0?eur(p.debe):''}</td><td class="num">${p.haber>0?eur(p.haber):''}</td></tr>`).join("");
+        return `<tr><td><strong>#${a.numero}</strong> · ${fdate(a.fecha)} <span class="pill ${a.origen==="Compra"?"part":"ok"}" style="margin-left:6px">${a.origen}</span><div class="muted" style="font-size:12.5px">${a.concepto}</div></td><td class="num"></td><td class="num"><strong>${eur(a.total)}</strong></td></tr>${ap}`;
+      };
+      const diarioTabla=diario.length
+        ? `<table><thead><tr><th>Asiento</th><th class="num">Debe</th><th class="num">Haber</th></tr></thead><tbody>${diario.map(asientoHtml).join("")}</tbody></table>`
+        : vacio("informes","Sin asientos en "+anio,"Los asientos aparecerán aquí (manuales o generados al contabilizar facturas en modo Completo).",`<button class="btn small" onclick="modalAsiento()">+ Nuevo asiento</button>`);
+      // Balance
+      const totD=balance.reduce((a,b)=>a+b.sumaDebe,0), totH=balance.reduce((a,b)=>a+b.sumaHaber,0);
+      const balTabla=balance.length
+        ? `<table><thead><tr><th>Cuenta</th><th>Nombre</th><th class="num">Debe</th><th class="num">Haber</th><th class="num">Saldo D</th><th class="num">Saldo A</th></tr></thead><tbody>${balance.map(s=>`<tr><td><strong>${s.cuentaCodigo}</strong></td><td class="muted">${s.cuentaNombre}</td><td class="num">${eur(s.sumaDebe)}</td><td class="num">${eur(s.sumaHaber)}</td><td class="num">${s.saldoDeudor>0?eur(s.saldoDeudor):''}</td><td class="num">${s.saldoAcreedor>0?eur(s.saldoAcreedor):''}</td></tr>`).join("")}<tr style="border-top:2px solid var(--line)"><td colspan="2"><strong>Totales</strong></td><td class="num"><strong>${eur(totD)}</strong></td><td class="num"><strong>${eur(totH)}</strong></td><td colspan="2"></td></tr></tbody></table>`
+        : '<p class="muted">Sin movimientos en '+anio+'.</p>';
+      view(banner
+        +panel("Libro diario · "+anio,diarioTabla,`<button class="btn small" onclick="modalAsiento()">+ Nuevo asiento</button>`)
+        +panel("Balance de sumas y saldos · "+anio,balTabla));
+    }
+    async function cambiarModoContab(modo){
+      try{ await api("/contabilidad/modo",{method:"PUT",body:JSON.stringify({modo})});
+        toast("Modo de contabilidad: "+modo,"ok"); vContabilidad();
+      }catch(e){ toast(e.message,"err"); vContabilidad(); }
+    }
+    function asientoLineaHtml(){
+      return `<div class="asi-linea" style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px;margin-bottom:6px">
+        <input class="asi-cta" placeholder="Cuenta (p.ej. 600)"/>
+        <input class="asi-debe" type="number" step="0.01" placeholder="Debe"/>
+        <input class="asi-haber" type="number" step="0.01" placeholder="Haber"/></div>`;
+    }
+    function modalAsiento(){
+      const hoy=new Date().toISOString().slice(0,10);
+      abrir("Nuevo asiento",`
+        <div class="grid2"><div><label>Fecha</label><input id="asi_fecha" type="date" value="${hoy}"/></div><div><label>Concepto</label><input id="asi_concepto" placeholder="Descripción del asiento"/></div></div>
+        <label style="margin-top:14px">Apuntes (la suma del debe debe igualar la del haber)</label>
+        <div id="asi_lineas">${asientoLineaHtml()+asientoLineaHtml()}</div>
+        <button class="btn small secondary" style="margin-top:4px" onclick="document.getElementById('asi_lineas').insertAdjacentHTML('beforeend', asientoLineaHtml())">+ Añadir línea</button>`,
+        async()=>{
+          const lineas=[...document.querySelectorAll('#asi_lineas .asi-linea')].map(r=>({
+            cuentaCodigo:(r.querySelector('.asi-cta').value||'').trim(),
+            debe:Number(r.querySelector('.asi-debe').value||0),
+            haber:Number(r.querySelector('.asi-haber').value||0),
+          })).filter(l=>l.cuentaCodigo && (l.debe>0||l.haber>0));
+          await api("/contabilidad/asientos",{method:"POST",body:JSON.stringify({fecha:val("asi_fecha"),concepto:val("asi_concepto"),lineas})});
+          toast("Asiento registrado.","ok"); vContabilidad();
+        });
+    }
+
     // ---- Recepción de facturas de proveedor (bandeja + contabilización) ----
     let _cacheRecibidas=[];
     const estadoPillRec = e => {
