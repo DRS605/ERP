@@ -9,10 +9,11 @@ public sealed class LineaAlbaran
 {
     private LineaAlbaran() { Descripcion = null!; }
 
-    internal LineaAlbaran(Guid id, Guid lineaPedidoId, string descripcion, decimal cantidad)
+    internal LineaAlbaran(Guid id, Guid lineaPedidoId, Guid? productoId, string descripcion, decimal cantidad)
     {
         Id = id;
         LineaPedidoId = lineaPedidoId;
+        ProductoId = productoId;
         Descripcion = descripcion;
         Cantidad = cantidad;
     }
@@ -20,6 +21,8 @@ public sealed class LineaAlbaran
     public Guid Id { get; private set; }
 
     public Guid LineaPedidoId { get; private set; }
+
+    public Guid? ProductoId { get; private set; }
 
     public string Descripcion { get; private set; }
 
@@ -36,16 +39,20 @@ public sealed class AlbaranCompra : RaizAgregadoEmpresa<Guid>
 
     private AlbaranCompra(Guid id) : base(id, Guid.Empty) { }
 
-    private AlbaranCompra(Guid id, Guid empresaId, Guid pedidoId, DateOnly fecha, string? referencia, DateTimeOffset ahora)
+    private AlbaranCompra(Guid id, Guid empresaId, Guid pedidoId, int numero, DateOnly fecha, string? referencia, DateTimeOffset ahora)
         : base(id, empresaId)
     {
         PedidoId = pedidoId;
+        Numero = numero;
         Fecha = fecha;
         Referencia = referencia;
         CreadoEn = ahora;
     }
 
     public Guid PedidoId { get; private set; }
+
+    /// <summary>Número correlativo del albarán de recepción (por empresa y ejercicio).</summary>
+    public int Numero { get; private set; }
 
     public DateOnly Fecha { get; private set; }
 
@@ -56,8 +63,8 @@ public sealed class AlbaranCompra : RaizAgregadoEmpresa<Guid>
 
     public IReadOnlyList<LineaAlbaran> Lineas => _lineas;
 
-    public static Resultado<AlbaranCompra> Crear(Guid empresaId, Guid pedidoId, DateOnly fecha, string? referencia,
-        IReadOnlyList<(Guid LineaPedidoId, string Descripcion, decimal Cantidad)> lineas, IReloj reloj)
+    public static Resultado<AlbaranCompra> Crear(Guid empresaId, Guid pedidoId, int numero, DateOnly fecha, string? referencia,
+        IReadOnlyList<(Guid LineaPedidoId, Guid? ProductoId, string Descripcion, decimal Cantidad)> lineas, IReloj reloj)
     {
         ArgumentNullException.ThrowIfNull(reloj);
         ArgumentNullException.ThrowIfNull(lineas);
@@ -66,10 +73,10 @@ public sealed class AlbaranCompra : RaizAgregadoEmpresa<Guid>
             return Resultado.Fallo<AlbaranCompra>(Error.Validacion("albaran.sin_lineas", "El albarán necesita al menos una línea recibida."));
         }
 
-        var albaran = new AlbaranCompra(Guid.NewGuid(), empresaId, pedidoId, fecha, referencia?.Trim(), reloj.AhoraUtc);
+        var albaran = new AlbaranCompra(Guid.NewGuid(), empresaId, pedidoId, numero, fecha, referencia?.Trim(), reloj.AhoraUtc);
         foreach (var l in lineas)
         {
-            albaran._lineas.Add(new LineaAlbaran(Guid.NewGuid(), l.LineaPedidoId, l.Descripcion?.Trim() ?? string.Empty, l.Cantidad));
+            albaran._lineas.Add(new LineaAlbaran(Guid.NewGuid(), l.LineaPedidoId, l.ProductoId, l.Descripcion?.Trim() ?? string.Empty, l.Cantidad));
         }
 
         return Resultado.Ok(albaran);

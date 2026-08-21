@@ -17,8 +17,8 @@ public sealed class PedidoCompraTests
     private static readonly DateOnly Fecha = new(2026, 8, 1);
 
     private static PedidoCompra Pedido() =>
-        PedidoCompra.Crear(Empresa, null, "Suministros Ebro SL", Fecha, null,
-            new[] { ("Tornillos", 10m, 2m), ("Tuercas", 20m, 1m) }, Reloj).Valor;
+        PedidoCompra.Crear(Empresa, null, "Suministros Ebro SL", Fecha, 1, null,
+            new (Guid?, string, decimal, decimal)[] { (null, "Tornillos", 10m, 2m), (null, "Tuercas", 20m, 1m) }, Reloj).Valor;
 
     [Fact]
     public void Crear_calcula_el_total()

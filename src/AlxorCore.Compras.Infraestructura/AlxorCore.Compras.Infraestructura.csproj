@@ -7,6 +7,8 @@
     <ProjectReference Include="..\AlxorCore.Nucleo\AlxorCore.Nucleo.csproj" />
     <ProjectReference Include="..\AlxorCore.Persistencia\AlxorCore.Persistencia.csproj" />
     <ProjectReference Include="..\AlxorCore.Compras\AlxorCore.Compras.csproj" />
+    <!-- La entrada automática al recibir albarán se apoya en los casos de uso del módulo Inventario. -->
+    <ProjectReference Include="..\AlxorCore.Inventario\AlxorCore.Inventario.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.10">

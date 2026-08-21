@@ -22,15 +22,19 @@ public sealed class LineaPedido
 {
     private LineaPedido() { Descripcion = null!; }
 
-    internal LineaPedido(Guid id, string descripcion, decimal cantidad, decimal precioUnitario)
+    internal LineaPedido(Guid id, Guid? productoId, string descripcion, decimal cantidad, decimal precioUnitario)
     {
         Id = id;
+        ProductoId = productoId;
         Descripcion = descripcion;
         Cantidad = cantidad;
         PrecioUnitario = precioUnitario;
     }
 
     public Guid Id { get; private set; }
+
+    /// <summary>Artículo del catálogo (opcional; permite la entrada automática en inventario).</summary>
+    public Guid? ProductoId { get; private set; }
 
     public string Descripcion { get; private set; }
 
@@ -63,12 +67,14 @@ public sealed class PedidoCompra : RaizAgregadoEmpresa<Guid>
     private PedidoCompra(Guid id) : base(id, Guid.Empty) { ProveedorTexto = null!; }
 
     private PedidoCompra(Guid id, Guid empresaId, Guid? proveedorId, string proveedorTexto, DateOnly fecha,
-        Guid? solicitudOrigenId, DateTimeOffset ahora)
+        int ejercicio, int numero, Guid? solicitudOrigenId, DateTimeOffset ahora)
         : base(id, empresaId)
     {
         ProveedorId = proveedorId;
         ProveedorTexto = proveedorTexto;
         Fecha = fecha;
+        Ejercicio = ejercicio;
+        Numero = numero;
         SolicitudOrigenId = solicitudOrigenId;
         Estado = EstadoPedido.Borrador;
         CreadoEn = ahora;
@@ -79,6 +85,12 @@ public sealed class PedidoCompra : RaizAgregadoEmpresa<Guid>
     public string ProveedorTexto { get; private set; }
 
     public DateOnly Fecha { get; private set; }
+
+    /// <summary>Ejercicio (año) del pedido.</summary>
+    public int Ejercicio { get; private set; }
+
+    /// <summary>Número correlativo del pedido, por empresa · ejercicio · proveedor (serie por proveedor y año).</summary>
+    public int Numero { get; private set; }
 
     public Guid? SolicitudOrigenId { get; private set; }
 
@@ -94,7 +106,7 @@ public sealed class PedidoCompra : RaizAgregadoEmpresa<Guid>
     public bool RecibidoCompleto => _lineas.Count > 0 && _lineas.All(l => l.CantidadRecibida >= l.Cantidad);
 
     public static Resultado<PedidoCompra> Crear(Guid empresaId, Guid? proveedorId, string? proveedorTexto,
-        DateOnly fecha, Guid? solicitudOrigenId, IReadOnlyList<(string Descripcion, decimal Cantidad, decimal Precio)> lineas, IReloj reloj)
+        DateOnly fecha, int numero, Guid? solicitudOrigenId, IReadOnlyList<(Guid? ProductoId, string Descripcion, decimal Cantidad, decimal Precio)> lineas, IReloj reloj)
     {
         ArgumentNullException.ThrowIfNull(reloj);
         ArgumentNullException.ThrowIfNull(lineas);
@@ -121,10 +133,10 @@ public sealed class PedidoCompra : RaizAgregadoEmpresa<Guid>
             }
         }
 
-        var pedido = new PedidoCompra(Guid.NewGuid(), empresaId, proveedorId, proveedorTexto.Trim(), fecha, solicitudOrigenId, reloj.AhoraUtc);
+        var pedido = new PedidoCompra(Guid.NewGuid(), empresaId, proveedorId, proveedorTexto.Trim(), fecha, fecha.Year, numero, solicitudOrigenId, reloj.AhoraUtc);
         foreach (var l in lineas)
         {
-            pedido._lineas.Add(new LineaPedido(Guid.NewGuid(), l.Descripcion.Trim(), l.Cantidad, Redondeo.Dos(l.Precio)));
+            pedido._lineas.Add(new LineaPedido(Guid.NewGuid(), l.ProductoId, l.Descripcion.Trim(), l.Cantidad, Redondeo.Dos(l.Precio)));
         }
 
         return Resultado.Ok(pedido);

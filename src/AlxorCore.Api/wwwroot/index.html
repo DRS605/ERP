@@ -844,7 +844,7 @@
       return `<span class="pill ${c}">${e}</span>`;
     };
     function lineaSolHtml(){ return `<div class="cmp-lsol" style="display:grid;grid-template-columns:3fr 1fr;gap:8px;margin-bottom:6px"><input class="ls-desc" placeholder="Descripción"/><input class="ls-cant" type="number" step="0.001" placeholder="Cantidad"/></div>`; }
-    function lineaPedHtml(d,c,p){ return `<div class="cmp-lped" style="display:grid;grid-template-columns:3fr 1fr 1fr;gap:8px;margin-bottom:6px"><input class="lp-desc" placeholder="Descripción" value="${d||''}"/><input class="lp-cant" type="number" step="0.001" placeholder="Cantidad" value="${c??''}"/><input class="lp-prec" type="number" step="0.01" placeholder="Precio" value="${p??''}"/></div>`; }
+    function lineaPedHtml(d,c,p,prodId){ const po=(window._prodOpts||''); return `<div class="cmp-lped" style="display:grid;grid-template-columns:${po?'2fr ':''}3fr 1fr 1fr;gap:8px;margin-bottom:6px">${po?`<select class="lp-prod" title="Artículo del catálogo (opcional; permite la entrada automática al recibir)"><option value="">— Sin artículo —</option>${po}</select>`:''}<input class="lp-desc" placeholder="Descripción" value="${d||''}"/><input class="lp-cant" type="number" step="0.001" placeholder="Cantidad" value="${c??''}"/><input class="lp-prec" type="number" step="0.01" placeholder="Precio" value="${p??''}"/></div>`; }
 
     async function vSolicitudes(){
       view('<div class="muted">Cargando…</div>');
@@ -888,32 +888,37 @@
         if(p.estado!=="Facturado"&&p.estado!=="Cancelado") b.push(`<button class="btn small ghost" onclick="accionPedido('${p.id}','cancelar')" title="Cancelar">✕</button>`);
         return b.join(" ");
       };
-      const filas=ps.map(p=>`<tr><td><strong>${p.proveedorTexto}</strong><div class="muted" style="font-size:12px">${fdate(p.fecha)} · ${p.lineas.length} línea(s)${p.recibidoCompleto?' · recibido':''}</div></td><td class="num">${eur(p.total)}</td><td class="right">${estadoPillCompra(p.estado)}</td><td class="right" style="white-space:nowrap">${acc(p)}</td></tr>`).join("");
+      const filas=ps.map(p=>`<tr><td><strong>${p.proveedorTexto}</strong><div class="muted" style="font-size:12px">Pedido nº ${p.numero}/${p.ejercicio} · ${fdate(p.fecha)} · ${p.lineas.length} línea(s)${p.recibidoCompleto?' · recibido':''}</div></td><td class="num">${eur(p.total)}</td><td class="right">${estadoPillCompra(p.estado)}</td><td class="right" style="white-space:nowrap">${acc(p)}</td></tr>`).join("");
       const tabla=ps.length?`<table><thead><tr><th>Proveedor</th><th class="num">Total</th><th class="right">Estado</th><th class="right">Acciones</th></tr></thead><tbody>${filas}</tbody></table>`
         :vacio("compras","Sin pedidos de compra","Crea un pedido a proveedor (o conviértelo desde una solicitud aprobada).",`<button class="btn small" onclick="modalPedido()">+ Nuevo pedido</button>`);
       view(panel("Pedidos de compra",tabla,`<button class="btn small" onclick="modalPedido()">+ Nuevo pedido</button>`));
     }
     async function modalPedido(prov, lineas, solId){
-      const provs=await api("/proveedores").catch(()=>[]);
+      const [provs,prods]=await Promise.all([api("/proveedores").catch(()=>[]),api("/productos").catch(()=>[])]);
       const opts=provs.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join("");
-      const filasIni=(lineas&&lineas.length?lineas:[{},{}]).map(l=>lineaPedHtml(l.d,l.c,l.p)).join("");
+      window._prodOpts=prods.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join("");
+      const filasIni=(lineas&&lineas.length?lineas:[{},{}]).map(l=>lineaPedHtml(l.d,l.c,l.p,l.prodId)).join("");
       abrir("Nuevo pedido de compra",`<label>Proveedor (de la lista)</label><select id="ped_provid"><option value="">— Escribir a mano —</option>${opts}</select>
         <label>o nombre del proveedor</label><input id="ped_provtxt" value="${prov||''}"/>
-        <label style="margin-top:12px">Líneas del pedido</label><div id="ped_lineas">${filasIni}</div>
+        <label style="margin-top:12px">Líneas del pedido${window._prodOpts?' <span class="muted" style="font-weight:400;font-size:12px">— asigna un artículo para la entrada automática al recibir</span>':''}</label><div id="ped_lineas">${filasIni}</div>
         <button class="btn small secondary" style="margin-top:4px" onclick="document.getElementById('ped_lineas').insertAdjacentHTML('beforeend',lineaPedHtml())">+ Añadir línea</button>`,
-        async()=>{ const provId=val("ped_provid")||null; const lin=[...document.querySelectorAll('#ped_lineas .cmp-lped')].map(r=>({descripcion:(r.querySelector('.lp-desc').value||'').trim(),cantidad:Number(r.querySelector('.lp-cant').value||0),precioUnitario:Number(r.querySelector('.lp-prec').value||0)})).filter(l=>l.descripcion&&l.cantidad>0);
+        async()=>{ const provId=val("ped_provid")||null; const lin=[...document.querySelectorAll('#ped_lineas .cmp-lped')].map(r=>({productoId:(r.querySelector('.lp-prod')?.value||null),descripcion:(r.querySelector('.lp-desc').value||'').trim(),cantidad:Number(r.querySelector('.lp-cant').value||0),precioUnitario:Number(r.querySelector('.lp-prec').value||0)})).filter(l=>l.descripcion&&l.cantidad>0);
           await api("/compras/pedidos",{method:"POST",body:JSON.stringify({proveedorId:provId,proveedorTexto:provId?null:(val("ped_provtxt")||null),solicitudOrigenId:solId||null,lineas:lin})});
           toast("Pedido creado.","ok"); ir('pedidos'); });
     }
     async function accionPedido(id,accion){ try{ await api(`/compras/pedidos/${id}/${accion}`,{method:"POST"}); toast("Pedido "+(accion==="confirmar"?"confirmado":"cancelado")+".","ok"); vPedidos(); }catch(e){ toast(e.message,"err"); } }
     async function modalRecibir(id){
-      const p=await api("/compras/pedidos/"+id);
-      const filas=p.lineas.filter(l=>l.pendienteRecibir>0).map(l=>`<div class="cmp-rec" data-id="${l.id}" style="display:grid;grid-template-columns:3fr 1fr;gap:8px;margin-bottom:6px;align-items:center"><div>${l.descripcion} <span class="muted" style="font-size:12px">(pendiente ${l.pendienteRecibir})</span></div><input class="rec-cant" type="number" step="0.001" value="${l.pendienteRecibir}" max="${l.pendienteRecibir}"/></div>`).join("");
+      const [p,almacenes]=await Promise.all([api("/compras/pedidos/"+id),api("/inventario/almacenes").catch(()=>[])]);
+      const conArticulo=p.lineas.some(l=>l.productoId);
+      const filas=p.lineas.filter(l=>l.pendienteRecibir>0).map(l=>`<div class="cmp-rec" data-id="${l.id}" style="display:grid;grid-template-columns:3fr 1fr;gap:8px;margin-bottom:6px;align-items:center"><div>${l.descripcion}${l.productoId?' <span class="pill" style="font-size:10px">artículo</span>':''} <span class="muted" style="font-size:12px">(pendiente ${l.pendienteRecibir})</span></div><input class="rec-cant" type="number" step="0.001" value="${l.pendienteRecibir}" max="${l.pendienteRecibir}"/></div>`).join("");
+      const almOpts=almacenes.map(a=>`<option value="${a.id}">${a.nombre}</option>`).join("");
+      const almBloque=(almacenes.length&&conArticulo)?`<label style="margin-top:12px">Almacén de entrada <span class="muted" style="font-weight:400;font-size:12px">— da entrada automática al stock (ubicación por defecto)</span></label><select id="rec_alm"><option value="">— No dar entrada a inventario —</option>${almOpts}</select>`:'';
       abrir("Recibir mercancía",`<div class="grid2"><div><label>Fecha</label><input id="rec_fecha" type="date" value="${new Date().toISOString().slice(0,10)}"/></div><div><label>Nº albarán proveedor (opcional)</label><input id="rec_ref"/></div></div>
+        ${almBloque}
         <label style="margin-top:12px">Cantidades recibidas</label>${filas||'<p class="muted">Este pedido ya está recibido por completo.</p>'}`,
         async()=>{ const lineas=[...document.querySelectorAll('.cmp-rec')].map(r=>({lineaPedidoId:r.dataset.id,cantidad:Number(r.querySelector('.rec-cant').value||0)})).filter(l=>l.cantidad>0);
           if(!lineas.length) throw new Error("Indica alguna cantidad recibida.");
-          await api(`/compras/pedidos/${id}/recibir`,{method:"POST",body:JSON.stringify({fecha:val("rec_fecha"),referencia:val("rec_ref")||null,lineas})});
+          await api(`/compras/pedidos/${id}/recibir`,{method:"POST",body:JSON.stringify({fecha:val("rec_fecha"),referencia:val("rec_ref")||null,almacenId:val("rec_alm")||null,lineas})});
           toast("Recepción registrada (albarán).","ok"); vPedidos(); });
     }
     function modalFacturarPedido(id){

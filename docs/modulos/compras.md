@@ -10,11 +10,15 @@ puerto `IContabilizador` (respeta el modo de contabilidad de la empresa). Multie
    necesita y cuánto). Estados: `Borrador → Aprobada → Convertida` / `Rechazada`.
 2. **Pedido de compra** (`PedidoCompra`) — pedido a un proveedor (con precios). Se puede crear
    desde una solicitud aprobada (que queda `Convertida`). Estados: `Borrador → Confirmado →
-   Recibido → Facturado` / `Cancelado`. Cada línea lleva **cantidad**, **cantidad recibida** y
-   **cantidad facturada**.
+   Recibido → Facturado` / `Cancelado`. Cada línea lleva **cantidad**, **cantidad recibida**,
+   **cantidad facturada** y, opcionalmente, el **artículo del catálogo** (`ProductoId`) que habilita
+   la entrada automática al almacén. Numeración **por empresa · ejercicio · proveedor** (serie propia
+   por proveedor y año): el `Numero` se asigna al crear el pedido.
 3. **Albarán de recepción** (`AlbaranCompra`) — registra qué y cuánto se recibe contra el pedido;
    al crearse **actualiza** las cantidades recibidas del pedido (casación por línea). Admite
-   recepciones parciales; `RecibidoCompleto` indica si ya llegó todo.
+   recepciones parciales; `RecibidoCompleto` indica si ya llegó todo. Numeración **por empresa ·
+   ejercicio**. Si se indica un **almacén** al recibir, cada línea con artículo genera una **entrada
+   automática de stock** en la ubicación por defecto (proveedor+almacén o, si no hay, la del almacén).
 4. **Factura** — facturar el pedido lo marca `Facturado` y lo **contabiliza**: crea el gasto con
    IVA soportado (modo Simple) y, en modo Completo, además el asiento de partida doble.
 
@@ -24,6 +28,8 @@ puerto `IContabilizador` (respeta el modo de contabilidad de la empresa). Multie
 - No se puede recibir **más de lo pedido** en una línea (400).
 - No se factura dos veces ni se cancela un pedido ya facturado.
 - El total del pedido = Σ(cantidad × precio) por línea.
+- Numeración de pedidos **sin huecos por serie** (empresa · ejercicio · proveedor), garantizada por
+  índice único `ux_pedido_serie_proveedor`.
 
 ## API
 
@@ -60,7 +66,13 @@ puerto `IContabilizador` (respeta el modo de contabilidad de la empresa). Multie
 
 - Esquema **`compras`**: `solicitud_compra`, `pedido_compra`, `albaran_compra` (con sus líneas como
   colecciones propias). RLS por empresa en las tres tablas padre.
-- Migración: `MigracionInicialCompras` (incluye la activación de RLS).
+- `pedido_compra` lleva `ejercicio` y `numero` (índice único por empresa·ejercicio·proveedor·número);
+  `albaran_compra` lleva `numero`; las líneas de pedido y albarán llevan `producto_id` (opcional).
+- La entrada automática usa el puerto `IEntradaInventarioCompras` (aplicación), implementado en la
+  infraestructura sobre el módulo **Inventario** (resuelve la ubicación por defecto y registra la
+  entrada). Mantiene el proyecto de aplicación de Compras sin dependencia de Inventario.
+- Migraciones: `MigracionInicialCompras` (incluye la activación de RLS) y `NumeracionYProductoCompras`
+  (numeración por serie + `producto_id`).
 
 ## Tests
 
@@ -68,7 +80,9 @@ puerto `IContabilizador` (respeta el modo de contabilidad de la empresa). Multie
   facturación (no dos veces) y estados de la solicitud (aprobar → convertir).
 - **Integración**: la **cadena completa** solicitud → aprobar → pedido (desde la solicitud, que queda
   Convertida) → confirmar → recibir (albarán total) → facturar, comprobando que genera el gasto que
-  cuadra (40 base + 21 % = 48,40); y que no se recibe un pedido sin confirmar (409).
+  cuadra (40 base + 21 % = 48,40); que no se recibe un pedido sin confirmar (409); la **numeración por
+  proveedor y año** (serie independiente por proveedor); y la **entrada automática** al recibir con
+  almacén, que cae en la ubicación por defecto del proveedor (no en la general).
 
 ## Futuro (documentado)
 

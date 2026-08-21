@@ -17,24 +17,24 @@ public sealed record SolicitudDto(Guid Id, string Estado, string? ProveedorSuger
         s.CreadoEn, s.Lineas.Select(l => new LineaSolicitudDto(l.Id, l.Descripcion, l.Cantidad)).ToList());
 }
 
-public sealed record LineaPedidoDto(Guid Id, string Descripcion, decimal Cantidad, decimal PrecioUnitario,
+public sealed record LineaPedidoDto(Guid Id, Guid? ProductoId, string Descripcion, decimal Cantidad, decimal PrecioUnitario,
     decimal Importe, decimal CantidadRecibida, decimal CantidadFacturada, decimal PendienteRecibir);
 
-public sealed record PedidoDto(Guid Id, string Estado, Guid? ProveedorId, string ProveedorTexto, DateOnly Fecha,
+public sealed record PedidoDto(Guid Id, string Estado, int Ejercicio, int Numero, Guid? ProveedorId, string ProveedorTexto, DateOnly Fecha,
     Guid? SolicitudOrigenId, decimal Total, bool RecibidoCompleto, IReadOnlyList<LineaPedidoDto> Lineas)
 {
-    public static PedidoDto Desde(PedidoCompra p) => new(p.Id, p.Estado.ToString(), p.ProveedorId, p.ProveedorTexto,
+    public static PedidoDto Desde(PedidoCompra p) => new(p.Id, p.Estado.ToString(), p.Ejercicio, p.Numero, p.ProveedorId, p.ProveedorTexto,
         p.Fecha, p.SolicitudOrigenId, p.Total, p.RecibidoCompleto,
-        p.Lineas.Select(l => new LineaPedidoDto(l.Id, l.Descripcion, l.Cantidad, l.PrecioUnitario, l.Importe,
+        p.Lineas.Select(l => new LineaPedidoDto(l.Id, l.ProductoId, l.Descripcion, l.Cantidad, l.PrecioUnitario, l.Importe,
             l.CantidadRecibida, l.CantidadFacturada, l.PendienteRecibir)).ToList());
 }
 
-public sealed record LineaAlbaranDto(Guid LineaPedidoId, string Descripcion, decimal Cantidad);
+public sealed record LineaAlbaranDto(Guid LineaPedidoId, Guid? ProductoId, string Descripcion, decimal Cantidad);
 
-public sealed record AlbaranDto(Guid Id, Guid PedidoId, DateOnly Fecha, string? Referencia, IReadOnlyList<LineaAlbaranDto> Lineas)
+public sealed record AlbaranDto(Guid Id, Guid PedidoId, int Numero, DateOnly Fecha, string? Referencia, IReadOnlyList<LineaAlbaranDto> Lineas)
 {
-    public static AlbaranDto Desde(AlbaranCompra a) => new(a.Id, a.PedidoId, a.Fecha, a.Referencia,
-        a.Lineas.Select(l => new LineaAlbaranDto(l.LineaPedidoId, l.Descripcion, l.Cantidad)).ToList());
+    public static AlbaranDto Desde(AlbaranCompra a) => new(a.Id, a.PedidoId, a.Numero, a.Fecha, a.Referencia,
+        a.Lineas.Select(l => new LineaAlbaranDto(l.LineaPedidoId, l.ProductoId, l.Descripcion, l.Cantidad)).ToList());
 }
 
 // ---------------------------------------------------------------------------- Puertos
@@ -52,26 +52,46 @@ public interface IRepositorioPedidos
     void Agregar(PedidoCompra pedido);
     Task<IReadOnlyList<PedidoDto>> ListarAsync(Guid empresaId, CancellationToken ct = default);
     Task<PedidoDto?> ObtenerDtoAsync(Guid id, CancellationToken ct = default);
+    Task<int> SiguienteNumeroAsync(Guid empresaId, int ejercicio, Guid? proveedorId, CancellationToken ct = default);
 }
 
 public interface IRepositorioAlbaranes
 {
     void Agregar(AlbaranCompra albaran);
     Task<IReadOnlyList<AlbaranDto>> ListarPorPedidoAsync(Guid empresaId, Guid pedidoId, CancellationToken ct = default);
+    Task<int> SiguienteNumeroAsync(Guid empresaId, int ejercicio, CancellationToken ct = default);
 }
 
 public interface IUnidadDeTrabajoCompras : IUnidadDeTrabajo;
+
+/// <summary>
+/// Puerto para la entrada automática en el almacén al recibir un albarán. Lo implementa la
+/// infraestructura sobre el módulo Inventario (resuelve la ubicación por defecto por proveedor+almacén
+/// o solo almacén). Mantiene el proyecto de aplicación de Compras sin dependencia del módulo Inventario.
+/// </summary>
+public interface IEntradaInventarioCompras
+{
+    Task RegistrarEntradaAsync(Guid empresaId, Guid productoId, Guid almacenId, Guid? proveedorId,
+        decimal cantidad, string? referencia, DateOnly fecha, CancellationToken ct = default);
+}
 
 // ---------------------------------------------------------------------------- Comandos
 public sealed record LineaSolicitudComando(string Descripcion, decimal Cantidad);
 public sealed record CrearSolicitudComando(IReadOnlyList<LineaSolicitudComando> Lineas, string? ProveedorSugerido = null, string? Notas = null);
 
-public sealed record LineaPedidoComando(string Descripcion, decimal Cantidad, decimal PrecioUnitario);
+public sealed record LineaPedidoComando(string Descripcion, decimal Cantidad, decimal PrecioUnitario, Guid? ProductoId = null);
 public sealed record CrearPedidoComando(string? ProveedorTexto, IReadOnlyList<LineaPedidoComando> Lineas,
     Guid? ProveedorId = null, DateOnly? Fecha = null, Guid? SolicitudOrigenId = null);
 
 public sealed record RecepcionLineaComando(Guid LineaPedidoId, decimal Cantidad);
-public sealed record RecibirMercanciaComando(IReadOnlyList<RecepcionLineaComando> Lineas, DateOnly? Fecha = null, string? Referencia = null);
+
+/// <summary>
+/// Recepción de mercancía contra un pedido. Si se indica <see cref="AlmacenId"/>, las líneas con
+/// artículo del catálogo generan una entrada automática de inventario (ubicación por defecto por
+/// proveedor+almacén o solo almacén).
+/// </summary>
+public sealed record RecibirMercanciaComando(IReadOnlyList<RecepcionLineaComando> Lineas, DateOnly? Fecha = null,
+    string? Referencia = null, Guid? AlmacenId = null);
 
 public sealed record FacturarPedidoComando(string? CodigoIva = "IVA21", decimal PorcentajeIrpf = 0m);
 
@@ -181,8 +201,11 @@ public sealed class CrearPedido
             }
         }
 
-        var lineas = (comando.Lineas ?? Array.Empty<LineaPedidoComando>()).Select(l => (l.Descripcion, l.Cantidad, l.PrecioUnitario)).ToList();
-        var pedido = PedidoCompra.Crear(empresaId, comando.ProveedorId, proveedorTexto, comando.Fecha ?? DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime), comando.SolicitudOrigenId, lineas, _reloj);
+        var fecha = comando.Fecha ?? DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
+        var numero = await _pedidos.SiguienteNumeroAsync(empresaId, fecha.Year, comando.ProveedorId, ct).ConfigureAwait(false);
+        var lineas = (comando.Lineas ?? Array.Empty<LineaPedidoComando>())
+            .Select(l => (l.ProductoId, l.Descripcion, l.Cantidad, l.PrecioUnitario)).ToList();
+        var pedido = PedidoCompra.Crear(empresaId, comando.ProveedorId, proveedorTexto, fecha, numero, comando.SolicitudOrigenId, lineas, _reloj);
         if (pedido.EsFallo)
         {
             return Resultado.Fallo<PedidoDto>(pedido.Error);
@@ -253,10 +276,12 @@ public sealed class RecibirMercancia
     private readonly IRepositorioAlbaranes _albaranes;
     private readonly IUnidadDeTrabajoCompras _unidad;
     private readonly IReloj _reloj;
+    private readonly IEntradaInventarioCompras? _inventario;
 
-    public RecibirMercancia(IRepositorioPedidos pedidos, IRepositorioAlbaranes albaranes, IUnidadDeTrabajoCompras unidad, IReloj reloj)
+    public RecibirMercancia(IRepositorioPedidos pedidos, IRepositorioAlbaranes albaranes, IUnidadDeTrabajoCompras unidad,
+        IReloj reloj, IEntradaInventarioCompras? inventario = null)
     {
-        _pedidos = pedidos; _albaranes = albaranes; _unidad = unidad; _reloj = reloj;
+        _pedidos = pedidos; _albaranes = albaranes; _unidad = unidad; _reloj = reloj; _inventario = inventario;
     }
 
     public async Task<Resultado<AlbaranDto>> EjecutarAsync(Guid empresaId, Guid pedidoId, RecibirMercanciaComando comando, CancellationToken ct = default)
@@ -280,13 +305,16 @@ public sealed class RecibirMercancia
             return Resultado.Fallo<AlbaranDto>(registro.Error);
         }
 
+        var fecha = comando.Fecha ?? DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
+        var numero = await _albaranes.SiguienteNumeroAsync(empresaId, fecha.Year, ct).ConfigureAwait(false);
+
         var lineasAlbaran = recepciones.Select(r =>
         {
             var lp = pedido.Lineas.Single(l => l.Id == r.LineaPedidoId);
-            return (r.LineaPedidoId, lp.Descripcion, r.Cantidad);
+            return (r.LineaPedidoId, lp.ProductoId, lp.Descripcion, r.Cantidad);
         }).ToList();
 
-        var albaran = AlbaranCompra.Crear(empresaId, pedidoId, comando.Fecha ?? DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime), comando.Referencia, lineasAlbaran, _reloj);
+        var albaran = AlbaranCompra.Crear(empresaId, pedidoId, numero, fecha, comando.Referencia, lineasAlbaran, _reloj);
         if (albaran.EsFallo)
         {
             return Resultado.Fallo<AlbaranDto>(albaran.Error);
@@ -294,6 +322,18 @@ public sealed class RecibirMercancia
 
         _albaranes.Agregar(albaran.Valor);
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+
+        // Entrada automática en inventario: solo si se indicó almacén y la línea tiene artículo del catálogo.
+        if (comando.AlmacenId is { } almacenId && _inventario is not null)
+        {
+            var referencia = $"Albarán {numero}";
+            foreach (var l in lineasAlbaran.Where(l => l.ProductoId is not null))
+            {
+                await _inventario.RegistrarEntradaAsync(empresaId, l.ProductoId!.Value, almacenId, pedido.ProveedorId,
+                    l.Cantidad, referencia, fecha, ct).ConfigureAwait(false);
+            }
+        }
+
         return Resultado.Ok(AlbaranDto.Desde(albaran.Valor));
     }
 }

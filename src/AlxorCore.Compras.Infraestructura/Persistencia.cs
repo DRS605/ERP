@@ -71,6 +71,8 @@ internal sealed class ConfiguracionPedido : IEntityTypeConfiguration<PedidoCompr
         builder.Property(p => p.ProveedorId).HasColumnName("proveedor_id");
         builder.Property(p => p.ProveedorTexto).HasColumnName("proveedor_texto").HasMaxLength(PedidoCompra.LongitudMaximaTexto).IsRequired();
         builder.Property(p => p.Fecha).HasColumnName("fecha").IsRequired();
+        builder.Property(p => p.Ejercicio).HasColumnName("ejercicio").IsRequired();
+        builder.Property(p => p.Numero).HasColumnName("numero").IsRequired();
         builder.Property(p => p.SolicitudOrigenId).HasColumnName("solicitud_origen_id");
         builder.Property(p => p.Estado).HasColumnName("estado").HasMaxLength(20).HasConversion<string>().IsRequired();
         builder.Property(p => p.CreadoEn).HasColumnName("creado_en").IsRequired();
@@ -80,6 +82,7 @@ internal sealed class ConfiguracionPedido : IEntityTypeConfiguration<PedidoCompr
             l.WithOwner().HasForeignKey("pedido_id");
             l.HasKey(x => x.Id);
             l.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+            l.Property(x => x.ProductoId).HasColumnName("producto_id");
             l.Property(x => x.Descripcion).HasColumnName("descripcion").HasMaxLength(PedidoCompra.LongitudMaximaTexto).IsRequired();
             l.Property(x => x.Cantidad).HasColumnName("cantidad").HasColumnType("numeric(14,3)").IsRequired();
             l.Property(x => x.PrecioUnitario).HasColumnName("precio_unitario").HasColumnType("numeric(14,2)").IsRequired();
@@ -87,6 +90,8 @@ internal sealed class ConfiguracionPedido : IEntityTypeConfiguration<PedidoCompr
             l.Property(x => x.CantidadFacturada).HasColumnName("cantidad_facturada").HasColumnType("numeric(14,3)").IsRequired();
         });
         builder.HasIndex(p => new { p.EmpresaId, p.Estado }).HasDatabaseName("ix_pedido_empresa_estado");
+        builder.HasIndex(p => new { p.EmpresaId, p.Ejercicio, p.ProveedorId, p.Numero })
+            .IsUnique().HasDatabaseName("ux_pedido_serie_proveedor");
         builder.Ignore(p => p.EventosDominio);
     }
 }
@@ -100,6 +105,7 @@ internal sealed class ConfiguracionAlbaran : IEntityTypeConfiguration<AlbaranCom
         builder.Property(a => a.Id).HasColumnName("id").ValueGeneratedNever();
         builder.Property(a => a.EmpresaId).HasColumnName("empresa_id").IsRequired();
         builder.Property(a => a.PedidoId).HasColumnName("pedido_id").IsRequired();
+        builder.Property(a => a.Numero).HasColumnName("numero").IsRequired();
         builder.Property(a => a.Fecha).HasColumnName("fecha").IsRequired();
         builder.Property(a => a.Referencia).HasColumnName("referencia").HasMaxLength(120);
         builder.Property(a => a.CreadoEn).HasColumnName("creado_en").IsRequired();
@@ -110,6 +116,7 @@ internal sealed class ConfiguracionAlbaran : IEntityTypeConfiguration<AlbaranCom
             l.HasKey(x => x.Id);
             l.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
             l.Property(x => x.LineaPedidoId).HasColumnName("linea_pedido_id").IsRequired();
+            l.Property(x => x.ProductoId).HasColumnName("producto_id");
             l.Property(x => x.Descripcion).HasColumnName("descripcion").HasMaxLength(PedidoCompra.LongitudMaximaTexto).IsRequired();
             l.Property(x => x.Cantidad).HasColumnName("cantidad").HasColumnType("numeric(14,3)").IsRequired();
         });
@@ -164,6 +171,16 @@ internal sealed class RepositorioPedidos : IRepositorioPedidos
         var p = await _contexto.Pedidos.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id, ct).ConfigureAwait(false);
         return p is null ? null : PedidoDto.Desde(p);
     }
+
+    public async Task<int> SiguienteNumeroAsync(Guid empresaId, int ejercicio, Guid? proveedorId, CancellationToken ct = default)
+    {
+        var query = _contexto.Pedidos.AsNoTracking().Where(p => p.EmpresaId == empresaId && p.Ejercicio == ejercicio);
+        query = proveedorId is null
+            ? query.Where(p => p.ProveedorId == null)
+            : query.Where(p => p.ProveedorId == proveedorId);
+        var max = await query.MaxAsync(p => (int?)p.Numero, ct).ConfigureAwait(false);
+        return (max ?? 0) + 1;
+    }
 }
 
 internal sealed class RepositorioAlbaranes : IRepositorioAlbaranes
@@ -179,6 +196,16 @@ internal sealed class RepositorioAlbaranes : IRepositorioAlbaranes
             .Where(a => a.EmpresaId == empresaId && a.PedidoId == pedidoId)
             .OrderBy(a => a.CreadoEn).ToListAsync(ct).ConfigureAwait(false);
         return lista.Select(AlbaranDto.Desde).ToList();
+    }
+
+    public async Task<int> SiguienteNumeroAsync(Guid empresaId, int ejercicio, CancellationToken ct = default)
+    {
+        var desde = new DateOnly(ejercicio, 1, 1);
+        var hasta = new DateOnly(ejercicio, 12, 31);
+        var max = await _contexto.Albaranes.AsNoTracking()
+            .Where(a => a.EmpresaId == empresaId && a.Fecha >= desde && a.Fecha <= hasta)
+            .MaxAsync(a => (int?)a.Numero, ct).ConfigureAwait(false);
+        return (max ?? 0) + 1;
     }
 }
 
