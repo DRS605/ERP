@@ -3,19 +3,19 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ALXOR Evolution</title>
+  <title>Core Evolution · by ALXOR</title>
   <style>
     :root {
-      /* Paleta: cian de acento contrastado con azul marino en el texto. */
-      --ink: #0b2540; --muted: #5c7186; --line: #e4eaf1; --bg: #eaeff5; --surface: #ffffff;
-      --brand1: #18c0e0; --brand2: #0b6ea4; --accent: #0c8fb8; --accent-soft: #e2f6fb;
-      --navy: #0b2540;
-      /* Rail lateral oscuro (centro de mando) */
-      --side1: #0a2138; --side2: #0e3355; --side-ink: #dbe6f1; --side-muted: #8ea6be;
-      --side-hover: rgba(255,255,255,.06); --side-active: rgba(24,192,224,.16);
+      /* Paleta "Ferrari": rojo Rosso de acento sobre chasis carbono, texto grafito. */
+      --ink: #17191e; --muted: #6b7280; --line: #e7e7ea; --bg: #f0f0f2; --surface: #ffffff;
+      --brand1: #ff2338; --brand2: #a30011; --accent: #d81026; --accent-soft: #fdeaec;
+      --navy: #17191e;
+      /* Rail lateral carbono (centro de mando) */
+      --side1: #121317; --side2: #26282f; --side-ink: #e7e8ec; --side-muted: #9aa0aa;
+      --side-hover: rgba(255,255,255,.06); --side-active: rgba(255,35,56,.20);
       --pos: #0f9d58; --neg: #e0533d; --warn: #c07d1a;
-      --radius: 16px; --shadow: 0 1px 2px rgba(11,42,74,.05), 0 6px 18px rgba(11,42,74,.06);
-      --grad: linear-gradient(135deg, #1cbcda, #0b5f96);
+      --radius: 16px; --shadow: 0 1px 2px rgba(20,20,25,.05), 0 6px 18px rgba(20,20,25,.07);
+      --grad: linear-gradient(135deg, #ff2f3f, #a10012);
     }
     * { box-sizing: border-box; }
     html, body { height: 100%; margin: 0; }
@@ -26,14 +26,17 @@
 
     /* Brand mark — un "núcleo" con su órbita (guiño a Evolution) */
     .mark { width: 36px; height: 36px; border-radius: 12px; background: var(--grad); position: relative; flex: none;
-      box-shadow: 0 5px 14px rgba(23,182,214,.42); overflow: hidden; }
+      box-shadow: 0 5px 14px rgba(255,35,56,.42); overflow: hidden; }
     .mark::before { content:""; position:absolute; inset: 8px; border: 2px solid rgba(255,255,255,.92); border-radius: 50%; }
     .mark::after { content:""; position:absolute; width: 7px; height: 7px; border-radius: 50%; background:#fff; left: 50%; top: 50%;
       transform: translate(-50%,-50%); box-shadow: 0 0 8px rgba(255,255,255,.9); }
     .wordmark { display:flex; align-items:center; gap: 11px; font-weight: 800; font-size: 19px; letter-spacing: .01em; }
     .wordmark b { font-weight: 800; }
+    .brandtext { display:flex; flex-direction:column; line-height:1.02; }
+    .brandtext b { font-weight:800; font-size:18px; letter-spacing:-.01em; }
+    .brandtext small { font-weight:700; font-size:9px; letter-spacing:.2em; text-transform:uppercase; opacity:.62; margin-top:3px; }
     .tag { font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color:#fff;
-      background: var(--grad); padding: 4px 9px; border-radius: 999px; box-shadow: 0 3px 8px rgba(23,182,214,.35); }
+      background: var(--grad); padding: 4px 9px; border-radius: 999px; box-shadow: 0 3px 8px rgba(255,35,56,.35); }
 
     /* ---------- LOGIN (split) ---------- */
     .login { display: grid; grid-template-columns: 1.05fr .95fr; min-height: 100vh; }
@@ -57,7 +60,7 @@
     label { display:block; font-size: 12.5px; color: var(--muted); margin: 14px 0 6px; font-weight: 500; }
     input, select { width: 100%; padding: 11px 13px; border: 1px solid var(--line); border-radius: 11px; background:#fff; font-size: 14px; color: var(--ink); outline: none; transition: border-color .15s, box-shadow .15s; }
     input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-    .btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; background: var(--grad); color:#fff; border:none; border-radius:11px; padding: 12px 16px; font-weight:650; font-size:14px; width:100%; margin-top: 22px; box-shadow: 0 6px 16px rgba(23,182,214,.30); white-space:nowrap; }
+    .btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; background: var(--grad); color:#fff; border:none; border-radius:11px; padding: 12px 16px; font-weight:650; font-size:14px; width:100%; margin-top: 22px; box-shadow: 0 6px 16px rgba(255,35,56,.30); white-space:nowrap; }
     .btn:hover { filter: brightness(1.03); }
     .btn.secondary { background:#fff; color:var(--ink); border:1px solid var(--line); box-shadow:none; width:auto; margin:0; padding:10px 15px; }
     .btn.small { width:auto; margin:0; padding: 9px 15px; font-size: 13.5px; }
@@ -67,7 +70,7 @@
     /* ---------- APP shell ---------- */
     .app { display:none; grid-template-columns: 262px 1fr; min-height: 100vh; }
     .sidebar { background: linear-gradient(185deg, var(--side2), var(--side1) 62%); color: var(--side-ink); padding: 18px 14px; display:flex; flex-direction:column; position:relative; }
-    .sidebar::after { content:""; position:absolute; top:0; right:0; width:1px; height:100%; background:linear-gradient(180deg, rgba(24,192,224,.5), rgba(24,192,224,0) 40%); }
+    .sidebar::after { content:""; position:absolute; top:0; right:0; width:1px; height:100%; background:linear-gradient(180deg, rgba(255,35,56,.55), rgba(255,35,56,0) 42%); }
     .sidebar .head { display:flex; align-items:center; justify-content:space-between; padding: 6px 8px 18px; }
     .sidebar .wordmark { color:#fff; }
     .navlabel { font-size: 10.5px; text-transform: uppercase; letter-spacing: .12em; color: var(--side-muted); padding: 12px 12px 8px; font-weight: 700; }
@@ -75,7 +78,7 @@
     nav a svg { width: 18px; height: 18px; stroke: currentColor; fill:none; stroke-width: 1.8; }
     nav a:hover { background: var(--side-hover); color:#fff; opacity:1; }
     nav a.active { background: var(--side-active); color:#fff; opacity:1; font-weight:650; }
-    nav a.active::before { content:""; position:absolute; left: -14px; top: 7px; bottom: 7px; width: 3px; background: var(--brand1); border-radius: 0 3px 3px 0; box-shadow:0 0 10px rgba(24,192,224,.7); }
+    nav a.active::before { content:""; position:absolute; left: -14px; top: 7px; bottom: 7px; width: 3px; background: var(--brand1); border-radius: 0 3px 3px 0; box-shadow:0 0 10px rgba(255,35,56,.75); }
     .navhead { display:flex; align-items:center; gap:11px; padding: 9px 12px; border-radius: 10px; color: var(--side-ink); font-weight: 650; cursor: pointer; user-select:none; opacity:.92; }
     .navhead > svg:first-child { width:18px; height:18px; stroke: currentColor; fill:none; stroke-width:1.8; }
     .navhead:hover { background: var(--side-hover); color:#fff; }
@@ -104,7 +107,7 @@
 
     /* Hero de bienvenida con carácter */
     .hero { position:relative; overflow:hidden; background: var(--grad); color:#fff; border-radius: 22px;
-      padding: 26px 30px; margin-bottom: 24px; box-shadow: 0 14px 34px rgba(11,110,164,.24); }
+      padding: 26px 30px; margin-bottom: 24px; box-shadow: 0 14px 34px rgba(163,0,17,.30); }
     .hero::before { content:""; position:absolute; width: 340px; height: 340px; right:-100px; top:-140px; background: rgba(255,255,255,.12); border-radius:50%; }
     .hero::after { content:""; position:absolute; width: 220px; height: 220px; left:-80px; bottom:-130px; background: rgba(255,255,255,.08); border-radius:50%; }
     .hero .eyebrow { position:relative; display:inline-flex; align-items:center; gap:7px; font-size:11.5px; font-weight:700; letter-spacing:.04em;
@@ -223,7 +226,7 @@
   <!-- LOGIN -->
   <div id="login" class="login">
     <div class="promo">
-      <div class="wordmark"><span class="mark"></span> ALXOR <span class="tag">Evolution</span></div>
+      <div class="wordmark"><span class="mark"></span><span class="brandtext"><b>Core Evolution</b><small>by ALXOR</small></span></div>
       <h2>El ERP que evoluciona con tu negocio.</h2>
       <p class="lead">Facturación, tesorería, inventario e informes en una sola plataforma. Potente por dentro, simple por fuera.</p>
       <ul>
@@ -232,7 +235,7 @@
     </div>
     <div class="panel">
       <div class="login-card">
-        <div class="wordmark" style="margin-bottom:26px"><span class="mark"></span> ALXOR <span class="tag">Evolution</span></div>
+        <div class="wordmark" style="margin-bottom:26px"><span class="mark"></span><span class="brandtext"><b>Core Evolution</b><small>by ALXOR</small></span></div>
         <h1>Bienvenido de nuevo</h1>
         <p class="sub">Entra para gestionar tu empresa.</p>
         <label>Correo electrónico</label>
@@ -253,7 +256,7 @@
   <!-- APP -->
   <div id="app" class="app">
     <aside class="sidebar">
-      <div class="head"><div class="wordmark" style="font-size:17px"><span class="mark"></span> ALXOR</div><span class="tag">Evolution</span></div>
+      <div class="head"><div class="wordmark"><span class="mark"></span><span class="brandtext"><b>Core Evolution</b><small>by ALXOR</small></span></div></div>
       <div class="navlabel">Gestión</div>
       <nav id="nav"></nav>
       <div class="spacer"></div>
@@ -791,12 +794,12 @@
       // Donut: reparto de gastos por proveedor (o concepto), top 6 + resto.
       const acum={}; (gastos||[]).forEach(g=>{ const k=(g.proveedorTexto||g.concepto||"Otros"); acum[k]=(acum[k]||0)+(Number(g.total)||0); });
       let segs=Object.entries(acum).map(([label,value])=>({label,value})).sort((a,b)=>b.value-a.value);
-      const paleta=["#17b6d6","#0b6ea4","#0b2a4a","#5ac8e0","#3f8fb8","#8ad4e6","#9aa7b4"];
+      const paleta=["#ff2f3f","#c8102e","#8f1420","#e0533d","#5a5e68","#9aa0aa","#c9ccd2"];
       if(segs.length>6){ const resto=segs.slice(6).reduce((a,s)=>a+s.value,0); segs=segs.slice(0,6); segs.push({label:"Otros",value:resto}); }
       segs=segs.map((s,i)=>({...s,color:paleta[i%paleta.length]}));
       const barras=hayFact?barrasMensuales(mesFact,mesGasto):'<p class="muted">Sin datos de facturación en '+anio+'.</p>';
       const donutHtml=segs.length?donutSvg(segs):'<p class="muted">Sin gastos registrados en '+anio+'.</p>';
-      const leyenda=`<div style="display:flex;gap:16px;margin-top:8px;font-size:12.5px"><span><span style="display:inline-block;width:11px;height:11px;border-radius:3px;background:#17b6d6;vertical-align:-1px"></span> Facturación</span><span><span style="display:inline-block;width:11px;height:11px;border-radius:3px;background:#0b2a4a;vertical-align:-1px"></span> Gastos</span></div>`;
+      const leyenda=`<div style="display:flex;gap:16px;margin-top:8px;font-size:12.5px"><span><span style="display:inline-block;width:11px;height:11px;border-radius:3px;background:#e11226;vertical-align:-1px"></span> Facturación</span><span><span style="display:inline-block;width:11px;height:11px;border-radius:3px;background:#3a3d45;vertical-align:-1px"></span> Gastos</span></div>`;
       return `<div class="grid2" style="align-items:start">
         ${panel(`Evolución mensual · ${anio}`,`<div style="overflow-x:auto">${barras}</div>${leyenda}`)}
         ${panel(`Reparto de gastos · ${anio}`,donutHtml)}
@@ -808,7 +811,7 @@
       const y=v=>H-pb-(v/max)*(H-pb-pt);
       const rect=(i,v,color,off,w)=>v>0?`<rect x="${(pl+i*iw+off).toFixed(1)}" y="${y(v).toFixed(1)}" width="${w.toFixed(1)}" height="${(H-pb-y(v)).toFixed(1)}" rx="2.5" fill="${color}"><title>${meses[i]}: ${eur(v)}</title></rect>`:"";
       const bw=iw*0.30;
-      const barras=meses.map((m,i)=>rect(i,fact[i],"#17b6d6",iw*0.16,bw)+rect(i,gasto[i],"#0b2a4a",iw*0.52,bw)).join("");
+      const barras=meses.map((m,i)=>rect(i,fact[i],"#e11226",iw*0.16,bw)+rect(i,gasto[i],"#3a3d45",iw*0.52,bw)).join("");
       const ejes=meses.map((m,i)=>`<text x="${(pl+i*iw+iw/2).toFixed(1)}" y="${H-8}" text-anchor="middle" font-size="10" fill="#5c7186">${m}</text>`).join("");
       return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:100%;min-width:420px;height:auto"><line x1="${pl}" y1="${H-pb}" x2="${W-pr}" y2="${H-pb}" stroke="#e5ebf1"/>${barras}${ejes}</svg>`;
     }
@@ -816,7 +819,7 @@
       const total=segs.reduce((a,s)=>a+s.value,0)||1, r=64, C=2*Math.PI*r; let acc=0;
       const arcs=segs.map(s=>{ const len=s.value/total*C; const c=`<circle r="${r}" cx="90" cy="90" fill="none" stroke="${s.color}" stroke-width="24" stroke-dasharray="${len.toFixed(2)} ${(C-len).toFixed(2)}" stroke-dashoffset="${(-acc).toFixed(2)}" transform="rotate(-90 90 90)"><title>${s.label}: ${eur(s.value)}</title></circle>`; acc+=len; return c; }).join("");
       const leg=segs.map(s=>`<div style="display:flex;align-items:center;gap:8px;font-size:12.5px;margin:5px 0"><span style="width:11px;height:11px;border-radius:3px;background:${s.color};display:inline-block;flex:none"></span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.label}</span><span class="muted" style="margin-left:auto;white-space:nowrap">${eur(s.value)}</span></div>`).join("");
-      return `<div style="display:flex;gap:22px;align-items:center;flex-wrap:wrap"><svg viewBox="0 0 180 180" width="170" height="170" style="flex:none">${arcs}<text x="90" y="86" text-anchor="middle" font-size="12" fill="#5c7186">Total</text><text x="90" y="104" text-anchor="middle" font-size="15" font-weight="700" fill="#0b2a4a">${eur(total)}</text></svg><div style="flex:1;min-width:180px">${leg}</div></div>`;
+      return `<div style="display:flex;gap:22px;align-items:center;flex-wrap:wrap"><svg viewBox="0 0 180 180" width="170" height="170" style="flex:none">${arcs}<text x="90" y="86" text-anchor="middle" font-size="12" fill="#5c7186">Total</text><text x="90" y="104" text-anchor="middle" font-size="15" font-weight="700" fill="#17191e">${eur(total)}</text></svg><div style="flex:1;min-width:180px">${leg}</div></div>`;
     }
     function panelAnual(d,anio){
       const m9=d.modelo390, m7=d.modelo347;
