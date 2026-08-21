@@ -26,6 +26,10 @@ public static class Permisos
     public const string CobroRegistrar = "cobro.registrar";
     public const string PagoRegistrar = "pago.registrar";
 
+    // Contabilidad (partida doble)
+    public const string ContabilidadLeer = "contabilidad.leer";
+    public const string ContabilidadGestionar = "contabilidad.gestionar";
+
     // Terceros y catálogo
     public const string ClienteGestionar = "cliente.gestionar";
     public const string ProductoGestionar = "producto.gestionar";
@@ -45,6 +49,7 @@ public static class Permisos
         GastoLeer, GastoGestionar,
         RecepcionLeer, RecepcionGestionar, RecepcionContabilizar,
         CobroRegistrar, PagoRegistrar,
+        ContabilidadLeer, ContabilidadGestionar,
         ClienteGestionar, ProductoGestionar,
         InformeLeer, DatosExportar,
         EmpresaAjustes, UsuarioGestionar,

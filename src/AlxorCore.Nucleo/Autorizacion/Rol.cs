@@ -24,6 +24,7 @@ public sealed class Rol
             Permisos.FacturaLeer, Permisos.FacturaCrear, Permisos.FacturaEmitir,
             Permisos.GastoLeer, Permisos.GastoGestionar,
             Permisos.RecepcionLeer, Permisos.RecepcionGestionar, Permisos.RecepcionContabilizar,
+            Permisos.ContabilidadLeer, Permisos.ContabilidadGestionar,
             Permisos.CobroRegistrar, Permisos.PagoRegistrar,
             Permisos.ClienteGestionar, Permisos.ProductoGestionar,
             Permisos.InformeLeer, Permisos.DatosExportar,

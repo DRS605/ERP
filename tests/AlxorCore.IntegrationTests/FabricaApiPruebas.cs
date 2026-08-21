@@ -62,6 +62,7 @@ public sealed class FabricaApiPruebas : WebApplicationFactory<Program>, IAsyncLi
         var facturacion = ambito.ServiceProvider.GetRequiredService<AlxorCore.Facturacion.Infraestructura.FacturacionDbContext>();
         var gastos = ambito.ServiceProvider.GetRequiredService<AlxorCore.Gastos.Infraestructura.GastosDbContext>();
         var recepcion = ambito.ServiceProvider.GetRequiredService<AlxorCore.Recepcion.Infraestructura.RecepcionDbContext>();
+        var contabilidad = ambito.ServiceProvider.GetRequiredService<AlxorCore.Contabilidad.Infraestructura.ContabilidadDbContext>();
         var tesoreria = ambito.ServiceProvider.GetRequiredService<AlxorCore.Tesoreria.Infraestructura.TesoreriaDbContext>();
         var auditoria = ambito.ServiceProvider.GetRequiredService<AlxorCore.Auditoria.Infraestructura.AuditoriaDbContext>();
 
@@ -72,11 +73,12 @@ public sealed class FabricaApiPruebas : WebApplicationFactory<Program>, IAsyncLi
         await facturacion.Database.MigrateAsync().ConfigureAwait(false);
         await gastos.Database.MigrateAsync().ConfigureAwait(false);
         await recepcion.Database.MigrateAsync().ConfigureAwait(false);
+        await contabilidad.Database.MigrateAsync().ConfigureAwait(false);
         await tesoreria.Database.MigrateAsync().ConfigureAwait(false);
         await auditoria.Database.MigrateAsync().ConfigureAwait(false);
 
         await identidad.Database.ExecuteSqlRawAsync(
-            "TRUNCATE identidad.usuario, organizacion.empresa, organizacion.membresia, organizacion.serie_numeracion, terceros.cliente, terceros.proveedor, catalogo.producto, catalogo.movimiento_stock, facturacion.factura, facturacion.linea_factura, facturacion.factura_recurrente, facturacion.linea_recurrente, facturacion.presupuesto, facturacion.linea_presupuesto, gastos.gasto, recepcion.factura_recibida, tesoreria.movimiento, auditoria.registro_auditoria")
+            "TRUNCATE identidad.usuario, organizacion.empresa, organizacion.membresia, organizacion.serie_numeracion, terceros.cliente, terceros.proveedor, catalogo.producto, catalogo.movimiento_stock, facturacion.factura, facturacion.linea_factura, facturacion.factura_recurrente, facturacion.linea_recurrente, facturacion.presupuesto, facturacion.linea_presupuesto, gastos.gasto, recepcion.factura_recibida, contabilidad.apunte, contabilidad.asiento, contabilidad.cuenta, contabilidad.config_contabilidad, tesoreria.movimiento, auditoria.registro_auditoria")
             .ConfigureAwait(false);
     }
 

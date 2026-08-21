@@ -1,0 +1,129 @@
+using AlxorCore.Api.Comun;
+using AlxorCore.Contabilidad.Aplicacion;
+using AlxorCore.Contabilidad.Dominio;
+using AlxorCore.Nucleo.Autorizacion;
+using AlxorCore.Nucleo.Multiempresa;
+using AlxorCore.Nucleo.Resultados;
+using AlxorCore.Nucleo.Tiempo;
+
+namespace AlxorCore.Api.Endpoints;
+
+/// <summary>Petición para cambiar el modo de contabilidad de la empresa.</summary>
+public sealed record CambiarModoContabilidadPeticion(ModoContabilidad Modo);
+
+/// <summary>Endpoints REST del módulo Contabilidad (partida doble).</summary>
+public static class EndpointsContabilidad
+{
+    public static IEndpointRouteBuilder MapearContabilidad(this IEndpointRouteBuilder rutas)
+    {
+        ArgumentNullException.ThrowIfNull(rutas);
+
+        var grupo = rutas.MapGroup("/contabilidad").WithTags("Contabilidad");
+
+        grupo.MapGet("/cuentas", ListarCuentasAsync)
+            .WithSummary("Lista el plan de cuentas de la empresa.")
+            .RequierePermiso(Permisos.ContabilidadLeer);
+
+        grupo.MapGet("/diario", DiarioAsync)
+            .WithSummary("Libro diario: asientos del ejercicio.")
+            .RequierePermiso(Permisos.ContabilidadLeer);
+
+        grupo.MapGet("/mayor/{codigo}", MayorAsync)
+            .WithSummary("Libro mayor de una cuenta.")
+            .RequierePermiso(Permisos.ContabilidadLeer);
+
+        grupo.MapGet("/balance", BalanceAsync)
+            .WithSummary("Balance de sumas y saldos del ejercicio.")
+            .RequierePermiso(Permisos.ContabilidadLeer);
+
+        grupo.MapPost("/asientos", CrearAsientoAsync)
+            .WithSummary("Crea un asiento manual (debe la suma del debe = suma del haber).")
+            .RequierePermiso(Permisos.ContabilidadGestionar);
+
+        grupo.MapGet("/modo", ModoAsync)
+            .WithSummary("Modo de contabilidad de la empresa (Simple / Completo).")
+            .RequierePermiso(Permisos.ContabilidadLeer);
+
+        grupo.MapPut("/modo", CambiarModoAsync)
+            .WithSummary("Cambia el modo de contabilidad de la empresa.")
+            .RequierePermiso(Permisos.ContabilidadGestionar);
+
+        return rutas;
+    }
+
+    private static int Ejercicio(int? ejercicio, IReloj reloj) => ejercicio ?? reloj.AhoraUtc.Year;
+
+    private static async Task<IResult> ListarCuentasAsync(IContextoEmpresa contexto, ListarCuentas caso, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, ct).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> DiarioAsync(int? ejercicio, IContextoEmpresa contexto, ListarDiario caso, IReloj reloj, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, Ejercicio(ejercicio, reloj), ct).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> MayorAsync(string codigo, int? ejercicio, IContextoEmpresa contexto, MayorCuenta caso, IReloj reloj, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, Ejercicio(ejercicio, reloj), codigo, ct).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> BalanceAsync(int? ejercicio, IContextoEmpresa contexto, BalanceSumasYSaldos caso, IReloj reloj, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, Ejercicio(ejercicio, reloj), ct).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> CrearAsientoAsync(CrearAsientoComando comando, IContextoEmpresa contexto, CrearAsiento caso, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        var resultado = await caso.EjecutarAsync(contexto.EmpresaId.Value, comando, ct).ConfigureAwait(false);
+        return resultado.EsCorrecto ? resultado.ACreado($"/contabilidad/diario?ejercicio={resultado.Valor.Ejercicio}") : ResultadosHttp.AProblema(resultado.Error);
+    }
+
+    private static async Task<IResult> ModoAsync(IContextoEmpresa contexto, ObtenerModoContabilidad caso, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        var modo = await caso.EjecutarAsync(contexto.EmpresaId.Value, ct).ConfigureAwait(false);
+        return Results.Ok(new { modo = modo.ToString() });
+    }
+
+    private static async Task<IResult> CambiarModoAsync(CambiarModoContabilidadPeticion peticion, IContextoEmpresa contexto, CambiarModoContabilidad caso, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(peticion);
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        var modo = await caso.EjecutarAsync(contexto.EmpresaId.Value, peticion.Modo, ct).ConfigureAwait(false);
+        return Results.Ok(new { modo = modo.ToString() });
+    }
+}

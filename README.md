@@ -142,6 +142,7 @@ dotnet ef migrations add <Nombre> \
 | **Facturación** (facturas emitidas) | ✅ Terminado |
 | **Gastos** | ✅ Terminado |
 | **Recepción de facturas de proveedor** (buzón de correo + contabilización) | ✅ Terminado |
+| **Contabilidad** (partida doble: plan PGC, asientos, diario, mayor, balance) | ✅ Terminado |
 | **Tesorería** (cobros y pagos) | ✅ Terminado |
 | **Documentos** (PDF y email) | ✅ Terminado |
 | **Informes** (dashboard, libros de IVA, gestoría, beneficio) | ✅ Terminado |
