@@ -19,6 +19,7 @@
     <ProjectReference Include="..\AlxorCore.Facturacion.Infraestructura\AlxorCore.Facturacion.Infraestructura.csproj" />
     <ProjectReference Include="..\AlxorCore.Gastos\AlxorCore.Gastos.csproj" />
     <ProjectReference Include="..\AlxorCore.Gastos.Infraestructura\AlxorCore.Gastos.Infraestructura.csproj" />
+    <ProjectReference Include="..\AlxorCore.Recepcion.Infraestructura\AlxorCore.Recepcion.Infraestructura.csproj" />
     <ProjectReference Include="..\AlxorCore.Tesoreria\AlxorCore.Tesoreria.csproj" />
     <ProjectReference Include="..\AlxorCore.Tesoreria.Infraestructura\AlxorCore.Tesoreria.Infraestructura.csproj" />
     <ProjectReference Include="..\AlxorCore.Documentos\AlxorCore.Documentos.csproj" />

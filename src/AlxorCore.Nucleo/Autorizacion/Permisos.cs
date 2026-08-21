@@ -17,6 +17,11 @@ public static class Permisos
     public const string GastoLeer = "gasto.leer";
     public const string GastoGestionar = "gasto.gestionar";
 
+    // Recepción de facturas de proveedor (bandeja + contabilización)
+    public const string RecepcionLeer = "recepcion.leer";
+    public const string RecepcionGestionar = "recepcion.gestionar";
+    public const string RecepcionContabilizar = "recepcion.contabilizar";
+
     // Tesorería (cobros y pagos)
     public const string CobroRegistrar = "cobro.registrar";
     public const string PagoRegistrar = "pago.registrar";
@@ -38,6 +43,7 @@ public static class Permisos
     {
         FacturaLeer, FacturaCrear, FacturaEmitir,
         GastoLeer, GastoGestionar,
+        RecepcionLeer, RecepcionGestionar, RecepcionContabilizar,
         CobroRegistrar, PagoRegistrar,
         ClienteGestionar, ProductoGestionar,
         InformeLeer, DatosExportar,

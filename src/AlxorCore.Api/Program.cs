@@ -11,6 +11,7 @@ using AlxorCore.Terceros.Infraestructura;
 using AlxorCore.Catalogo.Infraestructura;
 using AlxorCore.Facturacion.Infraestructura;
 using AlxorCore.Gastos.Infraestructura;
+using AlxorCore.Recepcion.Infraestructura;
 using AlxorCore.Tesoreria.Infraestructura;
 using AlxorCore.Documentos.Infraestructura;
 using AlxorCore.Informes.Infraestructura;
@@ -36,6 +37,7 @@ builder.Services.AgregarModuloTerceros(builder.Configuration);
 builder.Services.AgregarModuloCatalogo(builder.Configuration);
 builder.Services.AgregarModuloFacturacion(builder.Configuration);
 builder.Services.AgregarModuloGastos(builder.Configuration);
+builder.Services.AgregarModuloRecepcion(builder.Configuration);
 builder.Services.AgregarModuloTesoreria(builder.Configuration);
 builder.Services.AgregarModuloDocumentos();
 builder.Services.AgregarModuloInformes();
@@ -45,6 +47,9 @@ builder.Services.AgregarModuloAuditoria(builder.Configuration);
 builder.Services.Configure<AlxorCore.Api.Servicios.OpcionesFacturacionRecurrente>(
     builder.Configuration.GetSection(AlxorCore.Api.Servicios.OpcionesFacturacionRecurrente.Seccion));
 builder.Services.AddHostedService<AlxorCore.Api.Servicios.ServicioFacturacionRecurrente>();
+
+// --- Buzón de correo de facturas de proveedor (apagado salvo que esté configurado) ---
+builder.Services.AddHostedService<AlxorCore.Api.Servicios.ServicioBuzonProveedores>();
 
 // Los enumerados se serializan por nombre en la API.
 builder.Services.ConfigureHttpJsonOptions(opciones =>
@@ -111,6 +116,7 @@ if (app.Environment.IsDevelopment())
     await ambito.ServiceProvider.GetRequiredService<AlxorCore.Catalogo.Infraestructura.CatalogoDbContext>().Database.MigrateAsync().ConfigureAwait(false);
     await ambito.ServiceProvider.GetRequiredService<AlxorCore.Facturacion.Infraestructura.FacturacionDbContext>().Database.MigrateAsync().ConfigureAwait(false);
     await ambito.ServiceProvider.GetRequiredService<AlxorCore.Gastos.Infraestructura.GastosDbContext>().Database.MigrateAsync().ConfigureAwait(false);
+    await ambito.ServiceProvider.GetRequiredService<AlxorCore.Recepcion.Infraestructura.RecepcionDbContext>().Database.MigrateAsync().ConfigureAwait(false);
     await ambito.ServiceProvider.GetRequiredService<AlxorCore.Tesoreria.Infraestructura.TesoreriaDbContext>().Database.MigrateAsync().ConfigureAwait(false);
     await ambito.ServiceProvider.GetRequiredService<AlxorCore.Auditoria.Infraestructura.AuditoriaDbContext>().Database.MigrateAsync().ConfigureAwait(false);
 
@@ -140,6 +146,7 @@ app.MapearTerceros();
 app.MapearCatalogo();
 app.MapearFacturacion();
 app.MapearGastos();
+app.MapearRecepcion();
 app.MapearTesoreria();
 app.MapearDocumentos();
 app.MapearInformes();
