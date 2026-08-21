@@ -141,6 +141,7 @@ dotnet ef migrations add <Nombre> \
 | **Catálogo** (Productos e Impuestos) | ✅ Terminado |
 | **Facturación** (facturas emitidas) | ✅ Terminado |
 | **Gastos** | ✅ Terminado |
+| **Recepción de facturas de proveedor** (buzón de correo + contabilización) | ✅ Terminado |
 | **Tesorería** (cobros y pagos) | ✅ Terminado |
 | **Documentos** (PDF y email) | ✅ Terminado |
 | **Informes** (dashboard, libros de IVA, gestoría, beneficio) | ✅ Terminado |

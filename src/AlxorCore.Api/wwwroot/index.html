@@ -351,12 +351,12 @@
     const NAV = [
       { t:"item", k:"inicio", l:"Inicio" },
       { t:"grupo", k:"ventas", l:"Ventas", items:[["presupuestos","Presupuestos"],["facturas","Facturas"],["tpv","TPV · Tickets"],["recurrentes","Periódicas"],["clientes","Clientes"],["cobros","Cobros"],["remesas","Remesas SEPA"]] },
-      { t:"grupo", k:"compras", l:"Compras", items:[["gastos","Gastos"],["proveedores","Proveedores"],["pagos","Pagos"],["conciliacion","Conciliación banco"]] },
+      { t:"grupo", k:"compras", l:"Compras", items:[["recepcion","Buzón de facturas"],["gastos","Gastos"],["proveedores","Proveedores"],["pagos","Pagos"],["conciliacion","Conciliación banco"]] },
       { t:"grupo", k:"articulos", l:"Artículos", items:[["productos","Productos"]] },
       { t:"item", k:"informes", l:"Informes" },
       { t:"item", k:"ajustes", l:"Ajustes" },
     ];
-    const TITULOS = { inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", informes:"Informes", ajustes:"Ajustes" };
+    const TITULOS = { inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", informes:"Informes", ajustes:"Ajustes" };
     function renderNav() {
       return NAV.map(n => {
         if (n.t === "item") return `<a class="navitem" data-k="${n.k}" onclick="ir('${n.k}')">${ICON[n.k]}<span>${n.l}</span></a>`;
@@ -452,7 +452,7 @@
     function ir(k){ closeMenu(); if(vista==="tpv" && k!=="tpv" && typeof tpvParar==="function") tpvParar(); vista=k;
       document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("active",a.dataset.k===k));
       document.getElementById("viewTitle").textContent=TITULOS[k]||k;
-      ({inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,clientes:vClientes,productos:vProductos,gastos:vGastos,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,informes:vInformes,ajustes:vAjustes}[k])();
+      ({inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,clientes:vClientes,productos:vProductos,gastos:vGastos,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,informes:vInformes,ajustes:vAjustes}[k])();
     }
     const view = h => document.getElementById("view").innerHTML=h;
     const panel = (t,c,a="") => `<div class="panel">${(t||a)?`<div class="panel-head">${t?`<h2>${t}</h2>`:'<span></span>'}${a}</div>`:''}${c}</div>`;
@@ -797,6 +797,87 @@
       const cuerpo=gs.length?`<table><thead><tr><th>Concepto</th><th>Proveedor</th><th class="num">Total</th><th class="num">Pagado</th><th class="num">Pendiente</th><th class="right">Estado</th></tr></thead><tbody>${filas}</tbody></table>`:vacio("pagos","Nada que pagar aún","Cuando registres gastos verás aquí su estado de pago.");
       view(panel("Pagos a proveedores",cuerpo));
     }
+    // ---- Recepción de facturas de proveedor (bandeja + contabilización) ----
+    let _cacheRecibidas=[];
+    const estadoPillRec = e => {
+      const c = e==="Contabilizada"?"ok":(e==="Validada"?"part":(e==="Rechazada"?"wait":"wait"));
+      return `<span class="pill ${c}">${e}</span>`;
+    };
+    async function vRecepcion() {
+      view('<div class="muted">Cargando…</div>');
+      const [rs,provs]=await Promise.all([api("/recepcion/facturas"),api("/proveedores").catch(()=>[])]);
+      _cacheRecibidas=rs; _cacheProvRec=provs;
+      const acciones=f=>{
+        const btns=[];
+        btns.push(`<button class="btn small ghost" onclick="abrirDocRecibida('${f.id}')" title="Ver documento">PDF</button>`);
+        if(f.estado==="Recibida"||f.estado==="Validada") btns.push(`<button class="btn small secondary" onclick="modalValidarRecibida('${f.id}')">Revisar</button>`);
+        if(f.estado==="Validada") btns.push(`<button class="btn small" style="width:auto;margin:0;padding:9px 14px" onclick="contabilizarRecibida('${f.id}')">Contabilizar</button>`);
+        if(f.estado!=="Contabilizada"&&f.estado!=="Rechazada") btns.push(`<button class="btn small ghost" onclick="rechazarRecibida('${f.id}')" title="Descartar">✕</button>`);
+        return btns.join(" ");
+      };
+      const filas=rs.map(f=>`<tr>
+        <td><strong>${f.nombreArchivo}</strong><div class="muted" style="font-size:12px">${f.origen==="Correo"?("✉ "+(f.remitenteCorreo||"correo")):"⬆ subida manual"}</div></td>
+        <td>${f.proveedorTexto||'<span class="muted">—</span>'}</td>
+        <td class="muted">${f.numeroFactura||"—"}</td>
+        <td class="muted">${f.fechaFactura?fdate(f.fechaFactura):"—"}</td>
+        <td class="num">${f.baseImponible!=null?eur(f.baseImponible):"—"}</td>
+        <td class="right">${estadoPillRec(f.estado)}</td>
+        <td class="right" style="white-space:nowrap">${acciones(f)}</td></tr>`).join("");
+      const tabla=rs.length?`<table><thead><tr><th>Documento</th><th>Proveedor</th><th>Nº</th><th>Fecha</th><th class="num">Base</th><th class="right">Estado</th><th class="right">Acciones</th></tr></thead><tbody>${filas}</tbody></table>`
+        :vacio("gastos","La bandeja está vacía","Las facturas que lleguen por correo o subas a mano aparecerán aquí para revisarlas y contabilizarlas.",`<button class="btn small" onclick="subirFacturaRecibida()">+ Subir factura</button>`);
+      const intro=`<p class="muted" style="margin:0 0 16px">Revisa cada factura, confirma sus datos y contabilízala en un clic (genera el gasto con IVA soportado). <strong>Nunca se contabiliza nada sin validar antes.</strong></p>`;
+      view(panel("Buzón de facturas de proveedor",intro+tabla,`<button class="btn small" onclick="subirFacturaRecibida()">+ Subir factura</button>`));
+    }
+    let _cacheProvRec=[];
+    function subirFacturaRecibida(){
+      const inp=document.createElement("input"); inp.type="file"; inp.accept="application/pdf,.pdf";
+      inp.onchange=async()=>{ const file=inp.files[0]; if(!file) return;
+        try{
+          const b64=await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(String(r.result).split(",")[1]); r.onerror=rej; r.readAsDataURL(file); });
+          await api("/recepcion/facturas",{method:"POST",body:JSON.stringify({nombreArchivo:file.name,contenidoBase64:b64,tipoContenido:file.type||"application/pdf"})});
+          toast("Factura subida a la bandeja.","ok"); vRecepcion();
+        }catch(e){ toast(e.message,"err"); } };
+      inp.click();
+    }
+    async function abrirDocRecibida(id){ try{
+        const r=await fetch(`/recepcion/facturas/${id}/documento`,{headers:{Authorization:"Bearer "+token}});
+        if(!r.ok) throw new Error("No se pudo abrir el documento");
+        const u=URL.createObjectURL(await r.blob()); window.open(u,"_blank");
+        setTimeout(()=>URL.revokeObjectURL(u),60000);
+      }catch(e){ toast(e.message,"err"); } }
+    function modalValidarRecibida(id){
+      const f=_cacheRecibidas.find(x=>x.id===id)||{};
+      const opts=_cacheProvRec.map(p=>`<option value="${p.id}"${p.id===f.proveedorId?" selected":""}>${p.nombre}</option>`).join("");
+      const iva=["IVA21","IVA10","IVA4","IVA0"].map(c=>`<option value="${c}"${(f.codigoIva||"IVA21")===c?" selected":""}>${c.replace("IVA","")+" %"}</option>`).join("");
+      abrir("Revisar factura recibida",`
+        <p class="muted" style="margin:0 0 12px">Confirma o corrige los datos antes de contabilizar.</p>
+        <label>Proveedor</label>
+        <select id="vr_prov"><option value="">— Escribir a mano —</option>${opts}</select>
+        <label>o nombre del proveedor (si no está en la lista)</label>
+        <input id="vr_provtxt" value="${f.proveedorTexto||""}" placeholder="Proveedor SL"/>
+        <div class="grid2"><div><label>Nº de factura</label><input id="vr_num" value="${f.numeroFactura||""}"/></div><div><label>Fecha</label><input id="vr_fecha" type="date" value="${(f.fechaFactura||"").slice(0,10)}"/></div></div>
+        <div class="grid2"><div><label>Base imponible (€)</label><input id="vr_base" type="number" step="0.01" value="${f.baseImponible!=null?f.baseImponible:""}"/></div><div><label>IVA</label><select id="vr_iva">${iva}</select></div></div>
+        <label>Retención IRPF (%)</label><input id="vr_irpf" type="number" step="0.01" value="${f.porcentajeIrpf!=null?f.porcentajeIrpf:0}"/>`,
+        async()=>{
+          const provId=val("vr_prov")||null;
+          const body={ proveedorId:provId, proveedorTexto:provId?null:(val("vr_provtxt")||null), numeroFactura:val("vr_num")||null,
+            fechaFactura:val("vr_fecha")||null, baseImponible:Number(val("vr_base")||0), codigoIva:val("vr_iva"), porcentajeIrpf:Number(val("vr_irpf")||0) };
+          await api("/recepcion/facturas/"+id+"/validar",{method:"POST",body:JSON.stringify(body)});
+          toast("Factura validada. Ya puedes contabilizarla.","ok"); vRecepcion();
+        });
+    }
+    async function contabilizarRecibida(id){
+      try{ const r=await api("/recepcion/facturas/"+id+"/contabilizar",{method:"POST"});
+        toast("Contabilizada: gasto creado con IVA soportado.","ok"); vRecepcion();
+      }catch(e){ toast(e.message,"err"); }
+    }
+    async function rechazarRecibida(id){
+      if(!confirm("¿Descartar esta factura de la bandeja?")) return;
+      try{ await api("/recepcion/facturas/"+id+"/rechazar",{method:"POST",body:JSON.stringify({motivo:"Descartada"})});
+        toast("Factura descartada.","ok"); vRecepcion();
+      }catch(e){ toast(e.message,"err"); }
+    }
+
     async function vGastos() {
       view('<div class="muted">Cargando…</div>');
       const gs=await api("/gastos");
