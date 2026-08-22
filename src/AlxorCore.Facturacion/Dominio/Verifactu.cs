@@ -50,6 +50,23 @@ public static class Verifactu
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(cadena)));
     }
 
+    /// <summary>
+    /// Calcula la huella del <b>registro de anulación</b> VeriFactu (SHA-256, hex), encadenada con la
+    /// huella anterior de la cadena. La anulación no borra la factura: genera un registro propio.
+    /// </summary>
+    public static string CalcularHuellaAnulacion(
+        string nifEmisor, string numSerie, string? huellaAnterior, DateTimeOffset generadoEn)
+    {
+        var cadena = string.Join("&",
+            $"IDEmisorFacturaAnulada={nifEmisor}",
+            $"NumSerieFacturaAnulada={numSerie}",
+            "Operacion=Anulacion",
+            $"Huella={huellaAnterior ?? string.Empty}",
+            $"FechaHoraHusoGenRegistro={generadoEn.ToString("yyyy-MM-ddTHH:mm:sszzz", CultureInfo.InvariantCulture)}");
+
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(cadena)));
+    }
+
     /// <summary>URL de cotejo de la AEAT que codifica el QR de una factura/ticket VeriFactu.</summary>
     public static string UrlCotejo(string nifEmisor, string numSerie, DateOnly fecha, decimal importeTotal) =>
         $"{BaseUrlCotejo}?nif={Uri.EscapeDataString(nifEmisor)}" +

@@ -40,6 +40,10 @@ public static class EndpointsFacturacion
             .WithSummary("Emite una factura rectificativa que corrige a esta factura.")
             .RequierePermiso(Permisos.FacturaEmitir);
 
+        facturas.MapPost("/{id:guid}/anular", AnularAsync)
+            .WithSummary("Anula la factura (antifraude: no la borra; genera un registro de anulación).")
+            .RequierePermiso(Permisos.FacturaEmitir);
+
         var recurrentes = rutas.MapGroup("/facturas-recurrentes").WithTags("Facturación periódica");
 
         recurrentes.MapGet("", ListarRecurrentesAsync)
@@ -104,6 +108,17 @@ public static class EndpointsFacturacion
 
         var resultado = await caso.EjecutarAsync(contexto.EmpresaId.Value, id, comando, ct).ConfigureAwait(false);
         return resultado.EsCorrecto ? resultado.ACreado($"/facturas/{resultado.Valor.Id}") : ResultadosHttp.AProblema(resultado.Error);
+    }
+
+    private static async Task<IResult> AnularAsync(Guid id, AnularFacturaComando comando, IContextoEmpresa contexto, AnularFactura caso, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        var resultado = await caso.EjecutarAsync(contexto.EmpresaId.Value, id, comando, ct).ConfigureAwait(false);
+        return resultado.AOk();
     }
 
     private static async Task<IResult> ListarPresupuestosAsync(IContextoEmpresa contexto, ListarPresupuestos caso, CancellationToken ct)

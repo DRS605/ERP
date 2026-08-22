@@ -74,6 +74,28 @@ public sealed class FacturacionEndpointsTests : IClassFixture<FabricaApiPruebas>
         factura.Total.Should().Be(1060m);
     }
 
+    private sealed record FacturaAnulResp(Guid Id, string Estado, string? MotivoAnulacion);
+
+    [Fact]
+    public async Task Anular_factura_no_la_borra_la_marca_anulada_con_motivo()
+    {
+        var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+        var clienteId = await CrearClienteAsync(cliente);
+        var comando = new { ClienteId = clienteId, Lineas = new[] { new { Cantidad = 1m, Descripcion = "X", PrecioUnitario = 100m, CodigoIva = "IVA21" } } };
+        var f = await (await cliente.PostAsJsonAsync("/facturas", comando)).Content.ReadFromJsonAsync<FacturaResp>();
+
+        var anular = await cliente.PostAsJsonAsync($"/facturas/{f!.Id}/anular", new { Motivo = "Emitida por error" });
+        anular.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
+
+        // La factura sigue existiendo (no se borra), ahora Anulada con su motivo.
+        var obtenida = await cliente.GetFromJsonAsync<FacturaAnulResp>($"/facturas/{f.Id}");
+        obtenida!.Estado.Should().Be("Anulada");
+        obtenida.MotivoAnulacion.Should().Be("Emitida por error");
+
+        // No se puede anular dos veces.
+        (await cliente.PostAsJsonAsync($"/facturas/{f.Id}/anular", new { Motivo = "otra vez" })).StatusCode.Should().Be(System.Net.HttpStatusCode.Conflict);
+    }
+
     [Fact]
     public async Task Listar_y_obtener_factura()
     {

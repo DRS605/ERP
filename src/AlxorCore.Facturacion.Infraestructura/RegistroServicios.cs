@@ -34,6 +34,7 @@ public static class RegistroServicios
         servicios.AddScoped<EmitirFactura>();
         servicios.AddScoped<EmitirTicket>();
         servicios.AddScoped<EmitirRectificativa>();
+        servicios.AddScoped<AnularFactura>();
         servicios.AddScoped<ListarFacturas>();
         servicios.AddScoped<ObtenerFactura>();
 

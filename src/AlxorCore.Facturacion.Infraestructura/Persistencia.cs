@@ -86,6 +86,9 @@ internal sealed class ConfiguracionFactura : IEntityTypeConfiguration<Factura>
         builder.Property(f => f.TipoOperacion).HasColumnName("tipo_operacion").HasMaxLength(20);
         builder.Property(f => f.EstadoEnvioAeat).HasColumnName("estado_envio_aeat").HasMaxLength(20);
         builder.Property(f => f.FechaHoraGenRegistro).HasColumnName("fecha_hora_gen_registro");
+        builder.Property(f => f.MotivoAnulacion).HasColumnName("motivo_anulacion").HasMaxLength(300);
+        builder.Property(f => f.HuellaAnulacion).HasColumnName("huella_anulacion").HasMaxLength(128);
+        builder.Property(f => f.FechaHoraAnulacion).HasColumnName("fecha_hora_anulacion");
 
         builder.Ignore(f => f.EventosDominio);
 
@@ -237,12 +240,24 @@ internal sealed class RepositorioFacturas : IRepositorioFacturas, IConsultaFactu
 
     public void Agregar(Factura factura) => _contexto.Facturas.Add(factura);
 
-    public Task<string?> UltimaHuellaAsync(Guid empresaId, CancellationToken ct = default) =>
-        _contexto.Facturas
+    public async Task<string?> UltimaHuellaAsync(Guid empresaId, CancellationToken ct = default)
+    {
+        // La cadena antifraude incluye los registros de alta y los de anulación de la empresa; se
+        // devuelve la huella del más reciente por su instante de generación.
+        var altas = await _contexto.Facturas
             .Where(f => f.EmpresaId == empresaId && f.Huella != null)
-            .OrderByDescending(f => f.FechaHoraGenRegistro).ThenByDescending(f => f.Numero)
-            .Select(f => f.Huella)
-            .FirstOrDefaultAsync(ct);
+            .Select(f => new { Fecha = f.FechaHoraGenRegistro, f.Huella })
+            .ToListAsync(ct).ConfigureAwait(false);
+        var anulaciones = await _contexto.Facturas
+            .Where(f => f.EmpresaId == empresaId && f.HuellaAnulacion != null)
+            .Select(f => new { Fecha = f.FechaHoraAnulacion, Huella = f.HuellaAnulacion })
+            .ToListAsync(ct).ConfigureAwait(false);
+
+        return altas.Concat(anulaciones)
+            .OrderByDescending(x => x.Fecha)
+            .Select(x => x.Huella)
+            .FirstOrDefault();
+    }
 
     public async Task<FacturaDto?> ObtenerAsync(Guid facturaId, CancellationToken ct = default)
     {

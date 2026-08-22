@@ -119,6 +119,15 @@ public sealed class Factura : RaizAgregadoEmpresa<Guid>
     /// <summary>Instante de generación del registro VeriFactu (con huso), parte de la huella.</summary>
     public DateTimeOffset? FechaHoraGenRegistro { get; private set; }
 
+    /// <summary>Motivo de la anulación (obligatorio al anular). Nulo si la factura no está anulada.</summary>
+    public string? MotivoAnulacion { get; private set; }
+
+    /// <summary>Huella del registro de anulación VeriFactu (encadenada). Nula si no se ha anulado.</summary>
+    public string? HuellaAnulacion { get; private set; }
+
+    /// <summary>Instante del registro de anulación (con huso).</summary>
+    public DateTimeOffset? FechaHoraAnulacion { get; private set; }
+
     /// <summary>
     /// Genera el <b>registro de alta VeriFactu</b> de la factura: calcula su huella encadenándola con
     /// la del registro anterior de la empresa y deja el registro almacenado localmente (pendiente de
@@ -337,6 +346,31 @@ public sealed class Factura : RaizAgregadoEmpresa<Guid>
         }
 
         Estado = EstadoFactura.Rectificada;
+        return Resultado.Ok();
+    }
+
+    /// <summary>
+    /// Anula la factura conforme a la ley antifraude: <b>no la borra</b> ni la modifica en sus
+    /// importes; cambia su estado a <see cref="EstadoFactura.Anulada"/>, guarda el motivo y genera un
+    /// <b>registro de anulación</b> VeriFactu con su propia huella encadenada. Solo una factura
+    /// emitida puede anularse (una rectificada o ya anulada, no).
+    /// </summary>
+    public Resultado Anular(string? motivo, string nifEmisor, string? huellaAnterior, DateTimeOffset generadoEn)
+    {
+        if (Estado != EstadoFactura.Emitida)
+        {
+            return Resultado.Fallo(Error.Conflicto("factura.no_anulable", "Solo una factura emitida puede anularse."));
+        }
+
+        if (string.IsNullOrWhiteSpace(motivo))
+        {
+            return Resultado.Fallo(Error.Validacion("factura.motivo_anulacion", "El motivo de la anulación es obligatorio."));
+        }
+
+        Estado = EstadoFactura.Anulada;
+        MotivoAnulacion = motivo.Trim();
+        FechaHoraAnulacion = generadoEn;
+        HuellaAnulacion = Verifactu.CalcularHuellaAnulacion(nifEmisor, NumeroCompleto, huellaAnterior, generadoEn);
         return Resultado.Ok();
     }
 
