@@ -9,6 +9,8 @@
     <ProjectReference Include="..\AlxorCore.Compras\AlxorCore.Compras.csproj" />
     <!-- La entrada automática al recibir albarán se apoya en los casos de uso del módulo Inventario. -->
     <ProjectReference Include="..\AlxorCore.Inventario\AlxorCore.Inventario.csproj" />
+    <!-- Catálogo aporta el factor de conversión unidad de compra → unidad base al dar entrada al stock. -->
+    <ProjectReference Include="..\AlxorCore.Catalogo\AlxorCore.Catalogo.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.10">

@@ -47,6 +47,33 @@ public sealed class CatalogoEndpointsTests : IClassFixture<FabricaApiPruebas>
         obtenido!.Nombre.Should().Be("Consultoría");
     }
 
+    private sealed record ProductoEnvaseDto(Guid Id, string Unidad, string? UnidadCompra, decimal FactorCompra,
+        string? UnidadVenta, decimal FactorVenta, decimal PrecioCompra, decimal PrecioCompraPorUnidadCompra, decimal PrecioVentaPorUnidadVenta, decimal PrecioUnitario);
+
+    [Fact]
+    public async Task Articulo_con_unidades_de_compra_y_venta()
+    {
+        var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+
+        var crear = await cliente.PostAsJsonAsync("/productos", new
+        {
+            Nombre = "Refresco", PrecioUnitario = 0.90m, PrecioCompra = 0.50m, CodigoIva = "IVA21",
+            Unidad = "ud", UnidadCompra = "caja", FactorCompra = 12m, UnidadVenta = "lata", FactorVenta = 1m,
+        });
+        crear.StatusCode.Should().Be(HttpStatusCode.Created);
+        var creado = (await crear.Content.ReadFromJsonAsync<ProductoEnvaseDto>())!;
+
+        var p = await cliente.GetFromJsonAsync<ProductoEnvaseDto>($"/productos/{creado.Id}");
+        p!.Unidad.Should().Be("ud");
+        p.UnidadCompra.Should().Be("caja");
+        p.FactorCompra.Should().Be(12m);
+        p.PrecioCompraPorUnidadCompra.Should().Be(6m); // 0,50 × 12
+
+        // Un factor no positivo se rechaza.
+        var malo = await cliente.PostAsJsonAsync("/productos", new { Nombre = "X", PrecioUnitario = 1m, CodigoIva = "IVA21", FactorCompra = 0m });
+        malo.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
     [Fact]
     public async Task Un_articulo_puede_tener_proveedor_habitual()
     {

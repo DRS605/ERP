@@ -1029,7 +1029,13 @@
       return `<span class="pill ${c}">${e}</span>`;
     };
     function lineaSolHtml(){ return `<div class="cmp-lsol" style="display:grid;grid-template-columns:3fr 1fr;gap:8px;margin-bottom:6px"><input class="ls-desc" placeholder="Descripción"/><input class="ls-cant" type="number" step="0.001" placeholder="Cantidad"/></div>`; }
-    function lineaPedHtml(d,c,p,prodId){ const po=(window._prodOpts||''); return `<div class="cmp-lped" style="display:grid;grid-template-columns:${po?'2fr ':''}3fr 1fr 1fr;gap:8px;margin-bottom:6px">${po?`<select class="lp-prod" title="Artículo del catálogo (opcional; permite la entrada automática al recibir)"><option value="">— Sin artículo —</option>${po}</select>`:''}<input class="lp-desc" placeholder="Descripción" value="${d||''}"/><input class="lp-cant" type="number" step="0.001" placeholder="Cantidad" value="${c??''}"/><input class="lp-prec" type="number" step="0.01" placeholder="Precio" value="${p??''}"/></div>`; }
+    function lineaPedHtml(d,c,p,prodId){ const po=(window._prodOpts||''); const opts=po?po.replace(`value="${prodId}"`,`value="${prodId}" selected`):''; return `<div class="cmp-lped" style="display:grid;grid-template-columns:${po?'2fr ':''}3fr 1fr 1fr;gap:8px 8px;margin-bottom:6px;align-items:start">${po?`<select class="lp-prod" title="Artículo del catálogo (opcional; permite la entrada automática al recibir)" onchange="pedLineaProd(this)"><option value="">— Sin artículo —</option>${opts}</select>`:''}<div><input class="lp-desc" placeholder="Descripción" value="${d||''}"/></div><div><input class="lp-cant" type="number" step="0.001" placeholder="Cantidad" value="${c??''}"/><div class="lp-unidad muted" style="font-size:11px;margin-top:2px"></div></div><input class="lp-prec" type="number" step="0.01" placeholder="Precio" value="${p??''}"/></div>`; }
+    // Al elegir un artículo en una línea de pedido: rellena descripción/precio y muestra la unidad de compra.
+    function pedLineaProd(sel){ const row=sel.closest('.cmp-lped'); const prod=(window._prodMap||{})[sel.value]; const desc=row.querySelector('.lp-desc'), prec=row.querySelector('.lp-prec'), uni=row.querySelector('.lp-unidad');
+      if(!prod){ if(uni) uni.textContent=""; return; }
+      if(!desc.value) desc.value=prod.nombre;
+      if(!prec.value||Number(prec.value)===0) prec.value=(prod.precioCompraPorUnidadCompra??prod.precioCompra)||0;
+      if(uni){ const uc=prod.unidadCompra||prod.unidad||"ud"; uni.textContent = (prod.factorCompra&&prod.factorCompra!==1)?`en ${uc} (×${numCant(prod.factorCompra)} ${prod.unidad||"ud"})`:`en ${uc}`; } }
 
     async function vSolicitudes(){
       view('<div class="muted">Cargando…</div>');
@@ -1082,6 +1088,7 @@
       const [provs,prods]=await Promise.all([api("/proveedores").catch(()=>[]),api("/productos").catch(()=>[])]);
       const opts=provs.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join("");
       window._prodOpts=prods.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join("");
+      window._prodMap=Object.fromEntries(prods.map(p=>[p.id,p]));
       const filasIni=(lineas&&lineas.length?lineas:[{},{}]).map(l=>lineaPedHtml(l.d,l.c,l.p,l.prodId)).join("");
       abrir("Nuevo pedido de compra",`<label>Proveedor (de la lista)</label><select id="ped_provid"><option value="">— Escribir a mano —</option>${opts}</select>
         <label>o nombre del proveedor</label><input id="ped_provtxt" value="${prov||''}"/>
@@ -1568,12 +1575,25 @@
       <div class="grid2"><div><label>Código / EAN (opcional)</label><input id="p_ref" placeholder="Ej. 8412345678901"/></div><div><label>IVA</label>${ivaSel("p_iva")}</div></div>
       <div class="grid2"><div><label>Precio de venta (€)</label><input id="p_precio" type="number" step="0.01" value="0"/></div><div><label>Precio de compra / coste (€)</label><input id="p_compra" type="number" step="0.01" value="0"/></div></div>
       <label>Proveedor habitual (opcional)</label><select id="p_prov">${provOpts}</select>
+      <details style="margin-top:14px;border:1px solid var(--line);border-radius:11px;padding:10px 12px" ${(p&&(p.unidadCompra||p.unidadVenta))?'open':''}>
+        <summary style="cursor:pointer;font-weight:600;font-size:13px">Unidades y envases</summary>
+        <div style="margin-top:10px">
+          <div class="grid2"><div><label>Unidad base (stock)</label><input id="p_unidad" placeholder="ud" value="ud"/></div><div></div></div>
+          <p class="muted" style="font-size:12px;margin:8px 0">Las existencias y los precios se llevan en la <strong>unidad base</strong>. Puedes comprar y vender en otra unidad indicando cuántas unidades base contiene.</p>
+          <div class="grid2"><div><label>Se compra en</label><input id="p_ucompra" placeholder="p. ej. caja"/></div><div><label>= unidades base por envase</label><input id="p_fcompra" type="number" step="0.0001" value="1" oninput="prevEnvase()"/></div></div>
+          <div class="grid2"><div><label>Se vende en</label><input id="p_uventa" placeholder="p. ej. unidad"/></div><div><label>= unidades base por envase</label><input id="p_fventa" type="number" step="0.0001" value="1" oninput="prevEnvase()"/></div></div>
+          <div id="p_env_prev" class="muted" style="font-size:12px;margin-top:8px"></div>
+        </div>
+      </details>
       <label style="display:flex;align-items:center;gap:8px;margin-top:14px;font-weight:500;cursor:pointer"><input id="p_stock_ctrl" type="checkbox" style="width:auto" onchange="document.getElementById('p_stock_box').style.display=this.checked?'block':'none'"/> Llevar control de stock (existencias)</label>
-      <div id="p_stock_box" style="display:none;margin-top:8px"><label>Stock inicial (unidades)${editar?' <span class="muted">(no se modifica al editar; usa el botón 📦)</span>':''}</label><input id="p_stock_ini" type="number" step="0.001" value="0" ${editar?'disabled':''}/></div>
+      <div id="p_stock_box" style="display:none;margin-top:8px"><label>Stock inicial (en unidad base)${editar?' <span class="muted">(no se modifica al editar; usa el botón 📦)</span>':''}</label><input id="p_stock_ini" type="number" step="0.001" value="0" ${editar?'disabled':''}/></div>
       <p class="muted" style="font-size:12px;margin:10px 0 0">El precio de compra sirve para calcular el margen en el informe de beneficio. El stock se descuenta automáticamente al facturar.</p>`,
-      async()=>{ const b=JSON.stringify({nombre:val("p_nombre"),referencia:val("p_ref")||null,precioUnitario:Number(val("p_precio")),precioCompra:Number(val("p_compra")),codigoIva:val("p_iva"),tipo:(p&&p.tipo)?p.tipo:"Servicio",proveedorHabitualId:val("p_prov")||null,controlarStock:document.getElementById("p_stock_ctrl").checked,stockInicial:Number(val("p_stock_ini")||0)}); await api("/productos"+(editar?"/"+p.id:""),{method:editar?"PUT":"POST",body:b}); vProductos(); });
-      if(p){ rellenar({p_nombre:p.nombre,p_ref:p.referencia,p_precio:p.precioUnitario,p_compra:p.precioCompra,p_iva:p.codigoIva,p_prov:p.proveedorHabitualId});
-        if(p.controlarStock){ document.getElementById("p_stock_ctrl").checked=true; document.getElementById("p_stock_box").style.display="block"; } } }
+      async()=>{ const fc=Number(val("p_fcompra")||1)||1, fv=Number(val("p_fventa")||1)||1;
+        const b=JSON.stringify({nombre:val("p_nombre"),referencia:val("p_ref")||null,precioUnitario:Number(val("p_precio")),precioCompra:Number(val("p_compra")),codigoIva:val("p_iva"),tipo:(p&&p.tipo)?p.tipo:"Servicio",proveedorHabitualId:val("p_prov")||null,unidad:val("p_unidad")||"ud",unidadCompra:val("p_ucompra")||null,factorCompra:fc,unidadVenta:val("p_uventa")||null,factorVenta:fv,controlarStock:document.getElementById("p_stock_ctrl").checked,stockInicial:Number(val("p_stock_ini")||0)}); await api("/productos"+(editar?"/"+p.id:""),{method:editar?"PUT":"POST",body:b}); vProductos(); });
+      if(p){ rellenar({p_nombre:p.nombre,p_ref:p.referencia,p_precio:p.precioUnitario,p_compra:p.precioCompra,p_iva:p.codigoIva,p_prov:p.proveedorHabitualId,p_unidad:p.unidad||"ud",p_ucompra:p.unidadCompra,p_fcompra:p.factorCompra??1,p_uventa:p.unidadVenta,p_fventa:p.factorVenta??1});
+        if(p.controlarStock){ document.getElementById("p_stock_ctrl").checked=true; document.getElementById("p_stock_box").style.display="block"; } }
+      prevEnvase(); }
+    function prevEnvase(){ const el=document.getElementById("p_env_prev"); if(!el)return; const base=val("p_unidad")||"ud"; const uc=val("p_ucompra"), fc=Number(val("p_fcompra")||1), uv=val("p_uventa"), fv=Number(val("p_fventa")||1); const t=[]; if(uc&&fc&&fc!==1) t.push(`1 ${uc} = ${numCant(fc)} ${base}`); if(uv&&fv&&fv!==1) t.push(`1 ${uv} = ${numCant(fv)} ${base}`); el.textContent=t.join(" · "); }
     async function modalStock(id){ const p=_cacheProd.find(x=>x.id===id); const movs=await api(`/productos/${id}/stock`).catch(()=>[]);
       const hist=movs.length?`<table><thead><tr><th>Fecha</th><th>Tipo</th><th class="num">Cantidad</th><th class="num">Stock</th></tr></thead><tbody>${movs.map(m=>`<tr><td class="muted">${new Date(m.fecha).toLocaleDateString("es-ES")}</td><td>${m.tipo}${m.motivo?` <span class="muted">· ${m.motivo}</span>`:''}</td><td class="num">${numCant(m.cantidad)}</td><td class="num">${numCant(m.stockResultante)}</td></tr>`).join("")}</tbody></table>`:'<p class="muted">Sin movimientos todavía.</p>';
       abrir(`Stock · ${p?p.nombre:''}`,`<div style="margin-bottom:6px">Existencias actuales: <strong>${p?numCant(p.stock||0):'—'}</strong></div>

@@ -142,6 +142,40 @@ public sealed class ComprasEndpointsTests : IClassFixture<FabricaApiPruebas>
         stock.Should().NotContain(s => s.UbicacionId == ubiGeneral.Id);
     }
 
+    private sealed record ProductoRespC(Guid Id, string Nombre);
+
+    [Fact]
+    public async Task Comprar_en_cajas_da_entrada_en_unidades_base()
+    {
+        var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+        var proveedor = (await (await cliente.PostAsJsonAsync("/proveedores", new { Nombre = "Bebidas Aragón" })).Content.ReadFromJsonAsync<ProveedorResp>())!;
+        // Artículo que se compra en cajas de 12 unidades base.
+        var prod = (await (await cliente.PostAsJsonAsync("/productos", new
+        {
+            Nombre = "Refresco", PrecioUnitario = 0.90m, PrecioCompra = 0.50m, CodigoIva = "IVA21",
+            Unidad = "ud", UnidadCompra = "caja", FactorCompra = 12m,
+        })).Content.ReadFromJsonAsync<ProductoRespC>())!;
+        var almacen = (await (await cliente.PostAsJsonAsync("/inventario/almacenes", new { Codigo = "C", Nombre = "Central" })).Content.ReadFromJsonAsync<AlmacenResp>())!;
+
+        // Pedido de 2 cajas (cantidad en unidad de compra).
+        var pedido = (await (await cliente.PostAsJsonAsync("/compras/pedidos", new
+        {
+            ProveedorId = proveedor.Id,
+            Lineas = new[] { new { ProductoId = prod.Id, Descripcion = "Refresco (caja 12)", Cantidad = 2m, PrecioUnitario = 6m } },
+        })).Content.ReadFromJsonAsync<PedidoResp>())!;
+        (await cliente.PostAsync($"/compras/pedidos/{pedido.Id}/confirmar", null)).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        (await cliente.PostAsJsonAsync($"/compras/pedidos/{pedido.Id}/recibir", new
+        {
+            AlmacenId = almacen.Id,
+            Lineas = new[] { new { LineaPedidoId = pedido.Lineas[0].Id, Cantidad = 2m } },
+        })).StatusCode.Should().Be(HttpStatusCode.Created);
+
+        // 2 cajas × 12 = 24 unidades base en stock.
+        var stock = await cliente.GetFromJsonAsync<List<ExistenciaResp>>($"/inventario/stock/producto/{prod.Id}");
+        stock!.Single(s => s.AlmacenId == almacen.Id).Cantidad.Should().Be(24m);
+    }
+
     [Fact]
     public async Task No_se_recibe_un_pedido_sin_confirmar()
     {

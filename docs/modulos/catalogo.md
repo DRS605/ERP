@@ -20,6 +20,25 @@ Al añadir un producto a una factura se prerrellenan su precio de venta, su IVA 
 **precio de compra**, que la factura **congela por línea** (`coste_unitario`) para que el margen del
 informe de beneficio sea fiel aunque el coste cambie después.
 
+### Unidades y envases
+
+El artículo tiene una **unidad base** (`Unidad`) —la unidad canónica en la que se guardan las
+existencias y se expresan los precios— y, opcionalmente, una **unidad de compra** y una **unidad de
+venta** distintas, cada una con su **factor de conversión** (cuántas unidades base contiene):
+
+- `UnidadCompra` + `FactorCompra` (p. ej. *caja* = 12 ud): se compra en cajas pero el stock se lleva
+  en unidades.
+- `UnidadVenta` + `FactorVenta` (p. ej. *garrafa* = 5 l): se compra a granel y se vende en envases, o
+  al revés (envases que se venden partidos).
+
+Los factores deben ser **> 0** (por defecto 1 = misma unidad que la base). El dominio ofrece las
+conversiones puras `CompraABase(q)` y `VentaABase(q)` y los precios derivados
+`PrecioCompraPorUnidadCompra` y `PrecioVentaPorUnidadVenta`. **Todo lo demás del sistema opera en
+unidad base** (inventario, facturación y —a futuro— producción), y la conversión se hace solo en los
+bordes: p. ej. al **recibir un pedido de compra**, la cantidad recibida (en unidad de compra) se
+convierte a unidades base antes de dar entrada al almacén. Así el stock y el consumo de producción
+son siempre inequívocos.
+
 ## Histórico de precios
 
 Cada alta de producto y cada **cambio de precio** (de venta o de compra) añade una fila a

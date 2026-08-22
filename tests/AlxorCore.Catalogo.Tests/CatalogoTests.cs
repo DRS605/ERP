@@ -93,6 +93,56 @@ public class ProductoTests
     }
 
     [Fact]
+    public void Unidades_por_defecto_son_la_base_con_factor_uno()
+    {
+        var p = Producto.Crear(Empresa, null, "Tornillo", TipoProducto.Bien, 0.5m, 0.2m, null, "ud", Reloj).Valor;
+        p.FactorCompra.Should().Be(1m);
+        p.FactorVenta.Should().Be(1m);
+        p.UnidadCompraEfectiva.Should().Be("ud");
+        p.UnidadVentaEfectiva.Should().Be("ud");
+        p.CompraABase(3m).Should().Be(3m);
+    }
+
+    [Fact]
+    public void Compra_en_cajas_convierte_a_unidades_base()
+    {
+        // Se compra en cajas de 12 ud; el precio base es por unidad.
+        var p = Producto.Crear(Empresa, null, "Refresco", TipoProducto.Bien, 0.9m, 0.5m, null, "ud", Reloj,
+            unidadCompra: "caja", factorCompra: 12m).Valor;
+
+        p.UnidadCompraEfectiva.Should().Be("caja");
+        p.CompraABase(2m).Should().Be(24m);                 // 2 cajas → 24 ud
+        p.PrecioCompraPorUnidadCompra.Should().Be(6m);      // 0,5 €/ud × 12
+    }
+
+    [Fact]
+    public void Venta_partida_convierte_a_unidades_base()
+    {
+        // Se compra en garrafas pero se vende por litro (unidad base = litro).
+        var p = Producto.Crear(Empresa, null, "Aceite", TipoProducto.Bien, 4m, 3m, null, "l", Reloj,
+            unidadVenta: "garrafa", factorVenta: 5m).Valor;
+
+        p.VentaABase(2m).Should().Be(10m);                  // 2 garrafas → 10 l
+        p.PrecioVentaPorUnidadVenta.Should().Be(20m);       // 4 €/l × 5
+    }
+
+    [Fact]
+    public void Rechaza_factor_de_conversion_no_positivo()
+    {
+        Producto.Crear(Empresa, null, "X", TipoProducto.Bien, 1m, 0m, null, "ud", Reloj, factorCompra: 0m).EsFallo.Should().BeTrue();
+        Producto.Crear(Empresa, null, "X", TipoProducto.Bien, 1m, 0m, null, "ud", Reloj, factorVenta: -1m).EsFallo.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Actualizar_cambia_las_unidades_y_factores()
+    {
+        var p = Producto.Crear(Empresa, null, "Papel", TipoProducto.Bien, 1m, 0.6m, null, "ud", Reloj).Valor;
+        p.Actualizar(null, "Papel", TipoProducto.Bien, 1m, 0.6m, null, "ud", Reloj, unidadCompra: "palé", factorCompra: 500m).EsCorrecto.Should().BeTrue();
+        p.UnidadCompraEfectiva.Should().Be("palé");
+        p.CompraABase(1m).Should().Be(500m);
+    }
+
+    [Fact]
     public void Producto_sin_control_de_stock_no_admite_movimientos()
     {
         var producto = Producto.Crear(Empresa, null, "Servicio", TipoProducto.Servicio, 10m, 0m, null, null, Reloj).Valor;
