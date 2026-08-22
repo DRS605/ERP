@@ -142,7 +142,7 @@ dotnet ef migrations add <Nombre> \
 | **Identidad** (registro, login, JWT, perfil, roles/permisos) | ✅ Terminado |
 | **Organización** (empresas, membresías, series, multiempresa/RLS) | ✅ Terminado |
 | **Terceros** (Clientes) | ✅ Terminado |
-| **Catálogo** (Productos e Impuestos) | ✅ Terminado |
+| **Catálogo** (Productos e Impuestos; unidades/envases, lotes y nº de serie, artículos compuestos y variantes) | ✅ Terminado |
 | **Facturación** (facturas emitidas) | ✅ Terminado |
 | **Gastos** | ✅ Terminado |
 | **Recepción de facturas de proveedor** (buzón de correo + contabilización) | ✅ Terminado |

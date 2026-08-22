@@ -59,6 +59,18 @@ agregado = Σ coste_componente × cantidad). Esta lista de materiales es la base
 **producción**: el módulo **Inventario** ya la usa en el **montaje** (`/inventario/montaje`), que
 consume los componentes del almacén y da entrada del artículo compuesto de forma atómica.
 
+### Variantes de artículo
+
+Un artículo puede tener **variantes** (talla, color, sabor…). Cada variante es **un artículo real**
+(su propio SKU): hereda del padre el tipo, IVA, unidad, factores y seguimiento, y tiene su propia
+**referencia**, **precio** y **stock**. El padre queda marcado como **plantilla** (`EsPlantilla`) y
+la variante guarda `ProductoPadreId` + sus **atributos** (`Atributos`: eje → valor, p. ej.
+Talla=M, Color=Rojo); `ResumenVariante` los muestra («M · Rojo»). No se permiten variantes de una
+variante. `POST /productos/{id}/variantes` crea una variante y `GET /productos/{id}/variantes` las
+lista. Como cada variante es un artículo normal, funcionan sobre ella —sin nada extra— el stock, los
+lotes/series, la composición y las unidades; producción podrá fabricar variantes igual que cualquier
+artículo.
+
 ## Histórico de precios
 
 Cada alta de producto y cada **cambio de precio** (de venta o de compra) añade una fila a

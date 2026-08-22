@@ -962,7 +962,9 @@
       const margen=p=>{ const m=p.precioUnitario-(p.precioCompra||0); return p.precioCompra?`<span class="pill ${m>=0?'ok':'neg'}">${eur(m)}</span>`:'<span class="muted">—</span>'; };
       const stockCell=p=>{ if(!p.controlarStock) return '<span class="muted">—</span>'; const s=p.stock||0; const cls=s<=0?'neg':(s<5?'wait':'ok'); return `<span class="pill ${cls}">${numCant(s)}</span>`; };
       const stockBtn=p=>p.controlarStock?`<button class="btn small ghost" onclick="event.stopPropagation();modalStock('${p.id}')" title="Stock">📦</button> `:'';
-      const filas=ps.map(p=>`<tr data-b="${(p.nombre+' '+(p.referencia||'')).toLowerCase()}" style="cursor:pointer" onclick="verHistorico('${p.id}','${p.nombre.replace(/'/g,"")}')"><td><strong>${p.nombre}</strong></td><td class="muted mono">${p.referencia||"—"}</td><td class="muted">${p.proveedorHabitualId?provNombre(p.proveedorHabitualId):"—"}</td><td class="num">${eur(p.precioUnitario)}</td><td class="num muted">${p.precioCompra?eur(p.precioCompra):"—"}</td><td class="num">${margen(p)}</td><td class="num">${p.porcentajeIva}%</td><td class="num">${stockCell(p)}</td><td class="right" style="white-space:nowrap">${stockBtn(p)}<button class="btn small secondary" onclick="editarProducto('${p.id}',event)">Editar</button> <button class="btn small secondary" onclick="event.stopPropagation();duplicarProducto('${p.id}')" title="Duplicar">⎘</button></td></tr>`).join("");
+      const badge=p=>{ if(p.esPlantilla) return ' <span class="pill part" style="font-size:10px">plantilla</span>'; if(p.productoPadreId) return ` <span class="pill" style="font-size:10px">variante: ${p.variante}</span>`; if(p.esCompuesto) return ' <span class="pill" style="font-size:10px">compuesto</span>'; return ''; };
+      const varBtn=p=>p.productoPadreId?'':`<button class="btn small secondary" onclick="event.stopPropagation();modalVariantes('${p.id}','${p.nombre.replace(/'/g,"")}')" title="Variantes">Variantes</button> `;
+      const filas=ps.map(p=>`<tr data-b="${(p.nombre+' '+(p.referencia||'')).toLowerCase()}" style="cursor:pointer" onclick="verHistorico('${p.id}','${p.nombre.replace(/'/g,"")}')"><td><strong>${p.nombre}</strong>${badge(p)}</td><td class="muted mono">${p.referencia||"—"}</td><td class="muted">${p.proveedorHabitualId?provNombre(p.proveedorHabitualId):"—"}</td><td class="num">${eur(p.precioUnitario)}</td><td class="num muted">${p.precioCompra?eur(p.precioCompra):"—"}</td><td class="num">${margen(p)}</td><td class="num">${p.porcentajeIva}%</td><td class="num">${stockCell(p)}</td><td class="right" style="white-space:nowrap">${stockBtn(p)}${varBtn(p)}<button class="btn small secondary" onclick="editarProducto('${p.id}',event)">Editar</button> <button class="btn small secondary" onclick="event.stopPropagation();duplicarProducto('${p.id}')" title="Duplicar">⎘</button></td></tr>`).join("");
       const acciones=`<div style="display:flex;gap:10px;align-items:center"><input id="prodBuscar" placeholder="Buscar por nombre o código…" style="max-width:220px;padding:8px 12px" oninput="filtrarProductos()"/><button class="btn small ghost" onclick="modalImportar('productos')">↥ Importar CSV</button><button class="btn small" onclick="modalProducto()">+ Nuevo</button></div>`;
       const cuerpo=ps.length?`<table><thead><tr><th>Artículo</th><th>Código / EAN</th><th>Proveedor habitual</th><th class="num">Venta</th><th class="num">Compra</th><th class="num">Margen</th><th class="num">IVA</th><th class="num">Stock</th><th></th></tr></thead><tbody id="prodBody">${filas}</tbody></table><p class="muted" style="font-size:12px;margin:12px 0 0">Toca un artículo para ver su histórico de precios, o pulsa Editar. El stock se descuenta solo al facturar.</p>`:vacio("articulos","Sin artículos todavía","Crea productos o servicios con su código para reutilizarlos al facturar.",`<button class="btn small" onclick="modalProducto()">+ Nuevo artículo</button>`);
       view(panel("",cuerpo,acciones));
@@ -974,6 +976,23 @@
       abrir(`Histórico de precios · ${nombre}`,cuerpo,()=>{}); }
     function filtrarProductos(){ const q=document.getElementById("prodBuscar").value.toLowerCase().trim();
       document.querySelectorAll("#prodBody tr").forEach(tr=>{ tr.style.display=tr.dataset.b.includes(q)?"":"none"; }); }
+    async function modalVariantes(id,nombre){
+      const vs=await api(`/productos/${id}/variantes`).catch(()=>[]);
+      const filas=vs.length?`<table><thead><tr><th>Variante</th><th>Código</th><th class="num">Venta</th></tr></thead><tbody>${vs.map(v=>`<tr><td>${v.variante||v.nombre}</td><td class="muted mono">${v.referencia||'—'}</td><td class="num">${eur(v.precioUnitario)}</td></tr>`).join("")}</tbody></table>`:'<p class="muted">Aún no hay variantes.</p>';
+      abrir(`Variantes · ${nombre}`,`${filas}
+        <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:14px">
+          <label>Nueva variante — atributos</label>
+          <div id="var_atrs">${varAtrHtml("Talla","")}${varAtrHtml("Color","")}</div>
+          <button class="btn small secondary" style="margin-top:4px" onclick="document.getElementById('var_atrs').insertAdjacentHTML('beforeend',varAtrHtml('',''))">+ Añadir atributo</button>
+          <div class="grid2" style="margin-top:10px"><div><label>Código / EAN (opcional)</label><input id="var_ref"/></div><div><label>Precio de venta (opcional)</label><input id="var_precio" type="number" step="0.01" placeholder="hereda del padre"/></div></div>
+        </div>`,
+        async()=>{ const atributos=[...document.querySelectorAll('#var_atrs .var-atr')].map(r=>({nombre:(r.querySelector('.va-nom').value||'').trim(),valor:(r.querySelector('.va-val').value||'').trim()})).filter(a=>a.nombre&&a.valor);
+          if(!atributos.length) throw new Error("Indica al menos un atributo (p. ej. Talla y su valor).");
+          const precio=val("var_precio")?Number(val("var_precio")):null;
+          await api(`/productos/${id}/variantes`,{method:"POST",body:JSON.stringify({referencia:val("var_ref")||null,precioUnitario:precio,atributos})});
+          toast("Variante creada.","ok"); vProductos(); });
+    }
+    function varAtrHtml(nom,v){ return `<div class="var-atr" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px"><input class="va-nom" placeholder="Eje (Talla, Color…)" value="${nom||''}"/><input class="va-val" placeholder="Valor (M, Rojo…)" value="${v||''}"/></div>`; }
 
     async function vPagos() {
       view('<div class="muted">Cargando…</div>');

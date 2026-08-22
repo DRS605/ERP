@@ -187,6 +187,23 @@ public class ProductoTests
     }
 
     [Fact]
+    public void Variante_hereda_del_padre_y_resume_sus_atributos()
+    {
+        var padre = Producto.Crear(Empresa, null, "Camiseta", TipoProducto.Bien, 15m, 6m, "IVA21", "ud", Reloj).Valor;
+        var v = Producto.Crear(Empresa, "CAM-M-ROJO", "Camiseta M / Rojo", padre.Tipo, 15m, 6m, padre.CodigoIva, padre.Unidad, Reloj).Valor;
+        v.AsignarComoVariante(padre.Id, new[] { ("Talla", "M"), ("Color", "Rojo") });
+
+        v.EsVariante.Should().BeTrue();
+        v.ProductoPadreId.Should().Be(padre.Id);
+        v.Atributos.Should().HaveCount(2);
+        v.ResumenVariante.Should().Be("M · Rojo");
+
+        padre.MarcarPlantilla(true, Reloj);
+        padre.EsPlantilla.Should().BeTrue();
+        padre.EsVariante.Should().BeFalse();
+    }
+
+    [Fact]
     public void Producto_sin_control_de_stock_no_admite_movimientos()
     {
         var producto = Producto.Crear(Empresa, null, "Servicio", TipoProducto.Servicio, 10m, 0m, null, null, Reloj).Valor;

@@ -55,6 +55,27 @@ public sealed class ComponenteArticulo
     public decimal Cantidad { get; private set; }
 }
 
+/// <summary>Valor de un eje de variante (p. ej. Talla=M, Color=Rojo) de un artículo.</summary>
+public sealed class AtributoVariante
+{
+    private AtributoVariante() { Nombre = null!; Valor = null!; }
+
+    internal AtributoVariante(Guid id, string nombre, string valor)
+    {
+        Id = id;
+        Nombre = nombre;
+        Valor = valor;
+    }
+
+    public Guid Id { get; private set; }
+
+    /// <summary>Nombre del eje (p. ej. «Talla»).</summary>
+    public string Nombre { get; private set; }
+
+    /// <summary>Valor del eje (p. ej. «M»).</summary>
+    public string Valor { get; private set; }
+}
+
 /// <summary>
 /// Producto o servicio del catálogo de una empresa. Guarda su precio y el tipo de IVA por defecto,
 /// que se prerrellenan al añadirlo a una factura.
@@ -64,6 +85,7 @@ public sealed class Producto : RaizAgregadoEmpresa<Guid>
     public const int LongitudMaximaNombre = 200;
 
     private readonly List<ComponenteArticulo> _componentes = new();
+    private readonly List<AtributoVariante> _atributos = new();
 
     private Producto(Guid id)
         : base(id, Guid.Empty)
@@ -217,6 +239,40 @@ public sealed class Producto : RaizAgregadoEmpresa<Guid>
     /// <summary>Explosiona la lista de materiales: componentes y cantidades necesarias para fabricar <paramref name="cantidad"/> unidades.</summary>
     public IReadOnlyList<(Guid ComponenteId, decimal Cantidad)> Explosionar(decimal cantidad) =>
         _componentes.Select(c => (c.ComponenteId, Math.Round(c.Cantidad * cantidad, 3, MidpointRounding.AwayFromZero))).ToList();
+
+    /// <summary>Artículo «plantilla» del que este es variante (null si no lo es).</summary>
+    public Guid? ProductoPadreId { get; private set; }
+
+    /// <summary>Plantilla de variantes: no se vende directamente, agrupa a sus variantes.</summary>
+    public bool EsPlantilla { get; private set; }
+
+    /// <summary>Este artículo es una variante de otro.</summary>
+    public bool EsVariante => ProductoPadreId is not null;
+
+    /// <summary>Ejes de la variante (p. ej. Talla=M, Color=Rojo).</summary>
+    public IReadOnlyList<AtributoVariante> Atributos => _atributos;
+
+    /// <summary>Resumen legible de los atributos («M · Rojo»); vacío si no es variante.</summary>
+    public string ResumenVariante => string.Join(" · ", _atributos.Select(a => a.Valor));
+
+    /// <summary>Convierte este artículo en variante de <paramref name="padreId"/> con sus atributos.</summary>
+    public void AsignarComoVariante(Guid padreId, IReadOnlyList<(string Nombre, string Valor)> atributos)
+    {
+        ProductoPadreId = padreId;
+        _atributos.Clear();
+        foreach (var (nombre, valor) in atributos)
+        {
+            _atributos.Add(new AtributoVariante(Guid.NewGuid(), nombre.Trim(), valor.Trim()));
+        }
+    }
+
+    /// <summary>Marca (o desmarca) el artículo como plantilla de variantes.</summary>
+    public void MarcarPlantilla(bool esPlantilla, IReloj reloj)
+    {
+        ArgumentNullException.ThrowIfNull(reloj);
+        EsPlantilla = esPlantilla;
+        ActualizadoEn = reloj.AhoraUtc;
+    }
 
     /// <summary>Proveedor habitual del artículo (a quién se le compra normalmente). Referencia opcional a Terceros.</summary>
     public Guid? ProveedorHabitualId { get; private set; }

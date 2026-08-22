@@ -56,6 +56,14 @@ public static class EndpointsCatalogo
             .WithSummary("Define (o vacía) la lista de materiales de un artículo compuesto.")
             .RequierePermiso(Permisos.ProductoGestionar);
 
+        productos.MapGet("/{id:guid}/variantes", VariantesAsync)
+            .WithSummary("Lista las variantes de un artículo plantilla.")
+            .RequireAuthorization();
+
+        productos.MapPost("/{id:guid}/variantes", CrearVarianteAsync)
+            .WithSummary("Crea una variante (talla/color/…) de un artículo.")
+            .RequierePermiso(Permisos.ProductoGestionar);
+
         rutas.MapGet("/impuestos", () => Results.Ok(ListarImpuestos.Ejecutar()))
             .WithTags("Impuestos")
             .WithSummary("Lista los tipos de IVA disponibles.")
@@ -105,6 +113,15 @@ public static class EndpointsCatalogo
 
     private static async Task<IResult> DefinirComposicionAsync(Guid id, DatosComposicion datos, DefinirComposicion caso, CancellationToken ct) =>
         (await caso.EjecutarAsync(id, datos, ct).ConfigureAwait(false)).AOk();
+
+    private static async Task<IResult> VariantesAsync(Guid id, ListarVariantes caso, CancellationToken ct) =>
+        Results.Ok(await caso.EjecutarAsync(id, ct).ConfigureAwait(false));
+
+    private static async Task<IResult> CrearVarianteAsync(Guid id, DatosVariante datos, CrearVariante caso, CancellationToken ct)
+    {
+        var r = await caso.EjecutarAsync(id, datos, ct).ConfigureAwait(false);
+        return r.EsCorrecto ? r.ACreado($"/productos/{r.Valor.Id}") : ResultadosHttp.AProblema(r.Error);
+    }
 
     private static async Task<IResult> ImportarAsync(ImportarCsvPeticion peticion, IContextoEmpresa contexto, ImportarProductos caso, CancellationToken ct)
     {

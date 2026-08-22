@@ -100,6 +100,37 @@ public sealed class CatalogoEndpointsTests : IClassFixture<FabricaApiPruebas>
         malo.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
+    private sealed record VarianteResp(Guid Id, string Nombre, string? Referencia, decimal PrecioUnitario, Guid? ProductoPadreId, bool EsPlantilla, string Variante);
+
+    [Fact]
+    public async Task Variantes_de_un_articulo_plantilla()
+    {
+        var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+        var padre = (await (await cliente.PostAsJsonAsync("/productos", new { Nombre = "Camiseta", PrecioUnitario = 15m, PrecioCompra = 6m, CodigoIva = "IVA21" })).Content.ReadFromJsonAsync<IdResp>())!;
+
+        var v1 = await cliente.PostAsJsonAsync($"/productos/{padre.Id}/variantes", new { Referencia = "CAM-M-ROJO", Atributos = new[] { new { Nombre = "Talla", Valor = "M" }, new { Nombre = "Color", Valor = "Rojo" } } });
+        v1.StatusCode.Should().Be(HttpStatusCode.Created);
+        var variante = (await v1.Content.ReadFromJsonAsync<VarianteResp>())!;
+        variante.Nombre.Should().Be("Camiseta M / Rojo");
+        variante.ProductoPadreId.Should().Be(padre.Id);
+        variante.Variante.Should().Be("M · Rojo");
+        variante.PrecioUnitario.Should().Be(15m); // heredado del padre
+
+        // Otra variante con precio propio.
+        await cliente.PostAsJsonAsync($"/productos/{padre.Id}/variantes", new { PrecioUnitario = 18m, Atributos = new[] { new { Nombre = "Talla", Valor = "L" }, new { Nombre = "Color", Valor = "Azul" } } });
+
+        var variantes = await cliente.GetFromJsonAsync<List<VarianteResp>>($"/productos/{padre.Id}/variantes");
+        variantes.Should().HaveCount(2);
+
+        // El padre queda como plantilla.
+        var padreDto = await cliente.GetFromJsonAsync<VarianteResp>($"/productos/{padre.Id}");
+        padreDto!.EsPlantilla.Should().BeTrue();
+
+        // Sin atributos, se rechaza.
+        var malo = await cliente.PostAsJsonAsync($"/productos/{padre.Id}/variantes", new { Atributos = Array.Empty<object>() });
+        malo.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
     [Fact]
     public async Task Un_articulo_puede_tener_proveedor_habitual()
     {

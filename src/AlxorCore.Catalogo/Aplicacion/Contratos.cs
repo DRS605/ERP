@@ -26,13 +26,17 @@ public sealed record ProductoDto(
     decimal PrecioCompraPorUnidadCompra,
     decimal PrecioVentaPorUnidadVenta,
     SeguimientoArticulo Seguimiento,
-    bool EsCompuesto)
+    bool EsCompuesto,
+    Guid? ProductoPadreId,
+    bool EsPlantilla,
+    string Variante)
 {
     public static ProductoDto Desde(Producto p)
     {
         var porcentaje = Impuesto.PorCodigoImpuesto(p.CodigoIva).Valor.Porcentaje;
         return new ProductoDto(p.Id, p.Referencia, p.Nombre, p.Tipo, p.PrecioUnitario, p.CodigoIva, porcentaje, p.Unidad, p.Activo, p.PrecioCompra, p.ProveedorHabitualId, p.ControlarStock, p.Stock,
-            p.UnidadCompra, p.FactorCompra, p.UnidadVenta, p.FactorVenta, p.PrecioCompraPorUnidadCompra, p.PrecioVentaPorUnidadVenta, p.Seguimiento, p.EsCompuesto);
+            p.UnidadCompra, p.FactorCompra, p.UnidadVenta, p.FactorVenta, p.PrecioCompraPorUnidadCompra, p.PrecioVentaPorUnidadVenta, p.Seguimiento, p.EsCompuesto,
+            p.ProductoPadreId, p.EsPlantilla, p.ResumenVariante);
     }
 }
 
@@ -74,6 +78,8 @@ public interface IConsultaProductos
     Task<ProductoDto?> ObtenerAsync(Guid productoId, CancellationToken ct = default);
 
     Task<IReadOnlyList<ProductoDto>> ListarAsync(Guid empresaId, bool incluirInactivos = false, CancellationToken ct = default);
+
+    Task<IReadOnlyList<ProductoDto>> ListarVariantesAsync(Guid padreId, CancellationToken ct = default);
 }
 
 /// <summary>Repositorio del histórico de precios (solo escritura: se añaden filas).</summary>

@@ -247,6 +247,79 @@ public sealed class ObtenerComposicion
     }
 }
 
+/// <summary>Un eje de la variante (p. ej. Talla=M).</summary>
+public sealed record AtributoComando(string Nombre, string Valor);
+
+/// <summary>Datos para crear una variante de un artículo plantilla.</summary>
+public sealed record DatosVariante(IReadOnlyList<AtributoComando> Atributos, string? Referencia = null, decimal? PrecioUnitario = null, decimal? PrecioCompra = null);
+
+/// <summary>Caso de uso: crear una variante (talla/color/…) de un artículo, que pasa a ser plantilla.</summary>
+public sealed class CrearVariante
+{
+    private readonly IRepositorioProductos _productos;
+    private readonly IRepositorioHistoricoPrecios _historico;
+    private readonly IUnidadDeTrabajoCatalogo _unidadDeTrabajo;
+    private readonly IReloj _reloj;
+
+    public CrearVariante(IRepositorioProductos productos, IRepositorioHistoricoPrecios historico, IUnidadDeTrabajoCatalogo unidadDeTrabajo, IReloj reloj)
+    {
+        _productos = productos; _historico = historico; _unidadDeTrabajo = unidadDeTrabajo; _reloj = reloj;
+    }
+
+    public async Task<Resultado<ProductoDto>> EjecutarAsync(Guid padreId, DatosVariante datos, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(datos);
+        var padre = await _productos.ObtenerPorIdAsync(padreId, ct).ConfigureAwait(false);
+        if (padre is null)
+        {
+            return Resultado.Fallo<ProductoDto>(Error.NoEncontrado("producto.no_encontrado", "El artículo no existe."));
+        }
+
+        if (padre.EsVariante)
+        {
+            return Resultado.Fallo<ProductoDto>(Error.Validacion("variante.padre_es_variante", "No se pueden crear variantes de otra variante."));
+        }
+
+        var atributos = (datos.Atributos ?? Array.Empty<AtributoComando>())
+            .Where(a => !string.IsNullOrWhiteSpace(a.Nombre) && !string.IsNullOrWhiteSpace(a.Valor)).ToList();
+        if (atributos.Count == 0)
+        {
+            return Resultado.Fallo<ProductoDto>(Error.Validacion("variante.sin_atributos", "Indica al menos un atributo (p. ej. Talla o Color)."));
+        }
+
+        var sufijo = string.Join(" / ", atributos.Select(a => a.Valor.Trim()));
+        var nombre = $"{padre.Nombre} {sufijo}";
+        var precio = datos.PrecioUnitario ?? padre.PrecioUnitario;
+        var precioCompra = datos.PrecioCompra ?? padre.PrecioCompra;
+
+        var variante = Producto.Crear(padre.EmpresaId, datos.Referencia, nombre, padre.Tipo, precio, precioCompra, padre.CodigoIva, padre.Unidad, _reloj,
+            padre.ProveedorHabitualId, padre.ControlarStock, 0m, padre.UnidadCompra, padre.FactorCompra, padre.UnidadVenta, padre.FactorVenta, padre.Seguimiento);
+        if (variante.EsFallo)
+        {
+            return Resultado.Fallo<ProductoDto>(variante.Error);
+        }
+
+        variante.Valor.AsignarComoVariante(padre.Id, atributos.Select(a => (a.Nombre, a.Valor)).ToList());
+        padre.MarcarPlantilla(true, _reloj);
+
+        _productos.Agregar(variante.Valor);
+        _historico.Agregar(HistoricoPrecio.Registrar(padre.EmpresaId, variante.Valor.Id, precio, precioCompra, _reloj.AhoraUtc));
+        await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(ProductoDto.Desde(variante.Valor));
+    }
+}
+
+/// <summary>Caso de uso: listar las variantes de un artículo plantilla.</summary>
+public sealed class ListarVariantes
+{
+    private readonly IConsultaProductos _consulta;
+
+    public ListarVariantes(IConsultaProductos consulta) => _consulta = consulta;
+
+    public Task<IReadOnlyList<ProductoDto>> EjecutarAsync(Guid padreId, CancellationToken ct = default) =>
+        _consulta.ListarVariantesAsync(padreId, ct);
+}
+
 /// <summary>Caso de uso: listar el catálogo de tipos de IVA disponibles.</summary>
 public static class ListarImpuestos
 {
