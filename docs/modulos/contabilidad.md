@@ -171,10 +171,15 @@ informes).
   `regla_contabilizacion`; el `apunte` se protege a través de su `asiento` (filtro global de EF Core).
 - Índices: únicos `(empresa_id, codigo)` en cuenta y `(empresa_id, ejercicio, numero)` en asiento;
   `(empresa_id, estado)` en `documento_pendiente`; `(empresa_id, sentido)` en `regla_contabilizacion`.
-- `config_contabilidad` incorpora la columna `contabilizacion_automatica` (por defecto `false`).
+- `config_contabilidad` incorpora las columnas `contabilizacion_automatica` (por defecto `false`) y
+  `longitud_subcuenta` (por defecto 8).
+- `cuenta` incorpora `tercero_id`/`tipo_tercero` (subcuentas de tercero) con índice `(empresa_id, tercero_id)`.
+- Además existen las tablas del inmovilizado (`inmovilizado`, `dotacion_amortizacion`,
+  `ajuste_fiscal_amortizacion`); ver [`inmovilizado.md`](inmovilizado.md).
 - Migraciones: `MigracionInicialContabilidad`, `ContabilizacionDiferida` (tabla `documento_pendiente`
-  + columna `contabilizacion_automatica` + RLS) y `ReglasContabilizacion` (tabla
-  `regla_contabilizacion` + RLS).
+  + columna `contabilizacion_automatica` + RLS), `ReglasContabilizacion` (tabla
+  `regla_contabilizacion` + RLS), `Inmovilizado` (tablas del inmovilizado + RLS) y
+  `SubcuentasTerceros` (columnas `tercero_id`/`tipo_tercero` en `cuenta` y `longitud_subcuenta`).
 
 ## Composición
 
@@ -200,6 +205,36 @@ informes).
   gastos a ingresos; el **balance de situación** cuadra incluyendo el resultado en el patrimonio neto;
   el **cierre** genera regularización + cierre en el ejercicio y apertura en el siguiente; y no se puede
   cerrar dos veces ni asentar en un ejercicio ya cerrado.
+
+## Subcuentas de tercero (código contable siguiente)
+
+Clientes, proveedores y trabajadores pueden tener su **subcuenta contable individual**, autonumerada
+(el «código siguiente») a partir de su cuenta raíz:
+
+- Clientes → raíz **430**, proveedores → **400**, trabajadores → **465**.
+- La **longitud** de la subcuenta es configurable por empresa (`PUT /contabilidad/longitud-subcuenta`,
+  por defecto **8** dígitos, estándar ContaPlus/a3). Con longitud 8 y raíz 430, el primer cliente es
+  `43000001`, el siguiente `43000002`, etc.
+
+El comportamiento depende del **modo de contabilidad**:
+
+- **Simple**: los terceros **comparten la cuenta raíz** (430/400/465); no hay subcuentas individuales.
+- **Completo**: cada tercero tiene su **subcuenta propia**. Se sugiere el código siguiente, pero es
+  **editable** y no tiene por qué empezar por la raíz (puedes teclear cualquier cuenta).
+
+La subcuenta se registra como una **`Cuenta` del plan** etiquetada con el `tercero_id` (columnas
+`tercero_id`/`tipo_tercero`), de modo que aparece en el libro mayor y el balance con el saldo de ese
+tercero. Al **contabilizar** una venta o una compra, el asiento usa la subcuenta del tercero si la
+tiene asignada; si no, la cuenta raíz genérica.
+
+### API
+
+| Método | Ruta | Auth | Descripción |
+|---|---|---|---|
+| `GET` | `/contabilidad/subcuenta-siguiente?tipo=Cliente\|Proveedor\|Trabajador` | `contabilidad.leer` | Sugiere el código siguiente (o la raíz en modo Simple). |
+| `GET` | `/contabilidad/subcuenta?tipo=&terceroId=` | `contabilidad.leer` | Subcuenta asignada a un tercero. |
+| `PUT` | `/contabilidad/subcuenta` | `contabilidad.gestionar` | Asigna/edita la subcuenta de un tercero (autonumerada o manual). |
+| `PUT` | `/contabilidad/longitud-subcuenta` | `contabilidad.gestionar` | Cambia la longitud de subcuenta de la empresa. |
 
 ## Inmovilizado y amortizaciones
 

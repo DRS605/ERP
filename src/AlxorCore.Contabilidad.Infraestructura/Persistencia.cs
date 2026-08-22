@@ -51,7 +51,10 @@ internal sealed class ConfiguracionCuenta : IEntityTypeConfiguration<Cuenta>
         builder.Property(c => c.Codigo).HasColumnName("codigo").HasMaxLength(Cuenta.LongitudMaximaCodigo).IsRequired();
         builder.Property(c => c.Nombre).HasColumnName("nombre").HasMaxLength(Cuenta.LongitudMaximaNombre).IsRequired();
         builder.Property(c => c.Grupo).HasColumnName("grupo").IsRequired();
+        builder.Property(c => c.TerceroId).HasColumnName("tercero_id");
+        builder.Property(c => c.TipoTercero).HasColumnName("tipo_tercero").HasMaxLength(20);
         builder.HasIndex(c => new { c.EmpresaId, c.Codigo }).IsUnique().HasDatabaseName("ux_cuenta_empresa_codigo");
+        builder.HasIndex(c => new { c.EmpresaId, c.TerceroId }).HasDatabaseName("ix_cuenta_empresa_tercero");
         builder.Ignore(c => c.EventosDominio);
     }
 }
@@ -98,6 +101,7 @@ internal sealed class ConfiguracionConfigContabilidad : IEntityTypeConfiguration
         builder.Property(c => c.EmpresaId).HasColumnName("empresa_id").IsRequired();
         builder.Property(c => c.Modo).HasColumnName("modo").HasMaxLength(20).HasConversion<string>().IsRequired();
         builder.Property(c => c.ContabilizacionAutomatica).HasColumnName("contabilizacion_automatica").IsRequired();
+        builder.Property(c => c.LongitudSubcuenta).HasColumnName("longitud_subcuenta").IsRequired().HasDefaultValue(ConfiguracionContabilidad.LongitudSubcuentaDefecto);
         builder.Ignore(c => c.EventosDominio);
     }
 }
@@ -212,6 +216,12 @@ internal sealed class RepositorioCuentas : IRepositorioCuentas
         var codigos = await _contexto.Cuentas.Where(c => c.EmpresaId == empresaId).Select(c => c.Codigo).ToListAsync(ct).ConfigureAwait(false);
         return codigos.ToHashSet(StringComparer.Ordinal);
     }
+
+    public Task<Cuenta?> ObtenerPorTerceroAsync(Guid empresaId, Guid terceroId, CancellationToken ct = default) =>
+        _contexto.Cuentas.FirstOrDefaultAsync(c => c.EmpresaId == empresaId && c.TerceroId == terceroId, ct);
+
+    public Task<Cuenta?> ObtenerPorCodigoAsync(Guid empresaId, string codigo, CancellationToken ct = default) =>
+        _contexto.Cuentas.FirstOrDefaultAsync(c => c.EmpresaId == empresaId && c.Codigo == codigo, ct);
 }
 
 internal sealed class RepositorioAsientos : IRepositorioAsientos

@@ -41,6 +41,12 @@ public interface IRepositorioCuentas
     void Agregar(Cuenta cuenta);
 
     Task<IReadOnlySet<string>> CodigosExistentesAsync(Guid empresaId, CancellationToken ct = default);
+
+    /// <summary>Subcuenta individual enlazada a un tercero (con seguimiento para poder mutarla). Null si no tiene.</summary>
+    Task<Cuenta?> ObtenerPorTerceroAsync(Guid empresaId, Guid terceroId, CancellationToken ct = default);
+
+    /// <summary>Cuenta por su código (con seguimiento). Null si no existe.</summary>
+    Task<Cuenta?> ObtenerPorCodigoAsync(Guid empresaId, string codigo, CancellationToken ct = default);
 }
 
 public interface IRepositorioAsientos
@@ -80,6 +86,7 @@ public static class PlanBasico
     public const string CuentaClientes = "430";      // Clientes
     public const string CuentaIvaRepercutido = "477"; // H.P. IVA repercutido
     public const string CuentaRetencionVenta = "473"; // H.P. retenciones y pagos a cuenta (ventas)
+    public const string CuentaTrabajadores = "465";   // Remuneraciones pendientes de pago (raíz de trabajadores)
 
     /// <summary>Cuenta de resultado del ejercicio (regularización de gastos e ingresos en el cierre).</summary>
     public const string CuentaResultado = "129";
@@ -95,6 +102,7 @@ public static class PlanBasico
         ("477", "H.P. IVA repercutido"),
         ("475", "H.P. acreedora por conceptos fiscales"),
         ("4751", "H.P. acreedora por retenciones practicadas"),
+        ("465", "Remuneraciones pendientes de pago"),
         ("570", "Caja"),
         ("572", "Bancos"),
         ("600", "Compras de mercaderías"),

@@ -24,7 +24,15 @@ public sealed class ConfiguracionContabilidad : RaizAgregadoEmpresa<Guid>
         : base(empresaId, empresaId)
     {
         Modo = modo;
+        LongitudSubcuenta = LongitudSubcuentaDefecto;
     }
+
+    /// <summary>Longitud por defecto de las subcuentas de tercero (estándar ContaPlus/a3: 8 dígitos).</summary>
+    public const int LongitudSubcuentaDefecto = 8;
+
+    public const int LongitudSubcuentaMinima = 4;
+
+    public const int LongitudSubcuentaMaxima = 12;
 
     public ModoContabilidad Modo { get; private set; }
 
@@ -35,7 +43,19 @@ public sealed class ConfiguracionContabilidad : RaizAgregadoEmpresa<Guid>
     /// </summary>
     public bool ContabilizacionAutomatica { get; private set; }
 
+    /// <summary>
+    /// Longitud total (dígitos) de las subcuentas individuales de cliente/proveedor/trabajador. Con
+    /// raíz 430 y longitud 8, un cliente sería 43000001. Solo aplica en modo Completo; en Simple los
+    /// terceros comparten la cuenta raíz (430/400/465).
+    /// </summary>
+    public int LongitudSubcuenta { get; private set; } = LongitudSubcuentaDefecto;
+
     public void CambiarModo(ModoContabilidad modo) => Modo = modo;
 
     public void CambiarContabilizacionAutomatica(bool automatica) => ContabilizacionAutomatica = automatica;
+
+    public void CambiarLongitudSubcuenta(int longitud)
+    {
+        LongitudSubcuenta = Math.Clamp(longitud, LongitudSubcuentaMinima, LongitudSubcuentaMaxima);
+    }
 }

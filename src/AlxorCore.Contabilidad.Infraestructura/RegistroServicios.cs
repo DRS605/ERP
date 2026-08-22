@@ -52,6 +52,12 @@ public static class RegistroServicios
         servicios.AddScoped<EnajenarInmovilizado>();
         servicios.AddScoped<ObtenerModoContabilidad>();
         servicios.AddScoped<CambiarModoContabilidad>();
+
+        // Subcuentas de tercero (código contable siguiente para clientes, proveedores y trabajadores).
+        servicios.AddScoped<ObtenerSiguienteSubcuenta>();
+        servicios.AddScoped<ObtenerSubcuentaTercero>();
+        servicios.AddScoped<AsignarSubcuentaTercero>();
+        servicios.AddScoped<CambiarLongitudSubcuenta>();
         servicios.AddScoped<GenerarAsientoCompra>();
 
         // Cola de contabilización: documentos pendientes + panel del contable.

@@ -20,6 +20,12 @@ public sealed record CambiarFechaRegistroPeticion(DateOnly Fecha);
 /// <summary>Petición para contabilizar varios documentos pendientes de una vez.</summary>
 public sealed record ContabilizarPendientesPeticion(IReadOnlyList<Guid> Ids);
 
+/// <summary>Petición para asignar/editar la subcuenta de un tercero.</summary>
+public sealed record AsignarSubcuentaPeticion(TipoTerceroContable Tipo, Guid TerceroId, string Nombre, string? CuentaPreferida);
+
+/// <summary>Petición para cambiar la longitud de las subcuentas de tercero.</summary>
+public sealed record LongitudSubcuentaPeticion(int Longitud);
+
 /// <summary>Endpoints REST del módulo Contabilidad (partida doble).</summary>
 public static class EndpointsContabilidad
 {
@@ -87,6 +93,22 @@ public static class EndpointsContabilidad
 
         grupo.MapPost("/pendientes/contabilizar", ContabilizarPendientesAsync)
             .WithSummary("Contabiliza (genera el asiento de) los documentos pendientes indicados.")
+            .RequierePermiso(Permisos.ContabilidadGestionar);
+
+        grupo.MapGet("/subcuenta-siguiente", SubcuentaSiguienteAsync)
+            .WithSummary("Sugiere la siguiente subcuenta contable para un tipo de tercero (código siguiente).")
+            .RequierePermiso(Permisos.ContabilidadLeer);
+
+        grupo.MapGet("/subcuenta", SubcuentaTerceroAsync)
+            .WithSummary("Subcuenta contable asignada a un tercero (o la raíz común en modo Simple).")
+            .RequierePermiso(Permisos.ContabilidadLeer);
+
+        grupo.MapPut("/subcuenta", AsignarSubcuentaAsync)
+            .WithSummary("Asigna o edita la subcuenta contable de un tercero (autonumerada o manual).")
+            .RequierePermiso(Permisos.ContabilidadGestionar);
+
+        grupo.MapPut("/longitud-subcuenta", LongitudSubcuentaAsync)
+            .WithSummary("Cambia la longitud de las subcuentas de tercero de la empresa.")
             .RequierePermiso(Permisos.ContabilidadGestionar);
 
         grupo.MapGet("/reglas", ReglasAsync)
@@ -269,6 +291,51 @@ public static class EndpointsContabilidad
 
         var resultado = await caso.EjecutarAsync(contexto.EmpresaId.Value, peticion.Ids ?? Array.Empty<Guid>(), ct).ConfigureAwait(false);
         return resultado.EsCorrecto ? Results.Ok(new { contabilizados = resultado.Valor }) : ResultadosHttp.AProblema(resultado.Error);
+    }
+
+    private static async Task<IResult> SubcuentaSiguienteAsync(TipoTerceroContable tipo, IContextoEmpresa contexto, ObtenerSiguienteSubcuenta caso, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, tipo, ct).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> SubcuentaTerceroAsync(TipoTerceroContable tipo, Guid terceroId, IContextoEmpresa contexto, ObtenerSubcuentaTercero caso, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, tipo, terceroId, ct).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> AsignarSubcuentaAsync(AsignarSubcuentaPeticion peticion, IContextoEmpresa contexto, AsignarSubcuentaTercero caso, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(peticion);
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        var resultado = await caso.EjecutarAsync(contexto.EmpresaId.Value,
+            new AsignarSubcuentaComando(peticion.Tipo, peticion.TerceroId, peticion.Nombre, peticion.CuentaPreferida), ct).ConfigureAwait(false);
+        return resultado.EsCorrecto ? Results.Ok(resultado.Valor) : ResultadosHttp.AProblema(resultado.Error);
+    }
+
+    private static async Task<IResult> LongitudSubcuentaAsync(LongitudSubcuentaPeticion peticion, IContextoEmpresa contexto, CambiarLongitudSubcuenta caso, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(peticion);
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        var longitud = await caso.EjecutarAsync(contexto.EmpresaId.Value, peticion.Longitud, ct).ConfigureAwait(false);
+        return Results.Ok(new { longitudSubcuenta = longitud });
     }
 
     private static async Task<IResult> ReglasAsync(IContextoEmpresa contexto, ListarReglasContabilizacion caso, CancellationToken ct)

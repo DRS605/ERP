@@ -1162,9 +1162,11 @@
     function modalPersona(p){
       abrir(p?"Editar persona":"Nueva persona",`<label>Nombre</label><input id="pe_nombre" placeholder="Nombre y apellidos"/>
         <div class="grid2"><div><label>Puesto (opcional)</label><input id="pe_puesto" placeholder="Ej. Oficial 1ª"/></div><div><label>Tarifa por hora (€/h)</label><input id="pe_tarifa" type="number" step="0.01" value="0"/></div></div>
+        <label style="margin-top:14px">Cuenta contable (465…)</label><input id="pe_cuenta" placeholder="—"/><div id="pe_cuenta_hint" class="muted" style="font-size:12px;margin-top:4px"></div>
         ${p?`<label style="display:flex;align-items:center;gap:8px;margin-top:14px;font-weight:500;cursor:pointer"><input id="pe_activo" type="checkbox" style="width:auto"/> Persona activa</label>`:''}`,
-        async()=>{ const b=JSON.stringify({nombre:val("pe_nombre"),puesto:val("pe_puesto")||null,tarifaHora:Number(val("pe_tarifa")||0),activo:p?document.getElementById("pe_activo").checked:true}); await api("/personal"+(p?"/"+p.id:""),{method:p?"PUT":"POST",body:b}); toast(p?"Persona actualizada.":"Persona creada.","ok"); vPersonal(); });
+        async()=>{ const b=JSON.stringify({nombre:val("pe_nombre"),puesto:val("pe_puesto")||null,tarifaHora:Number(val("pe_tarifa")||0),activo:p?document.getElementById("pe_activo").checked:true}); const resp=await api("/personal"+(p?"/"+p.id:""),{method:p?"PUT":"POST",body:b}); await guardarSubcuentaCampo("Trabajador", p?p.id:(resp&&resp.id), val("pe_nombre"), "pe_cuenta"); toast(p?"Persona actualizada.":"Persona creada.","ok"); vPersonal(); });
       if(p){ rellenar({pe_nombre:p.nombre,pe_puesto:p.puesto,pe_tarifa:p.tarifaHora}); document.getElementById("pe_activo").checked=!!p.activo; }
+      cargarSubcuentaCampo("Trabajador", p?p.id:null, "pe_cuenta");
     }
 
     // ---- Proyectos: imputación de costes (mano de obra, materiales, gastos) y presupuesto vs. real ----
@@ -1447,7 +1449,9 @@
           <option value="Completo"${modo==="Completo"?" selected":""}>Completo (partida doble)</option>
         </select>
         ${modo==="Completo"?`<label style="display:flex;align-items:center;gap:8px;width:auto;margin:0;font-weight:600;font-size:13px;white-space:nowrap">
-          <input type="checkbox" style="width:auto;margin:0"${auto?" checked":""} onchange="cambiarAutomatica(this.checked)"/> Contabilización automática</label>`:''}</div>`;
+          <input type="checkbox" style="width:auto;margin:0"${auto?" checked":""} onchange="cambiarAutomatica(this.checked)"/> Contabilización automática</label>
+          <label style="display:flex;align-items:center;gap:8px;width:auto;margin:0;font-weight:600;font-size:13px;white-space:nowrap">Longitud de subcuenta
+          <input type="number" min="4" max="12" value="${cfg.longitudSubcuenta||8}" onchange="cambiarLongitudSubcuenta(this.value)" style="width:70px;padding:6px 8px;font-size:13px"/></label>`:''}</div>`;
       // Pendientes de contabilizar (solo modo Completo): el panel del contable.
       let panelPend="";
       if(modo==="Completo"){
@@ -1585,6 +1589,11 @@
     async function cambiarAutomatica(automatica){
       try{ await api("/contabilidad/contabilizacion-automatica",{method:"PUT",body:JSON.stringify({automatica})});
         toast(automatica?"Contabilización automática activada.":"Contabilización diferida (pendientes).","ok"); vContabilidad();
+      }catch(e){ toast(e.message,"err"); vContabilidad(); }
+    }
+    async function cambiarLongitudSubcuenta(longitud){
+      try{ const r=await api("/contabilidad/longitud-subcuenta",{method:"PUT",body:JSON.stringify({longitud:Number(longitud)})});
+        toast("Longitud de subcuenta: "+r.longitudSubcuenta+" dígitos.","ok");
       }catch(e){ toast(e.message,"err"); vContabilidad(); }
     }
     async function cambiarFechaRegPend(id,fecha){
@@ -2352,6 +2361,26 @@
     function editarCliente(id){ modalCliente(_cacheCli.find(c=>c.id===id)); }
     function editarProveedor(id){ modalProveedor(_cacheProv.find(p=>p.id===id)); }
     function editarProducto(id,ev){ if(ev) ev.stopPropagation(); modalProducto(_cacheProd.find(p=>p.id===id)); }
+    // Subcuenta contable del tercero: sugiere el «código siguiente» (modo Completo) o la raíz común
+    // (modo Simple), y la guarda tras crear/editar el tercero. tipo = Cliente | Proveedor | Trabajador.
+    async function cargarSubcuentaCampo(tipo, terceroId, inputId){
+      try{
+        const s = terceroId
+          ? await api(`/contabilidad/subcuenta?tipo=${tipo}&terceroId=${terceroId}`)
+          : await api(`/contabilidad/subcuenta-siguiente?tipo=${tipo}`);
+        const el=document.getElementById(inputId); if(!el) return;
+        el.value=s.cuentaCodigo||""; el.dataset.individual=s.individual?"1":"0";
+        const hint=document.getElementById(inputId+"_hint");
+        if(!s.individual){ el.readOnly=true; if(hint) hint.textContent="Modo Simple: todos comparten la cuenta raíz "+s.cuentaCodigo+". Activa el modo Completo en Contabilidad para subcuentas individuales."; }
+        else if(hint) hint.textContent="Código siguiente sugerido. Puedes editarlo; no tiene por qué empezar por la raíz.";
+      }catch(e){}
+    }
+    async function guardarSubcuentaCampo(tipo, terceroId, nombre, inputId){
+      const el=document.getElementById(inputId);
+      if(!el || el.dataset.individual!=="1" || !terceroId) return;
+      const cuenta=(el.value||"").trim();
+      try{ await api("/contabilidad/subcuenta",{method:"PUT",body:JSON.stringify({tipo, terceroId, nombre, cuentaPreferida:cuenta||null})}); }catch(e){ toast(e.message,"err"); }
+    }
     async function modalCliente(c){ _cacheFormasPago=await api("/formas-pago").catch(()=>[]); abrir(c?"Editar cliente":"Nuevo cliente",`<label>Nombre</label><input id="c_nombre" placeholder="Nombre o razón social"/><div class="grid2"><div><label>NIF (opcional)</label><input id="c_nif"/></div><div><label>Email (opcional)</label><input id="c_email"/></div></div><label>IRPF por defecto (%)</label><input id="c_irpf" type="number" value="0"/>
       <label style="display:flex;align-items:center;gap:8px;margin-top:14px;font-weight:500;cursor:pointer"><input id="c_recargo" type="checkbox" style="width:auto"/> Cliente en recargo de equivalencia (minorista)</label>
       <label style="margin-top:14px">Domiciliación bancaria (opcional, para remesas SEPA)</label>
@@ -2361,10 +2390,12 @@
       <input id="c_iva" placeholder="Ej. DE123456789"/>
       <label style="margin-top:14px">Tipo (opcional, para reglas de contabilización)</label>
       <input id="c_tipo" placeholder="Ej. Nacional, Intracomunitario, Minorista"/>
+      <label style="margin-top:14px">Cuenta contable (430…)</label><input id="c_cuenta" placeholder="—"/><div id="c_cuenta_hint" class="muted" style="font-size:12px;margin-top:4px"></div>
       <label style="margin-top:14px">Forma de pago habitual (opcional)</label>${formaPagoSel("c_forma",c&&c.formaPagoDefectoId)}
       <label style="margin-top:14px">Límite de riesgo (€, opcional)</label><input id="c_riesgo" type="number" step="0.01" placeholder="Sin límite"/>`,
-      async()=>{ const r=val("c_riesgo"); const b=JSON.stringify({nombre:val("c_nombre"),nifFiscal:val("c_nif")||null,email:val("c_email")||null,porcentajeIrpfDefecto:Number(val("c_irpf")),recargoEquivalencia:document.getElementById("c_recargo").checked,iban:val("c_iban")||null,mandatoReferencia:val("c_mref")||null,mandatoFecha:val("c_mfecha")||null,nifIva:val("c_iva")||null,tipo:val("c_tipo")||null,formaPagoDefectoId:val("c_forma")||null,limiteRiesgo:r?Number(r):null}); await api("/clientes"+(c?"/"+c.id:""),{method:c?"PUT":"POST",body:b}); vClientes(); });
-      if(c){ rellenar({c_nombre:c.nombre,c_nif:c.nifFiscal,c_email:c.email,c_irpf:c.porcentajeIrpfDefecto,c_iban:c.iban,c_mref:c.mandatoReferencia,c_mfecha:c.mandatoFecha,c_iva:c.nifIva,c_tipo:c.tipo,c_riesgo:c.limiteRiesgo}); document.getElementById("c_recargo").checked=!!c.recargoEquivalencia; } }
+      async()=>{ const r=val("c_riesgo"); const b=JSON.stringify({nombre:val("c_nombre"),nifFiscal:val("c_nif")||null,email:val("c_email")||null,porcentajeIrpfDefecto:Number(val("c_irpf")),recargoEquivalencia:document.getElementById("c_recargo").checked,iban:val("c_iban")||null,mandatoReferencia:val("c_mref")||null,mandatoFecha:val("c_mfecha")||null,nifIva:val("c_iva")||null,tipo:val("c_tipo")||null,formaPagoDefectoId:val("c_forma")||null,limiteRiesgo:r?Number(r):null}); const resp=await api("/clientes"+(c?"/"+c.id:""),{method:c?"PUT":"POST",body:b}); await guardarSubcuentaCampo("Cliente", c?c.id:(resp&&resp.id), val("c_nombre"), "c_cuenta"); vClientes(); });
+      if(c){ rellenar({c_nombre:c.nombre,c_nif:c.nifFiscal,c_email:c.email,c_irpf:c.porcentajeIrpfDefecto,c_iban:c.iban,c_mref:c.mandatoReferencia,c_mfecha:c.mandatoFecha,c_iva:c.nifIva,c_tipo:c.tipo,c_riesgo:c.limiteRiesgo}); document.getElementById("c_recargo").checked=!!c.recargoEquivalencia; }
+      cargarSubcuentaCampo("Cliente", c?c.id:null, "c_cuenta"); }
     async function modalProveedor(pr){ _cacheFormasPago=await api("/formas-pago").catch(()=>[]); const fp=[["NoIndicada","Sin especificar"],["Transferencia","Transferencia"],["Domiciliacion","Domiciliación"],["Efectivo","Efectivo"],["Tarjeta","Tarjeta"],["Pagare","Pagaré"],["Confirming","Confirming"],["Otro","Otro"]].map(o=>`<option value="${o[0]}">${o[1]}</option>`).join("");
       abrir(pr?"Editar proveedor":"Nuevo proveedor",`<label>Nombre</label><input id="pr_nombre" placeholder="Nombre o razón social"/><div class="grid2"><div><label>NIF (opcional)</label><input id="pr_nif"/></div><div><label>IRPF (opcional)</label><input id="pr_irpf" type="number" value="0"/></div></div>
       <div class="grid2"><div><label>Forma de pago</label><select id="pr_pago">${fp}</select></div><div><label>Email (opcional)</label><input id="pr_email"/></div></div>
@@ -2372,11 +2403,13 @@
       <input id="pr_iva" placeholder="Ej. IT12345678901"/>
       <label style="margin-top:14px">Tipo (opcional, para reglas de contabilización)</label>
       <input id="pr_tipo" placeholder="Ej. Servicios, Suministros, Profesional"/>
+      <label style="margin-top:14px">Cuenta contable (400…)</label><input id="pr_cuenta" placeholder="—"/><div id="pr_cuenta_hint" class="muted" style="font-size:12px;margin-top:4px"></div>
       <label style="margin-top:14px">Forma de pago habitual (opcional)</label>${formaPagoSel("pr_forma",pr&&pr.formaPagoDefectoId)}
       <label style="margin-top:14px">Límite de riesgo (€, opcional)</label><input id="pr_riesgo" type="number" step="0.01" placeholder="Sin límite"/>
       <label style="margin-top:14px">IBAN (para pagarle por transferencia/confirming, opcional)</label><input id="pr_iban" placeholder="ES.."/>`,
-      async()=>{ const r=val("pr_riesgo"); const b=JSON.stringify({nombre:val("pr_nombre"),nifFiscal:val("pr_nif")||null,email:val("pr_email")||null,porcentajeIrpfDefecto:Number(val("pr_irpf")),formaPago:val("pr_pago"),nifIva:val("pr_iva")||null,tipo:val("pr_tipo")||null,formaPagoDefectoId:val("pr_forma")||null,limiteRiesgo:r?Number(r):null,iban:val("pr_iban")||null}); await api("/proveedores"+(pr?"/"+pr.id:""),{method:pr?"PUT":"POST",body:b}); vProveedores(); });
-      if(pr) rellenar({pr_nombre:pr.nombre,pr_nif:pr.nifFiscal,pr_email:pr.email,pr_irpf:pr.porcentajeIrpfDefecto,pr_pago:pr.formaPago,pr_iva:pr.nifIva,pr_tipo:pr.tipo,pr_riesgo:pr.limiteRiesgo,pr_iban:pr.iban}); }
+      async()=>{ const r=val("pr_riesgo"); const b=JSON.stringify({nombre:val("pr_nombre"),nifFiscal:val("pr_nif")||null,email:val("pr_email")||null,porcentajeIrpfDefecto:Number(val("pr_irpf")),formaPago:val("pr_pago"),nifIva:val("pr_iva")||null,tipo:val("pr_tipo")||null,formaPagoDefectoId:val("pr_forma")||null,limiteRiesgo:r?Number(r):null,iban:val("pr_iban")||null}); const resp=await api("/proveedores"+(pr?"/"+pr.id:""),{method:pr?"PUT":"POST",body:b}); await guardarSubcuentaCampo("Proveedor", pr?pr.id:(resp&&resp.id), val("pr_nombre"), "pr_cuenta"); vProveedores(); });
+      if(pr) rellenar({pr_nombre:pr.nombre,pr_nif:pr.nifFiscal,pr_email:pr.email,pr_irpf:pr.porcentajeIrpfDefecto,pr_pago:pr.formaPago,pr_iva:pr.nifIva,pr_tipo:pr.tipo,pr_riesgo:pr.limiteRiesgo,pr_iban:pr.iban});
+      cargarSubcuentaCampo("Proveedor", pr?pr.id:null, "pr_cuenta"); }
     async function modalProducto(p){ const [provs,prods]=await Promise.all([api("/proveedores").catch(()=>[]),api("/productos").catch(()=>[])]);
       const provOpts=`<option value="">— Sin asignar —</option>`+provs.map(x=>`<option value="${x.id}">${x.nombre}</option>`).join("");
       const editar=p&&p.id;

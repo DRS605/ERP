@@ -65,9 +65,22 @@ public sealed class PosterDocumento
         var cuentaResultado = await _resolver.CuentaResultadoAsync(doc.EmpresaId, doc.Sentido, doc.Familia, doc.TipoTercero, ct).ConfigureAwait(false);
         var concepto = doc.Referencia + (string.IsNullOrWhiteSpace(doc.TerceroNombre) ? "" : " · " + doc.TerceroNombre);
 
+        // Cuenta del tercero: su subcuenta individual si la tiene asignada; si no, la raíz genérica
+        // (430 clientes / 400 proveedores). Así el mayor y el balance muestran el saldo por tercero.
+        var cuentaGenerica = doc.Sentido == SentidoContable.Venta ? PlanBasico.CuentaClientes : PlanBasico.CuentaProveedores;
+        var cuentaTercero = cuentaGenerica;
+        if (doc.TerceroId is Guid terceroId)
+        {
+            var sub = await _cuentas.ObtenerPorTerceroAsync(doc.EmpresaId, terceroId, ct).ConfigureAwait(false);
+            if (sub is not null)
+            {
+                cuentaTercero = sub.Codigo;
+            }
+        }
+
         var lineas = doc.Sentido == SentidoContable.Venta
-            ? LineasVenta(doc, cuentaResultado, concepto)
-            : LineasCompra(doc, cuentaResultado, concepto);
+            ? LineasVenta(doc, cuentaResultado, cuentaTercero, concepto)
+            : LineasCompra(doc, cuentaResultado, cuentaTercero, concepto);
 
         await SembradorPlan.AsegurarAsync(doc.EmpresaId, _cuentas, ct).ConfigureAwait(false);
         var ejercicio = doc.FechaRegistro.Year;
@@ -80,10 +93,10 @@ public sealed class PosterDocumento
 
     public Task GuardarAsync(CancellationToken ct) => _unidad.GuardarCambiosAsync(ct);
 
-    private static List<LineaAsiento> LineasVenta(DocumentoPendiente d, string cuentaIngreso, string concepto)
+    private static List<LineaAsiento> LineasVenta(DocumentoPendiente d, string cuentaIngreso, string cuentaCliente, string concepto)
     {
         // Debe: cliente (total a cobrar) + retención soportada. Haber: ingreso (base) + IVA repercutido.
-        var lineas = new List<LineaAsiento> { new(PlanBasico.CuentaClientes, d.Total, 0m, concepto) };
+        var lineas = new List<LineaAsiento> { new(cuentaCliente, d.Total, 0m, concepto) };
         if (d.RetencionIrpf > 0m)
         {
             lineas.Add(new LineaAsiento(PlanBasico.CuentaRetencionVenta, d.RetencionIrpf, 0m, "Retención IRPF"));
@@ -98,7 +111,7 @@ public sealed class PosterDocumento
         return lineas;
     }
 
-    private static List<LineaAsiento> LineasCompra(DocumentoPendiente d, string cuentaGasto, string concepto)
+    private static List<LineaAsiento> LineasCompra(DocumentoPendiente d, string cuentaGasto, string cuentaProveedor, string concepto)
     {
         // Debe: gasto (base) + IVA soportado. Haber: retención + proveedores (total).
         var lineas = new List<LineaAsiento> { new(cuentaGasto, d.BaseImponible, 0m, concepto) };
@@ -112,7 +125,7 @@ public sealed class PosterDocumento
             lineas.Add(new LineaAsiento(PlanBasico.CuentaRetencion, 0m, d.RetencionIrpf, "Retención IRPF"));
         }
 
-        lineas.Add(new LineaAsiento(PlanBasico.CuentaProveedores, 0m, d.Total, concepto));
+        lineas.Add(new LineaAsiento(cuentaProveedor, 0m, d.Total, concepto));
         return lineas;
     }
 }
@@ -163,8 +176,8 @@ public sealed class EncolarDocumento : IColaContabilizacion
     }
 }
 
-/// <summary>Configuración contable de la empresa: modo y si contabiliza automáticamente.</summary>
-public sealed record ConfigContabilidadDto(string Modo, bool ContabilizacionAutomatica);
+/// <summary>Configuración contable de la empresa: modo, contabilización automática y longitud de subcuenta.</summary>
+public sealed record ConfigContabilidadDto(string Modo, bool ContabilizacionAutomatica, int LongitudSubcuenta);
 
 /// <summary>Lee la configuración contable de la empresa (por defecto: Simple, sin automática).</summary>
 public sealed class ObtenerConfigContabilidad
@@ -175,7 +188,41 @@ public sealed class ObtenerConfigContabilidad
     public async Task<ConfigContabilidadDto> EjecutarAsync(Guid empresaId, CancellationToken ct = default)
     {
         var c = await _config.ObtenerAsync(empresaId, ct).ConfigureAwait(false);
-        return new ConfigContabilidadDto((c?.Modo ?? ModoContabilidad.Simple).ToString(), c?.ContabilizacionAutomatica ?? false);
+        return new ConfigContabilidadDto(
+            (c?.Modo ?? ModoContabilidad.Simple).ToString(),
+            c?.ContabilizacionAutomatica ?? false,
+            c?.LongitudSubcuenta ?? ConfiguracionContabilidad.LongitudSubcuentaDefecto);
+    }
+}
+
+/// <summary>Cambia la longitud de las subcuentas de tercero de la empresa.</summary>
+public sealed class CambiarLongitudSubcuenta
+{
+    private readonly IRepositorioConfigContabilidad _config;
+    private readonly IUnidadDeTrabajoContabilidad _unidad;
+
+    public CambiarLongitudSubcuenta(IRepositorioConfigContabilidad config, IUnidadDeTrabajoContabilidad unidad)
+    {
+        _config = config;
+        _unidad = unidad;
+    }
+
+    public async Task<int> EjecutarAsync(Guid empresaId, int longitud, CancellationToken ct = default)
+    {
+        var config = await _config.ObtenerAsync(empresaId, ct).ConfigureAwait(false);
+        if (config is null)
+        {
+            config = new ConfiguracionContabilidad(empresaId, ModoContabilidad.Simple);
+            config.CambiarLongitudSubcuenta(longitud);
+            _config.Agregar(config);
+        }
+        else
+        {
+            config.CambiarLongitudSubcuenta(longitud);
+        }
+
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return config.LongitudSubcuenta;
     }
 }
 
