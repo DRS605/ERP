@@ -43,6 +43,7 @@ public enum FormaPago
 public sealed class Proveedor : RaizAgregadoEmpresa<Guid>
 {
     public const int LongitudMaximaNombre = 200;
+    public const int LongitudMaximaTipo = 80;
     public const decimal IrpfMaximo = 60m;
 
     private Proveedor(Guid id)
@@ -87,11 +88,29 @@ public sealed class Proveedor : RaizAgregadoEmpresa<Guid>
     /// </summary>
     public string? NifIva { get; private set; }
 
+    /// <summary>
+    /// Tipo o categoría del proveedor (p. ej. «Servicios», «Suministros», «Profesional»). Sirve para
+    /// elegir la cuenta contable de gasto mediante reglas de contabilización. Null = sin tipo.
+    /// </summary>
+    public string? Tipo { get; private set; }
+
     public bool Activo { get; private set; }
 
     public DateTimeOffset CreadoEn { get; private set; }
 
     public DateTimeOffset ActualizadoEn { get; private set; }
+
+    /// <summary>Establece el tipo/categoría del proveedor (se recorta; vacío = sin tipo).</summary>
+    public void EstablecerTipo(string? tipo)
+    {
+        var limpia = string.IsNullOrWhiteSpace(tipo) ? null : tipo.Trim();
+        if (limpia is not null && limpia.Length > LongitudMaximaTipo)
+        {
+            limpia = limpia[..LongitudMaximaTipo];
+        }
+
+        Tipo = limpia;
+    }
 
     public static Resultado<Proveedor> Crear(
         Guid empresaId, string? nombre, string? nifFiscal, string? email, Direccion direccion, decimal porcentajeIrpfDefecto, FormaPago formaPago, IReloj reloj, string? nifIva = null)

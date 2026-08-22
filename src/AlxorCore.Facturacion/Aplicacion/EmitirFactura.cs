@@ -142,12 +142,20 @@ public sealed class EmitirFactura
         }
 
         // Encola el documento para contabilizar (queda pendiente salvo contabilización automática).
+        // La familia (del primer artículo) y el tipo de cliente permiten aplicar las reglas de cuenta.
         var f = factura.Valor;
         var codigoIva = f.Lineas.Count > 0 ? f.Lineas[0].CodigoIva : "IVA21";
         var productoId = f.Lineas.FirstOrDefault(l => l.ProductoId is not null)?.ProductoId;
+        string? familia = null;
+        if (productoId is { } pid)
+        {
+            var producto = await _productos.ObtenerAsync(pid, ct).ConfigureAwait(false);
+            familia = producto?.Familia;
+        }
+
         await _cola.EncolarAsync(empresaId, new DocumentoContabilizable(
             SentidoContable.Venta, "FacturaVenta", f.Id, f.NumeroCompleto, f.ClienteId, f.ClienteNombre,
-            f.FechaEmision, f.BaseImponible, codigoIva, f.CuotaIva, f.PorcentajeIrpf, f.RetencionIrpf, f.Total, productoId), ct).ConfigureAwait(false);
+            f.FechaEmision, f.BaseImponible, codigoIva, f.CuotaIva, f.PorcentajeIrpf, f.RetencionIrpf, f.Total, productoId, familia, cliente.Tipo), ct).ConfigureAwait(false);
 
         return Resultado.Ok(FacturaDto.Desde(f));
     }

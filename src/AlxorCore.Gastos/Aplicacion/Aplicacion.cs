@@ -74,6 +74,7 @@ public sealed class RegistrarGasto
         ArgumentNullException.ThrowIfNull(comando);
 
         var proveedorTexto = comando.ProveedorTexto;
+        string? tipoTercero = null;
         if (comando.ProveedorId is { } provId)
         {
             var proveedor = await _proveedores.ObtenerAsync(provId, ct).ConfigureAwait(false);
@@ -83,6 +84,7 @@ public sealed class RegistrarGasto
             }
 
             proveedorTexto = proveedor.Nombre;
+            tipoTercero = proveedor.Tipo;
         }
 
         var fecha = comando.Fecha ?? DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
@@ -99,7 +101,7 @@ public sealed class RegistrarGasto
         var g = gasto.Valor;
         await _cola.EncolarAsync(empresaId, new DocumentoContabilizable(
             SentidoContable.Compra, "Gasto", g.Id, g.Concepto, g.ProveedorId, g.ProveedorTexto ?? g.Concepto,
-            g.Fecha, g.BaseImponible, g.CodigoIva, g.CuotaIva, g.PorcentajeIrpf, g.RetencionIrpf, g.Total), ct).ConfigureAwait(false);
+            g.Fecha, g.BaseImponible, g.CodigoIva, g.CuotaIva, g.PorcentajeIrpf, g.RetencionIrpf, g.Total, TipoTercero: tipoTercero), ct).ConfigureAwait(false);
 
         return Resultado.Ok(GastoDto.Desde(g));
     }

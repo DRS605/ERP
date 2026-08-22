@@ -77,6 +77,22 @@ public static class EndpointsContabilidad
             .WithSummary("Contabiliza (genera el asiento de) los documentos pendientes indicados.")
             .RequierePermiso(Permisos.ContabilidadGestionar);
 
+        grupo.MapGet("/reglas", ReglasAsync)
+            .WithSummary("Reglas de contabilización (cuenta por familia / tipo de tercero / combinación).")
+            .RequierePermiso(Permisos.ContabilidadLeer);
+
+        grupo.MapPost("/reglas", CrearReglaAsync)
+            .WithSummary("Crea una regla de contabilización.")
+            .RequierePermiso(Permisos.ContabilidadGestionar);
+
+        grupo.MapPut("/reglas/{id:guid}", ActualizarReglaAsync)
+            .WithSummary("Actualiza una regla de contabilización.")
+            .RequierePermiso(Permisos.ContabilidadGestionar);
+
+        grupo.MapDelete("/reglas/{id:guid}", EliminarReglaAsync)
+            .WithSummary("Elimina una regla de contabilización.")
+            .RequierePermiso(Permisos.ContabilidadGestionar);
+
         return rutas;
     }
 
@@ -210,5 +226,48 @@ public static class EndpointsContabilidad
 
         var resultado = await caso.EjecutarAsync(contexto.EmpresaId.Value, peticion.Ids ?? Array.Empty<Guid>(), ct).ConfigureAwait(false);
         return resultado.EsCorrecto ? Results.Ok(new { contabilizados = resultado.Valor }) : ResultadosHttp.AProblema(resultado.Error);
+    }
+
+    private static async Task<IResult> ReglasAsync(IContextoEmpresa contexto, ListarReglasContabilizacion caso, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, ct).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> CrearReglaAsync(DatosReglaContabilizacion datos, IContextoEmpresa contexto, GuardarReglaContabilizacion caso, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        var resultado = await caso.EjecutarAsync(contexto.EmpresaId.Value, null, datos, ct).ConfigureAwait(false);
+        return resultado.EsCorrecto ? resultado.ACreado("/contabilidad/reglas") : ResultadosHttp.AProblema(resultado.Error);
+    }
+
+    private static async Task<IResult> ActualizarReglaAsync(Guid id, DatosReglaContabilizacion datos, IContextoEmpresa contexto, GuardarReglaContabilizacion caso, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        var resultado = await caso.EjecutarAsync(contexto.EmpresaId.Value, id, datos, ct).ConfigureAwait(false);
+        return resultado.EsCorrecto ? Results.Ok(resultado.Valor) : ResultadosHttp.AProblema(resultado.Error);
+    }
+
+    private static async Task<IResult> EliminarReglaAsync(Guid id, IContextoEmpresa contexto, EliminarReglaContabilizacion caso, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        var resultado = await caso.EjecutarAsync(contexto.EmpresaId.Value, id, ct).ConfigureAwait(false);
+        return resultado.EsCorrecto ? Results.NoContent() : ResultadosHttp.AProblema(resultado.Error);
     }
 }

@@ -120,9 +120,17 @@ public sealed class Producto : RaizAgregadoEmpresa<Guid>
         ActualizadoEn = ahora;
     }
 
+    public const int LongitudMaximaFamilia = 80;
+
     public string? Referencia { get; private set; }
 
     public string Nombre { get; private set; }
+
+    /// <summary>
+    /// Familia o categoría del artículo (p. ej. «Mercaderías», «Servicios», «Suministros»). Sirve para
+    /// elegir la cuenta contable de ingreso/gasto mediante reglas de contabilización. Null = sin familia.
+    /// </summary>
+    public string? Familia { get; private set; }
 
     public TipoProducto Tipo { get; private set; }
 
@@ -374,6 +382,18 @@ public sealed class Producto : RaizAgregadoEmpresa<Guid>
     {
         Activo = false;
         ActualizadoEn = reloj.AhoraUtc;
+    }
+
+    /// <summary>Establece la familia/categoría del artículo (se recorta; vacío = sin familia).</summary>
+    public void EstablecerFamilia(string? familia)
+    {
+        var limpia = string.IsNullOrWhiteSpace(familia) ? null : familia.Trim();
+        if (limpia is not null && limpia.Length > LongitudMaximaFamilia)
+        {
+            limpia = limpia[..LongitudMaximaFamilia];
+        }
+
+        Familia = limpia;
     }
 
     private static Error? Validar(string? nombre, decimal precio, decimal precioCompra, ref string? codigoIva)

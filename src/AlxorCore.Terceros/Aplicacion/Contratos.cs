@@ -20,12 +20,13 @@ public sealed record ClienteDto(
     string? Iban,
     string? MandatoReferencia,
     DateOnly? MandatoFecha,
-    string? NifIva)
+    string? NifIva,
+    string? Tipo)
 {
     public static ClienteDto Desde(Cliente c) => new(
         c.Id, c.Nombre, c.NifFiscal, c.Email,
         c.Direccion.Calle, c.Direccion.CodigoPostal, c.Direccion.Poblacion, c.Direccion.Provincia, c.Direccion.Pais,
-        c.PorcentajeIrpfDefecto, c.Activo, c.RecargoEquivalencia, c.Iban, c.MandatoReferencia, c.MandatoFecha, c.NifIva);
+        c.PorcentajeIrpfDefecto, c.Activo, c.RecargoEquivalencia, c.Iban, c.MandatoReferencia, c.MandatoFecha, c.NifIva, c.Tipo);
 }
 
 /// <summary>Repositorio de clientes (escritura).</summary>

@@ -20,7 +20,8 @@ public sealed record DatosCliente(
     string? Iban = null,
     string? MandatoReferencia = null,
     DateOnly? MandatoFecha = null,
-    string? NifIva = null);
+    string? NifIva = null,
+    string? Tipo = null);
 
 /// <summary>Caso de uso: crear un cliente en la empresa activa.</summary>
 public sealed class CrearCliente
@@ -47,6 +48,7 @@ public sealed class CrearCliente
             return Resultado.Fallo<ClienteDto>(cliente.Error);
         }
 
+        cliente.Valor.EstablecerTipo(datos.Tipo);
         _clientes.Agregar(cliente.Valor);
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return Resultado.Ok(ClienteDto.Desde(cliente.Valor));
@@ -84,6 +86,7 @@ public sealed class ActualizarCliente
             return Resultado.Fallo<ClienteDto>(actualizado.Error);
         }
 
+        cliente.EstablecerTipo(datos.Tipo);
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return Resultado.Ok(ClienteDto.Desde(cliente));
     }

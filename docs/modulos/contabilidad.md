@@ -61,6 +61,24 @@ Para una factura de base `B`, IVA `i %` y retención `r %`:
 Ambos asientos **cuadran** por construcción (Σ debe = Σ haber). El número es correlativo por empresa y
 ejercicio (el ejercicio se deriva del año de la **fecha de registro**).
 
+## Reglas de contabilización (cuenta por familia / tipo)
+
+La cuenta de resultado (ingreso 7xx en ventas, gasto 6xx en compras) se elige con **reglas
+configurables** en lugar de una única cuenta genérica. Cada regla fija una cuenta para una
+combinación de:
+
+- **Familia del artículo** (campo `familia` del producto; se toma la del primer artículo de la venta), y/o
+- **Tipo del tercero** (campo `tipo` del cliente/proveedor).
+
+La regla **más específica gana**: familia + tipo (3) &gt; familia (2) &gt; tipo (1) &gt; genérica (0).
+Si ninguna regla encaja se usa la cuenta genérica (`705` ventas, `629` compras). El resolutor
+`ResolverCuentasReglas` implementa el puerto `IResolverCuentas` que usa `PosterDocumento` al construir
+el asiento, de modo que la elección de cuenta es transparente para el resto del flujo. La cuenta de una
+regla debe existir en el plan de la empresa.
+
+Ejemplos: ventas de familia «Mercaderías» → `700`; compras de proveedores tipo «Profesional» → `623`;
+ventas de familia «Formación» a clientes tipo «Intracomunitario» → una cuenta específica.
+
 ## Invariantes
 
 - **Cuadre**: un asiento no se crea si la suma del debe ≠ la suma del haber, o si su importe es cero.
@@ -84,6 +102,10 @@ ejercicio (el ejercicio se deriva del año de la **fecha de registro**).
 | `GET` | `/contabilidad/pendientes` | `contabilidad.leer` | Documentos pendientes de contabilizar (panel). |
 | `PUT` | `/contabilidad/pendientes/{id}/fecha-registro` | `contabilidad.gestionar` | Cambia la fecha de registro de un pendiente. **204** |
 | `POST` | `/contabilidad/pendientes/contabilizar` | `contabilidad.gestionar` | Contabiliza (asienta) los pendientes indicados. |
+| `GET` | `/contabilidad/reglas` | `contabilidad.leer` | Reglas de contabilización (cuenta por familia/tipo). |
+| `POST` | `/contabilidad/reglas` | `contabilidad.gestionar` | Crea una regla. **201** |
+| `PUT` | `/contabilidad/reglas/{id}` | `contabilidad.gestionar` | Actualiza una regla. |
+| `DELETE` | `/contabilidad/reglas/{id}` | `contabilidad.gestionar` | Elimina una regla. **204** |
 
 ## Plan de cuentas
 
@@ -94,14 +116,15 @@ asientos referencian cuentas por su código; el plan da el nombre para los infor
 ## Persistencia
 
 - Esquema **`contabilidad`**: `cuenta`, `asiento` (con `apunte` como colección propia),
-  `config_contabilidad` y `documento_pendiente`.
-- RLS por empresa en `cuenta`, `asiento`, `config_contabilidad` y `documento_pendiente`; el `apunte`
-  se protege a través de su `asiento` (filtro global de EF Core).
+  `config_contabilidad`, `documento_pendiente` y `regla_contabilizacion`.
+- RLS por empresa en `cuenta`, `asiento`, `config_contabilidad`, `documento_pendiente` y
+  `regla_contabilizacion`; el `apunte` se protege a través de su `asiento` (filtro global de EF Core).
 - Índices: únicos `(empresa_id, codigo)` en cuenta y `(empresa_id, ejercicio, numero)` en asiento;
-  `(empresa_id, estado)` en `documento_pendiente`.
+  `(empresa_id, estado)` en `documento_pendiente`; `(empresa_id, sentido)` en `regla_contabilizacion`.
 - `config_contabilidad` incorpora la columna `contabilizacion_automatica` (por defecto `false`).
-- Migraciones: `MigracionInicialContabilidad` y `ContabilizacionDiferida` (tabla `documento_pendiente`
-  + columna `contabilizacion_automatica` + activación de RLS).
+- Migraciones: `MigracionInicialContabilidad`, `ContabilizacionDiferida` (tabla `documento_pendiente`
+  + columna `contabilizacion_automatica` + RLS) y `ReglasContabilizacion` (tabla
+  `regla_contabilizacion` + RLS).
 
 ## Composición
 
@@ -116,8 +139,9 @@ asientos referencian cuentas por su código; el plan da el nombre para los infor
 ## Tests
 
 - **Unitarios**: cuadre del asiento (cuadrado/descuadrado, apunte debe-y-haber, mínimo de apuntes),
-  validación del código de cuenta, y el `documento_pendiente` (fecha de registro editable solo mientras
-  está pendiente; no se recontabiliza).
+  validación del código de cuenta, el `documento_pendiente` (fecha de registro editable solo mientras
+  está pendiente; no se recontabiliza) y la resolución de reglas (regla válida, cuenta genérica sin
+  reglas, gana la más específica, ventas y compras no se mezclan).
 - **Integración**: modo por defecto Simple; alta de asiento manual y su aparición en el diario;
   asiento descuadrado → 400; una compra queda **pendiente** sin asiento por defecto; el contable ajusta
   la fecha de registro y contabiliza desde el panel (asiento 629/472 al debe, 400 al haber); con

@@ -14,7 +14,9 @@ altere las facturas ya emitidas. `GET /impuestos` los expone.
 `Producto` { Referencia (opcional), Nombre, Tipo (Bien/Servicio), **PrecioUnitario** (venta),
 **PrecioCompra** (coste, para el margen; 0 si no aplica), CodigoIva por defecto (validado contra el
 catálogo), Unidad, **ProveedorHabitualId** (proveedor habitual del artículo; referencia opcional a
-Terceros), Activo }. Multiempresa (RLS por empresa).
+Terceros), **Familia** (categoría opcional del artículo, p. ej. «Mercaderías»/«Servicios», usada por
+las reglas de contabilización para elegir la cuenta de ingreso/gasto), Activo }. Multiempresa (RLS por
+empresa).
 
 Al añadir un producto a una factura se prerrellenan su precio de venta, su IVA y también su
 **precio de compra**, que la factura **congela por línea** (`coste_unitario`) para que el margen del

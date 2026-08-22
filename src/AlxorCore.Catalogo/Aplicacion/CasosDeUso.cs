@@ -21,7 +21,8 @@ public sealed record DatosProducto(
     decimal FactorCompra = 1m,
     string? UnidadVenta = null,
     decimal FactorVenta = 1m,
-    SeguimientoArticulo Seguimiento = SeguimientoArticulo.Ninguno);
+    SeguimientoArticulo Seguimiento = SeguimientoArticulo.Ninguno,
+    string? Familia = null);
 
 /// <summary>Caso de uso: crear un producto en la empresa activa.</summary>
 public sealed class CrearProducto
@@ -49,6 +50,7 @@ public sealed class CrearProducto
             return Resultado.Fallo<ProductoDto>(producto.Error);
         }
 
+        producto.Valor.EstablecerFamilia(datos.Familia);
         _productos.Agregar(producto.Valor);
         _historico.Agregar(HistoricoPrecio.Registrar(empresaId, producto.Valor.Id, producto.Valor.PrecioUnitario, producto.Valor.PrecioCompra, _reloj.AhoraUtc));
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
@@ -90,6 +92,8 @@ public sealed class ActualizarProducto
         {
             return Resultado.Fallo<ProductoDto>(r.Error);
         }
+
+        producto.EstablecerFamilia(datos.Familia);
 
         // Solo dejamos rastro en el histórico si algún precio cambió.
         if (producto.PrecioUnitario != precioVentaAnterior || producto.PrecioCompra != precioCompraAnterior)

@@ -28,6 +28,8 @@ public sealed class ContabilidadDbContext : DbContextEmpresaBase, IUnidadDeTraba
 
     public DbSet<DocumentoPendiente> DocumentosPendientes => Set<DocumentoPendiente>();
 
+    public DbSet<ReglaContabilizacion> ReglasContabilizacion => Set<ReglaContabilizacion>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Esquema);
@@ -151,6 +153,41 @@ internal sealed class RepositorioDocumentosPendientes : IRepositorioDocumentosPe
         await _contexto.DocumentosPendientes.AsNoTracking()
             .Where(d => d.EmpresaId == empresaId)
             .OrderByDescending(d => d.CreadoEn).ToListAsync(ct).ConfigureAwait(false);
+}
+
+internal sealed class ConfiguracionReglaContabilizacion : IEntityTypeConfiguration<ReglaContabilizacion>
+{
+    public void Configure(EntityTypeBuilder<ReglaContabilizacion> builder)
+    {
+        builder.ToTable("regla_contabilizacion");
+        builder.HasKey(r => r.Id);
+        builder.Property(r => r.Id).HasColumnName("id").ValueGeneratedNever();
+        builder.Property(r => r.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        builder.Property(r => r.Sentido).HasColumnName("sentido").HasMaxLength(10).HasConversion<string>().IsRequired();
+        builder.Property(r => r.Familia).HasColumnName("familia").HasMaxLength(ReglaContabilizacion.LongitudMaximaClave);
+        builder.Property(r => r.TipoTercero).HasColumnName("tipo_tercero").HasMaxLength(ReglaContabilizacion.LongitudMaximaClave);
+        builder.Property(r => r.CuentaCodigo).HasColumnName("cuenta_codigo").HasMaxLength(ReglaContabilizacion.LongitudMaximaCuenta).IsRequired();
+        builder.HasIndex(r => new { r.EmpresaId, r.Sentido }).HasDatabaseName("ix_regla_contabilizacion_empresa_sentido");
+        builder.Ignore(r => r.EventosDominio);
+    }
+}
+
+internal sealed class RepositorioReglasContabilizacion : IRepositorioReglasContabilizacion
+{
+    private readonly ContabilidadDbContext _contexto;
+
+    public RepositorioReglasContabilizacion(ContabilidadDbContext contexto) => _contexto = contexto;
+
+    public void Agregar(ReglaContabilizacion regla) => _contexto.ReglasContabilizacion.Add(regla);
+
+    public Task<ReglaContabilizacion?> ObtenerAsync(Guid id, CancellationToken ct = default) =>
+        _contexto.ReglasContabilizacion.SingleOrDefaultAsync(r => r.Id == id, ct);
+
+    public async Task<IReadOnlyList<ReglaContabilizacion>> ListarAsync(Guid empresaId, CancellationToken ct = default) =>
+        await _contexto.ReglasContabilizacion.AsNoTracking()
+            .Where(r => r.EmpresaId == empresaId).ToListAsync(ct).ConfigureAwait(false);
+
+    public void Eliminar(ReglaContabilizacion regla) => _contexto.ReglasContabilizacion.Remove(regla);
 }
 
 internal sealed class RepositorioCuentas : IRepositorioCuentas

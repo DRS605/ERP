@@ -16,6 +16,7 @@ public sealed record ClienteCreado(Guid ClienteId, Guid EmpresaId, DateTimeOffse
 public sealed class Cliente : RaizAgregadoEmpresa<Guid>
 {
     public const int LongitudMaximaNombre = 200;
+    public const int LongitudMaximaTipo = 80;
     public const decimal IrpfMaximo = 60m;
 
     private Cliente(Guid id)
@@ -75,11 +76,29 @@ public sealed class Cliente : RaizAgregadoEmpresa<Guid>
     /// <summary>¿Tiene los datos necesarios para domiciliar (IBAN, mandato y fecha)?</summary>
     public bool DomiciliacionCompleta => !string.IsNullOrWhiteSpace(Iban) && !string.IsNullOrWhiteSpace(MandatoReferencia) && MandatoFecha is not null;
 
+    /// <summary>
+    /// Tipo o categoría del cliente (p. ej. «Nacional», «Intracomunitario», «Minorista»). Sirve para
+    /// elegir la cuenta contable de ingreso mediante reglas de contabilización. Null = sin tipo.
+    /// </summary>
+    public string? Tipo { get; private set; }
+
     public bool Activo { get; private set; }
 
     public DateTimeOffset CreadoEn { get; private set; }
 
     public DateTimeOffset ActualizadoEn { get; private set; }
+
+    /// <summary>Establece el tipo/categoría del cliente (se recorta; vacío = sin tipo).</summary>
+    public void EstablecerTipo(string? tipo)
+    {
+        var limpia = string.IsNullOrWhiteSpace(tipo) ? null : tipo.Trim();
+        if (limpia is not null && limpia.Length > LongitudMaximaTipo)
+        {
+            limpia = limpia[..LongitudMaximaTipo];
+        }
+
+        Tipo = limpia;
+    }
 
     public static Resultado<Cliente> Crear(
         Guid empresaId,

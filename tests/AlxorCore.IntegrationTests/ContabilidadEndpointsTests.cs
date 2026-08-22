@@ -177,6 +177,33 @@ public sealed class ContabilidadEndpointsTests : IClassFixture<FabricaApiPruebas
     }
 
     [Fact]
+    public async Task Una_regla_por_familia_elige_la_cuenta_de_ingreso_al_contabilizar_una_venta()
+    {
+        var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+        await PonerModoCompletoAsync(cliente);
+        await cliente.PutAsJsonAsync("/contabilidad/contabilizacion-automatica", new { Automatica = true });
+
+        // Regla: las ventas de la familia «Mercaderías» van a la 700 (no a la genérica 705).
+        var regla = await cliente.PostAsJsonAsync("/contabilidad/reglas", new { Sentido = "Venta", Familia = "Mercaderías", TipoTercero = (string?)null, CuentaCodigo = "700" });
+        regla.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        // Artículo con esa familia + cliente + factura.
+        var prod = (await (await cliente.PostAsJsonAsync("/productos", new { Nombre = "Camisa", PrecioUnitario = 100m, CodigoIva = "IVA21", Tipo = "Bien", Familia = "Mercaderías" })).Content.ReadFromJsonAsync<FacturaResp>())!;
+        var clienteId = (await (await cliente.PostAsJsonAsync("/clientes", new { Nombre = "Tienda SL", NifFiscal = "B12345674" })).Content.ReadFromJsonAsync<FacturaResp>())!.Id;
+        await cliente.PostAsJsonAsync("/facturas", new
+        {
+            ClienteId = clienteId,
+            FechaEmision = "2026-08-12",
+            Lineas = new[] { new { Cantidad = 1m, Descripcion = "Camisa", PrecioUnitario = 100m, CodigoIva = "IVA21", ProductoId = prod.Id } },
+        });
+
+        var diario = await cliente.GetFromJsonAsync<List<AsientoResp>>("/contabilidad/diario?ejercicio=2026");
+        var asiento = diario!.Single(a => a.Origen == "Venta");
+        asiento.Apuntes.Should().Contain(x => x.CuentaCodigo == "700" && x.Haber == 100m);
+        asiento.Apuntes.Should().NotContain(x => x.CuentaCodigo == "705");
+    }
+
+    [Fact]
     public async Task En_modo_simple_no_se_crean_documentos_pendientes()
     {
         var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);

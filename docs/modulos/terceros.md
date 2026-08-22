@@ -10,7 +10,9 @@ lleva `empresa_id`, con filtro global y RLS).
 `Cliente` { Nombre (obligatorio), NifFiscal (opcional, texto — admite clientes extranjeros), Email,
 Direccion, PorcentajeIrpfDefecto (0–60 %, se prerrellena al facturar), **RecargoEquivalencia**
 (minorista: al facturarle se marca por defecto el recargo), **Iban / MandatoReferencia /
-MandatoFecha** (opcionales, para domiciliar sus recibos en una remesa SEPA), Activo }.
+MandatoFecha** (opcionales, para domiciliar sus recibos en una remesa SEPA), **Tipo** (categoría
+opcional del cliente, usada por las reglas de contabilización), Activo }. El proveedor incorpora
+igualmente un campo **Tipo** (categoría para elegir la cuenta de gasto).
 
 ## API
 

@@ -31,6 +31,7 @@ public static class RegistroServicios
         servicios.AddScoped<IRepositorioAsientos, RepositorioAsientos>();
         servicios.AddScoped<IRepositorioConfigContabilidad, RepositorioConfigContabilidad>();
         servicios.AddScoped<IRepositorioDocumentosPendientes, RepositorioDocumentosPendientes>();
+        servicios.AddScoped<IRepositorioReglasContabilizacion, RepositorioReglasContabilizacion>();
 
         servicios.AddScoped<ListarCuentas>();
         servicios.AddScoped<CrearAsiento>();
@@ -42,7 +43,12 @@ public static class RegistroServicios
         servicios.AddScoped<GenerarAsientoCompra>();
 
         // Cola de contabilización: documentos pendientes + panel del contable.
-        servicios.AddScoped<IResolverCuentas, ResolverCuentasBasico>();
+        // El resolutor de cuentas aplica las reglas configuradas (familia / tipo de tercero /
+        // combinación); si ninguna encaja usa la cuenta genérica de ingresos/gastos.
+        servicios.AddScoped<IResolverCuentas, ResolverCuentasReglas>();
+        servicios.AddScoped<ListarReglasContabilizacion>();
+        servicios.AddScoped<GuardarReglaContabilizacion>();
+        servicios.AddScoped<EliminarReglaContabilizacion>();
         servicios.AddScoped<PosterDocumento>();
         servicios.AddScoped<EncolarDocumento>();
         servicios.AddScoped<AlxorCore.Nucleo.Aplicacion.IColaContabilizacion>(sp => sp.GetRequiredService<EncolarDocumento>());

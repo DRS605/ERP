@@ -1381,12 +1381,15 @@
     async function vContabilidad() {
       view('<div class="muted">Cargando…</div>');
       const anio=new Date().getFullYear();
-      const [cfg,diario,balance,pendientes]=await Promise.all([
+      const [cfg,diario,balance,pendientes,reglas,cuentas]=await Promise.all([
         api("/contabilidad/config"),
         api("/contabilidad/diario?ejercicio="+anio),
         api("/contabilidad/balance?ejercicio="+anio),
         api("/contabilidad/pendientes").catch(()=>[]),
+        api("/contabilidad/reglas").catch(()=>[]),
+        api("/contabilidad/cuentas").catch(()=>[]),
       ]);
+      window._ctaOpts=cuentas;
       const modo=cfg.modo||"Simple";
       const auto=!!cfg.contabilizacionAutomatica;
       _cachePendientes=pendientes||[];
@@ -1417,6 +1420,24 @@
           panelPend=panel("Pendientes de contabilizar",vacio("informes","Nada pendiente","Cuando emitas facturas o registres gastos aparecerán aquí para contabilizar."));
         }
       }
+      // Reglas de contabilización (solo modo Completo): elegir la cuenta por familia / tipo de tercero.
+      let panelReglas="";
+      if(modo==="Completo"){
+        const critr=r=>[r.familia?("familia «"+r.familia+"»"):null,r.tipoTercero?("tipo «"+r.tipoTercero+"»"):null].filter(Boolean).join(" + ")||"—";
+        const filasR=(reglas||[]).map(r=>`<tr>
+          <td><span class="pill ${r.sentido==="Venta"?"ok":"part"}">${r.sentido}</span></td>
+          <td>${critr(r)}</td>
+          <td><strong>${r.cuentaCodigo}</strong></td>
+          <td class="right" style="white-space:nowrap">
+            <button class="btn small ghost" onclick='modalRegla(${JSON.stringify(r)})'>Editar</button>
+            <button class="btn small ghost" onclick="eliminarRegla('${r.id}')" title="Eliminar">✕</button></td></tr>`).join("");
+        const tablaR=(reglas&&reglas.length)
+          ? `<table><thead><tr><th>Operación</th><th>Cuando aplica</th><th>Cuenta</th><th></th></tr></thead><tbody>${filasR}</tbody></table>`
+          : vacio("informes","Sin reglas","Sin reglas, las ventas usan la 705 y las compras la 629. Añade reglas para afinar la cuenta por familia o tipo de tercero.");
+        panelReglas=panel("Reglas de contabilización",
+          `<p class="muted" style="margin:0 0 10px">Elige la cuenta de ingreso/gasto según la <strong>familia del artículo</strong> y/o el <strong>tipo de cliente/proveedor</strong>. Gana la regla más específica (familia + tipo &gt; familia &gt; tipo &gt; genérica).</p>`+tablaR,
+          `<button class="btn small" onclick="modalRegla()">+ Nueva regla</button>`);
+      }
       // Diario
       const asientoHtml=a=>{
         const ap=a.apuntes.map(p=>`<tr><td style="padding-left:24px" class="muted">${p.cuentaCodigo}${p.concepto?(' · '+p.concepto):''}</td><td class="num">${p.debe>0?eur(p.debe):''}</td><td class="num">${p.haber>0?eur(p.haber):''}</td></tr>`).join("");
@@ -1432,8 +1453,34 @@
         : '<p class="muted">Sin movimientos en '+anio+'.</p>';
       view(banner
         +panelPend
+        +panelReglas
         +panel("Libro diario · "+anio,diarioTabla,`<button class="btn small" onclick="modalAsiento()">+ Nuevo asiento</button>`)
         +panel("Balance de sumas y saldos · "+anio,balTabla));
+    }
+    function modalRegla(r){
+      const cuentas=window._ctaOpts||[];
+      const ctaOpts=cuentas.map(c=>`<option value="${c.codigo}">${c.codigo} · ${c.nombre}</option>`).join("");
+      abrir(r?"Editar regla":"Nueva regla de contabilización",`
+        <label>Operación</label>
+        <select id="rg_sentido"><option value="Venta">Venta (cuenta de ingreso 7xx)</option><option value="Compra">Compra (cuenta de gasto 6xx)</option></select>
+        <div class="grid2">
+          <div><label>Familia de artículo (opcional)</label><input id="rg_familia" placeholder="Ej. Mercaderías"/></div>
+          <div><label>Tipo de tercero (opcional)</label><input id="rg_tipo" placeholder="Ej. Intracomunitario"/></div>
+        </div>
+        <label style="margin-top:14px">Cuenta contable</label>
+        <select id="rg_cuenta">${ctaOpts}</select>
+        <p class="muted" style="font-size:12px;margin:10px 0 0">Indica al menos familia o tipo. La regla más específica gana cuando varias encajan.</p>`,
+        async()=>{
+          const b=JSON.stringify({sentido:val("rg_sentido"),familia:val("rg_familia")||null,tipoTercero:val("rg_tipo")||null,cuentaCodigo:val("rg_cuenta")});
+          await api("/contabilidad/reglas"+(r?"/"+r.id:""),{method:r?"PUT":"POST",body:b});
+          toast("Regla guardada.","ok"); vContabilidad();
+        });
+      if(r) rellenar({rg_sentido:r.sentido,rg_familia:r.familia,rg_tipo:r.tipoTercero,rg_cuenta:r.cuentaCodigo});
+    }
+    async function eliminarRegla(id){
+      if(!confirm("¿Eliminar esta regla de contabilización?")) return;
+      try{ await api("/contabilidad/reglas/"+id,{method:"DELETE"}); toast("Regla eliminada.","ok"); vContabilidad(); }
+      catch(e){ toast(e.message,"err"); }
     }
     async function cambiarModoContab(modo){
       try{ await api("/contabilidad/modo",{method:"PUT",body:JSON.stringify({modo})});
@@ -1993,16 +2040,20 @@
       <input id="c_iban" placeholder="IBAN del cliente (ES..)"/>
       <div class="grid2"><div><label>Referencia del mandato</label><input id="c_mref" placeholder="Ej. MND-0001"/></div><div><label>Fecha del mandato</label><input id="c_mfecha" type="date"/></div></div>
       <label style="margin-top:14px">NIF-IVA intracomunitario (opcional, para el modelo 349)</label>
-      <input id="c_iva" placeholder="Ej. DE123456789"/>`,
-      async()=>{ const b=JSON.stringify({nombre:val("c_nombre"),nifFiscal:val("c_nif")||null,email:val("c_email")||null,porcentajeIrpfDefecto:Number(val("c_irpf")),recargoEquivalencia:document.getElementById("c_recargo").checked,iban:val("c_iban")||null,mandatoReferencia:val("c_mref")||null,mandatoFecha:val("c_mfecha")||null,nifIva:val("c_iva")||null}); await api("/clientes"+(c?"/"+c.id:""),{method:c?"PUT":"POST",body:b}); vClientes(); });
-      if(c){ rellenar({c_nombre:c.nombre,c_nif:c.nifFiscal,c_email:c.email,c_irpf:c.porcentajeIrpfDefecto,c_iban:c.iban,c_mref:c.mandatoReferencia,c_mfecha:c.mandatoFecha,c_iva:c.nifIva}); document.getElementById("c_recargo").checked=!!c.recargoEquivalencia; } }
+      <input id="c_iva" placeholder="Ej. DE123456789"/>
+      <label style="margin-top:14px">Tipo (opcional, para reglas de contabilización)</label>
+      <input id="c_tipo" placeholder="Ej. Nacional, Intracomunitario, Minorista"/>`,
+      async()=>{ const b=JSON.stringify({nombre:val("c_nombre"),nifFiscal:val("c_nif")||null,email:val("c_email")||null,porcentajeIrpfDefecto:Number(val("c_irpf")),recargoEquivalencia:document.getElementById("c_recargo").checked,iban:val("c_iban")||null,mandatoReferencia:val("c_mref")||null,mandatoFecha:val("c_mfecha")||null,nifIva:val("c_iva")||null,tipo:val("c_tipo")||null}); await api("/clientes"+(c?"/"+c.id:""),{method:c?"PUT":"POST",body:b}); vClientes(); });
+      if(c){ rellenar({c_nombre:c.nombre,c_nif:c.nifFiscal,c_email:c.email,c_irpf:c.porcentajeIrpfDefecto,c_iban:c.iban,c_mref:c.mandatoReferencia,c_mfecha:c.mandatoFecha,c_iva:c.nifIva,c_tipo:c.tipo}); document.getElementById("c_recargo").checked=!!c.recargoEquivalencia; } }
     function modalProveedor(pr){ const fp=[["NoIndicada","Sin especificar"],["Transferencia","Transferencia"],["Domiciliacion","Domiciliación"],["Efectivo","Efectivo"],["Tarjeta","Tarjeta"],["Pagare","Pagaré"],["Confirming","Confirming"],["Otro","Otro"]].map(o=>`<option value="${o[0]}">${o[1]}</option>`).join("");
       abrir(pr?"Editar proveedor":"Nuevo proveedor",`<label>Nombre</label><input id="pr_nombre" placeholder="Nombre o razón social"/><div class="grid2"><div><label>NIF (opcional)</label><input id="pr_nif"/></div><div><label>IRPF (opcional)</label><input id="pr_irpf" type="number" value="0"/></div></div>
       <div class="grid2"><div><label>Forma de pago</label><select id="pr_pago">${fp}</select></div><div><label>Email (opcional)</label><input id="pr_email"/></div></div>
       <label style="margin-top:14px">NIF-IVA intracomunitario (opcional, para el modelo 349)</label>
-      <input id="pr_iva" placeholder="Ej. IT12345678901"/>`,
-      async()=>{ const b=JSON.stringify({nombre:val("pr_nombre"),nifFiscal:val("pr_nif")||null,email:val("pr_email")||null,porcentajeIrpfDefecto:Number(val("pr_irpf")),formaPago:val("pr_pago"),nifIva:val("pr_iva")||null}); await api("/proveedores"+(pr?"/"+pr.id:""),{method:pr?"PUT":"POST",body:b}); vProveedores(); });
-      if(pr) rellenar({pr_nombre:pr.nombre,pr_nif:pr.nifFiscal,pr_email:pr.email,pr_irpf:pr.porcentajeIrpfDefecto,pr_pago:pr.formaPago,pr_iva:pr.nifIva}); }
+      <input id="pr_iva" placeholder="Ej. IT12345678901"/>
+      <label style="margin-top:14px">Tipo (opcional, para reglas de contabilización)</label>
+      <input id="pr_tipo" placeholder="Ej. Servicios, Suministros, Profesional"/>`,
+      async()=>{ const b=JSON.stringify({nombre:val("pr_nombre"),nifFiscal:val("pr_nif")||null,email:val("pr_email")||null,porcentajeIrpfDefecto:Number(val("pr_irpf")),formaPago:val("pr_pago"),nifIva:val("pr_iva")||null,tipo:val("pr_tipo")||null}); await api("/proveedores"+(pr?"/"+pr.id:""),{method:pr?"PUT":"POST",body:b}); vProveedores(); });
+      if(pr) rellenar({pr_nombre:pr.nombre,pr_nif:pr.nifFiscal,pr_email:pr.email,pr_irpf:pr.porcentajeIrpfDefecto,pr_pago:pr.formaPago,pr_iva:pr.nifIva,pr_tipo:pr.tipo}); }
     async function modalProducto(p){ const [provs,prods]=await Promise.all([api("/proveedores").catch(()=>[]),api("/productos").catch(()=>[])]);
       const provOpts=`<option value="">— Sin asignar —</option>`+provs.map(x=>`<option value="${x.id}">${x.nombre}</option>`).join("");
       const editar=p&&p.id;
@@ -2015,6 +2066,7 @@
       <div class="grid2"><div><label>Código / EAN (opcional)</label><input id="p_ref" placeholder="Ej. 8412345678901"/></div><div><label>IVA</label>${ivaSel("p_iva")}</div></div>
       <div class="grid2"><div><label>Precio de venta (€)</label><input id="p_precio" type="number" step="0.01" value="0"/></div><div><label>Precio de compra / coste (€)</label><input id="p_compra" type="number" step="0.01" value="0"/></div></div>
       <label>Proveedor habitual (opcional)</label><select id="p_prov">${provOpts}</select>
+      <label style="margin-top:14px">Familia (opcional, para reglas de contabilización)</label><input id="p_familia" placeholder="Ej. Mercaderías, Servicios, Suministros"/>
       <details style="margin-top:14px;border:1px solid var(--line);border-radius:11px;padding:10px 12px" ${(p&&(p.unidadCompra||p.unidadVenta))?'open':''}>
         <summary style="cursor:pointer;font-weight:600;font-size:13px">Unidades y envases</summary>
         <div style="margin-top:10px">
@@ -2040,7 +2092,7 @@
       <div id="p_stock_box" style="display:none;margin-top:8px"><label>Stock inicial (en unidad base)${editar?' <span class="muted">(no se modifica al editar; usa el botón 📦)</span>':''}</label><input id="p_stock_ini" type="number" step="0.001" value="0" ${editar?'disabled':''}/></div>
       <p class="muted" style="font-size:12px;margin:10px 0 0">El precio de compra sirve para calcular el margen en el informe de beneficio. El stock se descuenta automáticamente al facturar.</p>`,
       async()=>{ const fc=Number(val("p_fcompra")||1)||1, fv=Number(val("p_fventa")||1)||1;
-        const b=JSON.stringify({nombre:val("p_nombre"),referencia:val("p_ref")||null,precioUnitario:Number(val("p_precio")),precioCompra:Number(val("p_compra")),codigoIva:val("p_iva"),tipo:(p&&p.tipo)?p.tipo:"Servicio",proveedorHabitualId:val("p_prov")||null,unidad:val("p_unidad")||"ud",unidadCompra:val("p_ucompra")||null,factorCompra:fc,unidadVenta:val("p_uventa")||null,factorVenta:fv,seguimiento:val("p_seguimiento"),controlarStock:document.getElementById("p_stock_ctrl").checked,stockInicial:Number(val("p_stock_ini")||0)});
+        const b=JSON.stringify({nombre:val("p_nombre"),referencia:val("p_ref")||null,precioUnitario:Number(val("p_precio")),precioCompra:Number(val("p_compra")),codigoIva:val("p_iva"),tipo:(p&&p.tipo)?p.tipo:"Servicio",proveedorHabitualId:val("p_prov")||null,familia:val("p_familia")||null,unidad:val("p_unidad")||"ud",unidadCompra:val("p_ucompra")||null,factorCompra:fc,unidadVenta:val("p_uventa")||null,factorVenta:fv,seguimiento:val("p_seguimiento"),controlarStock:document.getElementById("p_stock_ctrl").checked,stockInicial:Number(val("p_stock_ini")||0)});
         const guardado=await api("/productos"+(editar?"/"+p.id:""),{method:editar?"PUT":"POST",body:b});
         // Lista de materiales (si la sección existe): siempre se envía (lista vacía = quitar composición).
         if(document.getElementById("p_comp_lineas")){
@@ -2048,7 +2100,7 @@
           await api(`/productos/${guardado.id}/composicion`,{method:"PUT",body:JSON.stringify({componentes:comps})});
         }
         vProductos(); });
-      if(p){ rellenar({p_nombre:p.nombre,p_ref:p.referencia,p_precio:p.precioUnitario,p_compra:p.precioCompra,p_iva:p.codigoIva,p_prov:p.proveedorHabitualId,p_unidad:p.unidad||"ud",p_ucompra:p.unidadCompra,p_fcompra:p.factorCompra??1,p_uventa:p.unidadVenta,p_fventa:p.factorVenta??1,p_seguimiento:p.seguimiento||"Ninguno"});
+      if(p){ rellenar({p_nombre:p.nombre,p_ref:p.referencia,p_precio:p.precioUnitario,p_compra:p.precioCompra,p_iva:p.codigoIva,p_prov:p.proveedorHabitualId,p_familia:p.familia,p_unidad:p.unidad||"ud",p_ucompra:p.unidadCompra,p_fcompra:p.factorCompra??1,p_uventa:p.unidadVenta,p_fventa:p.factorVenta??1,p_seguimiento:p.seguimiento||"Ninguno"});
         if(p.controlarStock){ document.getElementById("p_stock_ctrl").checked=true; document.getElementById("p_stock_box").style.display="block"; } }
       prevEnvase(); prevCompCoste(); }
     function compLineaHtml(prodId,cant){ const po=(window._compProdOpts||''); const opts=prodId?po.replace(`value="${prodId}"`,`value="${prodId}" selected`):po; return `<div class="cmp-comp" style="display:grid;grid-template-columns:3fr 1fr;gap:8px;margin-bottom:6px"><select class="cc-prod" onchange="prevCompCoste()"><option value="">— Componente —</option>${opts}</select><input class="cc-cant" type="number" step="0.001" placeholder="Cantidad" value="${cant??''}" oninput="prevCompCoste()"/></div>`; }

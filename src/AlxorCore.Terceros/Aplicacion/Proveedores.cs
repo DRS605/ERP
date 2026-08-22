@@ -9,12 +9,12 @@ namespace AlxorCore.Terceros.Aplicacion;
 public sealed record ProveedorDto(
     Guid Id, string Nombre, string? NifFiscal, string? Email,
     string Calle, string CodigoPostal, string Poblacion, string Provincia, string Pais,
-    decimal PorcentajeIrpfDefecto, bool Activo, FormaPago FormaPago, string? NifIva)
+    decimal PorcentajeIrpfDefecto, bool Activo, FormaPago FormaPago, string? NifIva, string? Tipo)
 {
     public static ProveedorDto Desde(Proveedor p) => new(
         p.Id, p.Nombre, p.NifFiscal, p.Email,
         p.Direccion.Calle, p.Direccion.CodigoPostal, p.Direccion.Poblacion, p.Direccion.Provincia, p.Direccion.Pais,
-        p.PorcentajeIrpfDefecto, p.Activo, p.FormaPago, p.NifIva);
+        p.PorcentajeIrpfDefecto, p.Activo, p.FormaPago, p.NifIva, p.Tipo);
 }
 
 /// <summary>Repositorio de proveedores (escritura).</summary>
@@ -45,7 +45,8 @@ public sealed record DatosProveedor(
     string? Pais = null,
     decimal PorcentajeIrpfDefecto = 0m,
     FormaPago FormaPago = FormaPago.NoIndicada,
-    string? NifIva = null);
+    string? NifIva = null,
+    string? Tipo = null);
 
 /// <summary>Caso de uso: crear un proveedor.</summary>
 public sealed class CrearProveedor
@@ -72,6 +73,7 @@ public sealed class CrearProveedor
             return Resultado.Fallo<ProveedorDto>(proveedor.Error);
         }
 
+        proveedor.Valor.EstablecerTipo(datos.Tipo);
         _proveedores.Agregar(proveedor.Valor);
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return Resultado.Ok(ProveedorDto.Desde(proveedor.Valor));
@@ -109,6 +111,7 @@ public sealed class ActualizarProveedor
             return Resultado.Fallo<ProveedorDto>(r.Error);
         }
 
+        proveedor.EstablecerTipo(datos.Tipo);
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return Resultado.Ok(ProveedorDto.Desde(proveedor));
     }
