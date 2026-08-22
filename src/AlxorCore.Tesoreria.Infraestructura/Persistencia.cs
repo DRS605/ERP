@@ -127,6 +127,22 @@ internal sealed class RepositorioMovimientos : IRepositorioMovimientos, IConsult
             .ToListAsync(ct).ConfigureAwait(false);
         return movimientos.Select(MovimientoDto.Desde).ToList();
     }
+
+    public async Task<IReadOnlyDictionary<Guid, decimal>> LiquidadoPorDocumentosAsync(TipoDocumentoTesoreria tipo, IReadOnlyCollection<Guid> documentoIds, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(documentoIds);
+        if (documentoIds.Count == 0)
+        {
+            return new Dictionary<Guid, decimal>();
+        }
+
+        var filas = await _contexto.Movimientos
+            .Where(m => m.TipoDocumento == tipo && documentoIds.Contains(m.DocumentoId))
+            .GroupBy(m => m.DocumentoId)
+            .Select(g => new { g.Key, Suma = g.Sum(m => m.Importe) })
+            .ToListAsync(ct).ConfigureAwait(false);
+        return filas.ToDictionary(f => f.Key, f => f.Suma);
+    }
 }
 
 /// <summary>Factoría en tiempo de diseño para migraciones.</summary>

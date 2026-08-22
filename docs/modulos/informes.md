@@ -86,6 +86,32 @@ A partir de ese desglose por artículo, la interfaz muestra un **ranking de art�
 rentables** (mayor margen), el **rey de las ventas** (mayores ingresos) y **dónde se gana menos**
 (menor margen), con el margen en % sobre ingresos. Es una vista derivada, sin endpoint propio.
 
+## Informes de gestión (análisis de negocio)
+
+Además de los informes fiscales, hay un bloque de **análisis de gestión** (pantalla *Análisis de
+gestión*) que agrega los datos que ya exponen los demás módulos, sin persistencia propia:
+
+- **Ventas por cliente** (`GET /informes/ventas-cliente?desde=&hasta=`): ranking de clientes por total
+  facturado del periodo (nº de facturas, base y total). Excluye facturas anuladas y rectificadas.
+- **Ventas por artículo** (`GET /informes/ventas-articulo?desde=&hasta=`): unidades, ingresos, coste y
+  **margen** por artículo (a partir del margen por línea de las facturas), ordenado por ingresos.
+- **Compras por proveedor** (`GET /informes/compras-proveedor?desde=&hasta=`): gasto agregado por
+  proveedor del periodo (resuelve el nombre por el maestro de proveedores o el texto libre del gasto).
+- **Comparativa mensual** (`GET /informes/comparativa-mensual?anio=`): ventas, gastos y resultado mes a
+  mes del ejercicio (bases imponibles), para ver evolución y estacionalidad.
+- **Rotación de existencias** (`GET /informes/rotacion-stock?desde=&hasta=`): cruza las unidades
+  vendidas por artículo con el stock actual; calcula la **rotación** (vendidas ÷ stock) y los **días de
+  cobertura** (stock ÷ ventas diarias) de los artículos con control de stock.
+- **Extracto de tercero** (`GET /informes/extracto-tercero?tipo=Cliente|Proveedor&terceroId=&desde=&hasta=`):
+  documentos de un cliente (facturas/cobros) o proveedor (gastos/pagos) con total, liquidado y
+  pendiente.
+- **Aging de cartera** (`GET /informes/aging-cartera`): antigüedad del saldo **pendiente de cobro** a
+  día de hoy, clasificado por tramos de vencimiento (por vencer, 1-30, 31-60, 61-90, más de 90 días).
+
+Los dos últimos cruzan los documentos con lo liquidado en Tesorería mediante una consulta agregada
+(`IConsultaTesoreria.LiquidadoPorDocumentosAsync`, un solo `GROUP BY`) para calcular el pendiente sin
+una consulta por documento. Todos requieren el permiso `informe.leer`.
+
 ## Cierre de caja (arqueo diario)
 
 `GET /informes/cierre-caja?dia=` devuelve el **cierre de caja** de un día a partir de los movimientos
@@ -103,6 +129,13 @@ botón *Cierre de caja* del TPV.
 | `GET` | `/informes/resumen-trimestral` | permiso `informe.leer` | Resúmenes 303 (IVA) y 130 (IRPF) del trimestre. |
 | `GET` | `/informes/declaracion-anual` | permiso `informe.leer` | Declaraciones anuales 390 (IVA) y 347 (terceros). |
 | `GET` | `/informes/sii` | permiso `datos.exportar` | XML del SII (libro de facturas emitidas o recibidas de un mes). |
+| `GET` | `/informes/ventas-cliente` | permiso `informe.leer` | Ventas por cliente del periodo. |
+| `GET` | `/informes/ventas-articulo` | permiso `informe.leer` | Ventas por artículo (con margen). |
+| `GET` | `/informes/compras-proveedor` | permiso `informe.leer` | Compras/gastos por proveedor. |
+| `GET` | `/informes/comparativa-mensual` | permiso `informe.leer` | Ventas/gastos/resultado mes a mes. |
+| `GET` | `/informes/rotacion-stock` | permiso `informe.leer` | Rotación y cobertura de existencias. |
+| `GET` | `/informes/extracto-tercero` | permiso `informe.leer` | Extracto de cliente o proveedor. |
+| `GET` | `/informes/aging-cartera` | permiso `informe.leer` | Antigüedad de la cartera de cobro. |
 | `GET` | `/informes/beneficio` | permiso `informe.leer` | Beneficio del periodo (margen bruto y neto). |
 | `GET` | `/informes/cierre-caja?dia=` | permiso `informe.leer` | Cierre de caja de un día (cobrado por método, pagado, neto). |
 
@@ -113,4 +146,6 @@ botón *Cierre de caja* del TPV.
   suelo en 0; exclusión de facturas anuladas/rectificadas; trimestre fuera de rango).
 - **Integración**: dashboard (facturado/gastado/pendientes y su actualización tras un cobro), libro
   de IVA repercutido, exportación CSV y resumen trimestral (303 y 130); generación del XML del SII
-  (facturas emitidas y recibidas del periodo, periodo fuera de rango).
+  (facturas emitidas y recibidas del periodo, periodo fuera de rango); informes de gestión (ventas por
+  cliente ordenadas, ventas por artículo con margen, compras por proveedor, comparativa mensual,
+  rotación de stock, y aging + extracto con actualización del pendiente tras un cobro parcial).

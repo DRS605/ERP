@@ -19,6 +19,13 @@ public static class RegistroServicios
         servicios.AddScoped<GenerarModelo349>();
         servicios.AddScoped<GenerarBeneficio>();
         servicios.AddScoped<GenerarCierreCaja>();
+        servicios.AddScoped<GenerarVentasPorCliente>();
+        servicios.AddScoped<GenerarVentasPorArticulo>();
+        servicios.AddScoped<GenerarComprasPorProveedor>();
+        servicios.AddScoped<GenerarRotacionStock>();
+        servicios.AddScoped<GenerarComparativaMensual>();
+        servicios.AddScoped<GenerarExtractoTercero>();
+        servicios.AddScoped<GenerarAgingCartera>();
 
         return servicios;
     }

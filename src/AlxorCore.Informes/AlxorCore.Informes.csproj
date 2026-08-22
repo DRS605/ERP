@@ -13,6 +13,7 @@
     <ProjectReference Include="..\AlxorCore.Gastos\AlxorCore.Gastos.csproj" />
     <ProjectReference Include="..\AlxorCore.Tesoreria\AlxorCore.Tesoreria.csproj" />
     <ProjectReference Include="..\AlxorCore.Terceros\AlxorCore.Terceros.csproj" />
+    <ProjectReference Include="..\AlxorCore.Catalogo\AlxorCore.Catalogo.csproj" />
   </ItemGroup>
 
 </Project>

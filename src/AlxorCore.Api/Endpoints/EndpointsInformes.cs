@@ -80,6 +80,34 @@ public static class EndpointsInformes
             .WithSummary("Cierre de caja (arqueo) de un día: cobrado por método, pagado y neto.")
             .RequierePermiso(Permisos.InformeLeer);
 
+        informes.MapGet("/ventas-cliente", VentasClienteAsync)
+            .WithSummary("Ventas por cliente del periodo (ranking por total facturado).")
+            .RequierePermiso(Permisos.InformeLeer);
+
+        informes.MapGet("/ventas-articulo", VentasArticuloAsync)
+            .WithSummary("Ventas por artículo del periodo (unidades, ingresos y margen).")
+            .RequierePermiso(Permisos.InformeLeer);
+
+        informes.MapGet("/compras-proveedor", ComprasProveedorAsync)
+            .WithSummary("Compras/gastos por proveedor del periodo.")
+            .RequierePermiso(Permisos.InformeLeer);
+
+        informes.MapGet("/rotacion-stock", RotacionStockAsync)
+            .WithSummary("Rotación de existencias: unidades vendidas frente a stock y días de cobertura.")
+            .RequierePermiso(Permisos.InformeLeer);
+
+        informes.MapGet("/comparativa-mensual", ComparativaMensualAsync)
+            .WithSummary("Comparativa mes a mes del ejercicio: ventas, gastos y resultado.")
+            .RequierePermiso(Permisos.InformeLeer);
+
+        informes.MapGet("/extracto-tercero", ExtractoTerceroAsync)
+            .WithSummary("Extracto de cuenta de un cliente (facturas/cobros) o proveedor (gastos/pagos).")
+            .RequierePermiso(Permisos.InformeLeer);
+
+        informes.MapGet("/aging-cartera", AgingCarteraAsync)
+            .WithSummary("Antigüedad de la cartera de cobro pendiente, por tramos de vencimiento.")
+            .RequierePermiso(Permisos.InformeLeer);
+
         informes.MapGet("/sii", SiiAsync)
             .WithSummary("Genera el XML del SII (libro de facturas emitidas o recibidas) de un mes.")
             .RequierePermiso(Permisos.DatosExportar);
@@ -356,6 +384,54 @@ public static class EndpointsInformes
 
         var d = dia ?? DateOnly.FromDateTime(DateTime.UtcNow);
         return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, d, ct).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> VentasClienteAsync(IContextoEmpresa contexto, GenerarVentasPorCliente caso, CancellationToken ct, DateOnly? desde = null, DateOnly? hasta = null)
+    {
+        if (contexto.EmpresaId is null) return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        var (d, h) = RangoPorDefecto(desde, hasta);
+        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, d, h, ct).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> VentasArticuloAsync(IContextoEmpresa contexto, GenerarVentasPorArticulo caso, CancellationToken ct, DateOnly? desde = null, DateOnly? hasta = null)
+    {
+        if (contexto.EmpresaId is null) return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        var (d, h) = RangoPorDefecto(desde, hasta);
+        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, d, h, ct).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> ComprasProveedorAsync(IContextoEmpresa contexto, GenerarComprasPorProveedor caso, CancellationToken ct, DateOnly? desde = null, DateOnly? hasta = null)
+    {
+        if (contexto.EmpresaId is null) return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        var (d, h) = RangoPorDefecto(desde, hasta);
+        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, d, h, ct).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> RotacionStockAsync(IContextoEmpresa contexto, GenerarRotacionStock caso, CancellationToken ct, DateOnly? desde = null, DateOnly? hasta = null)
+    {
+        if (contexto.EmpresaId is null) return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        var (d, h) = RangoPorDefecto(desde, hasta);
+        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, d, h, ct).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> ComparativaMensualAsync(IContextoEmpresa contexto, GenerarComparativaMensual caso, CancellationToken ct, int? anio = null)
+    {
+        if (contexto.EmpresaId is null) return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        var ejercicio = anio ?? DateTime.UtcNow.Year;
+        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, ejercicio, ct).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> ExtractoTerceroAsync(IContextoEmpresa contexto, GenerarExtractoTercero caso, string tipo, Guid terceroId, DateOnly? desde, DateOnly? hasta, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null) return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        var (d, h) = RangoPorDefecto(desde, hasta);
+        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, tipo, terceroId, d, h, ct).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> AgingCarteraAsync(IContextoEmpresa contexto, GenerarAgingCartera caso, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null) return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, ct).ConfigureAwait(false));
     }
 
     private static (DateOnly Desde, DateOnly Hasta) RangoPorDefecto(DateOnly? desde, DateOnly? hasta)

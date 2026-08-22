@@ -40,6 +40,13 @@ public interface IConsultaTesoreria
 
     /// <summary>Movimientos (cobros y pagos) de la empresa en un rango de fechas (para el cierre de caja).</summary>
     Task<IReadOnlyList<MovimientoDto>> ListarPorPeriodoAsync(Guid empresaId, DateOnly desde, DateOnly hasta, CancellationToken ct = default);
+
+    /// <summary>
+    /// Total liquidado por cada documento de un conjunto (un solo GROUP BY). Devuelve un diccionario
+    /// documento→importe liquidado; los documentos sin movimientos no aparecen. Lo usan los informes
+    /// de cartera (aging) y los extractos de tercero para calcular el pendiente sin N consultas.
+    /// </summary>
+    Task<IReadOnlyDictionary<Guid, decimal>> LiquidadoPorDocumentosAsync(TipoDocumentoTesoreria tipo, IReadOnlyCollection<Guid> documentoIds, CancellationToken ct = default);
 }
 
 /// <summary>Datos para registrar un cobro contra una factura.</summary>

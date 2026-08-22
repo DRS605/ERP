@@ -403,6 +403,7 @@
       proveedores:'<svg viewBox="0 0 24 24"><path d="M3 9l2-5h14l2 5"/><path d="M4 9v11h16V9"/><path d="M9 20v-6h6v6"/></svg>',
       cobros:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9 12h6M12 9v6"/></svg>',
       informes:'<svg viewBox="0 0 24 24"><path d="M4 20V4M4 20h16"/><path d="M8 16v-5M13 16V8M18 16v-9"/></svg>',
+      gestion:'<svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>',
       contabilidad:'<svg viewBox="0 0 24 24"><path d="M4 4h13l3 3v13H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>',
       recurrentes:'<svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13-6l3 2"/><path d="M20 4v4h-4"/><path d="M20 12a8 8 0 0 1-13 6l-3-2"/><path d="M4 20v-4h4"/></svg>',
       tpv:'<svg viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 12h10"/></svg>',
@@ -427,11 +428,12 @@
       { t:"item", k:"proyectos", l:"Proyectos" },
       { t:"item", k:"prevision", l:"Previsión de tesorería" },
       { t:"item", k:"informes", l:"Informes" },
+      { t:"item", k:"gestion", l:"Análisis de gestión" },
       { t:"item", k:"contabilidad", l:"Contabilidad" },
       { t:"item", k:"inmovilizado", l:"Inmovilizado" },
       { t:"item", k:"ajustes", l:"Ajustes" },
     ];
-    const TITULOS = { inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", ajustes:"Ajustes" };
+    const TITULOS = { inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", gestion:"Análisis de gestión", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", ajustes:"Ajustes" };
     function renderNav() {
       return NAV.map(n => {
         if (n.t === "item") return `<a class="navitem" data-k="${n.k}" onclick="ir('${n.k}')">${ICON[n.k]}<span>${n.l}</span></a>`;
@@ -527,7 +529,7 @@
     function ir(k){ closeMenu(); if(vista==="tpv" && k!=="tpv" && typeof tpvParar==="function") tpvParar(); vista=k;
       document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("active",a.dataset.k===k));
       document.getElementById("viewTitle").textContent=TITULOS[k]||k;
-      ({inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:vPedidosVenta,clientes:vClientes,productos:vProductos,familias:vFamilias,gastos:vGastos,solicitudes:vSolicitudes,pedidos:vPedidos,inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,contabilidad:vContabilidad,inmovilizado:vInmovilizado,ajustes:vAjustes}[k])();
+      ({inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:vPedidosVenta,clientes:vClientes,productos:vProductos,familias:vFamilias,gastos:vGastos,solicitudes:vSolicitudes,pedidos:vPedidos,inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,gestion:vGestion,contabilidad:vContabilidad,inmovilizado:vInmovilizado,ajustes:vAjustes}[k])();
     }
     const view = h => { document.getElementById("view").innerHTML=h; try{ mejorarTablas(); }catch(e){} };
 
@@ -2169,6 +2171,92 @@
       const cuerpo=libro.asientos.length?`<table><thead><tr><th>Fecha</th><th>Documento</th><th>Cliente</th><th class="num">Base</th><th class="num">Cuota IVA</th></tr></thead><tbody>${filas}${total}</tbody></table>`:vacio("informes","Sin movimientos en el periodo","Emite facturas para ver aquí tu libro de IVA repercutido.");
       const panelLibro=panel(`Libro de IVA repercutido · ${anio}`,cuerpo,`<button class="btn small ghost" onclick="descargarCsv()">↓ Exportar CSV (gestoría)</button>`);
       view(panelGraficos+(benef?panelBeneficio(benef,anio):"")+(benef&&benef.porProducto.length?panelRanking(benef,anio):"")+(resumen?panelResumen(resumen,anio):"")+((m111||m190)?panelRetenciones(m111,m190,anio):"")+(m349?panelIntracomunitarias(m349,anio):"")+(anual?panelAnual(anual,anio):"")+panelLibro);
+    }
+    const MESES=["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+    let _gestAnio=new Date().getFullYear();
+    async function vGestion(){
+      view('<div class="muted">Cargando…</div>');
+      const a=_gestAnio, d=`${a}-01-01`, h=`${a}-12-31`;
+      const [comp,vc,va,cp,rot,aging]=await Promise.all([
+        api(`/informes/comparativa-mensual?anio=${a}`).catch(()=>null),
+        api(`/informes/ventas-cliente?desde=${d}&hasta=${h}`).catch(()=>null),
+        api(`/informes/ventas-articulo?desde=${d}&hasta=${h}`).catch(()=>null),
+        api(`/informes/compras-proveedor?desde=${d}&hasta=${h}`).catch(()=>null),
+        api(`/informes/rotacion-stock?desde=${d}&hasta=${h}`).catch(()=>null),
+        api(`/informes/aging-cartera`).catch(()=>null),
+      ]);
+      const selAnio=`<select onchange="_gestAnio=Number(this.value);vGestion()" style="padding:6px 10px">${[a+1,a,a-1,a-2].map(y=>`<option value="${y}"${y===a?" selected":""}>${y}</option>`).join("")}</select>`;
+      view(panel("Análisis de gestión",`<p class="muted" style="margin:0">Visión de negocio del ejercicio. Cambia el año: ${selAnio}</p>`)
+        +(comp?panelComparativa(comp):"")
+        +(aging?panelAging(aging):"")
+        +panelExtractoHtml()
+        +(vc?panelVentasCliente(vc):"")
+        +(va?panelVentasArticulo(va):"")
+        +(cp?panelComprasProveedor(cp):"")
+        +(rot?panelRotacion(rot):""));
+      cargarTercerosExtracto();
+    }
+    function panelComparativa(c){
+      const max=Math.max(1,...c.meses.map(m=>Math.max(m.ventas,m.gastos)));
+      const barras=c.meses.map(m=>{
+        const hv=Math.round(60*m.ventas/max), hg=Math.round(60*m.gastos/max);
+        return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px" title="${MESES[m.mes-1]}: ventas ${eur(m.ventas)} · gastos ${eur(m.gastos)} · resultado ${eur(m.resultado)}">
+          <div style="display:flex;align-items:flex-end;gap:2px;height:64px"><div style="width:9px;background:var(--accent);height:${hv}px;border-radius:2px 2px 0 0"></div><div style="width:9px;background:#e08a8a;height:${hg}px;border-radius:2px 2px 0 0"></div></div>
+          <span class="muted" style="font-size:10px">${MESES[m.mes-1]}</span></div>`;}).join("");
+      const filas=c.meses.map(m=>`<tr><td>${MESES[m.mes-1]}</td><td class="num">${eur(m.ventas)}</td><td class="num">${eur(m.gastos)}</td><td class="num"><strong class="${m.resultado>=0?'':'neg'}" style="${m.resultado<0?'color:var(--neg)':''}">${eur(m.resultado)}</strong></td></tr>`).join("");
+      const tot=`<tr><td><strong>Total ${c.ejercicio}</strong></td><td class="num"><strong>${eur(c.ventas)}</strong></td><td class="num"><strong>${eur(c.gastos)}</strong></td><td class="num"><strong>${eur(c.resultado)}</strong></td></tr>`;
+      const leyenda=`<div class="muted" style="font-size:12px;margin:4px 0 10px"><span style="color:var(--accent)">■</span> Ventas &nbsp; <span style="color:#e08a8a">■</span> Gastos</div>`;
+      return panel(`Evolución mensual · ${c.ejercicio}`,leyenda+`<div style="display:flex;gap:4px;align-items:flex-end;margin-bottom:14px">${barras}</div><table><thead><tr><th>Mes</th><th class="num">Ventas</th><th class="num">Gastos</th><th class="num">Resultado</th></tr></thead><tbody>${filas}${tot}</tbody></table>`);
+    }
+    function panelAging(a){
+      const filas=a.tramos.map(t=>`<tr><td>${t.tramo}</td><td class="num">${t.numDocumentos}</td><td class="num">${eur(t.importe)}</td></tr>`).join("");
+      const cuerpo=a.totalPendiente>0
+        ?`<table><thead><tr><th>Antigüedad</th><th class="num">Documentos</th><th class="num">Pendiente</th></tr></thead><tbody>${filas}<tr><td><strong>Total pendiente</strong></td><td></td><td class="num"><strong>${eur(a.totalPendiente)}</strong></td></tr></tbody></table>`
+        :'<p class="muted">Sin saldos pendientes de cobro. 🎉</p>';
+      return panel(`Cartera de cobro · antigüedad a ${fdate(a.aLaFecha)}`,cuerpo);
+    }
+    function panelVentasCliente(v){
+      if(!v.clientes.length) return panel("Ventas por cliente",'<p class="muted">Sin ventas en el periodo.</p>');
+      const filas=v.clientes.slice(0,20).map(c=>`<tr><td><strong>${c.cliente}</strong></td><td class="num">${c.numFacturas}</td><td class="num">${eur(c.base)}</td><td class="num"><strong>${eur(c.total)}</strong></td></tr>`).join("");
+      return panel("Ventas por cliente",`<table><thead><tr><th>Cliente</th><th class="num">Facturas</th><th class="num">Base</th><th class="num">Total</th></tr></thead><tbody>${filas}</tbody></table><p class="muted" style="font-size:12px;margin:10px 0 0">Total facturado: <strong>${eur(v.total)}</strong> (top 20 clientes).</p>`);
+    }
+    function panelVentasArticulo(v){
+      if(!v.articulos.length) return panel("Ventas por artículo",'<p class="muted">Sin ventas en el periodo.</p>');
+      const filas=v.articulos.slice(0,20).map(x=>{const pct=x.ingresos>0?Math.round(100*x.margen/x.ingresos):0;return `<tr><td><strong>${x.descripcion}</strong></td><td class="num">${numCant(x.unidades)}</td><td class="num">${eur(x.ingresos)}</td><td class="num">${eur(x.margen)}</td><td class="num muted">${pct}%</td></tr>`;}).join("");
+      return panel("Ventas por artículo",`<table><thead><tr><th>Artículo</th><th class="num">Unidades</th><th class="num">Ingresos</th><th class="num">Margen</th><th class="num">%</th></tr></thead><tbody>${filas}</tbody></table><p class="muted" style="font-size:12px;margin:10px 0 0">Ingresos: <strong>${eur(v.ingresos)}</strong> · margen: <strong>${eur(v.margen)}</strong> (top 20).</p>`);
+    }
+    function panelComprasProveedor(c){
+      if(!c.proveedores.length) return panel("Compras por proveedor",'<p class="muted">Sin gastos en el periodo.</p>');
+      const filas=c.proveedores.slice(0,20).map(p=>`<tr><td><strong>${p.proveedor}</strong></td><td class="num">${p.numGastos}</td><td class="num">${eur(p.base)}</td><td class="num"><strong>${eur(p.total)}</strong></td></tr>`).join("");
+      return panel("Compras por proveedor",`<table><thead><tr><th>Proveedor</th><th class="num">Gastos</th><th class="num">Base</th><th class="num">Total</th></tr></thead><tbody>${filas}</tbody></table><p class="muted" style="font-size:12px;margin:10px 0 0">Total comprado: <strong>${eur(c.total)}</strong> (top 20).</p>`);
+    }
+    function panelRotacion(r){
+      if(!r.articulos.length) return panel("Rotación de existencias",'<p class="muted">No hay artículos con control de stock.</p>');
+      const filas=r.articulos.slice(0,30).map(x=>`<tr><td><strong>${x.nombre}</strong></td><td class="num">${numCant(x.unidadesVendidas)}</td><td class="num">${numCant(x.stockActual)}</td><td class="num">${numCant(x.rotacion)}</td><td class="num muted">${x.diasCobertura!=null?Math.round(x.diasCobertura)+" d":"—"}</td></tr>`).join("");
+      return panel("Rotación de existencias",`<p class="muted" style="font-size:12px;margin:0 0 10px">Rotación = unidades vendidas ÷ stock actual. Días de cobertura = cuánto durará el stock al ritmo de venta del periodo.</p><table><thead><tr><th>Artículo</th><th class="num">Vendidas</th><th class="num">Stock</th><th class="num">Rotación</th><th class="num">Cobertura</th></tr></thead><tbody>${filas}</tbody></table>`);
+    }
+    function panelExtractoHtml(){
+      return panel("Extracto de tercero",`<p class="muted" style="margin:0 0 10px">Consulta los documentos y el pendiente de un cliente o proveedor del año ${_gestAnio}.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">
+          <div><label style="font-size:11px;color:var(--muted);display:block">Tipo</label><select id="ex_tipo" onchange="cargarTercerosExtracto()"><option value="Cliente">Cliente</option><option value="Proveedor">Proveedor</option></select></div>
+          <div><label style="font-size:11px;color:var(--muted);display:block">Tercero</label><select id="ex_tercero" style="min-width:220px"></select></div>
+          <button class="btn small" onclick="verExtracto()">Ver extracto</button>
+        </div><div id="ex_res" style="margin-top:12px"></div>`);
+    }
+    async function cargarTercerosExtracto(){
+      const tipo=val("ex_tipo"); const sel=document.getElementById("ex_tercero"); if(!sel)return;
+      const lista=await api(tipo==="Proveedor"?"/proveedores":"/clientes").catch(()=>[]);
+      sel.innerHTML=lista.map(t=>`<option value="${t.id}">${t.nombre}</option>`).join("")||'<option value="">— Sin '+(tipo==="Proveedor"?"proveedores":"clientes")+' —</option>';
+    }
+    async function verExtracto(){
+      const tipo=val("ex_tipo"), id=val("ex_tercero"), res=document.getElementById("ex_res");
+      if(!id){ res.innerHTML='<p class="muted">Elige un tercero.</p>'; return; }
+      res.innerHTML='<div class="muted">Cargando…</div>';
+      const a=_gestAnio; const e=await api(`/informes/extracto-tercero?tipo=${tipo}&terceroId=${id}&desde=${a}-01-01&hasta=${a}-12-31`).catch(()=>null);
+      if(!e){ res.innerHTML='<p class="muted">No se pudo cargar el extracto.</p>'; return; }
+      if(!e.lineas.length){ res.innerHTML='<p class="muted">Sin documentos en el año.</p>'; return; }
+      const filas=e.lineas.map(l=>`<tr><td class="muted">${fdate(l.fecha)}</td><td>${l.documento}</td><td class="num">${eur(l.total)}</td><td class="num">${eur(l.liquidado)}</td><td class="num"><strong>${eur(l.pendiente)}</strong></td></tr>`).join("");
+      res.innerHTML=`<h4 style="margin:0 0 8px">${e.nombre}</h4><table><thead><tr><th>Fecha</th><th>Documento</th><th class="num">Total</th><th class="num">${tipo==="Proveedor"?"Pagado":"Cobrado"}</th><th class="num">Pendiente</th></tr></thead><tbody>${filas}<tr><td colspan="2" class="right"><strong>Totales</strong></td><td class="num"><strong>${eur(e.totalDocumentos)}</strong></td><td class="num"><strong>${eur(e.totalLiquidado)}</strong></td><td class="num"><strong>${eur(e.pendiente)}</strong></td></tr></tbody></table>`;
     }
     function panelIntracomunitarias(m,anio){
       const clave=c=>({E:"Entregas (ventas)",A:"Adquisiciones (compras)"}[c]||c);
