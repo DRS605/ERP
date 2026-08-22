@@ -50,7 +50,8 @@ La API sirve también una **interfaz web** (SPA) en la raíz (`/`), en el mismo 
 productos, gastos, cobros e informes. Diseño limpio, pocos colores y pocos clics.
 
 Toques profesionales: **tablas con buscador, ordenación y columnas «de quita y pon»** (el usuario
-elige qué columnas ver en cualquier tabla del ERP; la elección se recuerda), **búsqueda global** con
+elige qué columnas ver en cualquier tabla del ERP; la elección se recuerda) con **exportación a CSV**
+que respeta exactamente las columnas visibles y las filas del filtro (informes a medida), **búsqueda global** con
 `⌘K` / `Ctrl+K` (facturas, clientes, artículos, proveedores y accesos rápidos) y **detalle de
 documento** al pulsar el número de una factura (líneas, impuestos y registro VeriFactu).
 

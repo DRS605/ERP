@@ -581,6 +581,12 @@
         input.addEventListener("input",()=>{ const q=_norm(input.value); [...tbody.rows].forEach(r=>{ r.style.display=(!q||_norm(r.textContent).includes(q))?"":"none"; }); pintaInfo(q); });
         pintaInfo("");
 
+        // Exportar a CSV: solo las columnas visibles (las elegidas) y las filas del filtro activo.
+        const exp=document.createElement("button"); exp.type="button"; exp.className="cols-btn"; exp.title="Exportar a CSV las columnas y filas visibles";
+        exp.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M8 11l4 4 4-4"/><path d="M4 19h16"/></svg>Exportar';
+        exp.addEventListener("click",()=>exportarTablaCsv(tabla));
+        tools.appendChild(exp);
+
         // Selector de columnas «de quita y pon» (recuerda la elección por tabla).
         if(nombradas.length>=3){
           const key=_colsKey(ths); const ocultas=_colsGet(key);
@@ -596,6 +602,23 @@
       });
     }
     document.addEventListener("click",()=>document.querySelectorAll(".cols-menu.show").forEach(m=>m.classList.remove("show")));
+
+    // Exporta a CSV una tabla respetando las columnas visibles (elegidas) y las filas del filtro activo.
+    function _txtCelda(c){ return (c?c.textContent:"").replace(/\s+/g," ").trim(); }
+    function _csv(v){ v=v==null?"":String(v); return /[";\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }
+    function exportarTablaCsv(tabla){
+      const ths=[...tabla.tHead.rows[0].cells];
+      // Columnas exportables: con título y visibles (no ocultadas por el usuario).
+      const cols=ths.map((t,i)=>({t,i})).filter(x=>_norm(x.t.textContent)&&x.t.style.display!=="none");
+      if(!cols.length){ toast("No hay columnas que exportar.","err"); return; }
+      const lineas=[cols.map(c=>_csv(_txtCelda(c.t))).join(";")];
+      [...tabla.tBodies[0].rows].forEach(r=>{ if(r.style.display==="none") return; lineas.push(cols.map(c=>_csv(_txtCelda(r.cells[c.i]))).join(";")); });
+      const titulo=(document.getElementById("viewTitle")?.textContent||"informe").trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")||"informe";
+      const fecha=new Date().toISOString().slice(0,10);
+      const blob=new Blob(["﻿"+lineas.join("\r\n")],{type:"text/csv;charset=utf-8"});
+      const u=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=u; a.download=`${titulo}-${fecha}.csv`; a.click(); setTimeout(()=>URL.revokeObjectURL(u),60000);
+      toast(`Exportadas ${lineas.length-1} fila(s) · ${cols.length} columna(s).`,"ok");
+    }
 
     /* ---------- Búsqueda global (⌘K) ---------- */
     let _cmdkItems=[], _cmdkSel=0, _cmdkListo=false;
