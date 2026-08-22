@@ -67,6 +67,7 @@ public sealed class FabricaApiPruebas : WebApplicationFactory<Program>, IAsyncLi
         var inventario = ambito.ServiceProvider.GetRequiredService<AlxorCore.Inventario.Infraestructura.InventarioDbContext>();
         var produccion = ambito.ServiceProvider.GetRequiredService<AlxorCore.Produccion.Infraestructura.ProduccionDbContext>();
         var personal = ambito.ServiceProvider.GetRequiredService<AlxorCore.Personal.Infraestructura.PersonalDbContext>();
+        var proyectos = ambito.ServiceProvider.GetRequiredService<AlxorCore.Proyectos.Infraestructura.ProyectosDbContext>();
         var tesoreria = ambito.ServiceProvider.GetRequiredService<AlxorCore.Tesoreria.Infraestructura.TesoreriaDbContext>();
         var auditoria = ambito.ServiceProvider.GetRequiredService<AlxorCore.Auditoria.Infraestructura.AuditoriaDbContext>();
 
@@ -82,11 +83,12 @@ public sealed class FabricaApiPruebas : WebApplicationFactory<Program>, IAsyncLi
         await inventario.Database.MigrateAsync().ConfigureAwait(false);
         await produccion.Database.MigrateAsync().ConfigureAwait(false);
         await personal.Database.MigrateAsync().ConfigureAwait(false);
+        await proyectos.Database.MigrateAsync().ConfigureAwait(false);
         await tesoreria.Database.MigrateAsync().ConfigureAwait(false);
         await auditoria.Database.MigrateAsync().ConfigureAwait(false);
 
         await identidad.Database.ExecuteSqlRawAsync(
-            "TRUNCATE identidad.usuario, organizacion.empresa, organizacion.membresia, organizacion.serie_numeracion, terceros.cliente, terceros.proveedor, catalogo.componente_articulo, catalogo.atributo_variante, catalogo.producto, catalogo.movimiento_stock, facturacion.factura, facturacion.linea_factura, facturacion.factura_recurrente, facturacion.linea_recurrente, facturacion.presupuesto, facturacion.linea_presupuesto, gastos.gasto, recepcion.factura_recibida, contabilidad.apunte, contabilidad.asiento, contabilidad.cuenta, contabilidad.config_contabilidad, compras.linea_albaran, compras.albaran_compra, compras.linea_pedido, compras.pedido_compra, compras.linea_solicitud, compras.solicitud_compra, inventario.existencia, inventario.movimiento_inventario, inventario.ubicacion_defecto, inventario.ubicacion, inventario.almacen, produccion.componente_plan, produccion.orden_fabricacion, personal.persona, tesoreria.movimiento, tesoreria.prevision, auditoria.registro_auditoria")
+            "TRUNCATE identidad.usuario, organizacion.empresa, organizacion.membresia, organizacion.serie_numeracion, terceros.cliente, terceros.proveedor, catalogo.componente_articulo, catalogo.atributo_variante, catalogo.producto, catalogo.movimiento_stock, facturacion.factura, facturacion.linea_factura, facturacion.factura_recurrente, facturacion.linea_recurrente, facturacion.presupuesto, facturacion.linea_presupuesto, gastos.gasto, recepcion.factura_recibida, contabilidad.apunte, contabilidad.asiento, contabilidad.cuenta, contabilidad.config_contabilidad, compras.linea_albaran, compras.albaran_compra, compras.linea_pedido, compras.pedido_compra, compras.linea_solicitud, compras.solicitud_compra, inventario.existencia, inventario.movimiento_inventario, inventario.ubicacion_defecto, inventario.ubicacion, inventario.almacen, produccion.componente_plan, produccion.orden_fabricacion, personal.persona, proyectos.imputacion, proyectos.proyecto, tesoreria.movimiento, tesoreria.prevision, auditoria.registro_auditoria")
             .ConfigureAwait(false);
     }
 

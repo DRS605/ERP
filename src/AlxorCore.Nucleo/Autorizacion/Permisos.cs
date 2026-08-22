@@ -46,6 +46,10 @@ public static class Permisos
     public const string PersonalLeer = "personal.leer";
     public const string PersonalGestionar = "personal.gestionar";
 
+    // Proyectos (imputación de costes: mano de obra, materiales y gastos)
+    public const string ProyectoLeer = "proyecto.leer";
+    public const string ProyectoGestionar = "proyecto.gestionar";
+
     // Terceros y catálogo
     public const string ClienteGestionar = "cliente.gestionar";
     public const string ProductoGestionar = "producto.gestionar";
@@ -70,6 +74,7 @@ public static class Permisos
         InventarioLeer, InventarioGestionar,
         ProduccionLeer, ProduccionGestionar,
         PersonalLeer, PersonalGestionar,
+        ProyectoLeer, ProyectoGestionar,
         ClienteGestionar, ProductoGestionar,
         InformeLeer, DatosExportar,
         EmpresaAjustes, UsuarioGestionar,

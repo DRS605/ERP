@@ -414,6 +414,7 @@
     ICON.pagos = '<svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18"/></svg>';
     ICON.prevision = '<svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h16"/><path d="M7 15l4-5 3 3 5-7"/></svg>';
     ICON.personal = '<svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.5 3-5.5 6.5-5.5s6.5 2 6.5 5.5"/><path d="M16 5.5a3 3 0 0 1 0 5.6"/><path d="M18 14.5c2.4.6 4 2.4 4 5"/></svg>';
+    ICON.proyectos = '<svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M8 13h8M8 16h5"/></svg>';
 
     // Menú agrupado en carpetas: Ventas, Compras y Artículos.
     const NAV = [
@@ -422,12 +423,13 @@
       { t:"grupo", k:"compras", l:"Compras", items:[["solicitudes","Solicitudes"],["pedidos","Pedidos de compra"],["recepcion","Buzón de facturas"],["gastos","Gastos"],["proveedores","Proveedores"],["pagos","Pagos"],["conciliacion","Conciliación banco"]] },
       { t:"grupo", k:"articulos", l:"Artículos", items:[["productos","Productos"],["inventario","Inventario / Almacenes"],["produccion","Producción"]] },
       { t:"item", k:"personal", l:"Personal" },
+      { t:"item", k:"proyectos", l:"Proyectos" },
       { t:"item", k:"prevision", l:"Previsión de tesorería" },
       { t:"item", k:"informes", l:"Informes" },
       { t:"item", k:"contabilidad", l:"Contabilidad" },
       { t:"item", k:"ajustes", l:"Ajustes" },
     ];
-    const TITULOS = { inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", prevision:"Previsión de tesorería", informes:"Informes", contabilidad:"Contabilidad", ajustes:"Ajustes" };
+    const TITULOS = { inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", contabilidad:"Contabilidad", ajustes:"Ajustes" };
     function renderNav() {
       return NAV.map(n => {
         if (n.t === "item") return `<a class="navitem" data-k="${n.k}" onclick="ir('${n.k}')">${ICON[n.k]}<span>${n.l}</span></a>`;
@@ -523,7 +525,7 @@
     function ir(k){ closeMenu(); if(vista==="tpv" && k!=="tpv" && typeof tpvParar==="function") tpvParar(); vista=k;
       document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("active",a.dataset.k===k));
       document.getElementById("viewTitle").textContent=TITULOS[k]||k;
-      ({inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,clientes:vClientes,productos:vProductos,gastos:vGastos,solicitudes:vSolicitudes,pedidos:vPedidos,inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,prevision:vPrevision,informes:vInformes,contabilidad:vContabilidad,ajustes:vAjustes}[k])();
+      ({inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,clientes:vClientes,productos:vProductos,gastos:vGastos,solicitudes:vSolicitudes,pedidos:vPedidos,inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,contabilidad:vContabilidad,ajustes:vAjustes}[k])();
     }
     const view = h => { document.getElementById("view").innerHTML=h; try{ mejorarTablas(); }catch(e){} };
 
@@ -1119,6 +1121,70 @@
         ${p?`<label style="display:flex;align-items:center;gap:8px;margin-top:14px;font-weight:500;cursor:pointer"><input id="pe_activo" type="checkbox" style="width:auto"/> Persona activa</label>`:''}`,
         async()=>{ const b=JSON.stringify({nombre:val("pe_nombre"),puesto:val("pe_puesto")||null,tarifaHora:Number(val("pe_tarifa")||0),activo:p?document.getElementById("pe_activo").checked:true}); await api("/personal"+(p?"/"+p.id:""),{method:p?"PUT":"POST",body:b}); toast(p?"Persona actualizada.":"Persona creada.","ok"); vPersonal(); });
       if(p){ rellenar({pe_nombre:p.nombre,pe_puesto:p.puesto,pe_tarifa:p.tarifaHora}); document.getElementById("pe_activo").checked=!!p.activo; }
+    }
+
+    // ---- Proyectos: imputación de costes (mano de obra, materiales, gastos) y presupuesto vs. real ----
+    function estadoPillPry(e){ const m={Abierto:"part",Cerrado:"ok",Cancelado:"neg"}; return `<span class="pill ${m[e]||''}">${e}</span>`; }
+    function desvHtml(d){ const cls=d<0?"neg":"ok"; const signo=d>0?"+":""; return `<span class="pill ${cls}">${signo}${eur(d)}</span>`; }
+    async function vProyectos(){
+      view('<div class="muted">Cargando…</div>');
+      const ps=await api("/proyectos");
+      const filas=ps.map(p=>`<tr onclick="verProyecto('${p.id}')" style="cursor:pointer"><td><strong>PRY ${p.numero}/${p.ejercicio}</strong></td><td>${p.nombre}</td><td class="muted">${p.clienteNombre||"—"}</td><td class="num">${eur(p.presupuesto)}</td><td class="num">${eur(p.costeReal)}</td><td class="right">${desvHtml(p.desviacion)}</td><td class="right">${estadoPillPry(p.estado)}</td></tr>`).join("");
+      const cuerpo=ps.length?`<table><thead><tr><th>Proyecto</th><th>Nombre</th><th>Cliente</th><th class="num">Presupuesto</th><th class="num">Coste real</th><th class="right">Desviación</th><th class="right">Estado</th></tr></thead><tbody>${filas}</tbody></table>`
+        :vacio("proyectos","Sin proyectos todavía","Crea un proyecto para imputarle mano de obra, materiales y gastos, y comparar el coste real con el presupuesto.",`<button class="btn small" onclick="modalProyecto()">+ Nuevo proyecto</button>`);
+      view(panel("Proyectos",cuerpo,`<button class="btn small" onclick="modalProyecto()">+ Nuevo proyecto</button>`));
+    }
+    function modalProyecto(p){
+      abrir(p?"Editar proyecto":"Nuevo proyecto",`<label>Nombre</label><input id="pry_nombre" placeholder="Ej. Reforma local c/ Mayor"/>
+        <div class="grid2"><div><label>Presupuesto (€)</label><input id="pry_pres" type="number" step="0.01" value="0"/></div><div><label>Cliente (opcional)</label><input id="pry_cli" placeholder="Nombre del cliente"/></div></div>
+        ${p?'':'<label>Fecha de inicio</label><input id="pry_fecha" type="date"/>'}`,
+        async()=>{ const b=JSON.stringify({nombre:val("pry_nombre"),presupuesto:Number(val("pry_pres")||0),clienteNombre:val("pry_cli")||null,fechaInicio:p?null:(val("pry_fecha")||null)}); const r=await api("/proyectos"+(p?"/"+p.id:""),{method:p?"PUT":"POST",body:b}); toast(p?"Proyecto actualizado.":"Proyecto creado.","ok"); if(p) verProyecto(p.id); else vProyectos(); });
+      if(p){ rellenar({pry_nombre:p.nombre,pry_pres:p.presupuesto,pry_cli:p.clienteNombre}); }
+    }
+    async function verProyecto(id){
+      view('<div class="muted">Cargando…</div>');
+      const p=await api(`/proyectos/${id}`);
+      const tipoTxt={ManoObra:"Mano de obra",Material:"Material",Gasto:"Gasto"};
+      const abierto=p.estado==="Abierto";
+      const acc=i=>abierto?`<button class="btn small ghost" title="Eliminar" onclick="borrarImputacion('${id}','${i.id}')">✕</button>`:"";
+      const filas=p.imputaciones.map(i=>`<tr><td class="muted">${fdate(i.fecha)}</td><td><span class="pill ${i.tipo==='ManoObra'?'part':i.tipo==='Material'?'':'neg'}" style="font-size:11px">${tipoTxt[i.tipo]}</span></td><td>${i.descripcion}</td><td class="num">${i.tipo==='Gasto'?'—':numCant(i.cantidad)}</td><td class="num">${i.tipo==='Gasto'?'—':eur(i.costeUnitario)}</td><td class="num"><strong>${eur(i.importe)}</strong></td><td class="right">${acc(i)}</td></tr>`).join("");
+      const tabla=p.imputaciones.length?`<table><thead><tr><th>Fecha</th><th>Tipo</th><th>Descripción</th><th class="num">Cantidad</th><th class="num">Coste ud.</th><th class="num">Importe</th><th></th></tr></thead><tbody>${filas}</tbody></table>`:vacio("proyectos","Sin imputaciones","Añade mano de obra, materiales o gastos a este proyecto.");
+      const botones=abierto?`<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn small" onclick="modalImputarMO('${id}')">+ Mano de obra</button><button class="btn small secondary" onclick="modalImputarMaterial('${id}')">+ Material</button><button class="btn small secondary" onclick="modalImputarGasto('${id}')">+ Gasto</button></div>`:"";
+      const estadoBtns=(p.estado==="Abierto"?`<button class="btn small secondary" onclick="accionProyecto('${id}','cerrar')">Cerrar</button>`:p.estado==="Cerrado"?`<button class="btn small secondary" onclick="accionProyecto('${id}','reabrir')">Reabrir</button>`:"")+(p.estado!=="Cancelado"?` <button class="btn small ghost" onclick="accionProyecto('${id}','cancelar')">Cancelar</button>`:"");
+      const kpi=(lbl,val,color)=>`<div class="kpi"><div class="lbl">${lbl}</div><div class="val"${color?` style="color:${color}"`:""}>${val}</div></div>`;
+      const resumen=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:18px">
+        ${kpi("Presupuesto",eur(p.presupuesto))}
+        ${kpi("Mano de obra",eur(p.costeManoObra))}
+        ${kpi("Materiales",eur(p.costeMateriales))}
+        ${kpi("Gastos",eur(p.costeGastos))}
+        ${kpi("Coste real",eur(p.costeReal))}
+        ${kpi("Desviación",(p.desviacion>0?'+':'')+eur(p.desviacion),p.desviacion<0?'var(--neg,#d9534f)':'var(--pos,#0a7a4a)')}
+      </div>`;
+      const editBtn=abierto?`<button class="btn small ghost" onclick='modalProyecto(${JSON.stringify({id:p.id,nombre:p.nombre,presupuesto:p.presupuesto,clienteNombre:p.clienteNombre})})'>Editar</button>`:"";
+      const cab=`<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><button class="btn small ghost" onclick="vProyectos()">← Proyectos</button><strong style="font-size:16px">PRY ${p.numero}/${p.ejercicio} · ${p.nombre}</strong>${estadoPillPry(p.estado)}</div><div style="display:flex;gap:8px">${estadoBtns} ${editBtn}</div></div>`;
+      view(panel("",cab+resumen+botones+'<div style="height:12px"></div>'+tabla));
+    }
+    async function accionProyecto(id,accion){ if(accion==="cancelar"&&!confirm("¿Cancelar el proyecto?"))return;
+      try{ await api(`/proyectos/${id}/${accion}`,{method:"POST"}); toast("Proyecto "+({cerrar:"cerrado",reabrir:"reabierto",cancelar:"cancelado"}[accion])+".","ok"); verProyecto(id); }catch(e){ toast(e.message,"err"); } }
+    async function borrarImputacion(id,impId){ if(!confirm("¿Eliminar la imputación?"))return;
+      try{ await api(`/proyectos/${id}/imputaciones/${impId}`,{method:"DELETE"}); toast("Imputación eliminada.","ok"); verProyecto(id); }catch(e){ toast(e.message,"err"); } }
+    async function modalImputarMO(id){
+      const personas=await api("/personal").catch(()=>[]);
+      if(!personas.length){ toast("Da de alta a una persona en Personal primero.","err"); return; }
+      const opts=personas.map(p=>`<option value="${p.id}">${p.nombre} · ${eur(p.tarifaHora)}/h</option>`).join("");
+      abrir("Imputar mano de obra",`<label>Persona</label><select id="im_persona">${opts}</select><div class="grid2"><div><label>Horas</label><input id="im_horas" type="number" step="0.25" value="1"/></div><div><label>Fecha</label><input id="im_fecha" type="date"/></div></div><label>Descripción (opcional)</label><input id="im_desc" placeholder="Tarea realizada"/>`,
+        async()=>{ await api(`/proyectos/${id}/mano-obra`,{method:"POST",body:JSON.stringify({personaId:val("im_persona"),horas:Number(val("im_horas")||0),fecha:val("im_fecha")||null,descripcion:val("im_desc")||null})}); toast("Mano de obra imputada.","ok"); verProyecto(id); });
+    }
+    async function modalImputarMaterial(id){
+      const prods=await api("/productos").catch(()=>[]);
+      if(!prods.length){ toast("Crea un artículo primero.","err"); return; }
+      const opts=prods.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join("");
+      abrir("Imputar material",`<label>Artículo</label><select id="im_prod">${opts}</select><div class="grid2"><div><label>Cantidad</label><input id="im_cant" type="number" step="0.001" value="1"/></div><div><label>Fecha</label><input id="im_fechaM" type="date"/></div></div><p class="muted" style="font-size:12px;margin:8px 0 0">El coste unitario se calcula según el método de valoración de la empresa (Ajustes).</p>`,
+        async()=>{ await api(`/proyectos/${id}/material`,{method:"POST",body:JSON.stringify({productoId:val("im_prod"),cantidad:Number(val("im_cant")||0),fecha:val("im_fechaM")||null})}); toast("Material imputado.","ok"); verProyecto(id); });
+    }
+    function modalImputarGasto(id){
+      abrir("Imputar gasto",`<label>Concepto</label><input id="im_conc" placeholder="Ej. Dietas, alquiler de maquinaria"/><div class="grid2"><div><label>Importe (€)</label><input id="im_imp" type="number" step="0.01" value="0"/></div><div><label>Fecha</label><input id="im_fechaG" type="date"/></div></div>`,
+        async()=>{ await api(`/proyectos/${id}/gasto`,{method:"POST",body:JSON.stringify({concepto:val("im_conc"),importe:Number(val("im_imp")||0),fecha:val("im_fechaG")||null})}); toast("Gasto imputado.","ok"); verProyecto(id); });
     }
 
     // ---- Inventario: almacenes, ubicaciones, movimientos, stock ----
