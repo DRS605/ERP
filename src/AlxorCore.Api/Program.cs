@@ -164,6 +164,7 @@ app.MapearUsuarios();
 app.MapearTerceros();
 app.MapearCatalogo();
 app.MapearFacturacion();
+app.MapearVentas();
 app.MapearGastos();
 app.MapearRecepcion();
 app.MapearContabilidad();

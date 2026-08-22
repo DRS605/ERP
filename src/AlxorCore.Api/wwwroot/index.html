@@ -420,7 +420,7 @@
     // Menú agrupado en carpetas: Ventas, Compras y Artículos.
     const NAV = [
       { t:"item", k:"inicio", l:"Inicio" },
-      { t:"grupo", k:"ventas", l:"Ventas", items:[["presupuestos","Presupuestos"],["facturas","Facturas"],["tpv","TPV · Tickets"],["recurrentes","Periódicas"],["clientes","Clientes"],["cobros","Cobros"],["remesas","Remesas SEPA"]] },
+      { t:"grupo", k:"ventas", l:"Ventas", items:[["presupuestos","Presupuestos"],["pedidosventa","Pedidos de venta"],["facturas","Facturas"],["tpv","TPV · Tickets"],["recurrentes","Periódicas"],["clientes","Clientes"],["cobros","Cobros"],["remesas","Remesas SEPA"]] },
       { t:"grupo", k:"compras", l:"Compras", items:[["solicitudes","Solicitudes"],["pedidos","Pedidos de compra"],["recepcion","Buzón de facturas"],["gastos","Gastos"],["proveedores","Proveedores"],["pagos","Pagos"],["conciliacion","Conciliación banco"]] },
       { t:"grupo", k:"articulos", l:"Artículos", items:[["productos","Productos"],["inventario","Inventario / Almacenes"],["produccion","Producción"]] },
       { t:"item", k:"personal", l:"Personal" },
@@ -431,7 +431,7 @@
       { t:"item", k:"inmovilizado", l:"Inmovilizado" },
       { t:"item", k:"ajustes", l:"Ajustes" },
     ];
-    const TITULOS = { inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", ajustes:"Ajustes" };
+    const TITULOS = { inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", ajustes:"Ajustes" };
     function renderNav() {
       return NAV.map(n => {
         if (n.t === "item") return `<a class="navitem" data-k="${n.k}" onclick="ir('${n.k}')">${ICON[n.k]}<span>${n.l}</span></a>`;
@@ -527,7 +527,7 @@
     function ir(k){ closeMenu(); if(vista==="tpv" && k!=="tpv" && typeof tpvParar==="function") tpvParar(); vista=k;
       document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("active",a.dataset.k===k));
       document.getElementById("viewTitle").textContent=TITULOS[k]||k;
-      ({inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,clientes:vClientes,productos:vProductos,gastos:vGastos,solicitudes:vSolicitudes,pedidos:vPedidos,inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,contabilidad:vContabilidad,inmovilizado:vInmovilizado,ajustes:vAjustes}[k])();
+      ({inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:vPedidosVenta,clientes:vClientes,productos:vProductos,gastos:vGastos,solicitudes:vSolicitudes,pedidos:vPedidos,inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,contabilidad:vContabilidad,inmovilizado:vInmovilizado,ajustes:vAjustes}[k])();
     }
     const view = h => { document.getElementById("view").innerHTML=h; try{ mejorarTablas(); }catch(e){} };
 
@@ -1633,6 +1633,64 @@
           await api("/contabilidad/asientos",{method:"POST",body:JSON.stringify({fecha:val("asi_fecha"),concepto:val("asi_concepto"),lineas})});
           toast("Asiento registrado.","ok"); vContabilidad();
         });
+    }
+
+    // ---- Ciclo de venta: pedidos de venta y albaranes de entrega ----
+    const estadoPillPV = e => `<span class="pill ${e==="Facturado"?"ok":(e==="Cancelado"?"neg":(e==="Servido"?"part":"wait"))}">${e}</span>`;
+    async function vPedidosVenta(){
+      view('<div class="muted">Cargando…</div>');
+      const ps=await api("/pedidos-venta").catch(()=>[]);
+      const acc=p=>{
+        const b=[`<button class="btn small ghost" onclick="verPedidoVenta('${p.id}')">Ver</button>`];
+        if(p.estado==="Borrador"){ b.push(`<button class="btn small" onclick="confirmarPedidoVenta('${p.id}')">Confirmar</button>`); b.push(`<button class="btn small ghost" onclick="cancelarPedidoVenta('${p.id}')">✕</button>`); }
+        else if(p.estado==="Confirmado"||p.estado==="Servido"){ b.push(`<button class="btn small ghost" onclick="entregarPedidoVenta('${p.id}')">Entregar</button>`); b.push(`<button class="btn small" onclick="facturarPedidoVenta('${p.id}')">Facturar</button>`); b.push(`<button class="btn small ghost" onclick="cancelarPedidoVenta('${p.id}')">✕</button>`); }
+        return b.join(" ");
+      };
+      const filas=ps.map(p=>`<tr><td><strong>${p.numeroCompleto}</strong></td><td>${p.clienteNombre}</td><td class="muted">${fdate(p.fecha)}</td><td class="num"><strong>${eur(p.total)}</strong></td><td class="right">${estadoPillPV(p.estado)}</td><td class="right" style="white-space:nowrap">${acc(p)}</td></tr>`).join("");
+      const cuerpo=ps.length?`<table><thead><tr><th>Número</th><th>Cliente</th><th>Fecha</th><th class="num">Total</th><th class="right">Estado</th><th></th></tr></thead><tbody>${filas}</tbody></table>`
+        :vacio("facturas","Sin pedidos de venta","Crea un pedido de venta, entrégalo con albaranes y factúralo cuando quieras (genera una factura real).",`<button class="btn small" onclick="modalPedidoVenta()">+ Nuevo pedido</button>`);
+      view(panel("Pedidos de venta",cuerpo,`<button class="btn small" onclick="modalPedidoVenta()">+ Nuevo pedido</button>`));
+    }
+    async function modalPedidoVenta(){
+      const cs=await api("/clientes"); _cacheCli=cs;
+      if(!cs.length){ alert("Primero crea un cliente."); return; }
+      const opts=cs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join("");
+      _facLineas=[{descripcion:"",cantidad:1,precio:0,iva:"IVA21",dto:0}];
+      abrir("Nuevo pedido de venta",`<label>Cliente</label><select id="pv_cli">${opts}</select>
+        <label style="margin-top:16px">Líneas</label>
+        <div id="f_lineas">${facLineasHtml()}</div>
+        <button class="btn small ghost" style="margin-top:6px" onclick="facAnadirLinea()">+ Añadir línea</button>
+        <div id="f_total" class="right" style="margin-top:10px;font-weight:650"></div>`,
+        async()=>{ const lineas=_facLineas.filter(l=>l.descripcion.trim()&&l.cantidad>0).map(l=>({descripcion:l.descripcion,cantidad:l.cantidad,precioUnitario:l.precio,codigoIva:l.iva,porcentajeDescuento:l.dto||0}));
+          if(!lineas.length) throw new Error("Añade al menos una línea con descripción y cantidad.");
+          await api("/pedidos-venta",{method:"POST",body:JSON.stringify({clienteId:val("pv_cli"),lineas})}); toast("Pedido de venta creado.","ok"); vPedidosVenta(); });
+      facTotal();
+    }
+    async function confirmarPedidoVenta(id){ try{ await api("/pedidos-venta/"+id+"/confirmar",{method:"POST"}); toast("Pedido confirmado.","ok"); vPedidosVenta(); }catch(e){ toast(e.message,"err"); } }
+    async function cancelarPedidoVenta(id){ if(!confirm("¿Cancelar este pedido de venta?"))return; try{ await api("/pedidos-venta/"+id+"/cancelar",{method:"POST"}); toast("Pedido cancelado.","ok"); vPedidosVenta(); }catch(e){ toast(e.message,"err"); } }
+    async function facturarPedidoVenta(id){ if(!confirm("Se generará una factura real a partir del pedido. ¿Continuar?"))return;
+      try{ const f=await api("/pedidos-venta/"+id+"/facturar",{method:"POST",body:JSON.stringify({})}); toast("Factura "+f.numeroCompleto+" emitida.","ok"); vPedidosVenta(); }catch(e){ toast(e.message,"err"); } }
+    async function entregarPedidoVenta(id){
+      const p=await api("/pedidos-venta/"+id);
+      const filas=p.lineas.filter(l=>l.pendienteServir>0).map(l=>`<tr><td>${l.descripcion}</td><td class="num muted">${l.pendienteServir}</td><td><input type="number" step="0.001" min="0" max="${l.pendienteServir}" value="${l.pendienteServir}" class="ent-cant" data-id="${l.id}" style="width:100px;padding:6px 8px"/></td></tr>`).join("");
+      if(!filas){ toast("No queda nada pendiente de entregar.","err"); return; }
+      abrir("Albarán de entrega · pedido "+p.numeroCompleto,`<p class="muted" style="margin:0 0 10px">Indica las cantidades entregadas. La salida de existencias se registra al facturar.</p>
+        <table><thead><tr><th>Línea</th><th class="num">Pendiente</th><th>Entregar</th></tr></thead><tbody>${filas}</tbody></table>
+        <label style="margin-top:12px">Referencia (opcional)</label><input id="ent_ref" placeholder="Ej. Entrega parcial"/>`,
+        async()=>{ const lineas=[...document.querySelectorAll('.ent-cant')].map(i=>({lineaPedidoId:i.dataset.id,cantidad:Number(i.value||0)})).filter(l=>l.cantidad>0);
+          if(!lineas.length) throw new Error("Indica al menos una cantidad a entregar.");
+          await api("/pedidos-venta/"+id+"/entregar",{method:"POST",body:JSON.stringify({lineas,referencia:val("ent_ref")||null})}); toast("Albarán de entrega registrado.","ok"); vPedidosVenta(); });
+    }
+    async function verPedidoVenta(id){
+      const [p,albaranes]=await Promise.all([api("/pedidos-venta/"+id),api("/pedidos-venta/"+id+"/albaranes").catch(()=>[])]);
+      const lin=p.lineas.map(l=>`<tr><td>${l.descripcion}</td><td class="num">${l.cantidad}</td><td class="num">${eur(l.precioUnitario)}</td><td class="num muted">${l.cantidadServida}</td><td class="num">${eur(l.base)}</td></tr>`).join("");
+      const alb=(albaranes||[]).map(a=>`<tr><td><strong>${a.numeroCompleto}</strong></td><td class="muted">${fdate(a.fecha)}</td><td class="muted">${a.lineas.length} línea(s)</td></tr>`).join("");
+      abrir("Pedido de venta "+p.numeroCompleto,`<p class="muted" style="margin:0 0 10px">${p.clienteNombre} · ${estadoPillPV(p.estado)} · Total <strong>${eur(p.total)}</strong>${p.facturaId?' · facturado':''}</p>
+        <table><thead><tr><th>Descripción</th><th class="num">Cant.</th><th class="num">Precio</th><th class="num">Servido</th><th class="num">Base</th></tr></thead><tbody>${lin}</tbody></table>
+        <label style="margin-top:14px">Albaranes de entrega</label>
+        ${alb?`<table><thead><tr><th>Número</th><th>Fecha</th><th>Líneas</th></tr></thead><tbody>${alb}</tbody></table>`:'<p class="muted">Sin albaranes todavía.</p>'}`,
+        null);
+      document.getElementById("modalOk").style.display="none";
     }
 
     // ---- Inmovilizado y amortizaciones (contable + fiscal, impuesto diferido, baja, enajenación) ----

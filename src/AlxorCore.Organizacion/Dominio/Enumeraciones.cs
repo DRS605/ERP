@@ -30,6 +30,12 @@ public enum TipoDocumento
 
     /// <summary>Albarán de compra.</summary>
     AlbaranCompra = 6,
+
+    /// <summary>Pedido de venta.</summary>
+    PedidoVenta = 7,
+
+    /// <summary>Albarán de venta (entrega).</summary>
+    AlbaranVenta = 8,
 }
 
 /// <summary>Ámbito al que se asigna una serie: la empresa (por defecto) o un tercero concreto.</summary>

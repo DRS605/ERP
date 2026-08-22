@@ -155,6 +155,7 @@ dotnet ef migrations add <Nombre> \
 | **Recepción de facturas de proveedor** (buzón de correo + contabilización) | ✅ Terminado |
 | **Contabilidad** (partida doble: plan PGC, asientos, diario, mayor, balance, PyG, balance de situación, cierre de ejercicio, subcuentas de tercero autonumeradas) | ✅ Terminado |
 | **Inmovilizado** (amortización contable y fiscal —lineal/degresivo/dígitos—, impuesto diferido, baja y enajenación) | ✅ Terminado |
+| **Ventas** (presupuesto → pedido de venta → albarán de entrega → factura) | ✅ Terminado |
 | **Compras** (solicitud → pedido → albarán → factura) | ✅ Terminado |
 | **Inventario** (multi-almacén, ubicaciones, movimientos, ubicación por defecto, lotes/series, montaje) | ✅ Terminado |
 | **Producción** (órdenes de fabricación sobre la lista de materiales: consumen componentes y producen el artículo) | ✅ Terminado |

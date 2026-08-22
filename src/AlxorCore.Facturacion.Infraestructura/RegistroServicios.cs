@@ -59,6 +59,17 @@ public static class RegistroServicios
         servicios.AddScoped<AceptarPresupuesto>();
         servicios.AddScoped<RechazarPresupuesto>();
 
+        // Ciclo de venta: pedido de venta y albarán de entrega.
+        servicios.AddScoped<IRepositorioPedidosVenta, RepositorioPedidosVenta>();
+        servicios.AddScoped<IRepositorioAlbaranesVenta, RepositorioAlbaranesVenta>();
+        servicios.AddScoped<CrearPedidoVenta>();
+        servicios.AddScoped<DecidirPedidoVenta>();
+        servicios.AddScoped<ListarPedidosVenta>();
+        servicios.AddScoped<ObtenerPedidoVenta>();
+        servicios.AddScoped<EntregarPedido>();
+        servicios.AddScoped<ListarAlbaranesVenta>();
+        servicios.AddScoped<FacturarPedidoVenta>();
+
         return servicios;
     }
 }
