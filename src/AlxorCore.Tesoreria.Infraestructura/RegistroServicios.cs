@@ -44,6 +44,8 @@ public static class RegistroServicios
         servicios.AddScoped<ConciliarExtracto>();
         servicios.AddScoped<GenerarRemesaSepa>();
         servicios.AddScoped<GenerarTransferenciasSepa>();
+        servicios.AddScoped<GenerarCuaderno19>();
+        servicios.AddScoped<GenerarConfirming>();
 
         return servicios;
     }

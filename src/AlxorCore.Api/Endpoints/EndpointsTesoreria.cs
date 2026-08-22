@@ -44,6 +44,14 @@ public static class EndpointsTesoreria
             .WithTags("Tesorería").WithSummary("Genera una remesa de transferencias SEPA (pain.001 / Cuaderno 34) para pagar los gastos indicados.")
             .RequierePermiso(Permisos.PagoRegistrar);
 
+        rutas.MapPost("/tesoreria/cuaderno19", Cuaderno19Async)
+            .WithTags("Tesorería").WithSummary("Genera el Cuaderno 19 clásico (CSB, texto) de adeudos para las facturas indicadas.")
+            .RequierePermiso(Permisos.CobroRegistrar);
+
+        rutas.MapPost("/tesoreria/confirming", ConfirmingAsync)
+            .WithTags("Tesorería").WithSummary("Genera un fichero de confirming (Cuaderno 68) para pagar los gastos indicados.")
+            .RequierePermiso(Permisos.PagoRegistrar);
+
         rutas.MapGet("/tesoreria/previsiones", ListarPrevisionesAsync)
             .WithTags("Tesorería").WithSummary("Lista los ingresos y gastos previstos (previsión de tesorería).")
             .RequierePermiso(Permisos.FacturaLeer);
@@ -71,6 +79,28 @@ public static class EndpointsTesoreria
     }
 
     private static async Task<IResult> TransferenciasAsync(GenerarPagosComando comando, IContextoEmpresa contexto, GenerarTransferenciasSepa caso, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        var resultado = await caso.EjecutarAsync(contexto.EmpresaId.Value, comando, ct).ConfigureAwait(false);
+        return resultado.AOk();
+    }
+
+    private static async Task<IResult> Cuaderno19Async(GenerarRemesaComando comando, IContextoEmpresa contexto, GenerarCuaderno19 caso, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        var resultado = await caso.EjecutarAsync(contexto.EmpresaId.Value, comando, ct).ConfigureAwait(false);
+        return resultado.AOk();
+    }
+
+    private static async Task<IResult> ConfirmingAsync(GenerarPagosComando comando, IContextoEmpresa contexto, GenerarConfirming caso, CancellationToken ct)
     {
         if (contexto.EmpresaId is null)
         {

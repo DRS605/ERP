@@ -863,8 +863,10 @@
       const cuerpoPago=(gastos&&gastos.length)?`<table><thead><tr><th></th><th>Concepto</th><th>Proveedor</th><th>Fecha</th><th class="num">Total</th></tr></thead><tbody>${gfilas}</tbody></table>
         <p class="muted" style="font-size:12px;margin:12px 0 0">Marca los gastos a pagar y genera el fichero de transferencias SEPA (pain.001 / Cuaderno 34) para tu banco. Solo se incluyen proveedores con IBAN y gastos pendientes.</p>`
         :vacio("pagos","Sin gastos","Registra gastos de proveedores para poder pagarlos por transferencia.");
-      view(panel("Remesas de adeudos SEPA (cobros)",cuerpoCobro,fs.length?`<button class="btn small" onclick="generarRemesa()">Generar remesa SEPA</button>`:"")
-        +panel("Transferencias a proveedores (pagos)",cuerpoPago,(gastos&&gastos.length)?`<button class="btn small" onclick="generarTransferencias()">Generar transferencias SEPA</button>`:""));
+      const accCobro=fs.length?`<div style="display:flex;gap:8px"><button class="btn small ghost" onclick="generarCuaderno19()" title="Formato clásico CSB, a validar con el banco">Cuaderno 19 clásico</button><button class="btn small" onclick="generarRemesa()">Generar remesa SEPA</button></div>`:"";
+      const accPago=(gastos&&gastos.length)?`<div style="display:flex;gap:8px"><button class="btn small ghost" onclick="generarConfirming()" title="Confirming Cuaderno 68, a validar con el banco">Confirming (C68)</button><button class="btn small" onclick="generarTransferencias()">Generar transferencias SEPA</button></div>`:"";
+      view(panel("Remesas de adeudos SEPA (cobros)",cuerpoCobro,accCobro)
+        +panel("Transferencias a proveedores (pagos)",cuerpoPago,accPago));
     }
     async function generarRemesa(){
       const ids=[...document.querySelectorAll(".rem_chk:checked")].map(c=>c.value);
@@ -886,6 +888,24 @@
         let msg=`Transferencias generadas: ${r.numeroPagos} pago(s), ${eur(r.total)}.`;
         if(r.omitidos&&r.omitidos.length){ msg+=` ${r.omitidos.length} omitido(s).`; alert("Gastos omitidos:\n\n"+r.omitidos.join("\n")); }
         toast(msg,"ok");
+      }catch(e){ toast(e.message,"err"); } }
+    async function generarCuaderno19(){
+      const ids=[...document.querySelectorAll(".rem_chk:checked")].map(c=>c.value);
+      if(!ids.length){ toast("Marca al menos una factura","err"); return; }
+      try{
+        const r=await api("/tesoreria/cuaderno19",{method:"POST",body:JSON.stringify({facturaIds:ids})});
+        descargarTexto(r.fichero,r.nombreArchivo,"text/plain");
+        toast(`Cuaderno 19 generado: ${r.numeroRegistros} adeudo(s), ${eur(r.total)}. Valídalo con tu banco.`,"ok");
+        if(r.omitidos&&r.omitidos.length) alert("Facturas omitidas:\n\n"+r.omitidos.join("\n"));
+      }catch(e){ toast(e.message,"err"); } }
+    async function generarConfirming(){
+      const ids=[...document.querySelectorAll(".pag_chk:checked")].map(c=>c.value);
+      if(!ids.length){ toast("Marca al menos un gasto","err"); return; }
+      try{
+        const r=await api("/tesoreria/confirming",{method:"POST",body:JSON.stringify({gastoIds:ids})});
+        descargarTexto(r.fichero,r.nombreArchivo,"text/plain");
+        toast(`Confirming generado: ${r.numeroRegistros} pago(s), ${eur(r.total)}. Valídalo con tu banco.`,"ok");
+        if(r.omitidos&&r.omitidos.length) alert("Gastos omitidos:\n\n"+r.omitidos.join("\n"));
       }catch(e){ toast(e.message,"err"); } }
     function descargarTexto(contenido,nombre,tipo){
       const blob=new Blob([contenido],{type:tipo||"text/plain"}); const u=URL.createObjectURL(blob);
