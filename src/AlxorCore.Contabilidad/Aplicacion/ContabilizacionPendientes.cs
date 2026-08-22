@@ -23,6 +23,9 @@ public interface IRepositorioDocumentosPendientes
 {
     void Agregar(DocumentoPendiente documento);
     Task<DocumentoPendiente?> ObtenerAsync(Guid id, CancellationToken ct = default);
+
+    /// <summary>¿Ya existe un pendiente para este documento de origen? (idempotencia de la cola/outbox).</summary>
+    Task<bool> ExistePorOrigenAsync(Guid empresaId, string origenTipo, Guid origenId, CancellationToken ct = default);
     Task<IReadOnlyList<DocumentoPendiente>> ListarPendientesAsync(Guid empresaId, CancellationToken ct = default);
     Task<IReadOnlyList<DocumentoPendiente>> ListarAsync(Guid empresaId, CancellationToken ct = default);
 }
@@ -155,6 +158,13 @@ public sealed class EncolarDocumento : IColaContabilizacion
         // empresa solo lleva Libro de IVA (el gasto/factura ya lo alimentan): no hay asientos ni panel.
         var config = await _config.ObtenerAsync(empresaId, ct).ConfigureAwait(false);
         if ((config?.Modo ?? ModoContabilidad.Simple) != ModoContabilidad.Completo)
+        {
+            return;
+        }
+
+        // Idempotencia: si este documento de origen ya se encoló, no lo dupliques (la bandeja de salida
+        // garantiza entrega «al menos una vez», así que el mismo mensaje puede reintentarse).
+        if (await _pendientes.ExistePorOrigenAsync(empresaId, documento.OrigenTipo, documento.OrigenId, ct).ConfigureAwait(false))
         {
             return;
         }

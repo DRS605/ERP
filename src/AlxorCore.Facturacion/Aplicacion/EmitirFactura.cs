@@ -48,7 +48,8 @@ public sealed class EmitirFactura
     private readonly IConsultaEmpresas _empresas;
     private readonly IUnidadDeTrabajoFacturacion _unidadDeTrabajo;
     private readonly IStockVentas _stock;
-    private readonly IColaContabilizacion _cola;
+    private readonly EncolarSalida _encolarSalida;
+    private readonly DespacharSalida _despacharSalida;
     private readonly IConsultaFormasPago _formasPago;
     private readonly IPagosAutomaticos _pagos;
     private readonly IConsultaRiesgo _riesgo;
@@ -63,7 +64,8 @@ public sealed class EmitirFactura
         IConsultaEmpresas empresas,
         IUnidadDeTrabajoFacturacion unidadDeTrabajo,
         IStockVentas stock,
-        IColaContabilizacion cola,
+        EncolarSalida encolarSalida,
+        DespacharSalida despacharSalida,
         IConsultaFormasPago formasPago,
         IPagosAutomaticos pagos,
         IConsultaRiesgo riesgo,
@@ -77,7 +79,8 @@ public sealed class EmitirFactura
         _empresas = empresas;
         _unidadDeTrabajo = unidadDeTrabajo;
         _stock = stock;
-        _cola = cola;
+        _encolarSalida = encolarSalida;
+        _despacharSalida = despacharSalida;
         _formasPago = formasPago;
         _pagos = pagos;
         _riesgo = riesgo;
@@ -176,21 +179,11 @@ public sealed class EmitirFactura
 
         await RegistroVerifactu.AplicarAsync(empresaId, factura.Valor, _empresas, _facturas, _reloj, ct).ConfigureAwait(false);
         _facturas.Agregar(factura.Valor);
-        await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
 
-        // Descuento de existencias de los artículos con control de stock (mejor esfuerzo; la
-        // factura ya está emitida y es la verdad fiscal).
-        var lineasVenta = factura.Valor.Lineas
-            .Where(l => l.ProductoId is not null)
-            .Select(l => new LineaVenta(l.ProductoId!.Value, l.Cantidad))
-            .ToList();
-        if (lineasVenta.Count > 0)
-        {
-            await _stock.DescontarVentaAsync(empresaId, lineasVenta, ct).ConfigureAwait(false);
-        }
-
-        // Encola el documento para contabilizar (queda pendiente salvo contabilización automática).
-        // La familia (del primer artículo) y el tipo de cliente permiten aplicar las reglas de cuenta.
+        // Bandeja de salida (outbox): el documento a contabilizar se encola en la MISMA transacción que
+        // la factura, de modo que "emitir factura" y "encolar su contabilización" son atómicos (ninguna
+        // factura queda sin su documento a contabilizar, ni al revés). La familia (del primer artículo)
+        // y el tipo de cliente permiten aplicar las reglas de cuenta.
         var f = factura.Valor;
         var codigoIva = f.Lineas.Count > 0 ? f.Lineas[0].CodigoIva : "IVA21";
         var productoId = f.Lineas.FirstOrDefault(l => l.ProductoId is not null)?.ProductoId;
@@ -201,9 +194,26 @@ public sealed class EmitirFactura
             familia = producto?.Familia;
         }
 
-        await _cola.EncolarAsync(empresaId, new DocumentoContabilizable(
+        _encolarSalida.Contabilizacion(empresaId, new DocumentoContabilizable(
             SentidoContable.Venta, "FacturaVenta", f.Id, f.NumeroCompleto, f.ClienteId, f.ClienteNombre,
-            f.FechaEmision, f.BaseImponible, codigoIva, f.CuotaIva, f.PorcentajeIrpf, f.RetencionIrpf, f.Total, productoId, familia, cliente.Tipo), ct).ConfigureAwait(false);
+            f.FechaEmision, f.BaseImponible, codigoIva, f.CuotaIva, f.PorcentajeIrpf, f.RetencionIrpf, f.Total, productoId, familia, cliente.Tipo));
+
+        await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
+
+        // Ya confirmada la factura, despacha la bandeja de salida (encola la contabilización). Si fallara,
+        // el mensaje queda pendiente y se reintenta; la factura ya está a salvo.
+        await _despacharSalida.EjecutarAsync(ct: ct).ConfigureAwait(false);
+
+        // Descuento de existencias de los artículos con control de stock (mejor esfuerzo; la factura ya
+        // está emitida y es la verdad fiscal).
+        var lineasVenta = f.Lineas
+            .Where(l => l.ProductoId is not null)
+            .Select(l => new LineaVenta(l.ProductoId!.Value, l.Cantidad))
+            .ToList();
+        if (lineasVenta.Count > 0)
+        {
+            await _stock.DescontarVentaAsync(empresaId, lineasVenta, ct).ConfigureAwait(false);
+        }
 
         // Si la forma de pago registra el pago automáticamente, se cobra el total en el acto (queda
         // saldada, fuera de la cartera). Se omite si el pago se registra aparte.

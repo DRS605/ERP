@@ -150,6 +150,9 @@ internal sealed class RepositorioDocumentosPendientes : IRepositorioDocumentosPe
     public Task<DocumentoPendiente?> ObtenerAsync(Guid id, CancellationToken ct = default) =>
         _contexto.DocumentosPendientes.SingleOrDefaultAsync(d => d.Id == id, ct);
 
+    public Task<bool> ExistePorOrigenAsync(Guid empresaId, string origenTipo, Guid origenId, CancellationToken ct = default) =>
+        _contexto.DocumentosPendientes.AnyAsync(d => d.EmpresaId == empresaId && d.OrigenTipo == origenTipo && d.OrigenId == origenId, ct);
+
     public async Task<IReadOnlyList<DocumentoPendiente>> ListarPendientesAsync(Guid empresaId, CancellationToken ct = default) =>
         await _contexto.DocumentosPendientes.AsNoTracking()
             .Where(d => d.EmpresaId == empresaId && d.Estado == Dominio.EstadoContabilizacion.Pendiente)

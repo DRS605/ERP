@@ -31,6 +31,8 @@ public sealed class FacturacionDbContext : DbContextEmpresaBase, IUnidadDeTrabaj
 
     public DbSet<AlbaranVenta> AlbaranesVenta => Set<AlbaranVenta>();
 
+    public DbSet<MensajeSalida> MensajesSalida => Set<MensajeSalida>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Esquema);

@@ -31,6 +31,12 @@ public static class RegistroServicios
         servicios.AddScoped<IRepositorioFacturas>(sp => sp.GetRequiredService<RepositorioFacturas>());
         servicios.AddScoped<IConsultaFacturas>(sp => sp.GetRequiredService<RepositorioFacturas>());
 
+        // Bandeja de salida (outbox transaccional): atomicidad entre emitir factura y encolar su
+        // contabilización, con despacho y reintento.
+        servicios.AddScoped<IRepositorioSalida, RepositorioSalida>();
+        servicios.AddScoped<EncolarSalida>();
+        servicios.AddScoped<DespacharSalida>();
+
         servicios.AddScoped<EmitirFactura>();
         servicios.AddScoped<EmitirTicket>();
         servicios.AddScoped<EmitirRectificativa>();
