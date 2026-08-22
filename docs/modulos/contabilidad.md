@@ -79,12 +79,58 @@ regla debe existir en el plan de la empresa.
 Ejemplos: ventas de familia «Mercaderías» → `700`; compras de proveedores tipo «Profesional» → `623`;
 ventas de familia «Formación» a clientes tipo «Intracomunitario» → una cuenta específica.
 
+## Cuenta de Pérdidas y Ganancias
+
+`GET /contabilidad/pyg?ejercicio=` calcula la **cuenta de resultados** a partir del libro diario:
+
+- **Ingresos** = cuentas del **grupo 7** por su saldo acreedor (`haber − debe`).
+- **Gastos** = cuentas del **grupo 6** por su saldo deudor (`debe − haber`).
+- **Resultado del ejercicio** = total ingresos − total gastos (positivo = beneficio, negativo = pérdida).
+
+Es una vista analítica por cuenta (no el modelo oficial con todos los epígrafes normalizados); las
+líneas con importe cero se omiten.
+
+## Balance de situación
+
+`GET /contabilidad/balance-situacion?ejercicio=` clasifica las cuentas patrimoniales por **masas** del
+PGC (simplificación por grupo/subgrupo, no el modelo oficial):
+
+- **Activo no corriente** (grupo 2, inmovilizado) y **activo corriente** (grupo 3 existencias, grupo 5
+  tesorería con saldo deudor, deudores del grupo 4).
+- **Patrimonio neto** (subgrupos 10–13 y la cuenta de resultado 129) y **pasivo** (resto del grupo 1,
+  acreedores del grupo 4, grupo 5 con saldo acreedor).
+- Las cuentas de gestión (grupos 6 y 7) **no** van al balance.
+
+Para que **cuadre también antes del cierre**, si la cuenta `129` aún no tiene saldo se añade una línea
+provisional *«Resultado del ejercicio»* en el patrimonio neto por el resultado de la PyG (como hace
+cualquier software contable). El campo `cuadra` indica si el total activo iguala al total de patrimonio
+neto + pasivo.
+
+## Cierre de ejercicio
+
+`POST /contabilidad/cierre?ejercicio=` cierra un ejercicio en **tres asientos** (solo modo Completo, y de
+forma transaccional):
+
+1. **Regularización** (fecha 31/12, origen `Regularizacion`): salda los grupos 6 y 7 contra la cuenta de
+   resultado `129`. El saldo de la 129 pasa a ser el beneficio (acreedor) o la pérdida (deudor).
+2. **Cierre** (fecha 31/12, origen `Cierre`): salda **todas** las cuentas patrimoniales (grupos 1–5,
+   incluida la 129) dejándolas a cero.
+3. **Apertura** (fecha 1/1 del ejercicio siguiente, origen `Apertura`): reabre esos mismos saldos con el
+   asiento inverso, de modo que el nuevo ejercicio arranca con el balance de cierre.
+
+La respuesta (`CierreEjercicioDto`) devuelve el `resultado` y los ids de los tres asientos. **No se puede
+cerrar dos veces** (409 `cierre.ya_cerrado`) ni cerrar un ejercicio **sin movimientos**
+(400 `cierre.sin_movimientos`).
+
 ## Invariantes
 
 - **Cuadre**: un asiento no se crea si la suma del debe ≠ la suma del haber, o si su importe es cero.
 - **Apunte válido**: cada apunte carga en el debe **o** abona en el haber (no ambos ni ninguno), con
   importes no negativos. Mínimo dos apuntes.
 - **Inmutable**: un asiento no se edita una vez creado (las correcciones se hacen con otro asiento).
+- **Ejercicio cerrado**: una vez generado el asiento de cierre, el ejercicio **no admite nuevos
+  asientos** (409 `asiento.ejercicio_cerrado`), ni manuales ni de contabilización. La contabilidad de
+  ese año queda congelada.
 
 ## API
 
@@ -94,6 +140,9 @@ ventas de familia «Formación» a clientes tipo «Intracomunitario» → una cu
 | `GET` | `/contabilidad/diario?ejercicio=` | `contabilidad.leer` | Libro diario del ejercicio. |
 | `GET` | `/contabilidad/mayor/{codigo}?ejercicio=` | `contabilidad.leer` | Libro mayor de una cuenta (con saldo acumulado). |
 | `GET` | `/contabilidad/balance?ejercicio=` | `contabilidad.leer` | Balance de sumas y saldos. |
+| `GET` | `/contabilidad/pyg?ejercicio=` | `contabilidad.leer` | Cuenta de Pérdidas y Ganancias (grupos 6 y 7). |
+| `GET` | `/contabilidad/balance-situacion?ejercicio=` | `contabilidad.leer` | Balance de situación por masas patrimoniales. |
+| `POST` | `/contabilidad/cierre?ejercicio=` | `contabilidad.gestionar` | Cierra el ejercicio (regularización + cierre + apertura). |
 | `POST` | `/contabilidad/asientos` | `contabilidad.gestionar` | Crea un asiento manual. **201** |
 | `GET` | `/contabilidad/modo` | `contabilidad.leer` | Modo de contabilidad actual. |
 | `PUT` | `/contabilidad/modo` | `contabilidad.gestionar` | Cambia el modo (Simple / Completo). |
@@ -109,9 +158,10 @@ ventas de familia «Formación» a clientes tipo «Intracomunitario» → una cu
 
 ## Plan de cuentas
 
-Se siembra por empresa un subconjunto común del PGC (400, 430, 472, 477, 475, 4751, 570, 572, 600,
-621–629, 700, 705…) la primera vez que se consulta el plan o se genera un asiento. Es ampliable (los
-asientos referencian cuentas por su código; el plan da el nombre para los informes).
+Se siembra por empresa un subconjunto común del PGC (129 Resultado del ejercicio, 400, 430, 472, 477,
+475, 4751, 570, 572, 600, 621–629, 700, 705…) la primera vez que se consulta el plan o se genera un
+asiento. Es ampliable (los asientos referencian cuentas por su código; el plan da el nombre para los
+informes).
 
 ## Persistencia
 
@@ -146,9 +196,12 @@ asientos referencian cuentas por su código; el plan da el nombre para los infor
   asiento descuadrado → 400; una compra queda **pendiente** sin asiento por defecto; el contable ajusta
   la fecha de registro y contabiliza desde el panel (asiento 629/472 al debe, 400 al haber); con
   contabilización automática se asienta al instante; una **venta** genera el asiento de ingreso
-  (430 al debe; 705/477 al haber); y en modo Simple no se crean pendientes.
+  (430 al debe; 705/477 al haber); y en modo Simple no se crean pendientes. Cierre: la **PyG** resta
+  gastos a ingresos; el **balance de situación** cuadra incluyendo el resultado en el patrimonio neto;
+  el **cierre** genera regularización + cierre en el ejercicio y apertura en el siguiente; y no se puede
+  cerrar dos veces ni asentar en un ejercicio ya cerrado.
 
 ## Futuro (documentado)
 
-Ejercicios con cierre/apertura, cuentas de resultados (PyG) y balance de situación clasificado,
-amortizaciones, y numeración de asientos 100 % sin huecos ante fallos.
+Amortizaciones automáticas, modelo oficial de PyG y balance con todos los epígrafes normalizados del
+PGC (activo/pasivo/PN abreviado y normal), y numeración de asientos 100 % sin huecos ante fallos.

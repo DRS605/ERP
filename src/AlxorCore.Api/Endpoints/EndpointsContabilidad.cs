@@ -45,6 +45,18 @@ public static class EndpointsContabilidad
             .WithSummary("Balance de sumas y saldos del ejercicio.")
             .RequierePermiso(Permisos.ContabilidadLeer);
 
+        grupo.MapGet("/pyg", PyGAsync)
+            .WithSummary("Cuenta de Pérdidas y Ganancias del ejercicio.")
+            .RequierePermiso(Permisos.ContabilidadLeer);
+
+        grupo.MapGet("/balance-situacion", BalanceSituacionAsync)
+            .WithSummary("Balance de situación clasificado por masas del ejercicio.")
+            .RequierePermiso(Permisos.ContabilidadLeer);
+
+        grupo.MapPost("/cierre", CierreAsync)
+            .WithSummary("Cierra el ejercicio (regularización + cierre + apertura del siguiente).")
+            .RequierePermiso(Permisos.ContabilidadGestionar);
+
         grupo.MapPost("/asientos", CrearAsientoAsync)
             .WithSummary("Crea un asiento manual (debe la suma del debe = suma del haber).")
             .RequierePermiso(Permisos.ContabilidadGestionar);
@@ -136,6 +148,37 @@ public static class EndpointsContabilidad
         }
 
         return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, Ejercicio(ejercicio, reloj), ct).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> PyGAsync(int? ejercicio, IContextoEmpresa contexto, GenerarPerdidasGanancias caso, IReloj reloj, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, Ejercicio(ejercicio, reloj), ct).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> BalanceSituacionAsync(int? ejercicio, IContextoEmpresa contexto, GenerarBalanceSituacion caso, IReloj reloj, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, Ejercicio(ejercicio, reloj), ct).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> CierreAsync(int? ejercicio, IContextoEmpresa contexto, CerrarEjercicio caso, IReloj reloj, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        var resultado = await caso.EjecutarAsync(contexto.EmpresaId.Value, Ejercicio(ejercicio, reloj), ct).ConfigureAwait(false);
+        return resultado.EsCorrecto ? Results.Ok(resultado.Valor) : ResultadosHttp.AProblema(resultado.Error);
     }
 
     private static async Task<IResult> CrearAsientoAsync(CrearAsientoComando comando, IContextoEmpresa contexto, CrearAsiento caso, CancellationToken ct)

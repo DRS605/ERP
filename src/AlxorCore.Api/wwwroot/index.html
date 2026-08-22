@@ -1423,13 +1423,15 @@
     async function vContabilidad() {
       view('<div class="muted">Cargando…</div>');
       const anio=new Date().getFullYear();
-      const [cfg,diario,balance,pendientes,reglas,cuentas]=await Promise.all([
+      const [cfg,diario,balance,pendientes,reglas,cuentas,pyg,balsit]=await Promise.all([
         api("/contabilidad/config"),
         api("/contabilidad/diario?ejercicio="+anio),
         api("/contabilidad/balance?ejercicio="+anio),
         api("/contabilidad/pendientes").catch(()=>[]),
         api("/contabilidad/reglas").catch(()=>[]),
         api("/contabilidad/cuentas").catch(()=>[]),
+        api("/contabilidad/pyg?ejercicio="+anio).catch(()=>null),
+        api("/contabilidad/balance-situacion?ejercicio="+anio).catch(()=>null),
       ]);
       window._ctaOpts=cuentas;
       const modo=cfg.modo||"Simple";
@@ -1493,11 +1495,60 @@
       const balTabla=balance.length
         ? `<table><thead><tr><th>Cuenta</th><th>Nombre</th><th class="num">Debe</th><th class="num">Haber</th><th class="num">Saldo D</th><th class="num">Saldo A</th></tr></thead><tbody>${balance.map(s=>`<tr><td><strong>${s.cuentaCodigo}</strong></td><td class="muted">${s.cuentaNombre}</td><td class="num">${eur(s.sumaDebe)}</td><td class="num">${eur(s.sumaHaber)}</td><td class="num">${s.saldoDeudor>0?eur(s.saldoDeudor):''}</td><td class="num">${s.saldoAcreedor>0?eur(s.saldoAcreedor):''}</td></tr>`).join("")}<tr style="border-top:2px solid var(--line)"><td colspan="2"><strong>Totales</strong></td><td class="num"><strong>${eur(totD)}</strong></td><td class="num"><strong>${eur(totH)}</strong></td><td colspan="2"></td></tr></tbody></table>`
         : '<p class="muted">Sin movimientos en '+anio+'.</p>';
+      // Cuenta de Pérdidas y Ganancias (grupos 6 y 7).
+      let panelPyg="";
+      if(pyg && (pyg.ingresos.length||pyg.gastos.length)){
+        const linI=pyg.ingresos.map(l=>`<tr><td><strong>${l.codigo}</strong></td><td class="muted">${l.nombre}</td><td class="num">${eur(l.importe)}</td></tr>`).join("");
+        const linG=pyg.gastos.map(l=>`<tr><td><strong>${l.codigo}</strong></td><td class="muted">${l.nombre}</td><td class="num">${eur(l.importe)}</td></tr>`).join("");
+        const resPos=pyg.resultado>=0;
+        const tabla=`<table><thead><tr><th>Cuenta</th><th>Concepto</th><th class="num">Importe</th></tr></thead><tbody>
+          <tr><td colspan="3" style="background:var(--bg-soft,rgba(0,0,0,.03));font-weight:700">Ingresos (grupo 7)</td></tr>${linI||'<tr><td colspan="3" class="muted">Sin ingresos.</td></tr>'}
+          <tr style="border-top:1px solid var(--line)"><td colspan="2"><strong>Total ingresos</strong></td><td class="num"><strong>${eur(pyg.totalIngresos)}</strong></td></tr>
+          <tr><td colspan="3" style="background:var(--bg-soft,rgba(0,0,0,.03));font-weight:700">Gastos (grupo 6)</td></tr>${linG||'<tr><td colspan="3" class="muted">Sin gastos.</td></tr>'}
+          <tr style="border-top:1px solid var(--line)"><td colspan="2"><strong>Total gastos</strong></td><td class="num"><strong>${eur(pyg.totalGastos)}</strong></td></tr>
+          <tr style="border-top:2px solid var(--line)"><td colspan="2"><strong>Resultado del ejercicio</strong></td><td class="num"><strong class="${resPos?'':'err-txt'}" style="color:${resPos?'var(--ok,#0a7d3b)':'#c0392b'}">${eur(pyg.resultado)}</strong> <span class="pill ${resPos?'ok':'wait'}">${resPos?'Beneficio':'Pérdida'}</span></td></tr>
+          </tbody></table>`;
+        panelPyg=panel("Pérdidas y Ganancias · "+anio,tabla);
+      }
+      // Balance de situación (masas patrimoniales).
+      let panelBalSit="";
+      if(balsit && (balsit.totalActivo||balsit.totalPatrimonioNetoYPasivo)){
+        const grupo=(titulo,lineas)=>lineas.length?`<tr><td colspan="2" style="background:var(--bg-soft,rgba(0,0,0,.03));font-weight:700">${titulo}</td></tr>`+lineas.map(l=>`<tr><td>${l.codigo} · <span class="muted">${l.nombre}</span></td><td class="num">${eur(l.importe)}</td></tr>`).join(""):"";
+        const activo=`<table><thead><tr><th>Activo</th><th class="num">Importe</th></tr></thead><tbody>
+          ${grupo("Activo no corriente",balsit.activoNoCorriente)}${grupo("Activo corriente",balsit.activoCorriente)}
+          <tr style="border-top:2px solid var(--line)"><td><strong>Total activo</strong></td><td class="num"><strong>${eur(balsit.totalActivo)}</strong></td></tr></tbody></table>`;
+        const pnpas=`<table><thead><tr><th>Patrimonio neto y pasivo</th><th class="num">Importe</th></tr></thead><tbody>
+          ${grupo("Patrimonio neto",balsit.patrimonioNeto)}${grupo("Pasivo",balsit.pasivo)}
+          <tr style="border-top:2px solid var(--line)"><td><strong>Total P. neto y pasivo</strong></td><td class="num"><strong>${eur(balsit.totalPatrimonioNetoYPasivo)}</strong></td></tr></tbody></table>`;
+        const aviso=balsit.cuadra?'<span class="pill ok">Cuadra</span>':'<span class="pill wait">Descuadre — revisa los asientos</span>';
+        panelBalSit=panel("Balance de situación · "+anio,
+          `<p class="muted" style="margin:0 0 10px">Clasificación analítica por masas del PGC ${aviso}. Incluye el resultado provisional del ejercicio en el patrimonio neto mientras no se haya cerrado.</p>
+           <div class="grid2" style="align-items:start">${activo}${pnpas}</div>`);
+      }
+      // Cierre de ejercicio (solo modo Completo).
+      let panelCierre="";
+      if(modo==="Completo"){
+        const yaCerrado=diario.some(a=>a.origen==="Cierre");
+        panelCierre=panel("Cierre de ejercicio · "+anio,
+          yaCerrado
+            ? `<p class="muted" style="margin:0">El ejercicio <strong>${anio}</strong> ya está cerrado. Se generaron los asientos de regularización, cierre y la apertura de ${anio+1}. No admite nuevos asientos.</p>`
+            : `<p class="muted" style="margin:0 0 10px">Cerrar el ejercicio regulariza los grupos 6 y 7 contra la cuenta de resultado (129), genera el asiento de cierre de todas las cuentas patrimoniales y abre esos saldos en ${anio+1}. Tras cerrar, ${anio} no admite más asientos.</p>`,
+          yaCerrado?'':`<button class="btn small" onclick="cerrarEjercicio(${anio})">Cerrar ejercicio ${anio}</button>`);
+      }
       view(banner
         +panelPend
         +panelReglas
         +panel("Libro diario · "+anio,diarioTabla,`<button class="btn small" onclick="modalAsiento()">+ Nuevo asiento</button>`)
-        +panel("Balance de sumas y saldos · "+anio,balTabla));
+        +panel("Balance de sumas y saldos · "+anio,balTabla)
+        +panelPyg
+        +panelBalSit
+        +panelCierre);
+    }
+    async function cerrarEjercicio(anio){
+      if(!confirm("¿Cerrar el ejercicio "+anio+"?\n\nSe generarán los asientos de regularización, cierre y apertura de "+(anio+1)+". El ejercicio "+anio+" quedará bloqueado para nuevos asientos.")) return;
+      try{ const r=await api("/contabilidad/cierre?ejercicio="+anio,{method:"POST"});
+        toast("Ejercicio "+anio+" cerrado. Resultado: "+eur(r.resultado),"ok"); vContabilidad();
+      }catch(e){ toast(e.message,"err"); }
     }
     function modalRegla(r){
       const cuentas=window._ctaOpts||[];

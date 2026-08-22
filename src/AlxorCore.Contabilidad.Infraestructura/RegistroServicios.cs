@@ -38,6 +38,9 @@ public static class RegistroServicios
         servicios.AddScoped<ListarDiario>();
         servicios.AddScoped<MayorCuenta>();
         servicios.AddScoped<BalanceSumasYSaldos>();
+        servicios.AddScoped<GenerarPerdidasGanancias>();
+        servicios.AddScoped<GenerarBalanceSituacion>();
+        servicios.AddScoped<CerrarEjercicio>();
         servicios.AddScoped<ObtenerModoContabilidad>();
         servicios.AddScoped<CambiarModoContabilidad>();
         servicios.AddScoped<GenerarAsientoCompra>();

@@ -81,8 +81,12 @@ public static class PlanBasico
     public const string CuentaIvaRepercutido = "477"; // H.P. IVA repercutido
     public const string CuentaRetencionVenta = "473"; // H.P. retenciones y pagos a cuenta (ventas)
 
+    /// <summary>Cuenta de resultado del ejercicio (regularización de gastos e ingresos en el cierre).</summary>
+    public const string CuentaResultado = "129";
+
     public static readonly IReadOnlyList<(string Codigo, string Nombre)> Cuentas = new[]
     {
+        ("129", "Resultado del ejercicio"),
         ("430", "Clientes"),
         ("400", "Proveedores"),
         ("410", "Acreedores por prestaciones de servicios"),
@@ -228,6 +232,14 @@ public sealed class CrearAsiento
     {
         ArgumentNullException.ThrowIfNull(comando);
         var ejercicio = comando.Fecha.Year;
+
+        // No se pueden añadir asientos manuales a un ejercicio ya cerrado.
+        var existentes = await _asientos.TodosAsync(empresaId, ejercicio, ct).ConfigureAwait(false);
+        if (existentes.Any(a => a.Origen == "Cierre"))
+        {
+            return Resultado.Fallo<AsientoDto>(Error.Conflicto("asiento.ejercicio_cerrado", $"El ejercicio {ejercicio} está cerrado; no admite nuevos asientos."));
+        }
+
         var numero = await _asientos.SiguienteNumeroAsync(empresaId, ejercicio, ct).ConfigureAwait(false);
         var lineas = (comando.Lineas ?? Array.Empty<LineaAsientoComando>())
             .Select(l => new LineaAsiento(l.CuentaCodigo, l.Debe, l.Haber, l.Concepto)).ToList();
