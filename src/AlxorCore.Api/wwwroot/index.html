@@ -404,6 +404,7 @@
       cobros:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9 12h6M12 9v6"/></svg>',
       informes:'<svg viewBox="0 0 24 24"><path d="M4 20V4M4 20h16"/><path d="M8 16v-5M13 16V8M18 16v-9"/></svg>',
       gestion:'<svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>',
+      divisas:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 0M14.5 15a2.5 2.5 0 0 1-5 0M12 6v12"/></svg>',
       contabilidad:'<svg viewBox="0 0 24 24"><path d="M4 4h13l3 3v13H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>',
       recurrentes:'<svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13-6l3 2"/><path d="M20 4v4h-4"/><path d="M20 12a8 8 0 0 1-13 6l-3-2"/><path d="M4 20v-4h4"/></svg>',
       tpv:'<svg viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 12h10"/></svg>',
@@ -431,9 +432,10 @@
       { t:"item", k:"gestion", l:"Análisis de gestión" },
       { t:"item", k:"contabilidad", l:"Contabilidad" },
       { t:"item", k:"inmovilizado", l:"Inmovilizado" },
+      { t:"item", k:"divisas", l:"Divisas" },
       { t:"item", k:"ajustes", l:"Ajustes" },
     ];
-    const TITULOS = { inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", gestion:"Análisis de gestión", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", ajustes:"Ajustes" };
+    const TITULOS = { inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", gestion:"Análisis de gestión", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", divisas:"Divisas y tipos de cambio", ajustes:"Ajustes" };
     function renderNav() {
       return NAV.map(n => {
         if (n.t === "item") return `<a class="navitem" data-k="${n.k}" onclick="ir('${n.k}')">${ICON[n.k]}<span>${n.l}</span></a>`;
@@ -529,7 +531,7 @@
     function ir(k){ closeMenu(); if(vista==="tpv" && k!=="tpv" && typeof tpvParar==="function") tpvParar(); vista=k;
       document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("active",a.dataset.k===k));
       document.getElementById("viewTitle").textContent=TITULOS[k]||k;
-      ({inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:vPedidosVenta,clientes:vClientes,productos:vProductos,familias:vFamilias,gastos:vGastos,solicitudes:vSolicitudes,pedidos:vPedidos,inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,gestion:vGestion,contabilidad:vContabilidad,inmovilizado:vInmovilizado,ajustes:vAjustes}[k])();
+      ({inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:vPedidosVenta,clientes:vClientes,productos:vProductos,familias:vFamilias,gastos:vGastos,solicitudes:vSolicitudes,pedidos:vPedidos,inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,gestion:vGestion,contabilidad:vContabilidad,inmovilizado:vInmovilizado,divisas:vDivisas,ajustes:vAjustes}[k])();
     }
     const view = h => { document.getElementById("view").innerHTML=h; try{ mejorarTablas(); }catch(e){} };
 
@@ -2172,6 +2174,72 @@
       const panelLibro=panel(`Libro de IVA repercutido · ${anio}`,cuerpo,`<button class="btn small ghost" onclick="descargarCsv()">↓ Exportar CSV (gestoría)</button>`);
       view(panelGraficos+(benef?panelBeneficio(benef,anio):"")+(benef&&benef.porProducto.length?panelRanking(benef,anio):"")+(resumen?panelResumen(resumen,anio):"")+((m111||m190)?panelRetenciones(m111,m190,anio):"")+(m349?panelIntracomunitarias(m349,anio):"")+(anual?panelAnual(anual,anio):"")+panelLibro);
     }
+    /* ---------- Divisas y tipos de cambio ---------- */
+    let _divisasCat=[], _difLineas=[];
+    async function vDivisas(){
+      view('<div class="muted">Cargando…</div>');
+      const [cat,tipos]=await Promise.all([api("/divisas").catch(()=>[]),api("/tipos-cambio").catch(()=>[])]);
+      _divisasCat=cat;
+      const hoy=new Date().toISOString().slice(0,10);
+      const filasTc=tipos.length?tipos.map(t=>`<tr><td><strong class="mono">${t.divisa}</strong></td><td class="muted">${fdate(t.fecha)}</td><td class="num">${t.tasaEur} €</td></tr>`).join("")
+        :`<tr><td colspan="3" class="muted">Aún no hay tipos de cambio. Añade uno para poder facturar o valorar en divisa.</td></tr>`;
+      const opcNoEur=cat.filter(d=>d.codigo!=="EUR").map(d=>`<option value="${d.codigo}">${d.codigo} · ${d.nombre}</option>`).join("");
+      const panelTc=panel("Tipos de cambio",
+        `<p class="muted" style="margin:0 0 12px">La moneda funcional es el <strong>euro</strong>. La tasa es cuántos euros vale <strong>una unidad</strong> de la divisa (p. ej. USD 0,92 ⇒ 1 USD = 0,92 €). Al convertir a una fecha se usa la tasa más reciente anterior o igual.</p>
+         <table><thead><tr><th>Divisa</th><th>Fecha</th><th class="num">Tasa (€/ud)</th></tr></thead><tbody>${filasTc}</tbody></table>`,
+        `<button class="btn small" onclick="modalTipoCambio()">+ Tipo de cambio</button>`);
+      const panelConv=panel("Conversor",
+        `<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">
+           <div><label style="font-size:11px;color:var(--muted);display:block">Importe</label><input id="cv_imp" type="number" step="0.01" value="1000" style="width:130px"/></div>
+           <div><label style="font-size:11px;color:var(--muted);display:block">Divisa</label><select id="cv_div">${cat.map(d=>`<option value="${d.codigo}">${d.codigo}</option>`).join("")}</select></div>
+           <div><label style="font-size:11px;color:var(--muted);display:block">Fecha</label><input id="cv_fecha" type="date" value="${hoy}"/></div>
+           <button class="btn small" onclick="convertirDivisa()">Convertir a €</button>
+         </div><div id="cv_res" style="margin-top:10px" class="muted"></div>`);
+      const panelDif=panel("Diferencias de cambio (valoración)",
+        `<p class="muted" style="margin:0 0 10px">Calcula las diferencias de cambio de posiciones abiertas en divisa a una fecha (p. ej. el cierre). Positivas → cuenta 768; negativas → 668.</p>
+         <div style="display:flex;gap:10px;align-items:end;margin-bottom:10px"><div><label style="font-size:11px;color:var(--muted);display:block">Fecha de valoración</label><input id="df_fecha" type="date" value="${hoy}"/></div>
+         <button class="btn small secondary" onclick="difAnadir()">+ Posición</button><button class="btn small" onclick="calcularDiferencias()">Calcular</button></div>
+         <div id="df_lineas"></div><div id="df_res" style="margin-top:12px"></div>`,``);
+      view(panelTc+panelConv+panelDif);
+      _difLineas=[]; difAnadir();
+    }
+    function modalTipoCambio(){
+      const hoy=new Date().toISOString().slice(0,10);
+      const opc=_divisasCat.filter(d=>d.codigo!=="EUR").map(d=>`<option value="${d.codigo}">${d.codigo} · ${d.nombre}</option>`).join("");
+      abrir("Nuevo tipo de cambio",
+        `<div class="grid2"><div><label>Divisa</label><select id="tc_div">${opc}</select></div><div><label>Fecha</label><input id="tc_fecha" type="date" value="${hoy}"/></div></div>
+         <label style="margin-top:10px">Tasa (euros por 1 unidad de la divisa)</label><input id="tc_tasa" type="number" step="0.000001" placeholder="Ej. 0,92"/>`,
+        async()=>{ await api("/tipos-cambio",{method:"POST",body:JSON.stringify({divisa:val("tc_div"),fecha:val("tc_fecha"),tasaEur:Number(val("tc_tasa"))})}); toast("Tipo de cambio guardado.","ok"); vDivisas(); });
+    }
+    async function convertirDivisa(){
+      const res=document.getElementById("cv_res");
+      try{ const c=await api(`/divisas/convertir?divisa=${val("cv_div")}&importe=${Number(val("cv_imp")||0)}&fecha=${val("cv_fecha")}`);
+        res.innerHTML=`<strong>${eur(c.importeEur)}</strong> <span class="muted">(tasa ${c.tasaEur} €/${c.divisa})</span>`; }
+      catch(e){ res.innerHTML=`<span style="color:var(--neg)">${e.message}</span>`; }
+    }
+    function difFilaHtml(l){ const opc=_divisasCat.filter(d=>d.codigo!=="EUR").map(d=>`<option value="${d.codigo}"${d.codigo===l.divisa?" selected":""}>${d.codigo}</option>`).join("");
+      return `<div class="df-linea" style="display:grid;grid-template-columns:1.4fr 0.8fr 1fr 1fr 1fr auto;gap:6px;margin-bottom:6px">
+        <input class="df-ref" placeholder="Referencia (FA…)" value="${l.ref||''}"/>
+        <select class="df-div">${opc}</select>
+        <input class="df-imp" type="number" step="0.01" placeholder="Importe divisa" value="${l.imp||''}"/>
+        <input class="df-tasa" type="number" step="0.000001" placeholder="Tasa origen" value="${l.tasa||''}"/>
+        <select class="df-tipo"><option value="true"${l.activo!==false?" selected":""}>A cobrar</option><option value="false"${l.activo===false?" selected":""}>A pagar</option></select>
+        <button class="btn small ghost" onclick="this.closest('.df-linea').remove()">✕</button></div>`; }
+    function difAnadir(){ document.getElementById("df_lineas").insertAdjacentHTML("beforeend",difFilaHtml({})); }
+    async function calcularDiferencias(){
+      const posiciones=[...document.querySelectorAll("#df_lineas .df-linea")].map(r=>({
+        referencia:r.querySelector(".df-ref").value||"—", divisa:r.querySelector(".df-div").value,
+        importeDivisa:Number(r.querySelector(".df-imp").value||0), tasaOrigen:Number(r.querySelector(".df-tasa").value||0),
+        esActivo:r.querySelector(".df-tipo").value==="true"})).filter(p=>p.importeDivisa>0&&p.tasaOrigen>0);
+      const res=document.getElementById("df_res");
+      if(!posiciones.length){ res.innerHTML='<p class="muted">Añade al menos una posición con importe y tasa.</p>'; return; }
+      try{ const d=await api("/divisas/diferencias-cambio",{method:"POST",body:JSON.stringify({fechaValoracion:val("df_fecha"),posiciones})});
+        const filas=d.lineas.map(l=>`<tr><td>${l.referencia}</td><td class="mono">${l.divisa}</td><td class="num">${l.tasaValoracion}</td><td class="num"><strong style="${l.esIngreso?'':'color:var(--neg)'}">${eur(l.diferenciaEur)}</strong></td><td class="mono">${l.cuenta}</td></tr>`).join("");
+        res.innerHTML=`<table><thead><tr><th>Referencia</th><th>Divisa</th><th class="num">Tasa valoración</th><th class="num">Diferencia €</th><th>Cuenta</th></tr></thead><tbody>${filas}</tbody></table>
+          <p class="muted" style="font-size:12px;margin:10px 0 0">Ingresos (768): <strong>${eur(d.totalIngresos)}</strong> · Gastos (668): <strong>${eur(d.totalGastos)}</strong> · Neto: <strong>${eur(d.totalDiferencia)}</strong></p>`;
+      }catch(e){ res.innerHTML=`<span style="color:var(--neg)">${e.message}</span>`; }
+    }
+
     const MESES=["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
     let _gestAnio=new Date().getFullYear();
     async function vGestion(){

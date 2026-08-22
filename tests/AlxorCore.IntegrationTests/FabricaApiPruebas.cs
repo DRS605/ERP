@@ -70,6 +70,7 @@ public sealed class FabricaApiPruebas : WebApplicationFactory<Program>, IAsyncLi
         var proyectos = ambito.ServiceProvider.GetRequiredService<AlxorCore.Proyectos.Infraestructura.ProyectosDbContext>();
         var tesoreria = ambito.ServiceProvider.GetRequiredService<AlxorCore.Tesoreria.Infraestructura.TesoreriaDbContext>();
         var auditoria = ambito.ServiceProvider.GetRequiredService<AlxorCore.Auditoria.Infraestructura.AuditoriaDbContext>();
+        var divisas = ambito.ServiceProvider.GetRequiredService<AlxorCore.Divisas.Infraestructura.DivisasDbContext>();
 
         await identidad.Database.MigrateAsync().ConfigureAwait(false);
         await organizacion.Database.MigrateAsync().ConfigureAwait(false);
@@ -86,6 +87,7 @@ public sealed class FabricaApiPruebas : WebApplicationFactory<Program>, IAsyncLi
         await proyectos.Database.MigrateAsync().ConfigureAwait(false);
         await tesoreria.Database.MigrateAsync().ConfigureAwait(false);
         await auditoria.Database.MigrateAsync().ConfigureAwait(false);
+        await divisas.Database.MigrateAsync().ConfigureAwait(false);
 
         await LimpiarBaseDatosAsync(identidad).ConfigureAwait(false);
     }

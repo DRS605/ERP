@@ -22,6 +22,7 @@ using AlxorCore.Tesoreria.Infraestructura;
 using AlxorCore.Documentos.Infraestructura;
 using AlxorCore.Informes.Infraestructura;
 using AlxorCore.Auditoria.Infraestructura;
+using AlxorCore.Divisas.Infraestructura;
 using AlxorCore.Organizacion.Infraestructura.Persistencia;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -55,6 +56,7 @@ builder.Services.AgregarModuloTesoreria(builder.Configuration);
 builder.Services.AgregarModuloDocumentos();
 builder.Services.AgregarModuloInformes();
 builder.Services.AgregarModuloAuditoria(builder.Configuration);
+builder.Services.AgregarModuloDivisas(builder.Configuration);
 
 // --- Facturación automática periódica (proceso en segundo plano) ---
 builder.Services.Configure<AlxorCore.Api.Servicios.OpcionesFacturacionRecurrente>(
@@ -138,6 +140,7 @@ if (app.Environment.IsDevelopment())
     await ambito.ServiceProvider.GetRequiredService<ProyectosDbContext>().Database.MigrateAsync().ConfigureAwait(false);
     await ambito.ServiceProvider.GetRequiredService<AlxorCore.Tesoreria.Infraestructura.TesoreriaDbContext>().Database.MigrateAsync().ConfigureAwait(false);
     await ambito.ServiceProvider.GetRequiredService<AlxorCore.Auditoria.Infraestructura.AuditoriaDbContext>().Database.MigrateAsync().ConfigureAwait(false);
+    await ambito.ServiceProvider.GetRequiredService<AlxorCore.Divisas.Infraestructura.DivisasDbContext>().Database.MigrateAsync().ConfigureAwait(false);
 
     app.UseSwagger();
     app.UseSwaggerUI();
@@ -178,6 +181,7 @@ app.MapearTesoreria();
 app.MapearDocumentos();
 app.MapearInformes();
 app.MapearAuditoria();
+app.MapearDivisas();
 app.MapearCuenta();
 app.MapearImportacion();
 
