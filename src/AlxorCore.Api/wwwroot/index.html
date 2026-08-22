@@ -1934,13 +1934,37 @@
       try{ panelFormas=await panelFormasPagoHtml(); }catch(e){ panelFormas=""; }
       let panelRiesgo="";
       try{ panelRiesgo=await panelRiesgoHtml(); }catch(e){ panelRiesgo=""; }
+      const panelImport=panelImportacionHtml();
       let panelUsuarios="";
       try{ panelUsuarios=await panelUsuariosHtml(); }catch(e){ panelUsuarios=""; }
       let panelAudit="";
       try{ panelAudit=await panelAuditoriaHtml(); }catch(e){ panelAudit=""; }
       let panelValoracion="";
       try{ panelValoracion=await panelValoracionHtml(); }catch(e){ panelValoracion=""; }
-      view(panelSeries+panelAsig+panelFormas+panelRiesgo+panelValoracion+panelCobroHtml()+panelUsuarios+panelDatosHtml()+panelAudit);
+      view(panelSeries+panelAsig+panelFormas+panelRiesgo+panelImport+panelValoracion+panelCobroHtml()+panelUsuarios+panelDatosHtml()+panelAudit);
+    }
+    function panelImportacionHtml(){
+      const fila=(tipo,titulo,cols)=>`<div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--line)">
+        <div style="flex:1"><strong>${titulo}</strong><div class="muted" style="font-size:12px">Columnas: ${cols}</div></div>
+        <label class="btn small ghost" style="cursor:pointer;width:auto;margin:0">Elegir Excel…<input type="file" accept=".xlsx" style="display:none" onchange="importarExcel('${tipo}',this)"/></label></div>`;
+      const cuerpo=`<p class="muted" style="margin:0 0 10px">Sube un <strong>.xlsx</strong> para cargar los datos de arranque. Primero se previsualiza (sin aplicar) y confirmas antes de guardar.</p>
+        ${fila('saldos','Saldos contables (asiento de apertura)','cuenta, debe, haber')}
+        ${fila('cartera','Cartera pendiente (previsiones de cobro/pago)','sentido (cobro/pago), concepto, importe, fecha')}
+        ${fila('stock','Existencias iniciales','referencia, cantidad')}`;
+      return panel("Importación de arranque (Excel)",cuerpo);
+    }
+    async function importarExcel(tipo,input){
+      const file=input.files&&input.files[0]; input.value="";
+      if(!file) return;
+      const b64=await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(String(r.result).split(",")[1]); r.onerror=rej; r.readAsDataURL(file); });
+      try{
+        const prev=await api("/importar/"+tipo,{method:"POST",body:JSON.stringify({contenidoBase64:b64,previsualizar:true})});
+        const resumen=(prev.mensajes||[]).join("\n");
+        if(!confirm("Previsualización:\n\n"+resumen+"\n\n¿Aplicar la importación?")) { toast("Importación cancelada.","wait"); return; }
+        const r=await api("/importar/"+tipo,{method:"POST",body:JSON.stringify({contenidoBase64:b64,previsualizar:false})});
+        toast(`Importado: ${r.correctas} correcta(s)${r.errores?`, ${r.errores} con aviso`:""}.`,"ok");
+        vAjustes();
+      }catch(e){ toast(e.message,"err"); }
     }
     async function panelRiesgoHtml(){
       const emp=await api("/empresas/actual");

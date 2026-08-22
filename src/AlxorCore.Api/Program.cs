@@ -177,6 +177,7 @@ app.MapearDocumentos();
 app.MapearInformes();
 app.MapearAuditoria();
 app.MapearCuenta();
+app.MapearImportacion();
 
 // Cualquier ruta no-API devuelve la SPA (enrutado en el cliente).
 app.MapFallbackToFile("index.html");
