@@ -269,6 +269,15 @@ validar con la gestoría):
 La amortización del inmovilizado (contable y fiscal, impuesto diferido, baja y enajenación) es un
 submódulo de Contabilidad con su propia documentación: ver [`inmovilizado.md`](inmovilizado.md).
 
+## Rendimiento
+
+Los informes contables (balance de sumas y saldos, libro mayor agregado, PyG, balance de situación,
+cuentas anuales y modelo 200) calculan los saldos **agregando por cuenta con `GROUP BY` en la base
+de datos** (`SaldosAgregadosAsync`), en lugar de cargar todos los apuntes del ejercicio en memoria.
+El consumo de memoria queda acotado por el **número de cuentas**, no por el volumen de asientos, de
+modo que el coste no crece con el tamaño de la contabilidad. Del mismo modo, el control de ejercicio
+cerrado usa un `EXISTS` (`TieneCierreAsync`) en lugar de traer los asientos de cierre.
+
 ## Futuro (documentado)
 
 Modelo oficial de PyG y balance con todos los epígrafes normalizados del PGC (activo/pasivo/PN

@@ -30,6 +30,9 @@ public sealed record LineaMayorDto(DateOnly Fecha, int Numero, string Concepto, 
 /// <summary>Fila del balance de sumas y saldos.</summary>
 public sealed record SaldoCuentaDto(string CuentaCodigo, string CuentaNombre, decimal SumaDebe, decimal SumaHaber, decimal SaldoDeudor, decimal SaldoAcreedor);
 
+/// <summary>Saldo agregado de una cuenta (suma de debe/haber), calculado en la base de datos.</summary>
+public sealed record SaldoCuentaAgregado(string CuentaCodigo, decimal Debe, decimal Haber);
+
 // --------------------------------------------------------------------------------------------
 //  Puertos
 // --------------------------------------------------------------------------------------------
@@ -63,6 +66,15 @@ public interface IRepositorioAsientos
     Task<IReadOnlyList<AsientoDto>> AsientosDeCuentaAsync(Guid empresaId, int ejercicio, string cuentaCodigo, CancellationToken ct = default);
 
     Task<IReadOnlyList<AsientoDto>> TodosAsync(Guid empresaId, int ejercicio, CancellationToken ct = default);
+
+    /// <summary>
+    /// Saldo (debe/haber) agregado por cuenta del ejercicio, calculado con <c>GROUP BY</c> en la base de
+    /// datos: la memoria depende del número de cuentas, no del número de apuntes (escala a grandes volúmenes).
+    /// </summary>
+    Task<IReadOnlyList<SaldoCuentaAgregado>> SaldosAgregadosAsync(Guid empresaId, int ejercicio, CancellationToken ct = default);
+
+    /// <summary>¿El ejercicio tiene algún asiento de cierre? (para saber si está cerrado sin cargarlos todos).</summary>
+    Task<bool> TieneCierreAsync(Guid empresaId, int ejercicio, CancellationToken ct = default);
 }
 
 public interface IRepositorioConfigContabilidad
@@ -262,9 +274,8 @@ public sealed class CrearAsiento
         ArgumentNullException.ThrowIfNull(comando);
         var ejercicio = comando.Fecha.Year;
 
-        // No se pueden añadir asientos manuales a un ejercicio ya cerrado.
-        var existentes = await _asientos.TodosAsync(empresaId, ejercicio, ct).ConfigureAwait(false);
-        if (existentes.Any(a => a.Origen == "Cierre"))
+        // No se pueden añadir asientos manuales a un ejercicio ya cerrado (comprobación por EXISTS).
+        if (await _asientos.TieneCierreAsync(empresaId, ejercicio, ct).ConfigureAwait(false))
         {
             return Resultado.Fallo<AsientoDto>(Error.Conflicto("asiento.ejercicio_cerrado", $"El ejercicio {ejercicio} está cerrado; no admite nuevos asientos."));
         }
@@ -335,26 +346,17 @@ public sealed class BalanceSumasYSaldos
 
     public async Task<IReadOnlyList<SaldoCuentaDto>> EjecutarAsync(Guid empresaId, int ejercicio, CancellationToken ct = default)
     {
-        var asientos = await _asientos.TodosAsync(empresaId, ejercicio, ct).ConfigureAwait(false);
+        // La suma por cuenta la calcula la base de datos (GROUP BY); no se cargan los apuntes en memoria.
+        var agregados = await _asientos.SaldosAgregadosAsync(empresaId, ejercicio, ct).ConfigureAwait(false);
         var cuentas = await _cuentas.ListarAsync(empresaId, ct).ConfigureAwait(false);
         var nombres = cuentas.ToDictionary(c => c.Codigo, c => c.Nombre, StringComparer.Ordinal);
 
-        var acum = new Dictionary<string, (decimal Debe, decimal Haber)>(StringComparer.Ordinal);
-        foreach (var a in asientos)
+        return agregados.OrderBy(s => s.CuentaCodigo, StringComparer.Ordinal).Select(s =>
         {
-            foreach (var ap in a.Apuntes)
-            {
-                var actual = acum.TryGetValue(ap.CuentaCodigo, out var v) ? v : (0m, 0m);
-                acum[ap.CuentaCodigo] = (actual.Item1 + ap.Debe, actual.Item2 + ap.Haber);
-            }
-        }
-
-        return acum.OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv =>
-        {
-            var debe = Redondeo.Dos(kv.Value.Debe);
-            var haber = Redondeo.Dos(kv.Value.Haber);
+            var debe = Redondeo.Dos(s.Debe);
+            var haber = Redondeo.Dos(s.Haber);
             var saldo = Redondeo.Dos(debe - haber);
-            return new SaldoCuentaDto(kv.Key, nombres.GetValueOrDefault(kv.Key, "—"), debe, haber,
+            return new SaldoCuentaDto(s.CuentaCodigo, nombres.GetValueOrDefault(s.CuentaCodigo, "—"), debe, haber,
                 saldo > 0m ? saldo : 0m, saldo < 0m ? -saldo : 0m);
         }).ToList();
     }

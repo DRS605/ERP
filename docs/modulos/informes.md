@@ -56,6 +56,20 @@ anuales. Como los trimestrales, es **ayuda informativa** para la gestoría, no u
   facturas; los proveedores se agrupan por el maestro de proveedores (resolviendo nombre y NIF) o,
   en su defecto, por el texto libre del gasto. Requiere el permiso `informe.leer`.
 
+## SII (Suministro Inmediato de Información)
+
+`GET /informes/sii?tipo=Emitidas|Recibidas&ejercicio=&periodo=1..12` genera el **XML del libro
+registro** de facturas expedidas (`Emitidas`) o recibidas (`Recibidas`) de un mes, con la estructura
+y espacios de nombres del SII de la AEAT (`SuministroInformacion.xsd` / `SuministroLR.xsd`,
+`IDVersionSii` 1.1, comunicación `A0` de alta). Pensado para grandes empresas obligadas al SII
+(&gt;6 M€ de facturación) que deben remitir sus libros en un plazo de 4 días.
+
+Es una generación **mejor esfuerzo, a validar** con el esquema oficial: reutiliza los datos de las
+facturas/gastos y el NIF de la empresa (titular). El **envío en vivo** (SOAP + certificado
+electrónico) es el paso posterior —igual que en VeriFactu— y solo requiere conectar el certificado
+sin rehacer esta generación. Descarga el fichero `application/xml`; requiere el permiso
+`datos.exportar`.
+
 ## Beneficio (margen bruto y neto)
 
 `GET /informes/beneficio?desde=&hasta=` calcula el beneficio del periodo a partir del **margen por
@@ -88,6 +102,7 @@ botón *Cierre de caja* del TPV.
 | `GET` | `/informes/libro-iva/csv` | permiso `datos.exportar` | Exportación CSV. |
 | `GET` | `/informes/resumen-trimestral` | permiso `informe.leer` | Resúmenes 303 (IVA) y 130 (IRPF) del trimestre. |
 | `GET` | `/informes/declaracion-anual` | permiso `informe.leer` | Declaraciones anuales 390 (IVA) y 347 (terceros). |
+| `GET` | `/informes/sii` | permiso `datos.exportar` | XML del SII (libro de facturas emitidas o recibidas de un mes). |
 | `GET` | `/informes/beneficio` | permiso `informe.leer` | Beneficio del periodo (margen bruto y neto). |
 | `GET` | `/informes/cierre-caja?dia=` | permiso `informe.leer` | Cierre de caja de un día (cobrado por método, pagado, neto). |
 
@@ -97,4 +112,5 @@ botón *Cierre de caja* del TPV.
   repercutido − soportado por trimestre; 130 acumulado con el 20 %, retenciones, pagos anteriores y
   suelo en 0; exclusión de facturas anuladas/rectificadas; trimestre fuera de rango).
 - **Integración**: dashboard (facturado/gastado/pendientes y su actualización tras un cobro), libro
-  de IVA repercutido, exportación CSV y resumen trimestral (303 y 130).
+  de IVA repercutido, exportación CSV y resumen trimestral (303 y 130); generación del XML del SII
+  (facturas emitidas y recibidas del periodo, periodo fuera de rango).

@@ -178,24 +178,15 @@ internal static class SaldosContables
     public static async Task<IReadOnlyList<SaldoContable>> CalcularAsync(
         Guid empresaId, int ejercicio, IRepositorioAsientos asientos, IRepositorioCuentas cuentas, CancellationToken ct)
     {
-        var todos = await asientos.TodosAsync(empresaId, ejercicio, ct).ConfigureAwait(false);
+        // La suma por cuenta la hace la base de datos (GROUP BY): no se cargan los apuntes en memoria.
+        var agregados = await asientos.SaldosAgregadosAsync(empresaId, ejercicio, ct).ConfigureAwait(false);
         var plan = await cuentas.ListarAsync(empresaId, ct).ConfigureAwait(false);
         var nombres = plan.ToDictionary(c => c.Codigo, c => c.Nombre, StringComparer.Ordinal);
 
-        var acum = new Dictionary<string, (decimal Debe, decimal Haber)>(StringComparer.Ordinal);
-        foreach (var a in todos)
-        {
-            foreach (var ap in a.Apuntes)
-            {
-                var actual = acum.TryGetValue(ap.CuentaCodigo, out var v) ? v : (0m, 0m);
-                acum[ap.CuentaCodigo] = (actual.Item1 + ap.Debe, actual.Item2 + ap.Haber);
-            }
-        }
-
-        return acum.Select(kv => new SaldoContable(
-            kv.Key, nombres.GetValueOrDefault(kv.Key, "—"),
-            kv.Key.Length > 0 && char.IsDigit(kv.Key[0]) ? kv.Key[0] - '0' : 0,
-            Redondeo.Dos(kv.Value.Debe), Redondeo.Dos(kv.Value.Haber))).ToList();
+        return agregados.Select(s => new SaldoContable(
+            s.CuentaCodigo, nombres.GetValueOrDefault(s.CuentaCodigo, "—"),
+            s.CuentaCodigo.Length > 0 && char.IsDigit(s.CuentaCodigo[0]) ? s.CuentaCodigo[0] - '0' : 0,
+            Redondeo.Dos(s.Debe), Redondeo.Dos(s.Haber))).ToList();
     }
 }
 
@@ -228,8 +219,7 @@ public sealed class CerrarEjercicio
 
     public async Task<Resultado<CierreEjercicioDto>> EjecutarAsync(Guid empresaId, int ejercicio, CancellationToken ct = default)
     {
-        var todos = await _asientos.TodosAsync(empresaId, ejercicio, ct).ConfigureAwait(false);
-        if (todos.Any(a => a.Origen == "Cierre"))
+        if (await _asientos.TieneCierreAsync(empresaId, ejercicio, ct).ConfigureAwait(false))
         {
             return Resultado.Fallo<CierreEjercicioDto>(Error.Conflicto("cierre.ya_cerrado", $"El ejercicio {ejercicio} ya está cerrado."));
         }

@@ -294,6 +294,17 @@ internal sealed class RepositorioAsientos : IRepositorioAsientos
             .Where(a => a.EmpresaId == empresaId && a.Ejercicio == ejercicio).ToListAsync(ct).ConfigureAwait(false);
         return asientos.Select(AsientoDto.Desde).ToList();
     }
+
+    public async Task<IReadOnlyList<SaldoCuentaAgregado>> SaldosAgregadosAsync(Guid empresaId, int ejercicio, CancellationToken ct = default) =>
+        await _contexto.Asientos.AsNoTracking()
+            .Where(a => a.EmpresaId == empresaId && a.Ejercicio == ejercicio)
+            .SelectMany(a => a.Apuntes)
+            .GroupBy(p => p.CuentaCodigo)
+            .Select(g => new SaldoCuentaAgregado(g.Key, g.Sum(x => x.Debe), g.Sum(x => x.Haber)))
+            .ToListAsync(ct).ConfigureAwait(false);
+
+    public Task<bool> TieneCierreAsync(Guid empresaId, int ejercicio, CancellationToken ct = default) =>
+        _contexto.Asientos.AnyAsync(a => a.EmpresaId == empresaId && a.Ejercicio == ejercicio && a.Origen == "Cierre", ct);
 }
 
 internal sealed class RepositorioConfigContabilidad : IRepositorioConfigContabilidad

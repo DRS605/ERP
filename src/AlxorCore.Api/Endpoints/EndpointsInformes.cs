@@ -80,7 +80,31 @@ public static class EndpointsInformes
             .WithSummary("Cierre de caja (arqueo) de un día: cobrado por método, pagado y neto.")
             .RequierePermiso(Permisos.InformeLeer);
 
+        informes.MapGet("/sii", SiiAsync)
+            .WithSummary("Genera el XML del SII (libro de facturas emitidas o recibidas) de un mes.")
+            .RequierePermiso(Permisos.DatosExportar);
+
         return rutas;
+    }
+
+    private static async Task<IResult> SiiAsync(
+        IContextoEmpresa contexto, GenerarSii caso, CancellationToken ct,
+        TipoLibroSii tipo = TipoLibroSii.Emitidas, int? ejercicio = null, int periodo = 1)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        var anio = ejercicio ?? DateTime.UtcNow.Year;
+        var resultado = await caso.EjecutarAsync(contexto.EmpresaId.Value, tipo, anio, periodo, ct).ConfigureAwait(false);
+        if (resultado.EsFallo)
+        {
+            return ResultadosHttp.AProblema(resultado.Error);
+        }
+
+        var nombre = $"sii-{(tipo == TipoLibroSii.Emitidas ? "emitidas" : "recibidas")}-{anio}-{periodo:D2}.xml";
+        return Results.File(System.Text.Encoding.UTF8.GetBytes(resultado.Valor), "application/xml", nombre);
     }
 
     private static async Task<IResult> DashboardAsync(IContextoEmpresa contexto, ObtenerDashboard caso, CancellationToken ct)

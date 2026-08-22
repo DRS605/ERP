@@ -86,11 +86,8 @@ public interface IRepositorioInmovilizado
 
 internal static class GuardaEjercicio
 {
-    public static async Task<bool> EstaCerradoAsync(IRepositorioAsientos asientos, Guid empresaId, int ejercicio, CancellationToken ct)
-    {
-        var existentes = await asientos.TodosAsync(empresaId, ejercicio, ct).ConfigureAwait(false);
-        return existentes.Any(a => a.Origen == "Cierre");
-    }
+    public static Task<bool> EstaCerradoAsync(IRepositorioAsientos asientos, Guid empresaId, int ejercicio, CancellationToken ct) =>
+        asientos.TieneCierreAsync(empresaId, ejercicio, ct);
 }
 
 // --------------------------------------------------------------------------------------------
