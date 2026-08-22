@@ -77,6 +77,37 @@ public sealed class InventarioEndpointsTests : IClassFixture<FabricaApiPruebas>
     }
 
     [Fact]
+    public async Task Montaje_consume_componentes_y_produce_el_compuesto()
+    {
+        var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+        var a = (await (await cliente.PostAsJsonAsync("/productos", new { Nombre = "Pieza A", PrecioUnitario = 1m, PrecioCompra = 0.5m, CodigoIva = "IVA21" })).Content.ReadFromJsonAsync<ProductoIdResp>())!;
+        var bb = (await (await cliente.PostAsJsonAsync("/productos", new { Nombre = "Pieza B", PrecioUnitario = 1m, PrecioCompra = 0.5m, CodigoIva = "IVA21" })).Content.ReadFromJsonAsync<ProductoIdResp>())!;
+        var conj = (await (await cliente.PostAsJsonAsync("/productos", new { Nombre = "Conjunto", PrecioUnitario = 5m, CodigoIva = "IVA21" })).Content.ReadFromJsonAsync<ProductoIdResp>())!;
+        await cliente.PutAsJsonAsync($"/productos/{conj.Id}/composicion", new { Componentes = new[] { new { ComponenteId = a.Id, Cantidad = 2m }, new { ComponenteId = bb.Id, Cantidad = 1m } } });
+
+        var alm = (await (await cliente.PostAsJsonAsync("/inventario/almacenes", new { Codigo = "TALLER", Nombre = "Taller" })).Content.ReadFromJsonAsync<AlmacenResp>())!;
+        await cliente.PostAsJsonAsync("/inventario/entrada", new { ProductoId = a.Id, AlmacenId = alm.Id, Cantidad = 100m });
+        await cliente.PostAsJsonAsync("/inventario/entrada", new { ProductoId = bb.Id, AlmacenId = alm.Id, Cantidad = 100m });
+
+        // Montar 10 conjuntos: consume 20 de A y 10 de B, produce 10 del conjunto.
+        var montaje = await cliente.PostAsJsonAsync("/inventario/montaje", new { ProductoId = conj.Id, Cantidad = 10m, AlmacenId = alm.Id });
+        montaje.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var sa = await cliente.GetFromJsonAsync<List<ExistenciaResp>>($"/inventario/stock/producto/{a.Id}");
+        sa!.Single().Cantidad.Should().Be(80m);
+        var sb = await cliente.GetFromJsonAsync<List<ExistenciaResp>>($"/inventario/stock/producto/{bb.Id}");
+        sb!.Single().Cantidad.Should().Be(90m);
+        var sc = await cliente.GetFromJsonAsync<List<ExistenciaResp>>($"/inventario/stock/producto/{conj.Id}");
+        sc!.Single().Cantidad.Should().Be(10m);
+
+        // Sin stock suficiente de componentes, el montaje falla y no altera existencias.
+        var falla = await cliente.PostAsJsonAsync("/inventario/montaje", new { ProductoId = conj.Id, Cantidad = 1000m, AlmacenId = alm.Id });
+        falla.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var sa2 = await cliente.GetFromJsonAsync<List<ExistenciaResp>>($"/inventario/stock/producto/{a.Id}");
+        sa2!.Single().Cantidad.Should().Be(80m);
+    }
+
+    [Fact]
     public async Task Ubicacion_por_defecto_por_almacen_y_por_proveedor()
     {
         var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);

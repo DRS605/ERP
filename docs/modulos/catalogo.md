@@ -48,6 +48,17 @@ El seguimiento vive en el artículo; la trazabilidad efectiva (existencias y mov
 lleva el módulo **Inventario**. Al **recibir un pedido**, la UI exige el lote/nº de serie de las
 líneas trazadas y lo propaga a la entrada de almacén.
 
+### Artículos compuestos (lista de materiales)
+
+Un artículo puede ser **compuesto** (`EsCompuesto`): se fabrica a partir de otros mediante una
+**lista de materiales** (`Componentes`), donde cada componente es otro artículo con una cantidad (en
+la unidad base del componente) por unidad del compuesto. Reglas: al menos un componente, cantidades
+`> 0`, sin autorreferencia ni componentes repetidos. El dominio ofrece `Explosionar(cantidad)` (qué y
+cuánto hace falta para fabricar N unidades) y las consultas calculan el **escandallo** (coste
+agregado = Σ coste_componente × cantidad). Esta lista de materiales es la base del futuro módulo de
+**producción**: el módulo **Inventario** ya la usa en el **montaje** (`/inventario/montaje`), que
+consume los componentes del almacén y da entrada del artículo compuesto de forma atómica.
+
 ## Histórico de precios
 
 Cada alta de producto y cada **cambio de precio** (de venta o de compra) añade una fila a

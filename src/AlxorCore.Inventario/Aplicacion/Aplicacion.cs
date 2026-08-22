@@ -270,6 +270,88 @@ public sealed class TrazabilidadLote
 /// <summary>Resultado de una consulta de trazabilidad: existencias actuales del lote y su historial.</summary>
 public sealed record TrazabilidadDto(string Lote, IReadOnlyList<ExistenciaDto> Existencias, IReadOnlyList<MovimientoDto> Movimientos);
 
+/// <summary>
+/// Puerto para conocer la lista de materiales de un artículo compuesto (la implementa la
+/// infraestructura sobre el módulo Catálogo). Devuelve null si el artículo no es compuesto.
+/// </summary>
+public interface IConsultaComposicion
+{
+    Task<IReadOnlyList<(Guid ComponenteId, decimal Cantidad)>?> ObtenerComponentesAsync(Guid productoId, CancellationToken ct = default);
+}
+
+public sealed record MontajeComando(Guid ProductoId, decimal Cantidad, Guid AlmacenId, Guid? UbicacionId = null, string? Lote = null, DateOnly? Fecha = null);
+
+/// <summary>
+/// Monta (fabrica) unidades de un artículo compuesto: consume del almacén los componentes de su lista
+/// de materiales y da entrada del artículo compuesto. Operación atómica (una sola unidad de trabajo).
+/// Es el germen del futuro módulo de producción.
+/// </summary>
+public sealed class MontajeArticulo
+{
+    private readonly IRepositorioExistencias _existencias;
+    private readonly IRepositorioMovimientos _movimientos;
+    private readonly IConsultaComposicion _composicion;
+    private readonly IUnidadDeTrabajoInventario _unidad;
+    private readonly IReloj _reloj;
+
+    public MontajeArticulo(IRepositorioExistencias existencias, IRepositorioMovimientos movimientos, IConsultaComposicion composicion, IUnidadDeTrabajoInventario unidad, IReloj reloj)
+    {
+        _existencias = existencias; _movimientos = movimientos; _composicion = composicion; _unidad = unidad; _reloj = reloj;
+    }
+
+    public async Task<Resultado<ExistenciaDto>> EjecutarAsync(Guid empresaId, MontajeComando c, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(c);
+        if (c.Cantidad <= 0m)
+        {
+            return Resultado.Fallo<ExistenciaDto>(Error.Validacion("montaje.cantidad", "La cantidad a montar debe ser mayor que cero."));
+        }
+
+        var componentes = await _composicion.ObtenerComponentesAsync(c.ProductoId, ct).ConfigureAwait(false);
+        if (componentes is null || componentes.Count == 0)
+        {
+            return Resultado.Fallo<ExistenciaDto>(Error.Validacion("montaje.no_compuesto", "El artículo no tiene lista de materiales (no es compuesto)."));
+        }
+
+        var fecha = c.Fecha ?? DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
+
+        // 1) Consumir los componentes del almacén (sin guardar hasta validarlos todos).
+        foreach (var (componenteId, cantidadPorUnidad) in componentes)
+        {
+            var requerido = Math.Round(cantidadPorUnidad * c.Cantidad, 3, MidpointRounding.AwayFromZero);
+            var existencia = await _existencias.ObtenerAsync(empresaId, componenteId, c.AlmacenId, null, null, ct).ConfigureAwait(false);
+            if (existencia is null)
+            {
+                return Resultado.Fallo<ExistenciaDto>(Error.Validacion("montaje.sin_componente", "No hay stock suficiente de algún componente en el almacén."));
+            }
+
+            var dis = existencia.Disminuir(requerido);
+            if (dis.EsFallo)
+            {
+                return Resultado.Fallo<ExistenciaDto>(dis.Error);
+            }
+
+            _movimientos.Agregar(MovimientoInventario.Registrar(empresaId, componenteId, c.AlmacenId, null,
+                TipoMovimientoInventario.Salida, -requerido, fecha, "Montaje", null, _reloj));
+        }
+
+        // 2) Producir el artículo compuesto.
+        var destino = await _existencias.ObtenerAsync(empresaId, c.ProductoId, c.AlmacenId, c.UbicacionId, c.Lote, ct).ConfigureAwait(false);
+        if (destino is null)
+        {
+            destino = Existencia.Nueva(empresaId, c.ProductoId, c.AlmacenId, c.UbicacionId, c.Lote);
+            _existencias.Agregar(destino);
+        }
+
+        destino.Aumentar(c.Cantidad);
+        _movimientos.Agregar(MovimientoInventario.Registrar(empresaId, c.ProductoId, c.AlmacenId, c.UbicacionId,
+            TipoMovimientoInventario.Entrada, c.Cantidad, fecha, "Montaje", null, _reloj, c.Lote));
+
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(new ExistenciaDto(destino.ProductoId, destino.AlmacenId, string.Empty, destino.UbicacionId, null, destino.Cantidad, destino.Lote));
+    }
+}
+
 // ---------------------------------------------------------------------------- Ubicación por defecto
 public sealed class UbicacionesPorDefecto
 {

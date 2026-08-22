@@ -994,9 +994,29 @@
       const filasAlm=alm.map(a=>`<tr><td><strong>${a.codigo}</strong> · ${a.nombre}</td><td class="right" style="white-space:nowrap"><button class="btn small ghost" onclick="modalUbicacion('${a.id}')">+ Ubicación</button> <button class="btn small secondary" onclick="verStockAlmacen('${a.id}','${a.nombre.replace(/'/g,"")}')">Ver stock</button></td></tr>`).join("");
       const tablaAlm=alm.length?`<table><thead><tr><th>Almacén</th><th class="right">Acciones</th></tr></thead><tbody>${filasAlm}</tbody></table>`
         :vacio("productos","Sin almacenes","Crea tu primer almacén para llevar stock por ubicaciones.",`<button class="btn small" onclick="modalAlmacen()">+ Nuevo almacén</button>`);
-      view(panel("Almacenes",tablaAlm,`<span><button class="btn small ghost" onclick="modalMovimiento()">Registrar movimiento</button> <button class="btn small" onclick="modalAlmacen()">+ Nuevo almacén</button></span>`)
+      const hayCompuestos=_cacheProdInv.some(x=>x.esCompuesto);
+      const btnMontaje=hayCompuestos?`<button class="btn small ghost" onclick="modalMontaje()">Montar compuesto</button> `:'';
+      view(panel("Almacenes",tablaAlm,`<span>${btnMontaje}<button class="btn small ghost" onclick="modalMovimiento()">Registrar movimiento</button> <button class="btn small" onclick="modalAlmacen()">+ Nuevo almacén</button></span>`)
         +`<div id="inv_stock"></div>`);
     }
+    async function modalMontaje(){
+      if(!_cacheAlm.length){ toast("Crea un almacén primero.","err"); return; }
+      const compuestos=_cacheProdInv.filter(x=>x.esCompuesto);
+      if(!compuestos.length){ toast("No hay artículos compuestos.","err"); return; }
+      const prodOpts=compuestos.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join("");
+      const almOpts=_cacheAlm.map(a=>`<option value="${a.id}">${a.codigo} · ${a.nombre}</option>`).join("");
+      abrir("Montar artículo compuesto",`<p class="muted" style="margin:0 0 12px">Se consumen del almacén los componentes de la lista de materiales y se da entrada del artículo montado.</p>
+        <label>Artículo compuesto</label><select id="mo_prod" onchange="montajeEscandallo()">${prodOpts}</select>
+        <div class="grid2"><div><label>Cantidad a montar</label><input id="mo_cant" type="number" step="0.001" value="1" oninput="montajeEscandallo()"/></div><div><label>Almacén</label><select id="mo_alm">${almOpts}</select></div></div>
+        <div id="mo_esc" style="margin-top:12px"></div>`,
+        async()=>{ await api("/inventario/montaje",{method:"POST",body:JSON.stringify({productoId:val("mo_prod"),cantidad:Number(val("mo_cant")||0),almacenId:val("mo_alm")})});
+          toast("Montaje realizado.","ok"); vInventario(); });
+      montajeEscandallo();
+    }
+    async function montajeEscandallo(){ const cont=document.getElementById("mo_esc"); if(!cont)return; const id=val("mo_prod"), cant=Number(val("mo_cant")||0);
+      try{ const c=await api(`/productos/${id}/composicion`); const filas=c.componentes.map(x=>`<tr><td>${x.nombre}</td><td class="num">${numCant(x.cantidad*cant)} ${x.unidad}</td></tr>`).join("");
+        cont.innerHTML=`<label>Necesitarás</label><table><thead><tr><th>Componente</th><th class="num">Cantidad</th></tr></thead><tbody>${filas}</tbody></table>`;
+      }catch(e){ cont.innerHTML=''; } }
     function modalAlmacen(){ abrir("Nuevo almacén",`<div class="grid2"><div><label>Código</label><input id="alm_cod" placeholder="CENTRAL"/></div><div><label>Nombre</label><input id="alm_nom" placeholder="Almacén central"/></div></div>`,
       async()=>{ await api("/inventario/almacenes",{method:"POST",body:JSON.stringify({codigo:val("alm_cod"),nombre:val("alm_nom")})}); toast("Almacén creado.","ok"); vInventario(); }); }
     function modalUbicacion(almId){ abrir("Nueva ubicación",`<div class="grid2"><div><label>Código</label><input id="ubi_cod" placeholder="A-1"/></div><div><label>Nombre (opcional)</label><input id="ubi_nom"/></div></div>`,
@@ -1591,9 +1611,14 @@
       <div class="grid2"><div><label>Forma de pago</label><select id="pr_pago">${fp}</select></div><div><label>Email (opcional)</label><input id="pr_email"/></div></div>`,
       async()=>{ const b=JSON.stringify({nombre:val("pr_nombre"),nifFiscal:val("pr_nif")||null,email:val("pr_email")||null,porcentajeIrpfDefecto:Number(val("pr_irpf")),formaPago:val("pr_pago")}); await api("/proveedores"+(pr?"/"+pr.id:""),{method:pr?"PUT":"POST",body:b}); vProveedores(); });
       if(pr) rellenar({pr_nombre:pr.nombre,pr_nif:pr.nifFiscal,pr_email:pr.email,pr_irpf:pr.porcentajeIrpfDefecto,pr_pago:pr.formaPago}); }
-    async function modalProducto(p){ const provs=await api("/proveedores").catch(()=>[]);
+    async function modalProducto(p){ const [provs,prods]=await Promise.all([api("/proveedores").catch(()=>[]),api("/productos").catch(()=>[])]);
       const provOpts=`<option value="">— Sin asignar —</option>`+provs.map(x=>`<option value="${x.id}">${x.nombre}</option>`).join("");
       const editar=p&&p.id;
+      // Opciones de componentes (excluye el propio artículo al editar).
+      window._compProdOpts=prods.filter(x=>!editar||x.id!==p.id).map(x=>`<option value="${x.id}">${x.nombre}</option>`).join("");
+      window._compProdMap=Object.fromEntries(prods.map(x=>[x.id,x]));
+      let compIni=[];
+      if(editar&&p.esCompuesto){ try{ const c=await api(`/productos/${p.id}/composicion`); compIni=c.componentes.map(x=>({id:x.componenteId,cant:x.cantidad})); }catch(e){} }
       abrir(editar?"Editar artículo":(p?"Nuevo artículo (copia)":"Nuevo artículo"),`<label>Nombre</label><input id="p_nombre" placeholder="Nombre del producto o servicio"/>
       <div class="grid2"><div><label>Código / EAN (opcional)</label><input id="p_ref" placeholder="Ej. 8412345678901"/></div><div><label>IVA</label>${ivaSel("p_iva")}</div></div>
       <div class="grid2"><div><label>Precio de venta (€)</label><input id="p_precio" type="number" step="0.01" value="0"/></div><div><label>Precio de compra / coste (€)</label><input id="p_compra" type="number" step="0.01" value="0"/></div></div>
@@ -1610,14 +1635,34 @@
       </details>
       <label style="margin-top:14px">Trazabilidad</label>
       <select id="p_seguimiento"><option value="Ninguno">Sin lote ni número de serie</option><option value="Lote">Por lote (caducidades, sanitario…)</option><option value="Serie">Por número de serie (cada unidad única)</option></select>
+      ${window._compProdOpts?`<details style="margin-top:14px;border:1px solid var(--line);border-radius:11px;padding:10px 12px" ${compIni.length?'open':''}>
+        <summary style="cursor:pointer;font-weight:600;font-size:13px">Artículo compuesto (lista de materiales)</summary>
+        <div style="margin-top:10px">
+          <p class="muted" style="font-size:12px;margin:0 0 8px">Añade los artículos que lo componen y su cantidad. Podrás montarlo en Inventario (consume componentes y produce el compuesto).</p>
+          <div id="p_comp_lineas">${(compIni.length?compIni:[]).map(l=>compLineaHtml(l.id,l.cant)).join("")}</div>
+          <button class="btn small secondary" style="margin-top:4px" onclick="document.getElementById('p_comp_lineas').insertAdjacentHTML('beforeend',compLineaHtml());prevCompCoste()">+ Añadir componente</button>
+          <div id="p_comp_coste" class="muted" style="font-size:12px;margin-top:8px"></div>
+        </div>
+      </details>`:''}
       <label style="display:flex;align-items:center;gap:8px;margin-top:14px;font-weight:500;cursor:pointer"><input id="p_stock_ctrl" type="checkbox" style="width:auto" onchange="document.getElementById('p_stock_box').style.display=this.checked?'block':'none'"/> Llevar control de stock (existencias)</label>
       <div id="p_stock_box" style="display:none;margin-top:8px"><label>Stock inicial (en unidad base)${editar?' <span class="muted">(no se modifica al editar; usa el botón 📦)</span>':''}</label><input id="p_stock_ini" type="number" step="0.001" value="0" ${editar?'disabled':''}/></div>
       <p class="muted" style="font-size:12px;margin:10px 0 0">El precio de compra sirve para calcular el margen en el informe de beneficio. El stock se descuenta automáticamente al facturar.</p>`,
       async()=>{ const fc=Number(val("p_fcompra")||1)||1, fv=Number(val("p_fventa")||1)||1;
-        const b=JSON.stringify({nombre:val("p_nombre"),referencia:val("p_ref")||null,precioUnitario:Number(val("p_precio")),precioCompra:Number(val("p_compra")),codigoIva:val("p_iva"),tipo:(p&&p.tipo)?p.tipo:"Servicio",proveedorHabitualId:val("p_prov")||null,unidad:val("p_unidad")||"ud",unidadCompra:val("p_ucompra")||null,factorCompra:fc,unidadVenta:val("p_uventa")||null,factorVenta:fv,seguimiento:val("p_seguimiento"),controlarStock:document.getElementById("p_stock_ctrl").checked,stockInicial:Number(val("p_stock_ini")||0)}); await api("/productos"+(editar?"/"+p.id:""),{method:editar?"PUT":"POST",body:b}); vProductos(); });
+        const b=JSON.stringify({nombre:val("p_nombre"),referencia:val("p_ref")||null,precioUnitario:Number(val("p_precio")),precioCompra:Number(val("p_compra")),codigoIva:val("p_iva"),tipo:(p&&p.tipo)?p.tipo:"Servicio",proveedorHabitualId:val("p_prov")||null,unidad:val("p_unidad")||"ud",unidadCompra:val("p_ucompra")||null,factorCompra:fc,unidadVenta:val("p_uventa")||null,factorVenta:fv,seguimiento:val("p_seguimiento"),controlarStock:document.getElementById("p_stock_ctrl").checked,stockInicial:Number(val("p_stock_ini")||0)});
+        const guardado=await api("/productos"+(editar?"/"+p.id:""),{method:editar?"PUT":"POST",body:b});
+        // Lista de materiales (si la sección existe): siempre se envía (lista vacía = quitar composición).
+        if(document.getElementById("p_comp_lineas")){
+          const comps=[...document.querySelectorAll('#p_comp_lineas .cmp-comp')].map(r=>({componenteId:r.querySelector('.cc-prod').value,cantidad:Number(r.querySelector('.cc-cant').value||0)})).filter(c=>c.componenteId&&c.cantidad>0);
+          await api(`/productos/${guardado.id}/composicion`,{method:"PUT",body:JSON.stringify({componentes:comps})});
+        }
+        vProductos(); });
       if(p){ rellenar({p_nombre:p.nombre,p_ref:p.referencia,p_precio:p.precioUnitario,p_compra:p.precioCompra,p_iva:p.codigoIva,p_prov:p.proveedorHabitualId,p_unidad:p.unidad||"ud",p_ucompra:p.unidadCompra,p_fcompra:p.factorCompra??1,p_uventa:p.unidadVenta,p_fventa:p.factorVenta??1,p_seguimiento:p.seguimiento||"Ninguno"});
         if(p.controlarStock){ document.getElementById("p_stock_ctrl").checked=true; document.getElementById("p_stock_box").style.display="block"; } }
-      prevEnvase(); }
+      prevEnvase(); prevCompCoste(); }
+    function compLineaHtml(prodId,cant){ const po=(window._compProdOpts||''); const opts=prodId?po.replace(`value="${prodId}"`,`value="${prodId}" selected`):po; return `<div class="cmp-comp" style="display:grid;grid-template-columns:3fr 1fr;gap:8px;margin-bottom:6px"><select class="cc-prod" onchange="prevCompCoste()"><option value="">— Componente —</option>${opts}</select><input class="cc-cant" type="number" step="0.001" placeholder="Cantidad" value="${cant??''}" oninput="prevCompCoste()"/></div>`; }
+    function prevCompCoste(){ const el=document.getElementById("p_comp_coste"); if(!el)return; const map=window._compProdMap||{}; let total=0,n=0;
+      document.querySelectorAll('#p_comp_lineas .cmp-comp').forEach(r=>{ const pr=map[r.querySelector('.cc-prod').value]; const c=Number(r.querySelector('.cc-cant').value||0); if(pr&&c>0){ total+=(pr.precioCompra||0)*c; n++; } });
+      el.textContent=n?`Coste de materiales: ${eur(total)} (${n} componente${n===1?'':'s'})`:''; }
     function prevEnvase(){ const el=document.getElementById("p_env_prev"); if(!el)return; const base=val("p_unidad")||"ud"; const uc=val("p_ucompra"), fc=Number(val("p_fcompra")||1), uv=val("p_uventa"), fv=Number(val("p_fventa")||1); const t=[]; if(uc&&fc&&fc!==1) t.push(`1 ${uc} = ${numCant(fc)} ${base}`); if(uv&&fv&&fv!==1) t.push(`1 ${uv} = ${numCant(fv)} ${base}`); el.textContent=t.join(" · "); }
     async function modalStock(id){ const p=_cacheProd.find(x=>x.id===id); const movs=await api(`/productos/${id}/stock`).catch(()=>[]);
       const hist=movs.length?`<table><thead><tr><th>Fecha</th><th>Tipo</th><th class="num">Cantidad</th><th class="num">Stock</th></tr></thead><tbody>${movs.map(m=>`<tr><td class="muted">${new Date(m.fecha).toLocaleDateString("es-ES")}</td><td>${m.tipo}${m.motivo?` <span class="muted">· ${m.motivo}</span>`:''}</td><td class="num">${numCant(m.cantidad)}</td><td class="num">${numCant(m.stockResultante)}</td></tr>`).join("")}</tbody></table>`:'<p class="muted">Sin movimientos todavía.</p>';

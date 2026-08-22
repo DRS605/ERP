@@ -7,6 +7,8 @@
     <ProjectReference Include="..\AlxorCore.Nucleo\AlxorCore.Nucleo.csproj" />
     <ProjectReference Include="..\AlxorCore.Persistencia\AlxorCore.Persistencia.csproj" />
     <ProjectReference Include="..\AlxorCore.Inventario\AlxorCore.Inventario.csproj" />
+    <!-- La lista de materiales (composición) para el montaje vive en el módulo Catálogo. -->
+    <ProjectReference Include="..\AlxorCore.Catalogo\AlxorCore.Catalogo.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.10">

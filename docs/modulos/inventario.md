@@ -26,6 +26,9 @@ por recuento y traspaso), trazabilidad y **ubicación por defecto** del artícul
 - **Salida** (−): resta stock; falla si no hay suficiente.
 - **Ajuste** (recuento): fija la cantidad contada y registra el movimiento por la **diferencia**.
 - **Traspaso**: salida en origen + entrada en destino (entre almacenes y/o ubicaciones), atómico.
+- **Montaje**: fabrica un artículo compuesto — consume del almacén los componentes de su lista de
+  materiales (Catálogo, vía el puerto `IConsultaComposicion`) y da entrada del compuesto, todo en una
+  única unidad de trabajo. Es el germen del futuro módulo de producción.
 
 ## Ubicación por defecto (resolución)
 
@@ -53,6 +56,7 @@ proveedor X y en la ubicación estándar del almacén para el resto.
 | `POST` | `/inventario/salida` | `inventario.gestionar` | Salida de stock. |
 | `POST` | `/inventario/ajuste` | `inventario.gestionar` | Ajuste por recuento. |
 | `POST` | `/inventario/traspaso` | `inventario.gestionar` | Traspaso entre almacenes/ubicaciones. |
+| `POST` | `/inventario/montaje` | `inventario.gestionar` | Monta un artículo compuesto (consume componentes, produce el compuesto). |
 | `GET` | `/inventario/ubicacion-defecto/producto/{id}` | `inventario.leer` | Reglas de ubicación por defecto. |
 | `POST` | `/inventario/ubicacion-defecto` | `inventario.gestionar` | Fija la regla (por almacén o proveedor+almacén). |
 

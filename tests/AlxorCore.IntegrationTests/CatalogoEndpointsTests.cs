@@ -74,6 +74,32 @@ public sealed class CatalogoEndpointsTests : IClassFixture<FabricaApiPruebas>
         malo.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
+    private sealed record IdResp(Guid Id);
+    private sealed record ComponenteResp(Guid ComponenteId, string Nombre, decimal Cantidad, decimal CosteUnitario, decimal CosteLinea);
+    private sealed record ComposicionResp(Guid ProductoId, bool EsCompuesto, decimal CosteTotal, List<ComponenteResp> Componentes);
+
+    [Fact]
+    public async Task Articulo_compuesto_con_lista_de_materiales_y_escandallo()
+    {
+        var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+        var tuerca = (await (await cliente.PostAsJsonAsync("/productos", new { Nombre = "Tuerca", PrecioUnitario = 0.5m, PrecioCompra = 0.20m, CodigoIva = "IVA21" })).Content.ReadFromJsonAsync<IdResp>())!;
+        var tornillo = (await (await cliente.PostAsJsonAsync("/productos", new { Nombre = "Tornillo", PrecioUnitario = 0.6m, PrecioCompra = 0.30m, CodigoIva = "IVA21" })).Content.ReadFromJsonAsync<IdResp>())!;
+        var conjunto = (await (await cliente.PostAsJsonAsync("/productos", new { Nombre = "Conjunto fijación", PrecioUnitario = 3m, CodigoIva = "IVA21" })).Content.ReadFromJsonAsync<IdResp>())!;
+
+        // 2 tuercas + 4 tornillos por conjunto.
+        var def = await cliente.PutAsJsonAsync($"/productos/{conjunto.Id}/composicion", new { Componentes = new[] { new { ComponenteId = tuerca.Id, Cantidad = 2m }, new { ComponenteId = tornillo.Id, Cantidad = 4m } } });
+        def.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var comp = await cliente.GetFromJsonAsync<ComposicionResp>($"/productos/{conjunto.Id}/composicion");
+        comp!.EsCompuesto.Should().BeTrue();
+        comp.Componentes.Should().HaveCount(2);
+        comp.CosteTotal.Should().Be(1.60m); // 2×0,20 + 4×0,30
+
+        // Un componente inexistente se rechaza.
+        var malo = await cliente.PutAsJsonAsync($"/productos/{conjunto.Id}/composicion", new { Componentes = new[] { new { ComponenteId = Guid.NewGuid(), Cantidad = 1m } } });
+        malo.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
     [Fact]
     public async Task Un_articulo_puede_tener_proveedor_habitual()
     {

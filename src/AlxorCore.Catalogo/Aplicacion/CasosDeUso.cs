@@ -140,6 +140,113 @@ public sealed class ObtenerProducto
     }
 }
 
+/// <summary>Una línea de la lista de materiales al definirla.</summary>
+public sealed record ComponenteComando(Guid ComponenteId, decimal Cantidad);
+
+/// <summary>Datos para definir la lista de materiales de un artículo compuesto.</summary>
+public sealed record DatosComposicion(IReadOnlyList<ComponenteComando> Componentes);
+
+/// <summary>Caso de uso: definir (o quitar) la lista de materiales de un artículo.</summary>
+public sealed class DefinirComposicion
+{
+    private readonly IRepositorioProductos _productos;
+    private readonly IConsultaProductos _consulta;
+    private readonly IUnidadDeTrabajoCatalogo _unidadDeTrabajo;
+    private readonly IReloj _reloj;
+
+    public DefinirComposicion(IRepositorioProductos productos, IConsultaProductos consulta, IUnidadDeTrabajoCatalogo unidadDeTrabajo, IReloj reloj)
+    {
+        _productos = productos; _consulta = consulta; _unidadDeTrabajo = unidadDeTrabajo; _reloj = reloj;
+    }
+
+    public async Task<Resultado<ComposicionDto>> EjecutarAsync(Guid productoId, DatosComposicion datos, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(datos);
+        var producto = await _productos.ObtenerPorIdAsync(productoId, ct).ConfigureAwait(false);
+        if (producto is null)
+        {
+            return Resultado.Fallo<ComposicionDto>(Error.NoEncontrado("producto.no_encontrado", "El producto no existe."));
+        }
+
+        var componentes = datos.Componentes ?? Array.Empty<ComponenteComando>();
+        if (componentes.Count == 0)
+        {
+            producto.QuitarComposicion(_reloj);
+            await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
+            return await ComponerDtoAsync(producto, ct).ConfigureAwait(false);
+        }
+
+        // Los componentes deben existir en el catálogo de la empresa.
+        foreach (var c in componentes)
+        {
+            var existe = await _consulta.ObtenerAsync(c.ComponenteId, ct).ConfigureAwait(false);
+            if (existe is null)
+            {
+                return Resultado.Fallo<ComposicionDto>(Error.Validacion("composicion.componente_desconocido", "Algún componente no existe en el catálogo."));
+            }
+        }
+
+        var r = producto.DefinirComposicion(componentes.Select(c => (c.ComponenteId, c.Cantidad)).ToList(), _reloj);
+        if (r.EsFallo)
+        {
+            return Resultado.Fallo<ComposicionDto>(r.Error);
+        }
+
+        await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return await ComponerDtoAsync(producto, ct).ConfigureAwait(false);
+    }
+
+    private async Task<Resultado<ComposicionDto>> ComponerDtoAsync(Producto producto, CancellationToken ct)
+    {
+        var lineas = new List<ComponenteDto>();
+        decimal total = 0m;
+        foreach (var c in producto.Componentes)
+        {
+            var comp = await _consulta.ObtenerAsync(c.ComponenteId, ct).ConfigureAwait(false);
+            var coste = comp?.PrecioCompra ?? 0m;
+            var costeLinea = Redondeo.Dos(coste * c.Cantidad);
+            total += costeLinea;
+            lineas.Add(new ComponenteDto(c.ComponenteId, comp?.Nombre ?? "(desconocido)", c.Cantidad, comp?.Unidad ?? "ud", coste, costeLinea));
+        }
+
+        return Resultado.Ok(new ComposicionDto(producto.Id, producto.EsCompuesto, Redondeo.Dos(total), lineas));
+    }
+}
+
+/// <summary>Caso de uso: obtener la lista de materiales (escandallo) de un artículo.</summary>
+public sealed class ObtenerComposicion
+{
+    private readonly IRepositorioProductos _productos;
+    private readonly IConsultaProductos _consulta;
+
+    public ObtenerComposicion(IRepositorioProductos productos, IConsultaProductos consulta)
+    {
+        _productos = productos; _consulta = consulta;
+    }
+
+    public async Task<Resultado<ComposicionDto>> EjecutarAsync(Guid productoId, CancellationToken ct = default)
+    {
+        var producto = await _productos.ObtenerPorIdAsync(productoId, ct).ConfigureAwait(false);
+        if (producto is null)
+        {
+            return Resultado.Fallo<ComposicionDto>(Error.NoEncontrado("producto.no_encontrado", "El producto no existe."));
+        }
+
+        var lineas = new List<ComponenteDto>();
+        decimal total = 0m;
+        foreach (var c in producto.Componentes)
+        {
+            var comp = await _consulta.ObtenerAsync(c.ComponenteId, ct).ConfigureAwait(false);
+            var coste = comp?.PrecioCompra ?? 0m;
+            var costeLinea = Redondeo.Dos(coste * c.Cantidad);
+            total += costeLinea;
+            lineas.Add(new ComponenteDto(c.ComponenteId, comp?.Nombre ?? "(desconocido)", c.Cantidad, comp?.Unidad ?? "ud", coste, costeLinea));
+        }
+
+        return Resultado.Ok(new ComposicionDto(producto.Id, producto.EsCompuesto, Redondeo.Dos(total), lineas));
+    }
+}
+
 /// <summary>Caso de uso: listar el catálogo de tipos de IVA disponibles.</summary>
 public static class ListarImpuestos
 {

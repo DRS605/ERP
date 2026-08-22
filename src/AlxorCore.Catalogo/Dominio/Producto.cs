@@ -32,12 +32,38 @@ public enum SeguimientoArticulo
 public sealed record ProductoCreado(Guid ProductoId, Guid EmpresaId, DateTimeOffset OcurridoEn) : IEventoDominio;
 
 /// <summary>
+/// Componente de la lista de materiales de un artículo compuesto: qué artículo entra y en qué
+/// cantidad (en la unidad base del componente) para fabricar una unidad del compuesto.
+/// </summary>
+public sealed class ComponenteArticulo
+{
+    private ComponenteArticulo() { }
+
+    internal ComponenteArticulo(Guid id, Guid componenteId, decimal cantidad)
+    {
+        Id = id;
+        ComponenteId = componenteId;
+        Cantidad = cantidad;
+    }
+
+    public Guid Id { get; private set; }
+
+    /// <summary>Artículo que actúa como componente.</summary>
+    public Guid ComponenteId { get; private set; }
+
+    /// <summary>Cantidad de componente (en su unidad base) por unidad del artículo compuesto.</summary>
+    public decimal Cantidad { get; private set; }
+}
+
+/// <summary>
 /// Producto o servicio del catálogo de una empresa. Guarda su precio y el tipo de IVA por defecto,
 /// que se prerrellenan al añadirlo a una factura.
 /// </summary>
 public sealed class Producto : RaizAgregadoEmpresa<Guid>
 {
     public const int LongitudMaximaNombre = 200;
+
+    private readonly List<ComponenteArticulo> _componentes = new();
 
     private Producto(Guid id)
         : base(id, Guid.Empty)
@@ -129,6 +155,68 @@ public sealed class Producto : RaizAgregadoEmpresa<Guid>
 
     /// <summary>El artículo requiere indicar lote o número de serie en sus movimientos de stock.</summary>
     public bool RequiereLoteOSerie => Seguimiento != SeguimientoArticulo.Ninguno;
+
+    /// <summary>El artículo se fabrica a partir de otros (tiene lista de materiales).</summary>
+    public bool EsCompuesto { get; private set; }
+
+    /// <summary>Lista de materiales (componentes) del artículo compuesto.</summary>
+    public IReadOnlyList<ComponenteArticulo> Componentes => _componentes;
+
+    /// <summary>
+    /// Define la lista de materiales del artículo (lo convierte en compuesto). Cada componente es
+    /// otro artículo con una cantidad &gt; 0; no puede incluirse a sí mismo.
+    /// </summary>
+    public Resultado DefinirComposicion(IReadOnlyList<(Guid ComponenteId, decimal Cantidad)> componentes, IReloj reloj)
+    {
+        ArgumentNullException.ThrowIfNull(reloj);
+        ArgumentNullException.ThrowIfNull(componentes);
+
+        if (componentes.Count == 0)
+        {
+            return Resultado.Fallo(Error.Validacion("composicion.vacia", "Un artículo compuesto necesita al menos un componente."));
+        }
+
+        foreach (var (componenteId, cantidad) in componentes)
+        {
+            if (componenteId == Id)
+            {
+                return Resultado.Fallo(Error.Validacion("composicion.autorreferencia", "Un artículo no puede ser componente de sí mismo."));
+            }
+
+            if (cantidad <= 0m)
+            {
+                return Resultado.Fallo(Error.Validacion("composicion.cantidad", "La cantidad de cada componente debe ser mayor que cero."));
+            }
+        }
+
+        if (componentes.Select(c => c.ComponenteId).Distinct().Count() != componentes.Count)
+        {
+            return Resultado.Fallo(Error.Validacion("composicion.duplicado", "Un componente no puede repetirse; suma la cantidad."));
+        }
+
+        _componentes.Clear();
+        foreach (var (componenteId, cantidad) in componentes)
+        {
+            _componentes.Add(new ComponenteArticulo(Guid.NewGuid(), componenteId, cantidad));
+        }
+
+        EsCompuesto = true;
+        ActualizadoEn = reloj.AhoraUtc;
+        return Resultado.Ok();
+    }
+
+    /// <summary>Elimina la lista de materiales (deja de ser compuesto).</summary>
+    public void QuitarComposicion(IReloj reloj)
+    {
+        ArgumentNullException.ThrowIfNull(reloj);
+        _componentes.Clear();
+        EsCompuesto = false;
+        ActualizadoEn = reloj.AhoraUtc;
+    }
+
+    /// <summary>Explosiona la lista de materiales: componentes y cantidades necesarias para fabricar <paramref name="cantidad"/> unidades.</summary>
+    public IReadOnlyList<(Guid ComponenteId, decimal Cantidad)> Explosionar(decimal cantidad) =>
+        _componentes.Select(c => (c.ComponenteId, Math.Round(c.Cantidad * cantidad, 3, MidpointRounding.AwayFromZero))).ToList();
 
     /// <summary>Proveedor habitual del artículo (a quién se le compra normalmente). Referencia opcional a Terceros.</summary>
     public Guid? ProveedorHabitualId { get; private set; }

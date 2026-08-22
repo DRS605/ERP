@@ -28,6 +28,7 @@ public static class EndpointsInventario
         g.MapPost("/salida", SalidaAsync).WithSummary("Registra una salida de stock.").RequierePermiso(Permisos.InventarioGestionar);
         g.MapPost("/ajuste", AjusteAsync).WithSummary("Ajusta el stock por recuento.").RequierePermiso(Permisos.InventarioGestionar);
         g.MapPost("/traspaso", TraspasoAsync).WithSummary("Traspasa stock entre almacenes/ubicaciones.").RequierePermiso(Permisos.InventarioGestionar);
+        g.MapPost("/montaje", MontajeAsync).WithSummary("Monta un artículo compuesto: consume componentes y produce el compuesto.").RequierePermiso(Permisos.InventarioGestionar);
 
         g.MapGet("/ubicacion-defecto/producto/{productoId:guid}", ListarUbiDefAsync).WithSummary("Ubicaciones por defecto de un artículo.").RequierePermiso(Permisos.InventarioLeer);
         g.MapPost("/ubicacion-defecto", FijarUbiDefAsync).WithSummary("Fija la ubicación por defecto (por almacén o por proveedor+almacén).").RequierePermiso(Permisos.InventarioGestionar);
@@ -88,6 +89,9 @@ public static class EndpointsInventario
         var r = await caso.TraspasarAsync(c.EmpresaId.Value, cmd, ct).ConfigureAwait(false);
         return r.EsCorrecto ? Results.Ok() : ResultadosHttp.AProblema(r.Error);
     }
+
+    private static async Task<IResult> MontajeAsync(MontajeComando cmd, IContextoEmpresa c, MontajeArticulo caso, CancellationToken ct)
+        => c.EmpresaId is null ? SinEmpresa() : (await caso.EjecutarAsync(c.EmpresaId.Value, cmd, ct).ConfigureAwait(false)).AOk();
 
     private static async Task<IResult> ListarUbiDefAsync(Guid productoId, IContextoEmpresa c, UbicacionesPorDefecto caso, CancellationToken ct)
         => c.EmpresaId is null ? SinEmpresa() : Results.Ok(await caso.ListarAsync(c.EmpresaId.Value, productoId, ct).ConfigureAwait(false));

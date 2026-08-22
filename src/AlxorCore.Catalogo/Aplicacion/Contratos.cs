@@ -25,15 +25,22 @@ public sealed record ProductoDto(
     decimal FactorVenta,
     decimal PrecioCompraPorUnidadCompra,
     decimal PrecioVentaPorUnidadVenta,
-    SeguimientoArticulo Seguimiento)
+    SeguimientoArticulo Seguimiento,
+    bool EsCompuesto)
 {
     public static ProductoDto Desde(Producto p)
     {
         var porcentaje = Impuesto.PorCodigoImpuesto(p.CodigoIva).Valor.Porcentaje;
         return new ProductoDto(p.Id, p.Referencia, p.Nombre, p.Tipo, p.PrecioUnitario, p.CodigoIva, porcentaje, p.Unidad, p.Activo, p.PrecioCompra, p.ProveedorHabitualId, p.ControlarStock, p.Stock,
-            p.UnidadCompra, p.FactorCompra, p.UnidadVenta, p.FactorVenta, p.PrecioCompraPorUnidadCompra, p.PrecioVentaPorUnidadVenta, p.Seguimiento);
+            p.UnidadCompra, p.FactorCompra, p.UnidadVenta, p.FactorVenta, p.PrecioCompraPorUnidadCompra, p.PrecioVentaPorUnidadVenta, p.Seguimiento, p.EsCompuesto);
     }
 }
+
+/// <summary>Componente de la lista de materiales, enriquecido con nombre y coste.</summary>
+public sealed record ComponenteDto(Guid ComponenteId, string Nombre, decimal Cantidad, string Unidad, decimal CosteUnitario, decimal CosteLinea);
+
+/// <summary>Lista de materiales de un artículo compuesto, con el coste agregado (escandallo).</summary>
+public sealed record ComposicionDto(Guid ProductoId, bool EsCompuesto, decimal CosteTotal, IReadOnlyList<ComponenteDto> Componentes);
 
 /// <summary>Fila del histórico de movimientos de stock de un producto.</summary>
 public sealed record MovimientoStockDto(DateTimeOffset Fecha, string Tipo, decimal Cantidad, decimal StockResultante, string? Motivo)

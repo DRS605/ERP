@@ -48,6 +48,14 @@ public static class EndpointsCatalogo
             .WithSummary("Registra un movimiento de stock (entrada, salida o ajuste).")
             .RequierePermiso(Permisos.ProductoGestionar);
 
+        productos.MapGet("/{id:guid}/composicion", ComposicionAsync)
+            .WithSummary("Lista de materiales (escandallo) de un artículo compuesto.")
+            .RequireAuthorization();
+
+        productos.MapPut("/{id:guid}/composicion", DefinirComposicionAsync)
+            .WithSummary("Define (o vacía) la lista de materiales de un artículo compuesto.")
+            .RequierePermiso(Permisos.ProductoGestionar);
+
         rutas.MapGet("/impuestos", () => Results.Ok(ListarImpuestos.Ejecutar()))
             .WithTags("Impuestos")
             .WithSummary("Lista los tipos de IVA disponibles.")
@@ -90,6 +98,12 @@ public static class EndpointsCatalogo
     }
 
     private static async Task<IResult> ActualizarAsync(Guid id, DatosProducto datos, ActualizarProducto caso, CancellationToken ct) =>
+        (await caso.EjecutarAsync(id, datos, ct).ConfigureAwait(false)).AOk();
+
+    private static async Task<IResult> ComposicionAsync(Guid id, ObtenerComposicion caso, CancellationToken ct) =>
+        (await caso.EjecutarAsync(id, ct).ConfigureAwait(false)).AOk();
+
+    private static async Task<IResult> DefinirComposicionAsync(Guid id, DatosComposicion datos, DefinirComposicion caso, CancellationToken ct) =>
         (await caso.EjecutarAsync(id, datos, ct).ConfigureAwait(false)).AOk();
 
     private static async Task<IResult> ImportarAsync(ImportarCsvPeticion peticion, IContextoEmpresa contexto, ImportarProductos caso, CancellationToken ct)

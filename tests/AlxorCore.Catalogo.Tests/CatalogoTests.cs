@@ -158,6 +158,35 @@ public class ProductoTests
     }
 
     [Fact]
+    public void Composicion_define_lista_de_materiales_y_explosiona()
+    {
+        var compuesto = Producto.Crear(Empresa, null, "Lote de bienvenida", TipoProducto.Bien, 30m, 0m, null, "ud", Reloj).Valor;
+        var c1 = Guid.NewGuid(); var c2 = Guid.NewGuid();
+        compuesto.DefinirComposicion(new[] { (c1, 2m), (c2, 3m) }, Reloj).EsCorrecto.Should().BeTrue();
+        compuesto.EsCompuesto.Should().BeTrue();
+        compuesto.Componentes.Should().HaveCount(2);
+
+        var exp = compuesto.Explosionar(5m);
+        exp.Single(e => e.ComponenteId == c1).Cantidad.Should().Be(10m); // 2 × 5
+        exp.Single(e => e.ComponenteId == c2).Cantidad.Should().Be(15m); // 3 × 5
+
+        compuesto.QuitarComposicion(Reloj);
+        compuesto.EsCompuesto.Should().BeFalse();
+        compuesto.Componentes.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Composicion_valida_reglas()
+    {
+        var p = Producto.Crear(Empresa, null, "Compuesto", TipoProducto.Bien, 10m, 0m, null, "ud", Reloj).Valor;
+        p.DefinirComposicion(Array.Empty<(Guid, decimal)>(), Reloj).EsFallo.Should().BeTrue();               // vacía
+        p.DefinirComposicion(new[] { (Guid.NewGuid(), 0m) }, Reloj).EsFallo.Should().BeTrue();               // cantidad 0
+        p.DefinirComposicion(new[] { (p.Id, 1m) }, Reloj).EsFallo.Should().BeTrue();                         // autorreferencia
+        var dup = Guid.NewGuid();
+        p.DefinirComposicion(new[] { (dup, 1m), (dup, 2m) }, Reloj).EsFallo.Should().BeTrue();               // duplicado
+    }
+
+    [Fact]
     public void Producto_sin_control_de_stock_no_admite_movimientos()
     {
         var producto = Producto.Crear(Empresa, null, "Servicio", TipoProducto.Servicio, 10m, 0m, null, null, Reloj).Valor;

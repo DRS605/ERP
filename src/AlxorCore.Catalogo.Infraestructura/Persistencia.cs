@@ -54,6 +54,7 @@ internal sealed class ConfiguracionProducto : IEntityTypeConfiguration<Producto>
         builder.Property(p => p.UnidadVenta).HasColumnName("unidad_venta").HasMaxLength(20);
         builder.Property(p => p.FactorVenta).HasColumnName("factor_venta").HasColumnType("numeric(14,4)").IsRequired();
         builder.Property(p => p.Seguimiento).HasColumnName("seguimiento").HasMaxLength(10).HasConversion<string>().IsRequired();
+        builder.Property(p => p.EsCompuesto).HasColumnName("es_compuesto").IsRequired();
         builder.Property(p => p.ProveedorHabitualId).HasColumnName("proveedor_habitual_id");
         builder.Property(p => p.ControlarStock).HasColumnName("controlar_stock").IsRequired();
         builder.Property(p => p.Stock).HasColumnName("stock").HasColumnType("numeric(14,3)").IsRequired();
@@ -69,6 +70,15 @@ internal sealed class ConfiguracionProducto : IEntityTypeConfiguration<Producto>
         builder.Ignore(p => p.PrecioCompraPorUnidadCompra);
         builder.Ignore(p => p.PrecioVentaPorUnidadVenta);
         builder.Ignore(p => p.RequiereLoteOSerie);
+        builder.OwnsMany(p => p.Componentes, c =>
+        {
+            c.ToTable("componente_articulo");
+            c.WithOwner().HasForeignKey("producto_id");
+            c.HasKey(x => x.Id);
+            c.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+            c.Property(x => x.ComponenteId).HasColumnName("componente_id").IsRequired();
+            c.Property(x => x.Cantidad).HasColumnName("cantidad").HasColumnType("numeric(14,3)").IsRequired();
+        });
     }
 }
 
