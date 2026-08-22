@@ -1,28 +1,24 @@
-using AlxorCore.Facturacion.Dominio;
+using AlxorCore.Gastos.Dominio;
 using AlxorCore.Nucleo.Aplicacion;
 using AlxorCore.Nucleo.Tiempo;
 
-namespace AlxorCore.Facturacion.Aplicacion;
+namespace AlxorCore.Gastos.Aplicacion;
 
-/// <summary>Repositorio de la bandeja de salida (outbox).</summary>
-public interface IRepositorioSalida
+/// <summary>Repositorio de la bandeja de salida (outbox) del módulo Gastos.</summary>
+public interface IRepositorioSalidaGastos
 {
     void Agregar(MensajeSalida mensaje);
 
-    /// <summary>Mensajes pendientes de despachar (de la empresa activa), en orden de creación.</summary>
     Task<IReadOnlyList<MensajeSalida>> PendientesAsync(int maximo, CancellationToken ct = default);
 }
 
-/// <summary>
-/// Encola en la bandeja de salida (outbox) el documento a contabilizar, dentro de la unidad de trabajo
-/// del que lo llama (misma transacción que la factura). No lo despacha: eso lo hace el despachador.
-/// </summary>
-public sealed class EncolarSalida
+/// <summary>Encola en la bandeja de salida (dentro de la unidad de trabajo del gasto) su contabilización.</summary>
+public sealed class EncolarSalidaGastos
 {
-    private readonly IRepositorioSalida _salida;
+    private readonly IRepositorioSalidaGastos _salida;
     private readonly IReloj _reloj;
 
-    public EncolarSalida(IRepositorioSalida salida, IReloj reloj)
+    public EncolarSalidaGastos(IRepositorioSalidaGastos salida, IReloj reloj)
     {
         _salida = salida;
         _reloj = reloj;
@@ -35,20 +31,15 @@ public sealed class EncolarSalida
     }
 }
 
-/// <summary>
-/// Despacha los mensajes pendientes de la bandeja de salida: ejecuta su efecto (encolar la
-/// contabilización) y los marca como procesados. Es idempotente y con reintento: si el efecto falla,
-/// el mensaje queda pendiente y se reintentará. Se invoca tras confirmar la operación de origen y,
-/// además, puede reejecutarse para recuperar mensajes atascados.
-/// </summary>
-public sealed class DespacharSalida
+/// <summary>Despacha los mensajes pendientes de la bandeja de salida de Gastos (idempotente, con reintento).</summary>
+public sealed class DespacharSalidaGastos
 {
-    private readonly IRepositorioSalida _salida;
+    private readonly IRepositorioSalidaGastos _salida;
     private readonly IColaContabilizacion _cola;
-    private readonly IUnidadDeTrabajoFacturacion _unidad;
+    private readonly IUnidadDeTrabajoGastos _unidad;
     private readonly IReloj _reloj;
 
-    public DespacharSalida(IRepositorioSalida salida, IColaContabilizacion cola, IUnidadDeTrabajoFacturacion unidad, IReloj reloj)
+    public DespacharSalidaGastos(IRepositorioSalidaGastos salida, IColaContabilizacion cola, IUnidadDeTrabajoGastos unidad, IReloj reloj)
     {
         _salida = salida;
         _cola = cola;
@@ -56,7 +47,6 @@ public sealed class DespacharSalida
         _reloj = reloj;
     }
 
-    /// <summary>Despacha hasta <paramref name="maximo"/> mensajes pendientes. Devuelve cuántos se procesaron.</summary>
     public async Task<int> EjecutarAsync(int maximo = 100, CancellationToken ct = default)
     {
         var pendientes = await _salida.PendientesAsync(maximo, ct).ConfigureAwait(false);

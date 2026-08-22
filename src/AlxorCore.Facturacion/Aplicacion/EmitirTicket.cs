@@ -36,7 +36,8 @@ public sealed class EmitirTicket
     private readonly IConsultaEmpresas _empresas;
     private readonly IUnidadDeTrabajoFacturacion _unidadDeTrabajo;
     private readonly IStockVentas _stock;
-    private readonly IColaContabilizacion _cola;
+    private readonly EncolarSalida _encolarSalida;
+    private readonly DespacharSalida _despacharSalida;
     private readonly IConsultaFormasPago _formasPago;
     private readonly IPagosAutomaticos _pagos;
     private readonly IReloj _reloj;
@@ -50,7 +51,8 @@ public sealed class EmitirTicket
         IConsultaEmpresas empresas,
         IUnidadDeTrabajoFacturacion unidadDeTrabajo,
         IStockVentas stock,
-        IColaContabilizacion cola,
+        EncolarSalida encolarSalida,
+        DespacharSalida despacharSalida,
         IConsultaFormasPago formasPago,
         IPagosAutomaticos pagos,
         IReloj reloj)
@@ -63,7 +65,8 @@ public sealed class EmitirTicket
         _empresas = empresas;
         _unidadDeTrabajo = unidadDeTrabajo;
         _stock = stock;
-        _cola = cola;
+        _encolarSalida = encolarSalida;
+        _despacharSalida = despacharSalida;
         _formasPago = formasPago;
         _pagos = pagos;
         _reloj = reloj;
@@ -132,19 +135,9 @@ public sealed class EmitirTicket
 
         await RegistroVerifactu.AplicarAsync(empresaId, ticket.Valor, _empresas, _facturas, _reloj, ct).ConfigureAwait(false);
         _facturas.Agregar(ticket.Valor);
-        await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
 
-        var lineasVenta = ticket.Valor.Lineas
-            .Where(l => l.ProductoId is not null)
-            .Select(l => new LineaVenta(l.ProductoId!.Value, l.Cantidad))
-            .ToList();
-        if (lineasVenta.Count > 0)
-        {
-            await _stock.DescontarVentaAsync(empresaId, lineasVenta, ct).ConfigureAwait(false);
-        }
-
-        // Encola la venta para contabilizar (igual que una factura ordinaria): pendiente salvo
-        // contabilización automática, y solo en modo Completo.
+        // Bandeja de salida (outbox): la contabilización del ticket se encola en la MISMA transacción
+        // que el ticket, garantizando atomicidad (igual que una factura ordinaria).
         var t = ticket.Valor;
         var codigoIva = t.Lineas.Count > 0 ? t.Lineas[0].CodigoIva : "IVA21";
         var productoId = t.Lineas.FirstOrDefault(l => l.ProductoId is not null)?.ProductoId;
@@ -155,9 +148,21 @@ public sealed class EmitirTicket
             familia = producto?.Familia;
         }
 
-        await _cola.EncolarAsync(empresaId, new DocumentoContabilizable(
+        _encolarSalida.Contabilizacion(empresaId, new DocumentoContabilizable(
             SentidoContable.Venta, "Ticket", t.Id, t.NumeroCompleto, comando.ClienteId, t.ClienteNombre,
-            t.FechaEmision, t.BaseImponible, codigoIva, t.CuotaIva, t.PorcentajeIrpf, t.RetencionIrpf, t.Total, productoId, familia, tipoTercero), ct).ConfigureAwait(false);
+            t.FechaEmision, t.BaseImponible, codigoIva, t.CuotaIva, t.PorcentajeIrpf, t.RetencionIrpf, t.Total, productoId, familia, tipoTercero));
+
+        await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        await _despacharSalida.EjecutarAsync(ct: ct).ConfigureAwait(false);
+
+        var lineasVenta = t.Lineas
+            .Where(l => l.ProductoId is not null)
+            .Select(l => new LineaVenta(l.ProductoId!.Value, l.Cantidad))
+            .ToList();
+        if (lineasVenta.Count > 0)
+        {
+            await _stock.DescontarVentaAsync(empresaId, lineasVenta, ct).ConfigureAwait(false);
+        }
 
         if (formaPago?.RegistrarPagoAutomatico == true)
         {

@@ -191,14 +191,16 @@ informes).
   este módulo. El asiento se genera al contabilizar desde el panel (o al encolar si la contabilización
   automática está activa). `EncolarDocumento` es **idempotente** por documento de origen (no duplica el
   pendiente aunque el mensaje se reintente).
-- **Bandeja de salida (outbox transaccional)**: al emitir una factura, el documento a contabilizar se
-  guarda como `mensaje_salida` en la **misma transacción** que la factura (módulo Facturación), de modo
-  que emitir la factura y encolar su contabilización son **atómicos**. Un despachador (`DespacharSalida`)
-  procesa los mensajes pendientes tras confirmar la factura y en cada emisión posterior (reintento «al
-  menos una vez»), por lo que ninguna factura queda sin su contabilización aunque el destino falle en ese
-  instante. Es la primera ruta migrada al outbox; el resto de productores (ticket, gastos, ciclo de
-  venta) siguen usando la cola directa (mejora futura: migrarlos también y añadir un despachador en
-  segundo plano).
+- **Bandeja de salida (outbox transaccional)**: al emitir una factura o un ticket, o al registrar un
+  gasto, el documento a contabilizar se guarda como `mensaje_salida` en la **misma transacción** que el
+  documento de origen (cada módulo tiene su propia tabla `mensaje_salida` en su esquema), de modo que
+  emitir/registrar y encolar su contabilización son **atómicos**. Un despachador procesa los mensajes
+  pendientes tras confirmar la operación y en cada operación posterior (reintento «al menos una vez»),
+  por lo que ningún documento queda sin su contabilización aunque el destino falle en ese instante; el
+  consumo es idempotente. El ciclo de venta (pedido → factura) hereda el outbox al facturar vía
+  `EmitirFactura`. La serialización de la carga se comparte en `AlxorCore.Nucleo` (`SalidaJson`). Mejora
+  futura: un despachador en segundo plano para recuperar mensajes atascados sin esperar a la siguiente
+  operación.
 
 ## Tests
 

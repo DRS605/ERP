@@ -56,7 +56,8 @@ public sealed class RegistrarGasto
     private readonly IRepositorioGastos _gastos;
     private readonly IConsultaProveedores _proveedores;
     private readonly IUnidadDeTrabajoGastos _unidadDeTrabajo;
-    private readonly IColaContabilizacion _cola;
+    private readonly EncolarSalidaGastos _encolarSalida;
+    private readonly DespacharSalidaGastos _despacharSalida;
     private readonly IConsultaFormasPago _formasPago;
     private readonly IPagosAutomaticos _pagos;
     private readonly IConsultaRiesgo _riesgo;
@@ -67,7 +68,8 @@ public sealed class RegistrarGasto
         IRepositorioGastos gastos,
         IConsultaProveedores proveedores,
         IUnidadDeTrabajoGastos unidadDeTrabajo,
-        IColaContabilizacion cola,
+        EncolarSalidaGastos encolarSalida,
+        DespacharSalidaGastos despacharSalida,
         IConsultaFormasPago formasPago,
         IPagosAutomaticos pagos,
         IConsultaRiesgo riesgo,
@@ -77,7 +79,8 @@ public sealed class RegistrarGasto
         _gastos = gastos;
         _proveedores = proveedores;
         _unidadDeTrabajo = unidadDeTrabajo;
-        _cola = cola;
+        _encolarSalida = encolarSalida;
+        _despacharSalida = despacharSalida;
         _formasPago = formasPago;
         _pagos = pagos;
         _riesgo = riesgo;
@@ -140,14 +143,16 @@ public sealed class RegistrarGasto
             }
         }
 
-        _gastos.Agregar(gasto.Valor);
-        await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
-
-        // Encola el gasto para contabilizar (queda pendiente salvo contabilización automática).
+        // Bandeja de salida (outbox): la contabilización del gasto se encola en la MISMA transacción que
+        // el gasto, garantizando atomicidad (ni gasto sin contabilizar, ni al revés).
         var g = gasto.Valor;
-        await _cola.EncolarAsync(empresaId, new DocumentoContabilizable(
+        _encolarSalida.Contabilizacion(empresaId, new DocumentoContabilizable(
             SentidoContable.Compra, "Gasto", g.Id, g.Concepto, g.ProveedorId, g.ProveedorTexto ?? g.Concepto,
-            g.Fecha, g.BaseImponible, g.CodigoIva, g.CuotaIva, g.PorcentajeIrpf, g.RetencionIrpf, g.Total, TipoTercero: tipoTercero), ct).ConfigureAwait(false);
+            g.Fecha, g.BaseImponible, g.CodigoIva, g.CuotaIva, g.PorcentajeIrpf, g.RetencionIrpf, g.Total, TipoTercero: tipoTercero));
+
+        _gastos.Agregar(g);
+        await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        await _despacharSalida.EjecutarAsync(ct: ct).ConfigureAwait(false);
 
         // Forma de pago «ya pagada»: registra el pago total en el acto (no genera vencimiento abierto).
         if (formaPago?.RegistrarPagoAutomatico == true)

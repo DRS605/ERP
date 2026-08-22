@@ -22,6 +22,8 @@ public sealed class GastosDbContext : DbContextEmpresaBase, IUnidadDeTrabajoGast
 
     public DbSet<Gasto> Gastos => Set<Gasto>();
 
+    public DbSet<MensajeSalida> MensajesSalida => Set<MensajeSalida>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Esquema);
