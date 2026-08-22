@@ -36,6 +36,14 @@ public static class EndpointsInformes
             .WithSummary("Declaraciones anuales: modelo 390 (resumen IVA) y modelo 347 (operaciones con terceros).")
             .RequierePermiso(Permisos.InformeLeer);
 
+        informes.MapGet("/modelo-349", Modelo349Async)
+            .WithSummary("Modelo 349 (operaciones intracomunitarias) del trimestre.")
+            .RequierePermiso(Permisos.InformeLeer);
+
+        informes.MapGet("/modelo-349/fichero", Modelo349FicheroAsync)
+            .WithSummary("Genera el fichero telemático (diseño AEAT) del modelo 349.")
+            .RequierePermiso(Permisos.DatosExportar);
+
         informes.MapGet("/modelo-347/fichero", Modelo347FicheroAsync)
             .WithSummary("Genera el fichero telemático (diseño AEAT) del modelo 347.")
             .RequierePermiso(Permisos.DatosExportar);
@@ -130,6 +138,46 @@ public static class EndpointsInformes
 
         var ejercicio = anio ?? DateTime.UtcNow.Year;
         return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, ejercicio, ct).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> Modelo349Async(
+        IContextoEmpresa contexto, GenerarModelo349 caso, CancellationToken ct, int? anio = null, int trimestre = 1)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        if (trimestre is < 1 or > 4)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("trimestre.invalido", "El trimestre debe estar entre 1 y 4."));
+        }
+
+        var ejercicio = anio ?? DateTime.UtcNow.Year;
+        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, ejercicio, trimestre, ct).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> Modelo349FicheroAsync(
+        IContextoEmpresa contexto, GenerarModelo349 caso, CancellationToken ct, int? anio = null, int trimestre = 1)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        if (trimestre is < 1 or > 4)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("trimestre.invalido", "El trimestre debe estar entre 1 y 4."));
+        }
+
+        var ejercicio = anio ?? DateTime.UtcNow.Year;
+        var bytes = await caso.FicheroAsync(contexto.EmpresaId.Value, ejercicio, trimestre, ct).ConfigureAwait(false);
+        if (bytes is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("modelo349.sin_datos", "No hay operaciones intracomunitarias en ese periodo (clientes/proveedores con NIF-IVA)."));
+        }
+
+        return Results.File(bytes, "text/plain", $"modelo-349-{ejercicio}-{trimestre}T.txt");
     }
 
     private static async Task<IResult> Modelo347FicheroAsync(

@@ -22,7 +22,7 @@ public class RetencionesIrpfTests
         new(Guid.NewGuid(), proveedorId, texto, "Servicios profesionales", fecha, baseImp, "IVA21", 21m, baseImp * 0.21m, 15m, retencion, baseImp, estado);
 
     private static ProveedorDto Prov(Guid id, string nombre, string? nif, string provincia = "Madrid") =>
-        new(id, nombre, nif, null, "C/ Mayor 1", "28001", "Madrid", provincia, "ES", 15m, true, default);
+        new(id, nombre, nif, null, "C/ Mayor 1", "28001", "Madrid", provincia, "ES", 15m, true, default, null);
 
     private sealed class FakeGastos(IReadOnlyList<GastoDto> lista) : IConsultaGastos
     {

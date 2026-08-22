@@ -54,6 +54,38 @@ public sealed class InformesEndpointsTests : IClassFixture<FabricaApiPruebas>
         lineas[1].Substring(17, 9).Should().Be("A11111111"); // NIF del declarado
     }
 
+    private sealed record Operador349Resp(string Clave, string NifIva, string Nombre, decimal BaseImponible);
+    private sealed record Modelo349Resp(int Anio, int Trimestre, string Periodo, decimal BaseTotal, List<Operador349Resp> Operadores);
+
+    [Fact]
+    public async Task Modelo_349_detecta_entregas_intracomunitarias_y_genera_fichero()
+    {
+        var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+        // Cliente intracomunitario (con NIF-IVA) y su factura del 1er trimestre.
+        var clienteId = (await (await cliente.PostAsJsonAsync("/clientes",
+            new { Nombre = "Kunde GmbH", NifFiscal = "X1234567L", NifIva = "DE123456789" })).Content.ReadFromJsonAsync<ClienteResp>())!.Id;
+        await cliente.PostAsJsonAsync("/facturas", new
+        {
+            ClienteId = clienteId,
+            FechaEmision = "2026-02-10",
+            Lineas = new[] { new { Cantidad = 1m, Descripcion = "Bienes UE", PrecioUnitario = 1000m, CodigoIva = "IVA0" } },
+        });
+
+        var m349 = await cliente.GetFromJsonAsync<Modelo349Resp>("/informes/modelo-349?anio=2026&trimestre=1");
+        m349!.Operadores.Should().ContainSingle();
+        m349.Operadores[0].Clave.Should().Be("E");
+        m349.Operadores[0].NifIva.Should().Be("DE123456789");
+        m349.BaseTotal.Should().Be(1000m);
+
+        var fichero = await cliente.GetAsync("/informes/modelo-349/fichero?anio=2026&trimestre=1");
+        fichero.StatusCode.Should().Be(HttpStatusCode.OK);
+        var lineas = (await fichero.Content.ReadAsStringAsync()).Split("\r\n");
+        lineas.Should().HaveCount(2);
+        lineas.Should().OnlyContain(l => l.Length == 500);
+        lineas[0][..4].Should().Be("1349");
+        lineas[1][..4].Should().Be("2349");
+    }
+
     [Fact]
     public async Task Dashboard_refleja_facturado_gastado_y_pendientes()
     {

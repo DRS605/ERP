@@ -52,7 +52,7 @@ public sealed class Proveedor : RaizAgregadoEmpresa<Guid>
         Direccion = Direccion.Vacia;
     }
 
-    private Proveedor(Guid id, Guid empresaId, string nombre, string? nifFiscal, string? email, Direccion direccion, decimal irpf, FormaPago formaPago, DateTimeOffset ahora)
+    private Proveedor(Guid id, Guid empresaId, string nombre, string? nifFiscal, string? email, Direccion direccion, decimal irpf, FormaPago formaPago, string? nifIva, DateTimeOffset ahora)
         : base(id, empresaId)
     {
         Nombre = nombre;
@@ -61,6 +61,7 @@ public sealed class Proveedor : RaizAgregadoEmpresa<Guid>
         Direccion = direccion;
         PorcentajeIrpfDefecto = irpf;
         FormaPago = formaPago;
+        NifIva = NormalizarIva(nifIva);
         Activo = true;
         CreadoEn = ahora;
         ActualizadoEn = ahora;
@@ -80,6 +81,12 @@ public sealed class Proveedor : RaizAgregadoEmpresa<Guid>
     /// <summary>Forma de pago habitual a este proveedor.</summary>
     public FormaPago FormaPago { get; private set; }
 
+    /// <summary>
+    /// NIF-IVA intracomunitario (VIES) del proveedor: país (2 letras) + número. Su presencia marca al
+    /// proveedor como operador intracomunitario (modelo 349).
+    /// </summary>
+    public string? NifIva { get; private set; }
+
     public bool Activo { get; private set; }
 
     public DateTimeOffset CreadoEn { get; private set; }
@@ -87,7 +94,7 @@ public sealed class Proveedor : RaizAgregadoEmpresa<Guid>
     public DateTimeOffset ActualizadoEn { get; private set; }
 
     public static Resultado<Proveedor> Crear(
-        Guid empresaId, string? nombre, string? nifFiscal, string? email, Direccion direccion, decimal porcentajeIrpfDefecto, FormaPago formaPago, IReloj reloj)
+        Guid empresaId, string? nombre, string? nifFiscal, string? email, Direccion direccion, decimal porcentajeIrpfDefecto, FormaPago formaPago, IReloj reloj, string? nifIva = null)
     {
         ArgumentNullException.ThrowIfNull(direccion);
         ArgumentNullException.ThrowIfNull(reloj);
@@ -99,12 +106,12 @@ public sealed class Proveedor : RaizAgregadoEmpresa<Guid>
         }
 
         var proveedor = new Proveedor(
-            Guid.NewGuid(), empresaId, nombre!.Trim(), Normalizar(nifFiscal), Normalizar(email), direccion, porcentajeIrpfDefecto, formaPago, reloj.AhoraUtc);
+            Guid.NewGuid(), empresaId, nombre!.Trim(), Normalizar(nifFiscal), Normalizar(email), direccion, porcentajeIrpfDefecto, formaPago, nifIva, reloj.AhoraUtc);
         proveedor.RegistrarEvento(new ProveedorCreado(proveedor.Id, empresaId, reloj.AhoraUtc));
         return Resultado.Ok(proveedor);
     }
 
-    public Resultado Actualizar(string? nombre, string? nifFiscal, string? email, Direccion direccion, decimal porcentajeIrpfDefecto, FormaPago formaPago, IReloj reloj)
+    public Resultado Actualizar(string? nombre, string? nifFiscal, string? email, Direccion direccion, decimal porcentajeIrpfDefecto, FormaPago formaPago, IReloj reloj, string? nifIva = null)
     {
         ArgumentNullException.ThrowIfNull(direccion);
         ArgumentNullException.ThrowIfNull(reloj);
@@ -121,6 +128,7 @@ public sealed class Proveedor : RaizAgregadoEmpresa<Guid>
         Direccion = direccion;
         PorcentajeIrpfDefecto = porcentajeIrpfDefecto;
         FormaPago = formaPago;
+        NifIva = NormalizarIva(nifIva);
         ActualizadoEn = reloj.AhoraUtc;
         return Resultado.Ok();
     }
@@ -152,4 +160,7 @@ public sealed class Proveedor : RaizAgregadoEmpresa<Guid>
     }
 
     private static string? Normalizar(string? valor) => string.IsNullOrWhiteSpace(valor) ? null : valor.Trim();
+
+    private static string? NormalizarIva(string? nifIva) =>
+        string.IsNullOrWhiteSpace(nifIva) ? null : nifIva.Replace(" ", string.Empty, StringComparison.Ordinal).ToUpperInvariant();
 }

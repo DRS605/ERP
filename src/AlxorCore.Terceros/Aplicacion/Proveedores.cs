@@ -9,12 +9,12 @@ namespace AlxorCore.Terceros.Aplicacion;
 public sealed record ProveedorDto(
     Guid Id, string Nombre, string? NifFiscal, string? Email,
     string Calle, string CodigoPostal, string Poblacion, string Provincia, string Pais,
-    decimal PorcentajeIrpfDefecto, bool Activo, FormaPago FormaPago)
+    decimal PorcentajeIrpfDefecto, bool Activo, FormaPago FormaPago, string? NifIva)
 {
     public static ProveedorDto Desde(Proveedor p) => new(
         p.Id, p.Nombre, p.NifFiscal, p.Email,
         p.Direccion.Calle, p.Direccion.CodigoPostal, p.Direccion.Poblacion, p.Direccion.Provincia, p.Direccion.Pais,
-        p.PorcentajeIrpfDefecto, p.Activo, p.FormaPago);
+        p.PorcentajeIrpfDefecto, p.Activo, p.FormaPago, p.NifIva);
 }
 
 /// <summary>Repositorio de proveedores (escritura).</summary>
@@ -44,7 +44,8 @@ public sealed record DatosProveedor(
     string? Provincia = null,
     string? Pais = null,
     decimal PorcentajeIrpfDefecto = 0m,
-    FormaPago FormaPago = FormaPago.NoIndicada);
+    FormaPago FormaPago = FormaPago.NoIndicada,
+    string? NifIva = null);
 
 /// <summary>Caso de uso: crear un proveedor.</summary>
 public sealed class CrearProveedor
@@ -65,7 +66,7 @@ public sealed class CrearProveedor
         ArgumentNullException.ThrowIfNull(datos);
 
         var direccion = Direccion.Crear(datos.Calle, datos.CodigoPostal, datos.Poblacion, datos.Provincia, datos.Pais);
-        var proveedor = Proveedor.Crear(empresaId, datos.Nombre, datos.NifFiscal, datos.Email, direccion, datos.PorcentajeIrpfDefecto, datos.FormaPago, _reloj);
+        var proveedor = Proveedor.Crear(empresaId, datos.Nombre, datos.NifFiscal, datos.Email, direccion, datos.PorcentajeIrpfDefecto, datos.FormaPago, _reloj, datos.NifIva);
         if (proveedor.EsFallo)
         {
             return Resultado.Fallo<ProveedorDto>(proveedor.Error);
@@ -102,7 +103,7 @@ public sealed class ActualizarProveedor
         }
 
         var direccion = Direccion.Crear(datos.Calle, datos.CodigoPostal, datos.Poblacion, datos.Provincia, datos.Pais);
-        var r = proveedor.Actualizar(datos.Nombre, datos.NifFiscal, datos.Email, direccion, datos.PorcentajeIrpfDefecto, datos.FormaPago, _reloj);
+        var r = proveedor.Actualizar(datos.Nombre, datos.NifFiscal, datos.Email, direccion, datos.PorcentajeIrpfDefecto, datos.FormaPago, _reloj, datos.NifIva);
         if (r.EsFallo)
         {
             return Resultado.Fallo<ProveedorDto>(r.Error);

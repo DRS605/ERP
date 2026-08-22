@@ -56,6 +56,7 @@ internal sealed class ConfiguracionCliente : IEntityTypeConfiguration<Cliente>
         builder.Property(c => c.Iban).HasColumnName("iban").HasMaxLength(34);
         builder.Property(c => c.MandatoReferencia).HasColumnName("mandato_referencia").HasMaxLength(35);
         builder.Property(c => c.MandatoFecha).HasColumnName("mandato_fecha");
+        builder.Property(c => c.NifIva).HasColumnName("nif_iva").HasMaxLength(20);
         builder.Property(c => c.Activo).HasColumnName("activo").IsRequired();
         builder.Property(c => c.CreadoEn).HasColumnName("creado_en").IsRequired();
         builder.Property(c => c.ActualizadoEn).HasColumnName("actualizado_en").IsRequired();
@@ -116,6 +117,7 @@ internal sealed class ConfiguracionProveedor : IEntityTypeConfiguration<Proveedo
         });
         builder.Property(p => p.PorcentajeIrpfDefecto).HasColumnName("irpf_defecto").HasColumnType("numeric(5,2)").IsRequired();
         builder.Property(p => p.FormaPago).HasColumnName("forma_pago").HasMaxLength(20).HasConversion<string>().IsRequired();
+        builder.Property(p => p.NifIva).HasColumnName("nif_iva").HasMaxLength(20);
         builder.Property(p => p.Activo).HasColumnName("activo").IsRequired();
         builder.Property(p => p.CreadoEn).HasColumnName("creado_en").IsRequired();
         builder.Property(p => p.ActualizadoEn).HasColumnName("actualizado_en").IsRequired();

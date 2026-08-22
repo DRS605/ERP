@@ -15,6 +15,7 @@ public static class RegistroServicios
         servicios.AddScoped<GenerarResumenesFiscales>();
         servicios.AddScoped<GenerarDeclaracionAnual>();
         servicios.AddScoped<GenerarRetencionesIrpf>();
+        servicios.AddScoped<GenerarModelo349>();
         servicios.AddScoped<GenerarBeneficio>();
         servicios.AddScoped<GenerarCierreCaja>();
 

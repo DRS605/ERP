@@ -25,7 +25,7 @@ public sealed class Cliente : RaizAgregadoEmpresa<Guid>
         Direccion = Direccion.Vacia;
     }
 
-    private Cliente(Guid id, Guid empresaId, string nombre, string? nifFiscal, string? email, Direccion direccion, decimal irpf, bool recargoEquivalencia, string? iban, string? mandatoReferencia, DateOnly? mandatoFecha, DateTimeOffset ahora)
+    private Cliente(Guid id, Guid empresaId, string nombre, string? nifFiscal, string? email, Direccion direccion, decimal irpf, bool recargoEquivalencia, string? iban, string? mandatoReferencia, DateOnly? mandatoFecha, string? nifIva, DateTimeOffset ahora)
         : base(id, empresaId)
     {
         Nombre = nombre;
@@ -37,6 +37,7 @@ public sealed class Cliente : RaizAgregadoEmpresa<Guid>
         Iban = NormalizarIban(iban);
         MandatoReferencia = Normalizar(mandatoReferencia);
         MandatoFecha = mandatoFecha;
+        NifIva = NormalizarIva(nifIva);
         Activo = true;
         CreadoEn = ahora;
         ActualizadoEn = ahora;
@@ -65,6 +66,12 @@ public sealed class Cliente : RaizAgregadoEmpresa<Guid>
     /// <summary>Fecha de firma del mandato de domiciliación. Opcional.</summary>
     public DateOnly? MandatoFecha { get; private set; }
 
+    /// <summary>
+    /// NIF-IVA intracomunitario (VIES) del cliente: código de país (2 letras) + número, p. ej.
+    /// «DE123456789». Su presencia marca al cliente como operador intracomunitario (modelo 349).
+    /// </summary>
+    public string? NifIva { get; private set; }
+
     /// <summary>¿Tiene los datos necesarios para domiciliar (IBAN, mandato y fecha)?</summary>
     public bool DomiciliacionCompleta => !string.IsNullOrWhiteSpace(Iban) && !string.IsNullOrWhiteSpace(MandatoReferencia) && MandatoFecha is not null;
 
@@ -85,7 +92,8 @@ public sealed class Cliente : RaizAgregadoEmpresa<Guid>
         bool recargoEquivalencia = false,
         string? iban = null,
         string? mandatoReferencia = null,
-        DateOnly? mandatoFecha = null)
+        DateOnly? mandatoFecha = null,
+        string? nifIva = null)
     {
         ArgumentNullException.ThrowIfNull(direccion);
         ArgumentNullException.ThrowIfNull(reloj);
@@ -97,12 +105,12 @@ public sealed class Cliente : RaizAgregadoEmpresa<Guid>
         }
 
         var cliente = new Cliente(
-            Guid.NewGuid(), empresaId, nombre!.Trim(), Normalizar(nifFiscal), Normalizar(email), direccion, porcentajeIrpfDefecto, recargoEquivalencia, iban, mandatoReferencia, mandatoFecha, reloj.AhoraUtc);
+            Guid.NewGuid(), empresaId, nombre!.Trim(), Normalizar(nifFiscal), Normalizar(email), direccion, porcentajeIrpfDefecto, recargoEquivalencia, iban, mandatoReferencia, mandatoFecha, nifIva, reloj.AhoraUtc);
         cliente.RegistrarEvento(new ClienteCreado(cliente.Id, empresaId, reloj.AhoraUtc));
         return Resultado.Ok(cliente);
     }
 
-    public Resultado Actualizar(string? nombre, string? nifFiscal, string? email, Direccion direccion, decimal porcentajeIrpfDefecto, IReloj reloj, bool recargoEquivalencia = false, string? iban = null, string? mandatoReferencia = null, DateOnly? mandatoFecha = null)
+    public Resultado Actualizar(string? nombre, string? nifFiscal, string? email, Direccion direccion, decimal porcentajeIrpfDefecto, IReloj reloj, bool recargoEquivalencia = false, string? iban = null, string? mandatoReferencia = null, DateOnly? mandatoFecha = null, string? nifIva = null)
     {
         ArgumentNullException.ThrowIfNull(direccion);
         ArgumentNullException.ThrowIfNull(reloj);
@@ -122,6 +130,7 @@ public sealed class Cliente : RaizAgregadoEmpresa<Guid>
         Iban = NormalizarIban(iban);
         MandatoReferencia = Normalizar(mandatoReferencia);
         MandatoFecha = mandatoFecha;
+        NifIva = NormalizarIva(nifIva);
         ActualizadoEn = reloj.AhoraUtc;
         return Resultado.Ok();
     }
@@ -156,4 +165,7 @@ public sealed class Cliente : RaizAgregadoEmpresa<Guid>
 
     private static string? NormalizarIban(string? iban) =>
         string.IsNullOrWhiteSpace(iban) ? null : iban.Replace(" ", string.Empty, StringComparison.Ordinal).ToUpperInvariant();
+
+    private static string? NormalizarIva(string? nifIva) =>
+        string.IsNullOrWhiteSpace(nifIva) ? null : nifIva.Replace(" ", string.Empty, StringComparison.Ordinal).ToUpperInvariant();
 }

@@ -1606,13 +1606,29 @@
         api("/facturas").catch(()=>[]),
         api("/gastos").catch(()=>[]),
       ]);
+      const m349=await api(`/informes/modelo-349?anio=${anio}&trimestre=${trimSel}`).catch(()=>null);
       const panelGraficos=graficosHtml(facturas,gastos,anio);
       const filas=libro.asientos.map(a=>`<tr><td class="muted">${fdate(a.fecha)}</td><td><strong>${a.documento}</strong></td><td>${a.tercero}</td><td class="num">${eur(a.base)}</td><td class="num">${eur(a.cuota)}</td></tr>`).join("");
       const total=`<tr><td colspan="3" class="right"><strong>Totales</strong></td><td class="num"><strong>${eur(libro.totalBase)}</strong></td><td class="num"><strong>${eur(libro.totalCuota)}</strong></td></tr>`;
       const cuerpo=libro.asientos.length?`<table><thead><tr><th>Fecha</th><th>Documento</th><th>Cliente</th><th class="num">Base</th><th class="num">Cuota IVA</th></tr></thead><tbody>${filas}${total}</tbody></table>`:vacio("informes","Sin movimientos en el periodo","Emite facturas para ver aquí tu libro de IVA repercutido.");
       const panelLibro=panel(`Libro de IVA repercutido · ${anio}`,cuerpo,`<button class="btn small ghost" onclick="descargarCsv()">↓ Exportar CSV (gestoría)</button>`);
-      view(panelGraficos+(benef?panelBeneficio(benef,anio):"")+(benef&&benef.porProducto.length?panelRanking(benef,anio):"")+(resumen?panelResumen(resumen,anio):"")+((m111||m190)?panelRetenciones(m111,m190,anio):"")+(anual?panelAnual(anual,anio):"")+panelLibro);
+      view(panelGraficos+(benef?panelBeneficio(benef,anio):"")+(benef&&benef.porProducto.length?panelRanking(benef,anio):"")+(resumen?panelResumen(resumen,anio):"")+((m111||m190)?panelRetenciones(m111,m190,anio):"")+(m349?panelIntracomunitarias(m349,anio):"")+(anual?panelAnual(anual,anio):"")+panelLibro);
     }
+    function panelIntracomunitarias(m,anio){
+      const clave=c=>({E:"Entregas (ventas)",A:"Adquisiciones (compras)"}[c]||c);
+      const filas=m.operadores.map(o=>`<tr><td><span class="pill" style="font-size:11px">${o.clave}</span> ${clave(o.clave)}</td><td>${o.nombre}</td><td class="mono muted">${o.nifIva}</td><td class="num"><strong>${eur(o.baseImponible)}</strong></td></tr>`).join("");
+      const cuerpo=m.operadores.length
+        ? `<table><thead><tr><th>Tipo</th><th>Operador</th><th>NIF-IVA</th><th class="num">Base imponible</th></tr></thead><tbody>${filas}<tr><td colspan="3" class="right"><strong>Total</strong></td><td class="num"><strong>${eur(m.baseTotal)}</strong></td></tr></tbody></table>`
+        : `<p class="muted">Sin operaciones intracomunitarias en el ${m.periodo}. Marca a tus clientes/proveedores de la UE con su NIF-IVA para que aparezcan aquí.</p>`;
+      const nota=`<p class="muted" style="font-size:12px;margin:14px 0 0">Operaciones con clientes/proveedores que tienen NIF-IVA intracomunitario. El fichero sigue el diseño de la AEAT; <strong>valídalo con el servicio de predeclaración de la AEAT</strong> antes de presentarlo.</p>`;
+      const acc=selTrim(anio)+(m.operadores.length?` <button class="btn small ghost" onclick="descargarModelo349(${anio},${m.trimestre})">↓ Fichero oficial 349</button>`:"");
+      return panel(`Modelo 349 · Operaciones intracomunitarias · ${anio}`,cuerpo+nota,acc);
+    }
+    async function descargarModelo349(anio,trimestre){
+      try{ const r=await fetch(`/informes/modelo-349/fichero?anio=${anio}&trimestre=${trimestre}`,{headers:{Authorization:"Bearer "+token}});
+        if(!r.ok){ toast("No hay operaciones intracomunitarias en el periodo.","err"); return; }
+        const b=await r.blob(); const u=URL.createObjectURL(b); const a=document.createElement("a"); a.href=u; a.download=`modelo-349-${anio}-${trimestre}T.txt`; a.click(); URL.revokeObjectURL(u);
+      }catch(e){ toast(e.message,"err"); } }
     function panelRetenciones(m111,m190,anio){
       const fila=(l,v,fuerte)=>`<tr><td class="${fuerte?'':'muted'}">${l}</td><td class="num">${fuerte?'<strong>':''}${eur(v)}${fuerte?'</strong>':''}</td></tr>`;
       const t111=m111?`<table><tbody>
@@ -1897,14 +1913,18 @@
       <label style="display:flex;align-items:center;gap:8px;margin-top:14px;font-weight:500;cursor:pointer"><input id="c_recargo" type="checkbox" style="width:auto"/> Cliente en recargo de equivalencia (minorista)</label>
       <label style="margin-top:14px">Domiciliación bancaria (opcional, para remesas SEPA)</label>
       <input id="c_iban" placeholder="IBAN del cliente (ES..)"/>
-      <div class="grid2"><div><label>Referencia del mandato</label><input id="c_mref" placeholder="Ej. MND-0001"/></div><div><label>Fecha del mandato</label><input id="c_mfecha" type="date"/></div></div>`,
-      async()=>{ const b=JSON.stringify({nombre:val("c_nombre"),nifFiscal:val("c_nif")||null,email:val("c_email")||null,porcentajeIrpfDefecto:Number(val("c_irpf")),recargoEquivalencia:document.getElementById("c_recargo").checked,iban:val("c_iban")||null,mandatoReferencia:val("c_mref")||null,mandatoFecha:val("c_mfecha")||null}); await api("/clientes"+(c?"/"+c.id:""),{method:c?"PUT":"POST",body:b}); vClientes(); });
-      if(c){ rellenar({c_nombre:c.nombre,c_nif:c.nifFiscal,c_email:c.email,c_irpf:c.porcentajeIrpfDefecto,c_iban:c.iban,c_mref:c.mandatoReferencia,c_mfecha:c.mandatoFecha}); document.getElementById("c_recargo").checked=!!c.recargoEquivalencia; } }
+      <div class="grid2"><div><label>Referencia del mandato</label><input id="c_mref" placeholder="Ej. MND-0001"/></div><div><label>Fecha del mandato</label><input id="c_mfecha" type="date"/></div></div>
+      <label style="margin-top:14px">NIF-IVA intracomunitario (opcional, para el modelo 349)</label>
+      <input id="c_iva" placeholder="Ej. DE123456789"/>`,
+      async()=>{ const b=JSON.stringify({nombre:val("c_nombre"),nifFiscal:val("c_nif")||null,email:val("c_email")||null,porcentajeIrpfDefecto:Number(val("c_irpf")),recargoEquivalencia:document.getElementById("c_recargo").checked,iban:val("c_iban")||null,mandatoReferencia:val("c_mref")||null,mandatoFecha:val("c_mfecha")||null,nifIva:val("c_iva")||null}); await api("/clientes"+(c?"/"+c.id:""),{method:c?"PUT":"POST",body:b}); vClientes(); });
+      if(c){ rellenar({c_nombre:c.nombre,c_nif:c.nifFiscal,c_email:c.email,c_irpf:c.porcentajeIrpfDefecto,c_iban:c.iban,c_mref:c.mandatoReferencia,c_mfecha:c.mandatoFecha,c_iva:c.nifIva}); document.getElementById("c_recargo").checked=!!c.recargoEquivalencia; } }
     function modalProveedor(pr){ const fp=[["NoIndicada","Sin especificar"],["Transferencia","Transferencia"],["Domiciliacion","Domiciliación"],["Efectivo","Efectivo"],["Tarjeta","Tarjeta"],["Pagare","Pagaré"],["Confirming","Confirming"],["Otro","Otro"]].map(o=>`<option value="${o[0]}">${o[1]}</option>`).join("");
       abrir(pr?"Editar proveedor":"Nuevo proveedor",`<label>Nombre</label><input id="pr_nombre" placeholder="Nombre o razón social"/><div class="grid2"><div><label>NIF (opcional)</label><input id="pr_nif"/></div><div><label>IRPF (opcional)</label><input id="pr_irpf" type="number" value="0"/></div></div>
-      <div class="grid2"><div><label>Forma de pago</label><select id="pr_pago">${fp}</select></div><div><label>Email (opcional)</label><input id="pr_email"/></div></div>`,
-      async()=>{ const b=JSON.stringify({nombre:val("pr_nombre"),nifFiscal:val("pr_nif")||null,email:val("pr_email")||null,porcentajeIrpfDefecto:Number(val("pr_irpf")),formaPago:val("pr_pago")}); await api("/proveedores"+(pr?"/"+pr.id:""),{method:pr?"PUT":"POST",body:b}); vProveedores(); });
-      if(pr) rellenar({pr_nombre:pr.nombre,pr_nif:pr.nifFiscal,pr_email:pr.email,pr_irpf:pr.porcentajeIrpfDefecto,pr_pago:pr.formaPago}); }
+      <div class="grid2"><div><label>Forma de pago</label><select id="pr_pago">${fp}</select></div><div><label>Email (opcional)</label><input id="pr_email"/></div></div>
+      <label style="margin-top:14px">NIF-IVA intracomunitario (opcional, para el modelo 349)</label>
+      <input id="pr_iva" placeholder="Ej. IT12345678901"/>`,
+      async()=>{ const b=JSON.stringify({nombre:val("pr_nombre"),nifFiscal:val("pr_nif")||null,email:val("pr_email")||null,porcentajeIrpfDefecto:Number(val("pr_irpf")),formaPago:val("pr_pago"),nifIva:val("pr_iva")||null}); await api("/proveedores"+(pr?"/"+pr.id:""),{method:pr?"PUT":"POST",body:b}); vProveedores(); });
+      if(pr) rellenar({pr_nombre:pr.nombre,pr_nif:pr.nifFiscal,pr_email:pr.email,pr_irpf:pr.porcentajeIrpfDefecto,pr_pago:pr.formaPago,pr_iva:pr.nifIva}); }
     async function modalProducto(p){ const [provs,prods]=await Promise.all([api("/proveedores").catch(()=>[]),api("/productos").catch(()=>[])]);
       const provOpts=`<option value="">— Sin asignar —</option>`+provs.map(x=>`<option value="${x.id}">${x.nombre}</option>`).join("");
       const editar=p&&p.id;
