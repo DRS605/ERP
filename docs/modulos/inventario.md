@@ -8,10 +8,15 @@ por recuento y traspaso), trazabilidad y **ubicación por defecto** del artícul
 - **Almacén** (`Almacen`): almacén físico o lógico de la empresa (código + nombre).
 - **Ubicación** (`Ubicacion`): posición dentro de un almacén (p. ej. `A-1`, `PASILLO-3`). Opcional:
   un almacén puede llevar stock sin ubicaciones.
-- **Existencia** (`Existencia`): stock de un artículo en un almacén y, opcionalmente, una ubicación.
-  Nunca queda negativa.
+- **Existencia** (`Existencia`): stock de un artículo en un almacén y, opcionalmente, una ubicación
+  y un **lote o número de serie**. Nunca queda negativa. La existencia se identifica por
+  empresa · artículo · almacén · ubicación · **lote**, así que un mismo artículo mantiene saldos
+  separados por lote/serie.
 - **Movimiento** (`MovimientoInventario`): registro histórico (trazabilidad) de cada entrada,
-  salida, ajuste o traspaso, con cantidad **con signo**.
+  salida, ajuste o traspaso, con cantidad **con signo** y el **lote/serie** afectado.
+- **Lote / número de serie**: dimensión opcional (`Lote`, texto). El artículo declara en Catálogo si
+  se traza por lote o por número de serie; Inventario lo trata como una etiqueta que segmenta el
+  stock y alimenta la trazabilidad.
 - **Ubicación por defecto** (`UbicacionDefecto`): dónde colocar un artículo por defecto. Puede ser
   **solo por almacén** o **por proveedor y almacén**.
 
@@ -42,8 +47,9 @@ proveedor X y en la ubicación estándar del almacén para el resto.
 | `POST` | `/inventario/ubicaciones` | `inventario.gestionar` | Crea una ubicación. **201** |
 | `GET` | `/inventario/stock/producto/{id}` | `inventario.leer` | Existencias de un artículo por almacén/ubicación. |
 | `GET` | `/inventario/stock/almacen/{id}` | `inventario.leer` | Existencias de un almacén. |
-| `GET` | `/inventario/movimientos/producto/{id}` | `inventario.leer` | Trazabilidad de un artículo. |
-| `POST` | `/inventario/entrada` | `inventario.gestionar` | Entrada de stock. |
+| `GET` | `/inventario/movimientos/producto/{id}` | `inventario.leer` | Movimientos de un artículo. |
+| `GET` | `/inventario/trazabilidad/{id}?lote=` | `inventario.leer` | Trazabilidad de un lote/serie: dónde está e historial. |
+| `POST` | `/inventario/entrada` | `inventario.gestionar` | Entrada de stock (admite `lote`). |
 | `POST` | `/inventario/salida` | `inventario.gestionar` | Salida de stock. |
 | `POST` | `/inventario/ajuste` | `inventario.gestionar` | Ajuste por recuento. |
 | `POST` | `/inventario/traspaso` | `inventario.gestionar` | Traspaso entre almacenes/ubicaciones. |
@@ -55,6 +61,8 @@ proveedor X y en la ubicación estándar del almacén para el resto.
 - Esquema **`inventario`**: `almacen`, `ubicacion`, `existencia`, `movimiento_inventario`,
   `ubicacion_defecto`. RLS por empresa en las cinco tablas.
 - Índices únicos: `(empresa, código)` de almacén, `(empresa, almacén, código)` de ubicación.
+- `existencia` y `movimiento_inventario` llevan `lote` (texto, opcional); la existencia se indexa por
+  `(empresa, producto, almacén, ubicación, lote)`. Migración `LoteEnExistenciaYMovimiento`.
 - Cantidades con 3 decimales (`numeric(14,3)`).
 
 ## Tests

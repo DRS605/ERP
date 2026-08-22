@@ -22,6 +22,7 @@ public static class EndpointsInventario
         g.MapGet("/stock/producto/{productoId:guid}", StockProductoAsync).WithSummary("Existencias de un artículo por almacén/ubicación.").RequierePermiso(Permisos.InventarioLeer);
         g.MapGet("/stock/almacen/{almacenId:guid}", StockAlmacenAsync).WithSummary("Existencias de un almacén.").RequierePermiso(Permisos.InventarioLeer);
         g.MapGet("/movimientos/producto/{productoId:guid}", MovimientosAsync).WithSummary("Movimientos (trazabilidad) de un artículo.").RequierePermiso(Permisos.InventarioLeer);
+        g.MapGet("/trazabilidad/{productoId:guid}", TrazabilidadAsync).WithSummary("Trazabilidad de un lote o nº de serie: existencias e historial.").RequierePermiso(Permisos.InventarioLeer);
 
         g.MapPost("/entrada", EntradaAsync).WithSummary("Registra una entrada de stock.").RequierePermiso(Permisos.InventarioGestionar);
         g.MapPost("/salida", SalidaAsync).WithSummary("Registra una salida de stock.").RequierePermiso(Permisos.InventarioGestionar);
@@ -64,6 +65,13 @@ public static class EndpointsInventario
 
     private static async Task<IResult> MovimientosAsync(Guid productoId, IContextoEmpresa c, ConsultasInventario caso, CancellationToken ct)
         => c.EmpresaId is null ? SinEmpresa() : Results.Ok(await caso.MovimientosDeProductoAsync(c.EmpresaId.Value, productoId, ct).ConfigureAwait(false));
+
+    private static async Task<IResult> TrazabilidadAsync(Guid productoId, string lote, IContextoEmpresa c, TrazabilidadLote caso, CancellationToken ct)
+    {
+        if (c.EmpresaId is null) return SinEmpresa();
+        if (string.IsNullOrWhiteSpace(lote)) return ResultadosHttp.AProblema(Error.Validacion("trazabilidad.lote_vacio", "Indica el lote o número de serie."));
+        return Results.Ok(await caso.ConsultarAsync(c.EmpresaId.Value, productoId, lote.Trim(), ct).ConfigureAwait(false));
+    }
 
     private static async Task<IResult> EntradaAsync(MovimientoComando cmd, IContextoEmpresa c, MovimientosInventario caso, CancellationToken ct)
         => c.EmpresaId is null ? SinEmpresa() : (await caso.EntradaAsync(c.EmpresaId.Value, cmd, ct).ConfigureAwait(false)).AOk();

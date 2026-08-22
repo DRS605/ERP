@@ -14,7 +14,10 @@ public sealed class InventarioEndpointsTests : IClassFixture<FabricaApiPruebas>
 
     private sealed record AlmacenResp(Guid Id, string Codigo, string Nombre);
     private sealed record UbicacionResp(Guid Id, Guid AlmacenId, string Codigo);
-    private sealed record ExistenciaResp(Guid ProductoId, Guid AlmacenId, string AlmacenNombre, Guid? UbicacionId, string? UbicacionCodigo, decimal Cantidad);
+    private sealed record ExistenciaResp(Guid ProductoId, Guid AlmacenId, string AlmacenNombre, Guid? UbicacionId, string? UbicacionCodigo, decimal Cantidad, string? Lote);
+    private sealed record MovimientoResp(Guid Id, string Tipo, decimal Cantidad, string? Lote);
+    private sealed record TrazaResp(string Lote, List<ExistenciaResp> Existencias, List<MovimientoResp> Movimientos);
+    private sealed record ProductoIdResp(Guid Id);
     private sealed record UbiDefResp(Guid Id, Guid ProductoId, Guid AlmacenId, Guid? ProveedorId, Guid UbicacionId, string UbicacionCodigo);
 
     [Fact]
@@ -44,6 +47,33 @@ public sealed class InventarioEndpointsTests : IClassFixture<FabricaApiPruebas>
         (await cliente.PostAsJsonAsync("/inventario/ajuste", new { ProductoId = producto, AlmacenId = alm1.Id, Cantidad = 45m })).StatusCode.Should().Be(HttpStatusCode.OK);
         var stock2 = await cliente.GetFromJsonAsync<List<ExistenciaResp>>($"/inventario/stock/producto/{producto}");
         stock2!.Single(s => s.AlmacenId == alm1.Id).Cantidad.Should().Be(45m);
+    }
+
+    [Fact]
+    public async Task Trazabilidad_por_lote_en_varios_almacenes()
+    {
+        var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+        // Artículo trazado por lote.
+        var prod = (await (await cliente.PostAsJsonAsync("/productos", new { Nombre = "Vacuna", PrecioUnitario = 20m, CodigoIva = "IVA21", Seguimiento = "Lote" })).Content.ReadFromJsonAsync<ProductoIdResp>())!;
+        var alm1 = (await (await cliente.PostAsJsonAsync("/inventario/almacenes", new { Codigo = "A1", Nombre = "Nevera 1" })).Content.ReadFromJsonAsync<AlmacenResp>())!;
+        var alm2 = (await (await cliente.PostAsJsonAsync("/inventario/almacenes", new { Codigo = "A2", Nombre = "Nevera 2" })).Content.ReadFromJsonAsync<AlmacenResp>())!;
+
+        // Mismo lote L1 en dos almacenes; y un lote L2 en el primero.
+        await cliente.PostAsJsonAsync("/inventario/entrada", new { ProductoId = prod.Id, AlmacenId = alm1.Id, Cantidad = 100m, Lote = "L1" });
+        await cliente.PostAsJsonAsync("/inventario/entrada", new { ProductoId = prod.Id, AlmacenId = alm2.Id, Cantidad = 40m, Lote = "L1" });
+        await cliente.PostAsJsonAsync("/inventario/entrada", new { ProductoId = prod.Id, AlmacenId = alm1.Id, Cantidad = 10m, Lote = "L2" });
+
+        // El stock del artículo distingue por lote (3 filas).
+        var stock = await cliente.GetFromJsonAsync<List<ExistenciaResp>>($"/inventario/stock/producto/{prod.Id}");
+        stock!.Should().HaveCount(3);
+        stock.Where(s => s.Lote == "L1").Sum(s => s.Cantidad).Should().Be(140m);
+
+        // Trazabilidad del lote L1: está en dos almacenes y tiene dos movimientos.
+        var traza = await cliente.GetFromJsonAsync<TrazaResp>($"/inventario/trazabilidad/{prod.Id}?lote=L1");
+        traza!.Lote.Should().Be("L1");
+        traza.Existencias.Should().HaveCount(2);
+        traza.Movimientos.Should().HaveCount(2);
+        traza.Movimientos.Should().OnlyContain(m => m.Lote == "L1");
     }
 
     [Fact]

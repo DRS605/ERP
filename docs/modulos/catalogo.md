@@ -39,6 +39,15 @@ bordes: p. ej. al **recibir un pedido de compra**, la cantidad recibida (en unid
 convierte a unidades base antes de dar entrada al almacén. Así el stock y el consumo de producción
 son siempre inequívocos.
 
+### Trazabilidad: lote o número de serie
+
+El artículo declara su **modo de seguimiento** (`Seguimiento`): `Ninguno` (por defecto), `Lote`
+(varias unidades comparten un código de lote; útil para caducidades o control sanitario) o `Serie`
+(cada unidad es única). `RequiereLoteOSerie` indica si sus movimientos de stock deben llevar lote.
+El seguimiento vive en el artículo; la trazabilidad efectiva (existencias y movimientos por lote) la
+lleva el módulo **Inventario**. Al **recibir un pedido**, la UI exige el lote/nº de serie de las
+líneas trazadas y lo propaga a la entrada de almacén.
+
 ## Histórico de precios
 
 Cada alta de producto y cada **cambio de precio** (de venta o de compra) añade una fila a

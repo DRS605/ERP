@@ -39,6 +39,15 @@ public sealed class ExistenciaTests
     }
 
     [Fact]
+    public void La_existencia_guarda_el_lote()
+    {
+        var e = Existencia.Nueva(Emp, Guid.NewGuid(), Guid.NewGuid(), null, "L-2026-01");
+        e.Lote.Should().Be("L-2026-01");
+        e.Aumentar(4m);
+        e.Cantidad.Should().Be(4m);
+    }
+
+    [Fact]
     public void Almacen_y_ubicacion_validan()
     {
         Almacen.Crear(Emp, "", "Central").EsFallo.Should().BeTrue();

@@ -77,8 +77,9 @@ internal sealed class ConfiguracionExistencia : IEntityTypeConfiguration<Existen
         b.Property(x => x.ProductoId).HasColumnName("producto_id").IsRequired();
         b.Property(x => x.AlmacenId).HasColumnName("almacen_id").IsRequired();
         b.Property(x => x.UbicacionId).HasColumnName("ubicacion_id");
+        b.Property(x => x.Lote).HasColumnName("lote").HasMaxLength(80);
         b.Property(x => x.Cantidad).HasColumnName("cantidad").HasColumnType("numeric(14,3)").IsRequired();
-        b.HasIndex(x => new { x.EmpresaId, x.ProductoId, x.AlmacenId, x.UbicacionId }).HasDatabaseName("ix_existencia_clave");
+        b.HasIndex(x => new { x.EmpresaId, x.ProductoId, x.AlmacenId, x.UbicacionId, x.Lote }).HasDatabaseName("ix_existencia_clave");
         b.Ignore(x => x.EventosDominio);
     }
 }
@@ -99,6 +100,7 @@ internal sealed class ConfiguracionMovimiento : IEntityTypeConfiguration<Movimie
         b.Property(x => x.Fecha).HasColumnName("fecha").IsRequired();
         b.Property(x => x.Motivo).HasColumnName("motivo").HasMaxLength(200);
         b.Property(x => x.Referencia).HasColumnName("referencia").HasMaxLength(120);
+        b.Property(x => x.Lote).HasColumnName("lote").HasMaxLength(80);
         b.Property(x => x.CreadoEn).HasColumnName("creado_en").IsRequired();
         b.HasIndex(x => new { x.EmpresaId, x.ProductoId }).HasDatabaseName("ix_movimiento_empresa_producto");
         b.Ignore(x => x.EventosDominio);
@@ -155,8 +157,8 @@ internal sealed class RepositorioExistencias : IRepositorioExistencias
     private readonly InventarioDbContext _ctx;
     public RepositorioExistencias(InventarioDbContext ctx) => _ctx = ctx;
 
-    public Task<Existencia?> ObtenerAsync(Guid empresaId, Guid productoId, Guid almacenId, Guid? ubicacionId, CancellationToken ct = default) =>
-        _ctx.Existencias.FirstOrDefaultAsync(e => e.EmpresaId == empresaId && e.ProductoId == productoId && e.AlmacenId == almacenId && e.UbicacionId == ubicacionId, ct);
+    public Task<Existencia?> ObtenerAsync(Guid empresaId, Guid productoId, Guid almacenId, Guid? ubicacionId, string? lote, CancellationToken ct = default) =>
+        _ctx.Existencias.FirstOrDefaultAsync(e => e.EmpresaId == empresaId && e.ProductoId == productoId && e.AlmacenId == almacenId && e.UbicacionId == ubicacionId && e.Lote == lote, ct);
 
     public void Agregar(Existencia existencia) => _ctx.Existencias.Add(existencia);
 
@@ -166,6 +168,9 @@ internal sealed class RepositorioExistencias : IRepositorioExistencias
     public Task<IReadOnlyList<ExistenciaDto>> ListarPorAlmacenAsync(Guid empresaId, Guid almacenId, CancellationToken ct = default) =>
         ProyectarAsync(_ctx.Existencias.AsNoTracking().Where(e => e.EmpresaId == empresaId && e.AlmacenId == almacenId), ct);
 
+    public Task<IReadOnlyList<ExistenciaDto>> ListarPorLoteAsync(Guid empresaId, Guid productoId, string lote, CancellationToken ct = default) =>
+        ProyectarAsync(_ctx.Existencias.AsNoTracking().Where(e => e.EmpresaId == empresaId && e.ProductoId == productoId && e.Lote == lote && e.Cantidad != 0m), ct);
+
     private async Task<IReadOnlyList<ExistenciaDto>> ProyectarAsync(IQueryable<Existencia> origen, CancellationToken ct)
     {
         var consulta =
@@ -173,7 +178,7 @@ internal sealed class RepositorioExistencias : IRepositorioExistencias
             join a in _ctx.Almacenes.AsNoTracking() on e.AlmacenId equals a.Id
             join u in _ctx.Ubicaciones.AsNoTracking() on e.UbicacionId equals u.Id into uj
             from u in uj.DefaultIfEmpty()
-            select new ExistenciaDto(e.ProductoId, e.AlmacenId, a.Nombre, e.UbicacionId, u != null ? u.Codigo : null, e.Cantidad);
+            select new ExistenciaDto(e.ProductoId, e.AlmacenId, a.Nombre, e.UbicacionId, u != null ? u.Codigo : null, e.Cantidad, e.Lote);
         return await consulta.ToListAsync(ct).ConfigureAwait(false);
     }
 }
@@ -190,8 +195,19 @@ internal sealed class RepositorioMovimientos : IRepositorioMovimientos
         var lista = await _ctx.Movimientos.AsNoTracking()
             .Where(m => m.EmpresaId == empresaId && m.ProductoId == productoId)
             .OrderByDescending(m => m.CreadoEn).ToListAsync(ct).ConfigureAwait(false);
-        return lista.Select(m => new MovimientoDto(m.Id, m.ProductoId, m.AlmacenId, m.UbicacionId, m.Tipo.ToString(), m.Cantidad, m.Fecha, m.Motivo, m.Referencia)).ToList();
+        return lista.Select(Proyectar).ToList();
     }
+
+    public async Task<IReadOnlyList<MovimientoDto>> ListarPorLoteAsync(Guid empresaId, Guid productoId, string lote, CancellationToken ct = default)
+    {
+        var lista = await _ctx.Movimientos.AsNoTracking()
+            .Where(m => m.EmpresaId == empresaId && m.ProductoId == productoId && m.Lote == lote)
+            .OrderByDescending(m => m.CreadoEn).ToListAsync(ct).ConfigureAwait(false);
+        return lista.Select(Proyectar).ToList();
+    }
+
+    private static MovimientoDto Proyectar(MovimientoInventario m) =>
+        new(m.Id, m.ProductoId, m.AlmacenId, m.UbicacionId, m.Tipo.ToString(), m.Cantidad, m.Fecha, m.Motivo, m.Referencia, m.Lote);
 }
 
 internal sealed class RepositorioUbicacionesDefecto : IRepositorioUbicacionesDefecto

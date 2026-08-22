@@ -22,12 +22,13 @@ public sealed class Existencia : RaizAgregadoEmpresa<Guid>
 {
     private Existencia(Guid id) : base(id, Guid.Empty) { }
 
-    private Existencia(Guid id, Guid empresaId, Guid productoId, Guid almacenId, Guid? ubicacionId)
+    private Existencia(Guid id, Guid empresaId, Guid productoId, Guid almacenId, Guid? ubicacionId, string? lote)
         : base(id, empresaId)
     {
         ProductoId = productoId;
         AlmacenId = almacenId;
         UbicacionId = ubicacionId;
+        Lote = lote;
         Cantidad = 0m;
     }
 
@@ -37,10 +38,13 @@ public sealed class Existencia : RaizAgregadoEmpresa<Guid>
 
     public Guid? UbicacionId { get; private set; }
 
+    /// <summary>Lote o número de serie al que pertenece esta existencia (null si el artículo no se traza así).</summary>
+    public string? Lote { get; private set; }
+
     public decimal Cantidad { get; private set; }
 
-    public static Existencia Nueva(Guid empresaId, Guid productoId, Guid almacenId, Guid? ubicacionId) =>
-        new(Guid.NewGuid(), empresaId, productoId, almacenId, ubicacionId);
+    public static Existencia Nueva(Guid empresaId, Guid productoId, Guid almacenId, Guid? ubicacionId, string? lote = null) =>
+        new(Guid.NewGuid(), empresaId, productoId, almacenId, ubicacionId, lote);
 
     public void Aumentar(decimal cantidad) => Cantidad = Math.Round(Cantidad + cantidad, 3, MidpointRounding.AwayFromZero);
 
@@ -64,7 +68,7 @@ public sealed class MovimientoInventario : RaizAgregadoEmpresa<Guid>
     private MovimientoInventario(Guid id) : base(id, Guid.Empty) { }
 
     private MovimientoInventario(Guid id, Guid empresaId, Guid productoId, Guid almacenId, Guid? ubicacionId,
-        TipoMovimientoInventario tipo, decimal cantidad, DateOnly fecha, string? motivo, string? referencia, DateTimeOffset ahora)
+        TipoMovimientoInventario tipo, decimal cantidad, DateOnly fecha, string? motivo, string? referencia, string? lote, DateTimeOffset ahora)
         : base(id, empresaId)
     {
         ProductoId = productoId;
@@ -75,6 +79,7 @@ public sealed class MovimientoInventario : RaizAgregadoEmpresa<Guid>
         Fecha = fecha;
         Motivo = motivo;
         Referencia = referencia;
+        Lote = lote;
         CreadoEn = ahora;
     }
 
@@ -83,6 +88,9 @@ public sealed class MovimientoInventario : RaizAgregadoEmpresa<Guid>
     public Guid AlmacenId { get; private set; }
 
     public Guid? UbicacionId { get; private set; }
+
+    /// <summary>Lote o número de serie afectado por el movimiento (null si no aplica). Base de la trazabilidad.</summary>
+    public string? Lote { get; private set; }
 
     public TipoMovimientoInventario Tipo { get; private set; }
 
@@ -98,11 +106,12 @@ public sealed class MovimientoInventario : RaizAgregadoEmpresa<Guid>
     public DateTimeOffset CreadoEn { get; private set; }
 
     public static MovimientoInventario Registrar(Guid empresaId, Guid productoId, Guid almacenId, Guid? ubicacionId,
-        TipoMovimientoInventario tipo, decimal cantidadConSigno, DateOnly fecha, string? motivo, string? referencia, IReloj reloj)
+        TipoMovimientoInventario tipo, decimal cantidadConSigno, DateOnly fecha, string? motivo, string? referencia, IReloj reloj, string? lote = null)
     {
         ArgumentNullException.ThrowIfNull(reloj);
         return new MovimientoInventario(Guid.NewGuid(), empresaId, productoId, almacenId, ubicacionId, tipo,
             cantidadConSigno, fecha, string.IsNullOrWhiteSpace(motivo) ? null : motivo.Trim(),
-            string.IsNullOrWhiteSpace(referencia) ? null : referencia.Trim(), reloj.AhoraUtc);
+            string.IsNullOrWhiteSpace(referencia) ? null : referencia.Trim(),
+            string.IsNullOrWhiteSpace(lote) ? null : lote.Trim(), reloj.AhoraUtc);
     }
 }

@@ -35,6 +35,7 @@ public static class RegistroServicios
         servicios.AddScoped<MovimientosInventario>();
         servicios.AddScoped<ConsultasInventario>();
         servicios.AddScoped<UbicacionesPorDefecto>();
+        servicios.AddScoped<TrazabilidadLote>();
 
         return servicios;
     }

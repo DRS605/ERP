@@ -27,7 +27,7 @@ internal sealed class EntradaInventarioCompras : IEntradaInventarioCompras
     }
 
     public async Task RegistrarEntradaAsync(Guid empresaId, Guid productoId, Guid almacenId, Guid? proveedorId,
-        decimal cantidad, string? referencia, DateOnly fecha, CancellationToken ct = default)
+        decimal cantidad, string? referencia, DateOnly fecha, string? lote, CancellationToken ct = default)
     {
         var producto = await _productos.ObtenerAsync(productoId, ct).ConfigureAwait(false);
         var cantidadBase = (producto is not null && producto.FactorCompra > 0m)
@@ -36,7 +36,7 @@ internal sealed class EntradaInventarioCompras : IEntradaInventarioCompras
 
         var ubicacionId = await _ubicaciones.ResolverAsync(empresaId, productoId, almacenId, proveedorId, ct).ConfigureAwait(false);
         await _movimientos.EntradaAsync(empresaId,
-            new MovimientoComando(productoId, almacenId, cantidadBase, ubicacionId, fecha, "Recepción de compra", referencia), ct)
+            new MovimientoComando(productoId, almacenId, cantidadBase, ubicacionId, fecha, "Recepción de compra", referencia, string.IsNullOrWhiteSpace(lote) ? null : lote.Trim()), ct)
             .ConfigureAwait(false);
     }
 }

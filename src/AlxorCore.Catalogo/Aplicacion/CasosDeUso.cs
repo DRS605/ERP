@@ -20,7 +20,8 @@ public sealed record DatosProducto(
     string? UnidadCompra = null,
     decimal FactorCompra = 1m,
     string? UnidadVenta = null,
-    decimal FactorVenta = 1m);
+    decimal FactorVenta = 1m,
+    SeguimientoArticulo Seguimiento = SeguimientoArticulo.Ninguno);
 
 /// <summary>Caso de uso: crear un producto en la empresa activa.</summary>
 public sealed class CrearProducto
@@ -42,7 +43,7 @@ public sealed class CrearProducto
     {
         ArgumentNullException.ThrowIfNull(datos);
 
-        var producto = Producto.Crear(empresaId, datos.Referencia, datos.Nombre, datos.Tipo, datos.PrecioUnitario, datos.PrecioCompra, datos.CodigoIva, datos.Unidad, _reloj, datos.ProveedorHabitualId, datos.ControlarStock, datos.StockInicial, datos.UnidadCompra, datos.FactorCompra, datos.UnidadVenta, datos.FactorVenta);
+        var producto = Producto.Crear(empresaId, datos.Referencia, datos.Nombre, datos.Tipo, datos.PrecioUnitario, datos.PrecioCompra, datos.CodigoIva, datos.Unidad, _reloj, datos.ProveedorHabitualId, datos.ControlarStock, datos.StockInicial, datos.UnidadCompra, datos.FactorCompra, datos.UnidadVenta, datos.FactorVenta, datos.Seguimiento);
         if (producto.EsFallo)
         {
             return Resultado.Fallo<ProductoDto>(producto.Error);
@@ -84,7 +85,7 @@ public sealed class ActualizarProducto
         var precioVentaAnterior = producto.PrecioUnitario;
         var precioCompraAnterior = producto.PrecioCompra;
 
-        var r = producto.Actualizar(datos.Referencia, datos.Nombre, datos.Tipo, datos.PrecioUnitario, datos.PrecioCompra, datos.CodigoIva, datos.Unidad, _reloj, datos.ProveedorHabitualId, datos.ControlarStock, datos.UnidadCompra, datos.FactorCompra, datos.UnidadVenta, datos.FactorVenta);
+        var r = producto.Actualizar(datos.Referencia, datos.Nombre, datos.Tipo, datos.PrecioUnitario, datos.PrecioCompra, datos.CodigoIva, datos.Unidad, _reloj, datos.ProveedorHabitualId, datos.ControlarStock, datos.UnidadCompra, datos.FactorCompra, datos.UnidadVenta, datos.FactorVenta, datos.Seguimiento);
         if (r.EsFallo)
         {
             return Resultado.Fallo<ProductoDto>(r.Error);

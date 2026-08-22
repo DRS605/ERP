@@ -72,7 +72,7 @@ public interface IUnidadDeTrabajoCompras : IUnidadDeTrabajo;
 public interface IEntradaInventarioCompras
 {
     Task RegistrarEntradaAsync(Guid empresaId, Guid productoId, Guid almacenId, Guid? proveedorId,
-        decimal cantidad, string? referencia, DateOnly fecha, CancellationToken ct = default);
+        decimal cantidad, string? referencia, DateOnly fecha, string? lote, CancellationToken ct = default);
 }
 
 // ---------------------------------------------------------------------------- Comandos
@@ -83,7 +83,7 @@ public sealed record LineaPedidoComando(string Descripcion, decimal Cantidad, de
 public sealed record CrearPedidoComando(string? ProveedorTexto, IReadOnlyList<LineaPedidoComando> Lineas,
     Guid? ProveedorId = null, DateOnly? Fecha = null, Guid? SolicitudOrigenId = null);
 
-public sealed record RecepcionLineaComando(Guid LineaPedidoId, decimal Cantidad);
+public sealed record RecepcionLineaComando(Guid LineaPedidoId, decimal Cantidad, string? Lote = null);
 
 /// <summary>
 /// Recepción de mercancía contra un pedido. Si se indica <see cref="AlmacenId"/>, las líneas con
@@ -327,10 +327,17 @@ public sealed class RecibirMercancia
         if (comando.AlmacenId is { } almacenId && _inventario is not null)
         {
             var referencia = $"Albarán {numero}";
-            foreach (var l in lineasAlbaran.Where(l => l.ProductoId is not null))
+            foreach (var r in recepciones)
             {
-                await _inventario.RegistrarEntradaAsync(empresaId, l.ProductoId!.Value, almacenId, pedido.ProveedorId,
-                    l.Cantidad, referencia, fecha, ct).ConfigureAwait(false);
+                var lp = pedido.Lineas.Single(l => l.Id == r.LineaPedidoId);
+                if (lp.ProductoId is not { } productoId)
+                {
+                    continue;
+                }
+
+                var lote = comando.Lineas!.First(x => x.LineaPedidoId == r.LineaPedidoId).Lote;
+                await _inventario.RegistrarEntradaAsync(empresaId, productoId, almacenId, pedido.ProveedorId,
+                    r.Cantidad, referencia, fecha, lote, ct).ConfigureAwait(false);
             }
         }
 

@@ -16,9 +16,9 @@ public sealed record UbicacionDto(Guid Id, Guid AlmacenId, string Codigo, string
     public static UbicacionDto Desde(Ubicacion u) => new(u.Id, u.AlmacenId, u.Codigo, u.Nombre);
 }
 
-public sealed record ExistenciaDto(Guid ProductoId, Guid AlmacenId, string AlmacenNombre, Guid? UbicacionId, string? UbicacionCodigo, decimal Cantidad);
+public sealed record ExistenciaDto(Guid ProductoId, Guid AlmacenId, string AlmacenNombre, Guid? UbicacionId, string? UbicacionCodigo, decimal Cantidad, string? Lote = null);
 
-public sealed record MovimientoDto(Guid Id, Guid ProductoId, Guid AlmacenId, Guid? UbicacionId, string Tipo, decimal Cantidad, DateOnly Fecha, string? Motivo, string? Referencia);
+public sealed record MovimientoDto(Guid Id, Guid ProductoId, Guid AlmacenId, Guid? UbicacionId, string Tipo, decimal Cantidad, DateOnly Fecha, string? Motivo, string? Referencia, string? Lote = null);
 
 public sealed record UbicacionDefectoDto(Guid Id, Guid ProductoId, Guid AlmacenId, string AlmacenNombre, Guid? ProveedorId, Guid UbicacionId, string UbicacionCodigo);
 
@@ -34,16 +34,18 @@ public interface IRepositorioAlmacenes
 
 public interface IRepositorioExistencias
 {
-    Task<Existencia?> ObtenerAsync(Guid empresaId, Guid productoId, Guid almacenId, Guid? ubicacionId, CancellationToken ct = default);
+    Task<Existencia?> ObtenerAsync(Guid empresaId, Guid productoId, Guid almacenId, Guid? ubicacionId, string? lote, CancellationToken ct = default);
     void Agregar(Existencia existencia);
     Task<IReadOnlyList<ExistenciaDto>> ListarPorProductoAsync(Guid empresaId, Guid productoId, CancellationToken ct = default);
     Task<IReadOnlyList<ExistenciaDto>> ListarPorAlmacenAsync(Guid empresaId, Guid almacenId, CancellationToken ct = default);
+    Task<IReadOnlyList<ExistenciaDto>> ListarPorLoteAsync(Guid empresaId, Guid productoId, string lote, CancellationToken ct = default);
 }
 
 public interface IRepositorioMovimientos
 {
     void Agregar(MovimientoInventario movimiento);
     Task<IReadOnlyList<MovimientoDto>> ListarPorProductoAsync(Guid empresaId, Guid productoId, CancellationToken ct = default);
+    Task<IReadOnlyList<MovimientoDto>> ListarPorLoteAsync(Guid empresaId, Guid productoId, string lote, CancellationToken ct = default);
 }
 
 public interface IRepositorioUbicacionesDefecto
@@ -58,8 +60,8 @@ public interface IUnidadDeTrabajoInventario : IUnidadDeTrabajo;
 // ---------------------------------------------------------------------------- Comandos
 public sealed record CrearAlmacenComando(string Codigo, string Nombre);
 public sealed record CrearUbicacionComando(Guid AlmacenId, string Codigo, string? Nombre = null);
-public sealed record MovimientoComando(Guid ProductoId, Guid AlmacenId, decimal Cantidad, Guid? UbicacionId = null, DateOnly? Fecha = null, string? Motivo = null, string? Referencia = null);
-public sealed record TraspasoComando(Guid ProductoId, decimal Cantidad, Guid AlmacenOrigenId, Guid AlmacenDestinoId, Guid? UbicacionOrigenId = null, Guid? UbicacionDestinoId = null, DateOnly? Fecha = null);
+public sealed record MovimientoComando(Guid ProductoId, Guid AlmacenId, decimal Cantidad, Guid? UbicacionId = null, DateOnly? Fecha = null, string? Motivo = null, string? Referencia = null, string? Lote = null);
+public sealed record TraspasoComando(Guid ProductoId, decimal Cantidad, Guid AlmacenOrigenId, Guid AlmacenDestinoId, Guid? UbicacionOrigenId = null, Guid? UbicacionDestinoId = null, DateOnly? Fecha = null, string? Lote = null);
 public sealed record UbicacionDefectoComando(Guid ProductoId, Guid AlmacenId, Guid UbicacionId, Guid? ProveedorId = null);
 
 // ---------------------------------------------------------------------------- Almacenes y ubicaciones
@@ -122,12 +124,12 @@ public sealed class MovimientosInventario
         _existencias = existencias; _movimientos = movimientos; _unidad = unidad; _reloj = reloj;
     }
 
-    private async Task<Existencia> ObtenerOCrearAsync(Guid empresaId, Guid productoId, Guid almacenId, Guid? ubicacionId, CancellationToken ct)
+    private async Task<Existencia> ObtenerOCrearAsync(Guid empresaId, Guid productoId, Guid almacenId, Guid? ubicacionId, string? lote, CancellationToken ct)
     {
-        var e = await _existencias.ObtenerAsync(empresaId, productoId, almacenId, ubicacionId, ct).ConfigureAwait(false);
+        var e = await _existencias.ObtenerAsync(empresaId, productoId, almacenId, ubicacionId, lote, ct).ConfigureAwait(false);
         if (e is null)
         {
-            e = Existencia.Nueva(empresaId, productoId, almacenId, ubicacionId);
+            e = Existencia.Nueva(empresaId, productoId, almacenId, ubicacionId, lote);
             _existencias.Agregar(e);
         }
 
@@ -142,12 +144,12 @@ public sealed class MovimientosInventario
             return Resultado.Fallo<ExistenciaDto>(Error.Validacion("inventario.cantidad_invalida", "La cantidad debe ser mayor que cero."));
         }
 
-        var e = await ObtenerOCrearAsync(empresaId, c.ProductoId, c.AlmacenId, c.UbicacionId, ct).ConfigureAwait(false);
+        var e = await ObtenerOCrearAsync(empresaId, c.ProductoId, c.AlmacenId, c.UbicacionId, c.Lote, ct).ConfigureAwait(false);
         e.Aumentar(c.Cantidad);
         _movimientos.Agregar(MovimientoInventario.Registrar(empresaId, c.ProductoId, c.AlmacenId, c.UbicacionId,
-            TipoMovimientoInventario.Entrada, c.Cantidad, c.Fecha ?? Hoy(), c.Motivo, c.Referencia, _reloj));
+            TipoMovimientoInventario.Entrada, c.Cantidad, c.Fecha ?? Hoy(), c.Motivo, c.Referencia, _reloj, c.Lote));
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
-        return Resultado.Ok(new ExistenciaDto(e.ProductoId, e.AlmacenId, string.Empty, e.UbicacionId, null, e.Cantidad));
+        return Resultado.Ok(new ExistenciaDto(e.ProductoId, e.AlmacenId, string.Empty, e.UbicacionId, null, e.Cantidad, e.Lote));
     }
 
     public async Task<Resultado<ExistenciaDto>> SalidaAsync(Guid empresaId, MovimientoComando c, CancellationToken ct = default)
@@ -158,7 +160,7 @@ public sealed class MovimientosInventario
             return Resultado.Fallo<ExistenciaDto>(Error.Validacion("inventario.cantidad_invalida", "La cantidad debe ser mayor que cero."));
         }
 
-        var e = await _existencias.ObtenerAsync(empresaId, c.ProductoId, c.AlmacenId, c.UbicacionId, ct).ConfigureAwait(false);
+        var e = await _existencias.ObtenerAsync(empresaId, c.ProductoId, c.AlmacenId, c.UbicacionId, c.Lote, ct).ConfigureAwait(false);
         if (e is null)
         {
             return Resultado.Fallo<ExistenciaDto>(Error.Validacion("existencia.insuficiente", "No hay stock de ese artículo en el almacén."));
@@ -171,9 +173,9 @@ public sealed class MovimientosInventario
         }
 
         _movimientos.Agregar(MovimientoInventario.Registrar(empresaId, c.ProductoId, c.AlmacenId, c.UbicacionId,
-            TipoMovimientoInventario.Salida, -c.Cantidad, c.Fecha ?? Hoy(), c.Motivo, c.Referencia, _reloj));
+            TipoMovimientoInventario.Salida, -c.Cantidad, c.Fecha ?? Hoy(), c.Motivo, c.Referencia, _reloj, c.Lote));
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
-        return Resultado.Ok(new ExistenciaDto(e.ProductoId, e.AlmacenId, string.Empty, e.UbicacionId, null, e.Cantidad));
+        return Resultado.Ok(new ExistenciaDto(e.ProductoId, e.AlmacenId, string.Empty, e.UbicacionId, null, e.Cantidad, e.Lote));
     }
 
     /// <summary>Ajuste por recuento: fija la cantidad contada y registra el movimiento por la diferencia.</summary>
@@ -185,17 +187,17 @@ public sealed class MovimientosInventario
             return Resultado.Fallo<ExistenciaDto>(Error.Validacion("inventario.cantidad_invalida", "La cantidad contada no puede ser negativa."));
         }
 
-        var e = await ObtenerOCrearAsync(empresaId, c.ProductoId, c.AlmacenId, c.UbicacionId, ct).ConfigureAwait(false);
+        var e = await ObtenerOCrearAsync(empresaId, c.ProductoId, c.AlmacenId, c.UbicacionId, c.Lote, ct).ConfigureAwait(false);
         var diferencia = Math.Round(c.Cantidad - e.Cantidad, 3, MidpointRounding.AwayFromZero);
         e.Fijar(c.Cantidad);
         if (diferencia != 0m)
         {
             _movimientos.Agregar(MovimientoInventario.Registrar(empresaId, c.ProductoId, c.AlmacenId, c.UbicacionId,
-                TipoMovimientoInventario.Ajuste, diferencia, c.Fecha ?? Hoy(), c.Motivo ?? "Recuento", c.Referencia, _reloj));
+                TipoMovimientoInventario.Ajuste, diferencia, c.Fecha ?? Hoy(), c.Motivo ?? "Recuento", c.Referencia, _reloj, c.Lote));
         }
 
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
-        return Resultado.Ok(new ExistenciaDto(e.ProductoId, e.AlmacenId, string.Empty, e.UbicacionId, null, e.Cantidad));
+        return Resultado.Ok(new ExistenciaDto(e.ProductoId, e.AlmacenId, string.Empty, e.UbicacionId, null, e.Cantidad, e.Lote));
     }
 
     public async Task<Resultado> TraspasarAsync(Guid empresaId, TraspasoComando c, CancellationToken ct = default)
@@ -206,7 +208,7 @@ public sealed class MovimientosInventario
             return Resultado.Fallo(Error.Validacion("inventario.cantidad_invalida", "La cantidad debe ser mayor que cero."));
         }
 
-        var origen = await _existencias.ObtenerAsync(empresaId, c.ProductoId, c.AlmacenOrigenId, c.UbicacionOrigenId, ct).ConfigureAwait(false);
+        var origen = await _existencias.ObtenerAsync(empresaId, c.ProductoId, c.AlmacenOrigenId, c.UbicacionOrigenId, c.Lote, ct).ConfigureAwait(false);
         if (origen is null)
         {
             return Resultado.Fallo(Error.Validacion("existencia.insuficiente", "No hay stock en el origen."));
@@ -218,12 +220,12 @@ public sealed class MovimientosInventario
             return Resultado.Fallo(dis.Error);
         }
 
-        var destino = await ObtenerOCrearAsync(empresaId, c.ProductoId, c.AlmacenDestinoId, c.UbicacionDestinoId, ct).ConfigureAwait(false);
+        var destino = await ObtenerOCrearAsync(empresaId, c.ProductoId, c.AlmacenDestinoId, c.UbicacionDestinoId, c.Lote, ct).ConfigureAwait(false);
         destino.Aumentar(c.Cantidad);
 
         var fecha = c.Fecha ?? Hoy();
-        _movimientos.Agregar(MovimientoInventario.Registrar(empresaId, c.ProductoId, c.AlmacenOrigenId, c.UbicacionOrigenId, TipoMovimientoInventario.TraspasoSalida, -c.Cantidad, fecha, "Traspaso", null, _reloj));
-        _movimientos.Agregar(MovimientoInventario.Registrar(empresaId, c.ProductoId, c.AlmacenDestinoId, c.UbicacionDestinoId, TipoMovimientoInventario.TraspasoEntrada, c.Cantidad, fecha, "Traspaso", null, _reloj));
+        _movimientos.Agregar(MovimientoInventario.Registrar(empresaId, c.ProductoId, c.AlmacenOrigenId, c.UbicacionOrigenId, TipoMovimientoInventario.TraspasoSalida, -c.Cantidad, fecha, "Traspaso", null, _reloj, c.Lote));
+        _movimientos.Agregar(MovimientoInventario.Registrar(empresaId, c.ProductoId, c.AlmacenDestinoId, c.UbicacionDestinoId, TipoMovimientoInventario.TraspasoEntrada, c.Cantidad, fecha, "Traspaso", null, _reloj, c.Lote));
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return Resultado.Ok();
     }
@@ -245,6 +247,28 @@ public sealed class ConsultasInventario
     public Task<IReadOnlyList<ExistenciaDto>> StockDeAlmacenAsync(Guid empresaId, Guid almacenId, CancellationToken ct = default) => _existencias.ListarPorAlmacenAsync(empresaId, almacenId, ct);
     public Task<IReadOnlyList<MovimientoDto>> MovimientosDeProductoAsync(Guid empresaId, Guid productoId, CancellationToken ct = default) => _movimientos.ListarPorProductoAsync(empresaId, productoId, ct);
 }
+
+/// <summary>Trazabilidad por lote o número de serie: dónde está y su historial de movimientos.</summary>
+public sealed class TrazabilidadLote
+{
+    private readonly IRepositorioExistencias _existencias;
+    private readonly IRepositorioMovimientos _movimientos;
+
+    public TrazabilidadLote(IRepositorioExistencias existencias, IRepositorioMovimientos movimientos)
+    {
+        _existencias = existencias; _movimientos = movimientos;
+    }
+
+    public async Task<TrazabilidadDto> ConsultarAsync(Guid empresaId, Guid productoId, string lote, CancellationToken ct = default)
+    {
+        var existencias = await _existencias.ListarPorLoteAsync(empresaId, productoId, lote, ct).ConfigureAwait(false);
+        var movimientos = await _movimientos.ListarPorLoteAsync(empresaId, productoId, lote, ct).ConfigureAwait(false);
+        return new TrazabilidadDto(lote, existencias, movimientos);
+    }
+}
+
+/// <summary>Resultado de una consulta de trazabilidad: existencias actuales del lote y su historial.</summary>
+public sealed record TrazabilidadDto(string Lote, IReadOnlyList<ExistenciaDto> Existencias, IReadOnlyList<MovimientoDto> Movimientos);
 
 // ---------------------------------------------------------------------------- Ubicación por defecto
 public sealed class UbicacionesPorDefecto

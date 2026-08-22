@@ -1003,8 +1003,18 @@
       async()=>{ await api("/inventario/ubicaciones",{method:"POST",body:JSON.stringify({almacenId:almId,codigo:val("ubi_cod"),nombre:val("ubi_nom")||null})}); toast("Ubicación creada.","ok"); }); }
     async function verStockAlmacen(almId,nombre){
       const st=await api("/inventario/stock/almacen/"+almId);
-      const filas=st.map(s=>`<tr><td>${nombreProd(s.productoId)}</td><td class="muted">${s.ubicacionCodigo||'—'}</td><td class="num"><strong>${s.cantidad}</strong></td></tr>`).join("");
-      document.getElementById("inv_stock").innerHTML=panel("Stock · "+nombre, st.length?`<table><thead><tr><th>Artículo</th><th>Ubicación</th><th class="num">Cantidad</th></tr></thead><tbody>${filas}</tbody></table>`:'<p class="muted">Sin existencias en este almacén.</p>');
+      const filas=st.map(s=>{ const lote=s.lote?`<a onclick="modalTrazabilidad('${s.productoId}','${(s.lote||'').replace(/'/g,"")}')" style="cursor:pointer;color:var(--accent);font-weight:600">${s.lote}</a>`:'<span class="muted">—</span>';
+        return `<tr><td>${nombreProd(s.productoId)}</td><td class="muted">${s.ubicacionCodigo||'—'}</td><td>${lote}</td><td class="num"><strong>${s.cantidad}</strong></td></tr>`;}).join("");
+      document.getElementById("inv_stock").innerHTML=panel("Stock · "+nombre, st.length?`<table><thead><tr><th>Artículo</th><th>Ubicación</th><th>Lote / Serie</th><th class="num">Cantidad</th></tr></thead><tbody>${filas}</tbody></table>`:'<p class="muted">Sin existencias en este almacén.</p>');
+    }
+    async function modalTrazabilidad(productoId,lote){
+      const t=await api(`/inventario/trazabilidad/${productoId}?lote=${encodeURIComponent(lote)}`);
+      const ex=t.existencias.map(e=>`<tr><td>${e.almacenNombre}</td><td class="muted">${e.ubicacionCodigo||'—'}</td><td class="num"><strong>${e.cantidad}</strong></td></tr>`).join("");
+      const mv=t.movimientos.map(m=>`<tr><td class="muted">${fdate(m.fecha)}</td><td>${m.tipo}${m.referencia?` <span class="muted">· ${m.referencia}</span>`:''}</td><td class="num">${numCant(m.cantidad)}</td></tr>`).join("");
+      abrir(`Trazabilidad · ${lote}`,`<div style="margin-bottom:6px;font-weight:600">${nombreProd(productoId)}</div>
+        <h4 style="margin:12px 0 6px">Dónde está ahora</h4>${t.existencias.length?`<table><thead><tr><th>Almacén</th><th>Ubicación</th><th class="num">Cantidad</th></tr></thead><tbody>${ex}</tbody></table>`:'<p class="muted">Sin existencias activas de este lote.</p>'}
+        <h4 style="margin:16px 0 6px">Historial de movimientos</h4>${t.movimientos.length?`<table><thead><tr><th>Fecha</th><th>Movimiento</th><th class="num">Cantidad</th></tr></thead><tbody>${mv}</tbody></table>`:'<p class="muted">Sin movimientos.</p>'}`,null);
+      document.getElementById("modalOk").style.display="none";
     }
     async function modalMovimiento(){
       if(!_cacheAlm.length){ toast("Crea un almacén primero.","err"); return; }
@@ -1013,15 +1023,22 @@
       abrir("Movimiento de stock",`
         <label>Tipo</label><select id="mv_tipo" onchange="document.getElementById('mv_traspaso').style.display=(this.value==='traspaso')?'block':'none';document.getElementById('mv_simple').style.display=(this.value==='traspaso')?'none':'block'">
           <option value="entrada">Entrada</option><option value="salida">Salida</option><option value="ajuste">Ajuste (recuento)</option><option value="traspaso">Traspaso</option></select>
-        <label>Artículo</label><select id="mv_prod">${prodOpts}</select>
+        <label>Artículo</label><select id="mv_prod" onchange="movSeguimiento()">${prodOpts}</select>
+        <div id="mv_lote_box" style="display:none;margin-top:6px"><label id="mv_lote_lbl">Lote</label><input id="mv_lote" placeholder="Código de lote o nº de serie"/></div>
         <label>Cantidad</label><input id="mv_cant" type="number" step="0.001"/>
         <div id="mv_simple"><label>Almacén</label><select id="mv_alm">${almOpts}</select></div>
         <div id="mv_traspaso" style="display:none"><div class="grid2"><div><label>Almacén origen</label><select id="mv_almo">${almOpts}</select></div><div><label>Almacén destino</label><select id="mv_almd">${almOpts}</select></div></div></div>`,
         async()=>{ const tipo=val("mv_tipo"), prod=val("mv_prod"), cant=Number(val("mv_cant")||0);
-          if(tipo==="traspaso"){ await api("/inventario/traspaso",{method:"POST",body:JSON.stringify({productoId:prod,cantidad:cant,almacenOrigenId:val("mv_almo"),almacenDestinoId:val("mv_almd")})}); }
-          else { await api("/inventario/"+tipo,{method:"POST",body:JSON.stringify({productoId:prod,almacenId:val("mv_alm"),cantidad:cant})}); }
+          const seg=(_cacheProdInv.find(x=>x.id===prod)||{}).seguimiento||"Ninguno";
+          const lote=seg!=="Ninguno"?(val("mv_lote")||"").trim():null;
+          if(seg!=="Ninguno"&&!lote) throw new Error(seg==="Serie"?"Indica el número de serie.":"Indica el lote.");
+          if(tipo==="traspaso"){ await api("/inventario/traspaso",{method:"POST",body:JSON.stringify({productoId:prod,cantidad:cant,almacenOrigenId:val("mv_almo"),almacenDestinoId:val("mv_almd"),lote})}); }
+          else { await api("/inventario/"+tipo,{method:"POST",body:JSON.stringify({productoId:prod,almacenId:val("mv_alm"),cantidad:cant,lote})}); }
           toast("Movimiento registrado.","ok"); vInventario(); });
+      movSeguimiento();
     }
+    function movSeguimiento(){ const p=_cacheProdInv.find(x=>x.id===document.getElementById("mv_prod")?.value); const box=document.getElementById("mv_lote_box"); if(!box)return; const seg=(p||{}).seguimiento||"Ninguno";
+      box.style.display=seg==="Ninguno"?"none":"block"; if(seg!=="Ninguno") document.getElementById("mv_lote_lbl").textContent=seg==="Serie"?"Número de serie":"Lote"; }
 
     // ---- Compras: solicitudes → pedidos → albarán → factura ----
     const estadoPillCompra = e => {
@@ -1100,17 +1117,23 @@
     }
     async function accionPedido(id,accion){ try{ await api(`/compras/pedidos/${id}/${accion}`,{method:"POST"}); toast("Pedido "+(accion==="confirmar"?"confirmado":"cancelado")+".","ok"); vPedidos(); }catch(e){ toast(e.message,"err"); } }
     async function modalRecibir(id){
-      const [p,almacenes]=await Promise.all([api("/compras/pedidos/"+id),api("/inventario/almacenes").catch(()=>[])]);
+      const [p,almacenes,prods]=await Promise.all([api("/compras/pedidos/"+id),api("/inventario/almacenes").catch(()=>[]),api("/productos").catch(()=>[])]);
+      const segDe=pid=>((prods.find(x=>x.id===pid)||{}).seguimiento)||"Ninguno";
       const conArticulo=p.lineas.some(l=>l.productoId);
-      const filas=p.lineas.filter(l=>l.pendienteRecibir>0).map(l=>`<div class="cmp-rec" data-id="${l.id}" style="display:grid;grid-template-columns:3fr 1fr;gap:8px;margin-bottom:6px;align-items:center"><div>${l.descripcion}${l.productoId?' <span class="pill" style="font-size:10px">artículo</span>':''} <span class="muted" style="font-size:12px">(pendiente ${l.pendienteRecibir})</span></div><input class="rec-cant" type="number" step="0.001" value="${l.pendienteRecibir}" max="${l.pendienteRecibir}"/></div>`).join("");
+      const filas=p.lineas.filter(l=>l.pendienteRecibir>0).map(l=>{ const seg=segDe(l.productoId);
+        const loteInput=seg!=="Ninguno"?`<input class="rec-lote" placeholder="${seg==="Serie"?"Nº de serie":"Lote"}" title="${seg==="Serie"?"Número de serie":"Lote"}"/>`:'<span></span>';
+        return `<div class="cmp-rec" data-id="${l.id}" data-seg="${seg}" style="display:grid;grid-template-columns:3fr 1fr 1fr;gap:8px;margin-bottom:6px;align-items:center"><div>${l.descripcion}${l.productoId?` <span class="pill" style="font-size:10px">${seg!=="Ninguno"?(seg==="Serie"?"nº serie":"lote"):"artículo"}</span>`:''} <span class="muted" style="font-size:12px">(pendiente ${l.pendienteRecibir})</span></div><input class="rec-cant" type="number" step="0.001" value="${l.pendienteRecibir}" max="${l.pendienteRecibir}"/>${loteInput}</div>`;}).join("");
       const almOpts=almacenes.map(a=>`<option value="${a.id}">${a.nombre}</option>`).join("");
       const almBloque=(almacenes.length&&conArticulo)?`<label style="margin-top:12px">Almacén de entrada <span class="muted" style="font-weight:400;font-size:12px">— da entrada automática al stock (ubicación por defecto)</span></label><select id="rec_alm"><option value="">— No dar entrada a inventario —</option>${almOpts}</select>`:'';
       abrir("Recibir mercancía",`<div class="grid2"><div><label>Fecha</label><input id="rec_fecha" type="date" value="${new Date().toISOString().slice(0,10)}"/></div><div><label>Nº albarán proveedor (opcional)</label><input id="rec_ref"/></div></div>
         ${almBloque}
         <label style="margin-top:12px">Cantidades recibidas</label>${filas||'<p class="muted">Este pedido ya está recibido por completo.</p>'}`,
-        async()=>{ const lineas=[...document.querySelectorAll('.cmp-rec')].map(r=>({lineaPedidoId:r.dataset.id,cantidad:Number(r.querySelector('.rec-cant').value||0)})).filter(l=>l.cantidad>0);
+        async()=>{ const filasR=[...document.querySelectorAll('.cmp-rec')];
+          const lineas=filasR.map(r=>({lineaPedidoId:r.dataset.id,cantidad:Number(r.querySelector('.rec-cant').value||0),lote:(r.querySelector('.rec-lote')?.value||'').trim()||null,_seg:r.dataset.seg})).filter(l=>l.cantidad>0);
           if(!lineas.length) throw new Error("Indica alguna cantidad recibida.");
-          await api(`/compras/pedidos/${id}/recibir`,{method:"POST",body:JSON.stringify({fecha:val("rec_fecha"),referencia:val("rec_ref")||null,almacenId:val("rec_alm")||null,lineas})});
+          const falta=lineas.find(l=>l._seg&&l._seg!=="Ninguno"&&!l.lote);
+          if(falta&&val("rec_alm")) throw new Error("Indica el lote o número de serie de las líneas trazadas.");
+          await api(`/compras/pedidos/${id}/recibir`,{method:"POST",body:JSON.stringify({fecha:val("rec_fecha"),referencia:val("rec_ref")||null,almacenId:val("rec_alm")||null,lineas:lineas.map(({_seg,...l})=>l)})});
           toast("Recepción registrada (albarán).","ok"); vPedidos(); });
     }
     function modalFacturarPedido(id){
@@ -1585,12 +1608,14 @@
           <div id="p_env_prev" class="muted" style="font-size:12px;margin-top:8px"></div>
         </div>
       </details>
+      <label style="margin-top:14px">Trazabilidad</label>
+      <select id="p_seguimiento"><option value="Ninguno">Sin lote ni número de serie</option><option value="Lote">Por lote (caducidades, sanitario…)</option><option value="Serie">Por número de serie (cada unidad única)</option></select>
       <label style="display:flex;align-items:center;gap:8px;margin-top:14px;font-weight:500;cursor:pointer"><input id="p_stock_ctrl" type="checkbox" style="width:auto" onchange="document.getElementById('p_stock_box').style.display=this.checked?'block':'none'"/> Llevar control de stock (existencias)</label>
       <div id="p_stock_box" style="display:none;margin-top:8px"><label>Stock inicial (en unidad base)${editar?' <span class="muted">(no se modifica al editar; usa el botón 📦)</span>':''}</label><input id="p_stock_ini" type="number" step="0.001" value="0" ${editar?'disabled':''}/></div>
       <p class="muted" style="font-size:12px;margin:10px 0 0">El precio de compra sirve para calcular el margen en el informe de beneficio. El stock se descuenta automáticamente al facturar.</p>`,
       async()=>{ const fc=Number(val("p_fcompra")||1)||1, fv=Number(val("p_fventa")||1)||1;
-        const b=JSON.stringify({nombre:val("p_nombre"),referencia:val("p_ref")||null,precioUnitario:Number(val("p_precio")),precioCompra:Number(val("p_compra")),codigoIva:val("p_iva"),tipo:(p&&p.tipo)?p.tipo:"Servicio",proveedorHabitualId:val("p_prov")||null,unidad:val("p_unidad")||"ud",unidadCompra:val("p_ucompra")||null,factorCompra:fc,unidadVenta:val("p_uventa")||null,factorVenta:fv,controlarStock:document.getElementById("p_stock_ctrl").checked,stockInicial:Number(val("p_stock_ini")||0)}); await api("/productos"+(editar?"/"+p.id:""),{method:editar?"PUT":"POST",body:b}); vProductos(); });
-      if(p){ rellenar({p_nombre:p.nombre,p_ref:p.referencia,p_precio:p.precioUnitario,p_compra:p.precioCompra,p_iva:p.codigoIva,p_prov:p.proveedorHabitualId,p_unidad:p.unidad||"ud",p_ucompra:p.unidadCompra,p_fcompra:p.factorCompra??1,p_uventa:p.unidadVenta,p_fventa:p.factorVenta??1});
+        const b=JSON.stringify({nombre:val("p_nombre"),referencia:val("p_ref")||null,precioUnitario:Number(val("p_precio")),precioCompra:Number(val("p_compra")),codigoIva:val("p_iva"),tipo:(p&&p.tipo)?p.tipo:"Servicio",proveedorHabitualId:val("p_prov")||null,unidad:val("p_unidad")||"ud",unidadCompra:val("p_ucompra")||null,factorCompra:fc,unidadVenta:val("p_uventa")||null,factorVenta:fv,seguimiento:val("p_seguimiento"),controlarStock:document.getElementById("p_stock_ctrl").checked,stockInicial:Number(val("p_stock_ini")||0)}); await api("/productos"+(editar?"/"+p.id:""),{method:editar?"PUT":"POST",body:b}); vProductos(); });
+      if(p){ rellenar({p_nombre:p.nombre,p_ref:p.referencia,p_precio:p.precioUnitario,p_compra:p.precioCompra,p_iva:p.codigoIva,p_prov:p.proveedorHabitualId,p_unidad:p.unidad||"ud",p_ucompra:p.unidadCompra,p_fcompra:p.factorCompra??1,p_uventa:p.unidadVenta,p_fventa:p.factorVenta??1,p_seguimiento:p.seguimiento||"Ninguno"});
         if(p.controlarStock){ document.getElementById("p_stock_ctrl").checked=true; document.getElementById("p_stock_box").style.display="block"; } }
       prevEnvase(); }
     function prevEnvase(){ const el=document.getElementById("p_env_prev"); if(!el)return; const base=val("p_unidad")||"ud"; const uc=val("p_ucompra"), fc=Number(val("p_fcompra")||1), uv=val("p_uventa"), fv=Number(val("p_fventa")||1); const t=[]; if(uc&&fc&&fc!==1) t.push(`1 ${uc} = ${numCant(fc)} ${base}`); if(uv&&fv&&fv!==1) t.push(`1 ${uv} = ${numCant(fv)} ${base}`); el.textContent=t.join(" · "); }

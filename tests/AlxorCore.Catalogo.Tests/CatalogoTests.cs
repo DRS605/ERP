@@ -143,6 +143,21 @@ public class ProductoTests
     }
 
     [Fact]
+    public void Seguimiento_por_defecto_es_ninguno_y_se_puede_fijar()
+    {
+        var p = Producto.Crear(Empresa, null, "Genérico", TipoProducto.Bien, 1m, 0m, null, "ud", Reloj).Valor;
+        p.Seguimiento.Should().Be(SeguimientoArticulo.Ninguno);
+        p.RequiereLoteOSerie.Should().BeFalse();
+
+        var s = Producto.Crear(Empresa, null, "Vacuna", TipoProducto.Bien, 1m, 0m, null, "ud", Reloj, seguimiento: SeguimientoArticulo.Lote).Valor;
+        s.Seguimiento.Should().Be(SeguimientoArticulo.Lote);
+        s.RequiereLoteOSerie.Should().BeTrue();
+
+        p.Actualizar(null, "Portátil", TipoProducto.Bien, 1m, 0m, null, "ud", Reloj, seguimiento: SeguimientoArticulo.Serie).EsCorrecto.Should().BeTrue();
+        p.Seguimiento.Should().Be(SeguimientoArticulo.Serie);
+    }
+
+    [Fact]
     public void Producto_sin_control_de_stock_no_admite_movimientos()
     {
         var producto = Producto.Crear(Empresa, null, "Servicio", TipoProducto.Servicio, 10m, 0m, null, null, Reloj).Valor;

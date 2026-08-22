@@ -24,13 +24,14 @@ public sealed record ProductoDto(
     string? UnidadVenta,
     decimal FactorVenta,
     decimal PrecioCompraPorUnidadCompra,
-    decimal PrecioVentaPorUnidadVenta)
+    decimal PrecioVentaPorUnidadVenta,
+    SeguimientoArticulo Seguimiento)
 {
     public static ProductoDto Desde(Producto p)
     {
         var porcentaje = Impuesto.PorCodigoImpuesto(p.CodigoIva).Valor.Porcentaje;
         return new ProductoDto(p.Id, p.Referencia, p.Nombre, p.Tipo, p.PrecioUnitario, p.CodigoIva, porcentaje, p.Unidad, p.Activo, p.PrecioCompra, p.ProveedorHabitualId, p.ControlarStock, p.Stock,
-            p.UnidadCompra, p.FactorCompra, p.UnidadVenta, p.FactorVenta, p.PrecioCompraPorUnidadCompra, p.PrecioVentaPorUnidadVenta);
+            p.UnidadCompra, p.FactorCompra, p.UnidadVenta, p.FactorVenta, p.PrecioCompraPorUnidadCompra, p.PrecioVentaPorUnidadVenta, p.Seguimiento);
     }
 }
 

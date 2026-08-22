@@ -53,6 +53,7 @@ internal sealed class ConfiguracionProducto : IEntityTypeConfiguration<Producto>
         builder.Property(p => p.FactorCompra).HasColumnName("factor_compra").HasColumnType("numeric(14,4)").IsRequired();
         builder.Property(p => p.UnidadVenta).HasColumnName("unidad_venta").HasMaxLength(20);
         builder.Property(p => p.FactorVenta).HasColumnName("factor_venta").HasColumnType("numeric(14,4)").IsRequired();
+        builder.Property(p => p.Seguimiento).HasColumnName("seguimiento").HasMaxLength(10).HasConversion<string>().IsRequired();
         builder.Property(p => p.ProveedorHabitualId).HasColumnName("proveedor_habitual_id");
         builder.Property(p => p.ControlarStock).HasColumnName("controlar_stock").IsRequired();
         builder.Property(p => p.Stock).HasColumnName("stock").HasColumnType("numeric(14,3)").IsRequired();
@@ -67,6 +68,7 @@ internal sealed class ConfiguracionProducto : IEntityTypeConfiguration<Producto>
         builder.Ignore(p => p.UnidadVentaEfectiva);
         builder.Ignore(p => p.PrecioCompraPorUnidadCompra);
         builder.Ignore(p => p.PrecioVentaPorUnidadVenta);
+        builder.Ignore(p => p.RequiereLoteOSerie);
     }
 }
 

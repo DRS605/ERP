@@ -15,6 +15,19 @@ public enum TipoProducto
     Servicio = 2,
 }
 
+/// <summary>Cómo se traza el stock de un artículo.</summary>
+public enum SeguimientoArticulo
+{
+    /// <summary>Sin trazabilidad por unidad: solo cantidades.</summary>
+    Ninguno = 0,
+
+    /// <summary>Por lote (varias unidades comparten un código de lote; útil para caducidades).</summary>
+    Lote = 1,
+
+    /// <summary>Por número de serie (cada unidad es única).</summary>
+    Serie = 2,
+}
+
 /// <summary>Se ha creado un producto.</summary>
 public sealed record ProductoCreado(Guid ProductoId, Guid EmpresaId, DateTimeOffset OcurridoEn) : IEventoDominio;
 
@@ -36,7 +49,7 @@ public sealed class Producto : RaizAgregadoEmpresa<Guid>
         FactorVenta = 1m;
     }
 
-    private Producto(Guid id, Guid empresaId, string? referencia, string nombre, TipoProducto tipo, decimal precio, decimal precioCompra, string codigoIva, string unidad, Guid? proveedorHabitualId, bool controlarStock, decimal stockInicial, string? unidadCompra, decimal factorCompra, string? unidadVenta, decimal factorVenta, DateTimeOffset ahora)
+    private Producto(Guid id, Guid empresaId, string? referencia, string nombre, TipoProducto tipo, decimal precio, decimal precioCompra, string codigoIva, string unidad, Guid? proveedorHabitualId, bool controlarStock, decimal stockInicial, string? unidadCompra, decimal factorCompra, string? unidadVenta, decimal factorVenta, SeguimientoArticulo seguimiento, DateTimeOffset ahora)
         : base(id, empresaId)
     {
         Referencia = referencia;
@@ -50,6 +63,7 @@ public sealed class Producto : RaizAgregadoEmpresa<Guid>
         FactorCompra = factorCompra;
         UnidadVenta = unidadVenta;
         FactorVenta = factorVenta;
+        Seguimiento = seguimiento;
         ProveedorHabitualId = proveedorHabitualId;
         ControlarStock = controlarStock;
         Stock = controlarStock ? stockInicial : 0m;
@@ -110,6 +124,12 @@ public sealed class Producto : RaizAgregadoEmpresa<Guid>
     /// <summary>Convierte una cantidad expresada en unidades de venta a unidades base.</summary>
     public decimal VentaABase(decimal cantidadVenta) => Math.Round(cantidadVenta * FactorVenta, 3, MidpointRounding.AwayFromZero);
 
+    /// <summary>Modo de trazabilidad del stock (ninguno, por lote o por número de serie).</summary>
+    public SeguimientoArticulo Seguimiento { get; private set; }
+
+    /// <summary>El artículo requiere indicar lote o número de serie en sus movimientos de stock.</summary>
+    public bool RequiereLoteOSerie => Seguimiento != SeguimientoArticulo.Ninguno;
+
     /// <summary>Proveedor habitual del artículo (a quién se le compra normalmente). Referencia opcional a Terceros.</summary>
     public Guid? ProveedorHabitualId { get; private set; }
 
@@ -127,7 +147,7 @@ public sealed class Producto : RaizAgregadoEmpresa<Guid>
 
     public static Resultado<Producto> Crear(
         Guid empresaId, string? referencia, string? nombre, TipoProducto tipo, decimal precioUnitario, decimal precioCompra, string? codigoIva, string? unidad, IReloj reloj, Guid? proveedorHabitualId = null, bool controlarStock = false, decimal stockInicial = 0m,
-        string? unidadCompra = null, decimal factorCompra = 1m, string? unidadVenta = null, decimal factorVenta = 1m)
+        string? unidadCompra = null, decimal factorCompra = 1m, string? unidadVenta = null, decimal factorVenta = 1m, SeguimientoArticulo seguimiento = SeguimientoArticulo.Ninguno)
     {
         ArgumentNullException.ThrowIfNull(reloj);
 
@@ -139,13 +159,13 @@ public sealed class Producto : RaizAgregadoEmpresa<Guid>
 
         var producto = new Producto(
             Guid.NewGuid(), empresaId, Normalizar(referencia), nombre!.Trim(), tipo, precioUnitario, precioCompra, codigoIva!, NormalizarUnidad(unidad), proveedorHabitualId, controlarStock, stockInicial,
-            NormalizarUnidadOpcional(unidadCompra), factorCompra, NormalizarUnidadOpcional(unidadVenta), factorVenta, reloj.AhoraUtc);
+            NormalizarUnidadOpcional(unidadCompra), factorCompra, NormalizarUnidadOpcional(unidadVenta), factorVenta, seguimiento, reloj.AhoraUtc);
         producto.RegistrarEvento(new ProductoCreado(producto.Id, empresaId, reloj.AhoraUtc));
         return Resultado.Ok(producto);
     }
 
     public Resultado Actualizar(string? referencia, string? nombre, TipoProducto tipo, decimal precioUnitario, decimal precioCompra, string? codigoIva, string? unidad, IReloj reloj, Guid? proveedorHabitualId = null, bool controlarStock = false,
-        string? unidadCompra = null, decimal factorCompra = 1m, string? unidadVenta = null, decimal factorVenta = 1m)
+        string? unidadCompra = null, decimal factorCompra = 1m, string? unidadVenta = null, decimal factorVenta = 1m, SeguimientoArticulo seguimiento = SeguimientoArticulo.Ninguno)
     {
         ArgumentNullException.ThrowIfNull(reloj);
 
@@ -168,6 +188,7 @@ public sealed class Producto : RaizAgregadoEmpresa<Guid>
         FactorCompra = factorCompra;
         UnidadVenta = NormalizarUnidadOpcional(unidadVenta);
         FactorVenta = factorVenta;
+        Seguimiento = seguimiento;
         ActualizadoEn = reloj.AhoraUtc;
         return Resultado.Ok();
     }
