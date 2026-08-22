@@ -23,6 +23,7 @@ Resumen del trimestre: número de perceptores, base de las percepciones, retenci
 ingresar. Es una **ayuda**: el 111 se presenta por formulario en la Sede de la AEAT.
 
 `GET /informes/modelo-111?anio={a}&trimestre={1-4}` · permiso `informe.leer`.
+`GET /informes/modelo-111/csv?anio={a}&trimestre={1-4}` · permiso `datos.exportar` → casillas en CSV.
 
 ## Modelo 190 (anual) y fichero oficial
 

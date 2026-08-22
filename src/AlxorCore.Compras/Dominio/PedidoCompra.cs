@@ -67,7 +67,7 @@ public sealed class PedidoCompra : RaizAgregadoEmpresa<Guid>
     private PedidoCompra(Guid id) : base(id, Guid.Empty) { ProveedorTexto = null!; }
 
     private PedidoCompra(Guid id, Guid empresaId, Guid? proveedorId, string proveedorTexto, DateOnly fecha,
-        int ejercicio, int numero, Guid? solicitudOrigenId, DateTimeOffset ahora)
+        int ejercicio, int numero, string? serie, Guid? solicitudOrigenId, DateTimeOffset ahora)
         : base(id, empresaId)
     {
         ProveedorId = proveedorId;
@@ -75,6 +75,7 @@ public sealed class PedidoCompra : RaizAgregadoEmpresa<Guid>
         Fecha = fecha;
         Ejercicio = ejercicio;
         Numero = numero;
+        Serie = string.IsNullOrWhiteSpace(serie) ? null : serie.Trim().ToUpperInvariant();
         SolicitudOrigenId = solicitudOrigenId;
         Estado = EstadoPedido.Borrador;
         CreadoEn = ahora;
@@ -92,6 +93,12 @@ public sealed class PedidoCompra : RaizAgregadoEmpresa<Guid>
     /// <summary>Número correlativo del pedido, por empresa · ejercicio · proveedor (serie por proveedor y año).</summary>
     public int Numero { get; private set; }
 
+    /// <summary>Prefijo de serie asignado (opcional); si es nulo, el número se muestra sin prefijo.</summary>
+    public string? Serie { get; private set; }
+
+    /// <summary>Número mostrable: con prefijo de serie si lo hay, o el número correlativo a secas.</summary>
+    public string NumeroCompleto => Serie is { Length: > 0 } ? $"{Serie}{Ejercicio}/{Numero:D5}" : Numero.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
     public Guid? SolicitudOrigenId { get; private set; }
 
     public EstadoPedido Estado { get; private set; }
@@ -106,7 +113,7 @@ public sealed class PedidoCompra : RaizAgregadoEmpresa<Guid>
     public bool RecibidoCompleto => _lineas.Count > 0 && _lineas.All(l => l.CantidadRecibida >= l.Cantidad);
 
     public static Resultado<PedidoCompra> Crear(Guid empresaId, Guid? proveedorId, string? proveedorTexto,
-        DateOnly fecha, int numero, Guid? solicitudOrigenId, IReadOnlyList<(Guid? ProductoId, string Descripcion, decimal Cantidad, decimal Precio)> lineas, IReloj reloj)
+        DateOnly fecha, int numero, Guid? solicitudOrigenId, IReadOnlyList<(Guid? ProductoId, string Descripcion, decimal Cantidad, decimal Precio)> lineas, IReloj reloj, string? serie = null)
     {
         ArgumentNullException.ThrowIfNull(reloj);
         ArgumentNullException.ThrowIfNull(lineas);
@@ -133,7 +140,7 @@ public sealed class PedidoCompra : RaizAgregadoEmpresa<Guid>
             }
         }
 
-        var pedido = new PedidoCompra(Guid.NewGuid(), empresaId, proveedorId, proveedorTexto.Trim(), fecha, fecha.Year, numero, solicitudOrigenId, reloj.AhoraUtc);
+        var pedido = new PedidoCompra(Guid.NewGuid(), empresaId, proveedorId, proveedorTexto.Trim(), fecha, fecha.Year, numero, serie, solicitudOrigenId, reloj.AhoraUtc);
         foreach (var l in lineas)
         {
             pedido._lineas.Add(new LineaPedido(Guid.NewGuid(), l.ProductoId, l.Descripcion.Trim(), l.Cantidad, Redondeo.Dos(l.Precio)));

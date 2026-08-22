@@ -36,6 +36,18 @@ public static class EndpointsInformes
             .WithSummary("Declaraciones anuales: modelo 390 (resumen IVA) y modelo 347 (operaciones con terceros).")
             .RequierePermiso(Permisos.InformeLeer);
 
+        informes.MapGet("/modelo-303/csv", Modelo303CsvAsync)
+            .WithSummary("Exporta las casillas del modelo 303 a CSV (gestoría).")
+            .RequierePermiso(Permisos.DatosExportar);
+
+        informes.MapGet("/modelo-390/csv", Modelo390CsvAsync)
+            .WithSummary("Exporta las casillas del modelo 390 a CSV (gestoría).")
+            .RequierePermiso(Permisos.DatosExportar);
+
+        informes.MapGet("/modelo-111/csv", Modelo111CsvAsync)
+            .WithSummary("Exporta las casillas del modelo 111 a CSV (gestoría).")
+            .RequierePermiso(Permisos.DatosExportar);
+
         informes.MapGet("/modelo-349", Modelo349Async)
             .WithSummary("Modelo 349 (operaciones intracomunitarias) del trimestre.")
             .RequierePermiso(Permisos.InformeLeer);
@@ -138,6 +150,58 @@ public static class EndpointsInformes
 
         var ejercicio = anio ?? DateTime.UtcNow.Year;
         return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, ejercicio, ct).ConfigureAwait(false));
+    }
+
+    private static IResult CsvFile(string csv, string nombre)
+        => Results.File(Encoding.UTF8.GetBytes(csv), "text/csv", nombre);
+
+    private static async Task<IResult> Modelo303CsvAsync(
+        IContextoEmpresa contexto, GenerarResumenesFiscales caso, CancellationToken ct, int? anio = null, int trimestre = 1)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        if (trimestre is < 1 or > 4)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("trimestre.invalido", "El trimestre debe estar entre 1 y 4."));
+        }
+
+        var ejercicio = anio ?? DateTime.UtcNow.Year;
+        var r = await caso.EjecutarAsync(contexto.EmpresaId.Value, ejercicio, trimestre, ct).ConfigureAwait(false);
+        return CsvFile(ExportadorModelosCsv.Modelo303(r.Modelo303), $"modelo-303-{ejercicio}-{trimestre}T.csv");
+    }
+
+    private static async Task<IResult> Modelo390CsvAsync(
+        IContextoEmpresa contexto, GenerarDeclaracionAnual caso, CancellationToken ct, int? anio = null)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        var ejercicio = anio ?? DateTime.UtcNow.Year;
+        var r = await caso.EjecutarAsync(contexto.EmpresaId.Value, ejercicio, ct).ConfigureAwait(false);
+        return CsvFile(ExportadorModelosCsv.Modelo390(r.Modelo390), $"modelo-390-{ejercicio}.csv");
+    }
+
+    private static async Task<IResult> Modelo111CsvAsync(
+        IContextoEmpresa contexto, GenerarRetencionesIrpf caso, CancellationToken ct, int? anio = null, int trimestre = 1)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        if (trimestre is < 1 or > 4)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("trimestre.invalido", "El trimestre debe estar entre 1 y 4."));
+        }
+
+        var ejercicio = anio ?? DateTime.UtcNow.Year;
+        var m = await caso.Modelo111Async(contexto.EmpresaId.Value, ejercicio, trimestre, ct).ConfigureAwait(false);
+        return CsvFile(ExportadorModelosCsv.Modelo111(m), $"modelo-111-{ejercicio}-{trimestre}T.csv");
     }
 
     private static async Task<IResult> Modelo349Async(

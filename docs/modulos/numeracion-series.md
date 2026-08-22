@@ -20,10 +20,14 @@ documento, la serie se resuelve automáticamente.
 2. el prefijo por defecto de la **empresa** para ese documento, si no
 3. `null` (se usa el comportamiento por defecto del módulo, p. ej. `FA`).
 
-**Cableado actual**: `EmitirFactura` resuelve la serie por el **cliente** cuando no se indica una
-serie explícita en el comando. Así, «este cliente factura siempre en la serie X» funciona solo. El
-resto de documentos (tickets, rectificativas, presupuestos, pedidos/albaranes de compra) pueden
-asignarse ya en la pantalla y quedan listos para cablearse en su emisión (ampliación acotada).
+**Cableado**: la resolución está conectada en la emisión de:
+- **Facturas** (`EmitirFactura`) y **tickets** (`EmitirTicket`) → por el **cliente** (o la empresa).
+- **Rectificativas** (`EmitirRectificativa`) → por el cliente de la factura original.
+- **Pedidos** y **albaranes de compra** (`CrearPedido`, `RecibirMercancia`) → por el **proveedor**.
+  Estos documentos no tenían prefijo: ahora guardan una `Serie` opcional y exponen `NumeroCompleto`
+  (con prefijo si hay serie asignada; si no, el número correlativo de siempre — compatible hacia atrás).
+
+Los presupuestos pueden asignarse ya en la pantalla y quedan listos para cablearse igual.
 
 ## API
 

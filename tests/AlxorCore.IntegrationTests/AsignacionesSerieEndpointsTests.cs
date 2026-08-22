@@ -13,6 +13,7 @@ public sealed class AsignacionesSerieEndpointsTests : IClassFixture<FabricaApiPr
 
     private sealed record IdResp(Guid Id);
     private sealed record FacturaResp(Guid Id, string NumeroCompleto);
+    private sealed record PedidoResp(Guid Id, string NumeroCompleto);
     private sealed record AsignacionResp(Guid Id, string TipoDocumento, string Ambito, Guid? TerceroId, string Prefijo);
 
     private static async Task<string> EmitirYNumero(HttpClient cliente, Guid clienteId)
@@ -39,6 +40,22 @@ public sealed class AsignacionesSerieEndpointsTests : IClassFixture<FabricaApiPr
 
         var lista = await cliente.GetFromJsonAsync<List<AsignacionResp>>("/series/asignaciones");
         lista!.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task La_serie_del_proveedor_prefija_el_numero_del_pedido_de_compra()
+    {
+        var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+        var prov = (await (await cliente.PostAsJsonAsync("/proveedores", new { Nombre = "Suministros Ebro SL" })).Content.ReadFromJsonAsync<IdResp>())!;
+        (await cliente.PostAsJsonAsync("/series/asignaciones", new { TipoDocumento = "PedidoCompra", Ambito = "Proveedor", TerceroId = prov.Id, Prefijo = "PC" })).StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var pedido = (await (await cliente.PostAsJsonAsync("/compras/pedidos", new
+        {
+            ProveedorId = prov.Id,
+            Lineas = new[] { new { Descripcion = "Tornillos", Cantidad = 10m, PrecioUnitario = 2m } },
+        })).Content.ReadFromJsonAsync<PedidoResp>())!;
+
+        pedido.NumeroCompleto.Should().StartWith("PC");
     }
 
     [Fact]

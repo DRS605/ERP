@@ -1328,7 +1328,7 @@
         if(p.estado!=="Facturado"&&p.estado!=="Cancelado") b.push(`<button class="btn small ghost" onclick="accionPedido('${p.id}','cancelar')" title="Cancelar">✕</button>`);
         return b.join(" ");
       };
-      const filas=ps.map(p=>`<tr><td><strong>${p.proveedorTexto}</strong><div class="muted" style="font-size:12px">Pedido nº ${p.numero}/${p.ejercicio} · ${fdate(p.fecha)} · ${p.lineas.length} línea(s)${p.recibidoCompleto?' · recibido':''}</div></td><td class="num">${eur(p.total)}</td><td class="right">${estadoPillCompra(p.estado)}</td><td class="right" style="white-space:nowrap">${acc(p)}</td></tr>`).join("");
+      const filas=ps.map(p=>`<tr><td><strong>${p.proveedorTexto}</strong><div class="muted" style="font-size:12px">Pedido nº ${p.numeroCompleto} · ${fdate(p.fecha)} · ${p.lineas.length} línea(s)${p.recibidoCompleto?' · recibido':''}</div></td><td class="num">${eur(p.total)}</td><td class="right">${estadoPillCompra(p.estado)}</td><td class="right" style="white-space:nowrap">${acc(p)}</td></tr>`).join("");
       const tabla=ps.length?`<table><thead><tr><th>Proveedor</th><th class="num">Total</th><th class="right">Estado</th><th class="right">Acciones</th></tr></thead><tbody>${filas}</tbody></table>`
         :vacio("compras","Sin pedidos de compra","Crea un pedido a proveedor (o conviértelo desde una solicitud aprobada).",`<button class="btn small" onclick="modalPedido()">+ Nuevo pedido</button>`);
       view(panel("Pedidos de compra",tabla,`<button class="btn small" onclick="modalPedido()">+ Nuevo pedido</button>`));
@@ -1639,7 +1639,7 @@
       const perc=m190?m190.perceptores.map(p=>`<tr><td><strong>${p.nombre}</strong>${p.nif?` <span class="muted">${p.nif}</span>`:''} <span class="pill" style="font-size:11px">Clave ${p.clave}</span></td><td class="num">${eur(p.basePercepciones)}</td><td class="num"><strong>${eur(p.retenciones)}</strong></td></tr>`).join(""):"";
       const avisos=(m190&&m190.perceptoresSinNif.length)?`<p class="muted" style="font-size:12px;margin:8px 0 0">⚠️ ${m190.perceptoresSinNif.length} perceptor(es) con retención pero <strong>sin NIF</strong> (gasto sin proveedor en la ficha): no pueden incluirse en el fichero oficial. Añádeles la ficha de proveedor con su NIF.</p>`:"";
       const t190=m190?(m190.perceptores.length?`<table><thead><tr><th>Perceptor</th><th class="num">Percepciones</th><th class="num">Retenciones</th></tr></thead><tbody>${perc}<tr><td class="right"><strong>Total</strong></td><td class="num"><strong>${eur(m190.totalPercepciones)}</strong></td><td class="num"><strong>${eur(m190.totalRetenciones)}</strong></td></tr></tbody></table>${avisos}`:`<p class="muted">Sin retenciones practicadas en ${anio}.</p>${avisos}`):'<p class="muted">Sin datos.</p>';
-      const botonFichero=(m190&&m190.perceptores.length)?`<button class="btn small ghost" onclick="descargarModelo190(${anio})">↓ Fichero oficial 190</button>`:"";
+      const botonFichero=`<button class="btn small ghost" onclick="descargarCasillas('111',${anio},${trimSel})">↓ CSV 111</button>`+((m190&&m190.perceptores.length)?` <button class="btn small ghost" onclick="descargarModelo190(${anio})">↓ Fichero oficial 190</button>`:"");
       const cuerpo=`<div class="grid2">
         <div><h4 style="margin:0 0 8px">Modelo 111 · Retenciones IRPF <span class="muted" style="font-weight:400;font-size:12.5px">(trimestral)</span></h4>${t111}</div>
         <div><h4 style="margin:0 0 8px">Modelo 190 · Resumen anual de retenciones</h4>${t190}</div></div>
@@ -1708,9 +1708,15 @@
         </div></div>
         <p class="muted" style="font-size:12px;margin:14px 0 0">El 390 es el resumen anual del IVA (suma de los cuatro 303). El 347 lista los terceros con los que has superado ${eur(m7.umbral)} en el año (IVA incluido). El fichero del 347 sigue el diseño de la AEAT; <strong>valídalo con el servicio de predeclaración de la AEAT</strong> antes de presentarlo. Ayuda informativa; no es un envío oficial.</p>`;
       const tieneDatos=m7.clientes.length||m7.proveedores.length;
-      const acc=tieneDatos?`<button class="btn small ghost" onclick="descargarModelo347(${anio})">↓ Fichero oficial 347</button>`:"";
+      const acc=`<button class="btn small ghost" onclick="descargarCasillas('390',${anio},0)">↓ CSV 390</button>`+(tieneDatos?` <button class="btn small ghost" onclick="descargarModelo347(${anio})">↓ Fichero oficial 347</button>`:"");
       return panel(`Declaración anual · ${anio}`,cuerpo,acc);
     }
+    async function descargarCasillas(modelo,anio,trimestre){
+      const q=modelo==="390"?`anio=${anio}`:`anio=${anio}&trimestre=${trimestre}`;
+      try{ const r=await fetch(`/informes/modelo-${modelo}/csv?${q}`,{headers:{Authorization:"Bearer "+token}});
+        if(!r.ok){ toast("No se pudo generar el CSV.","err"); return; }
+        const b=await r.blob(); const u=URL.createObjectURL(b); const a=document.createElement("a"); a.href=u; a.download=`modelo-${modelo}-${anio}${trimestre?("-"+trimestre+"T"):""}.csv`; a.click(); URL.revokeObjectURL(u);
+      }catch(e){ toast(e.message,"err"); } }
     async function descargarModelo347(anio){
       try{ const r=await fetch(`/informes/modelo-347/fichero?anio=${anio}`,{headers:{Authorization:"Bearer "+token}});
         if(!r.ok){ toast("No hay terceros con NIF que superen el umbral del 347.","err"); return; }
@@ -1777,7 +1783,7 @@
         <div><h4 style="margin:0 0 8px">Modelo 303 · IVA <span class="muted" style="font-weight:400;font-size:12.5px">(trimestral)</span></h4>${t303}</div>
         <div><h4 style="margin:0 0 8px">Modelo 130 · IRPF <span class="muted" style="font-weight:400;font-size:12.5px">(acumulado)</span></h4>${t130}</div></div>
         <p class="muted" style="font-size:12px;margin:14px 0 0">Ayuda informativa para preparar la autoliquidación con tu gestoría; no es un envío oficial a la AEAT.</p>`;
-      return panel(`Resumen trimestral · ${anio}`,cuerpo,selTrim(anio));
+      return panel(`Resumen trimestral · ${anio}`,cuerpo,selTrim(anio)+` <button class="btn small ghost" onclick="descargarCasillas('303',${anio},${trimSel})">↓ CSV 303</button>`);
     }
     async function vAjustes() {
       view('<div class="muted">Cargando…</div>');

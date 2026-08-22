@@ -2,6 +2,8 @@ using AlxorCore.Compras.Dominio;
 using AlxorCore.Nucleo.Aplicacion;
 using AlxorCore.Nucleo.Resultados;
 using AlxorCore.Nucleo.Tiempo;
+using AlxorCore.Organizacion.Aplicacion.Puertos;
+using AlxorCore.Organizacion.Dominio;
 using AlxorCore.Recepcion.Aplicacion;
 using AlxorCore.Terceros.Aplicacion;
 
@@ -20,10 +22,10 @@ public sealed record SolicitudDto(Guid Id, string Estado, string? ProveedorSuger
 public sealed record LineaPedidoDto(Guid Id, Guid? ProductoId, string Descripcion, decimal Cantidad, decimal PrecioUnitario,
     decimal Importe, decimal CantidadRecibida, decimal CantidadFacturada, decimal PendienteRecibir);
 
-public sealed record PedidoDto(Guid Id, string Estado, int Ejercicio, int Numero, Guid? ProveedorId, string ProveedorTexto, DateOnly Fecha,
+public sealed record PedidoDto(Guid Id, string Estado, int Ejercicio, int Numero, string NumeroCompleto, Guid? ProveedorId, string ProveedorTexto, DateOnly Fecha,
     Guid? SolicitudOrigenId, decimal Total, bool RecibidoCompleto, IReadOnlyList<LineaPedidoDto> Lineas)
 {
-    public static PedidoDto Desde(PedidoCompra p) => new(p.Id, p.Estado.ToString(), p.Ejercicio, p.Numero, p.ProveedorId, p.ProveedorTexto,
+    public static PedidoDto Desde(PedidoCompra p) => new(p.Id, p.Estado.ToString(), p.Ejercicio, p.Numero, p.NumeroCompleto, p.ProveedorId, p.ProveedorTexto,
         p.Fecha, p.SolicitudOrigenId, p.Total, p.RecibidoCompleto,
         p.Lineas.Select(l => new LineaPedidoDto(l.Id, l.ProductoId, l.Descripcion, l.Cantidad, l.PrecioUnitario, l.Importe,
             l.CantidadRecibida, l.CantidadFacturada, l.PendienteRecibir)).ToList());
@@ -31,9 +33,9 @@ public sealed record PedidoDto(Guid Id, string Estado, int Ejercicio, int Numero
 
 public sealed record LineaAlbaranDto(Guid LineaPedidoId, Guid? ProductoId, string Descripcion, decimal Cantidad);
 
-public sealed record AlbaranDto(Guid Id, Guid PedidoId, int Numero, DateOnly Fecha, string? Referencia, IReadOnlyList<LineaAlbaranDto> Lineas)
+public sealed record AlbaranDto(Guid Id, Guid PedidoId, int Numero, string NumeroCompleto, DateOnly Fecha, string? Referencia, IReadOnlyList<LineaAlbaranDto> Lineas)
 {
-    public static AlbaranDto Desde(AlbaranCompra a) => new(a.Id, a.PedidoId, a.Numero, a.Fecha, a.Referencia,
+    public static AlbaranDto Desde(AlbaranCompra a) => new(a.Id, a.PedidoId, a.Numero, a.NumeroCompleto, a.Fecha, a.Referencia,
         a.Lineas.Select(l => new LineaAlbaranDto(l.LineaPedidoId, l.ProductoId, l.Descripcion, l.Cantidad)).ToList());
 }
 
@@ -168,12 +170,13 @@ public sealed class CrearPedido
     private readonly IRepositorioPedidos _pedidos;
     private readonly IRepositorioSolicitudes _solicitudes;
     private readonly IConsultaProveedores _proveedores;
+    private readonly IResolverSerie _resolverSerie;
     private readonly IUnidadDeTrabajoCompras _unidad;
     private readonly IReloj _reloj;
 
-    public CrearPedido(IRepositorioPedidos pedidos, IRepositorioSolicitudes solicitudes, IConsultaProveedores proveedores, IUnidadDeTrabajoCompras unidad, IReloj reloj)
+    public CrearPedido(IRepositorioPedidos pedidos, IRepositorioSolicitudes solicitudes, IConsultaProveedores proveedores, IResolverSerie resolverSerie, IUnidadDeTrabajoCompras unidad, IReloj reloj)
     {
-        _pedidos = pedidos; _solicitudes = solicitudes; _proveedores = proveedores; _unidad = unidad; _reloj = reloj;
+        _pedidos = pedidos; _solicitudes = solicitudes; _proveedores = proveedores; _resolverSerie = resolverSerie; _unidad = unidad; _reloj = reloj;
     }
 
     public async Task<Resultado<PedidoDto>> EjecutarAsync(Guid empresaId, CrearPedidoComando comando, CancellationToken ct = default)
@@ -203,9 +206,10 @@ public sealed class CrearPedido
 
         var fecha = comando.Fecha ?? DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
         var numero = await _pedidos.SiguienteNumeroAsync(empresaId, fecha.Year, comando.ProveedorId, ct).ConfigureAwait(false);
+        var serie = await _resolverSerie.ResolverPrefijoAsync(empresaId, TipoDocumento.PedidoCompra, comando.ProveedorId, ct).ConfigureAwait(false);
         var lineas = (comando.Lineas ?? Array.Empty<LineaPedidoComando>())
             .Select(l => (l.ProductoId, l.Descripcion, l.Cantidad, l.PrecioUnitario)).ToList();
-        var pedido = PedidoCompra.Crear(empresaId, comando.ProveedorId, proveedorTexto, fecha, numero, comando.SolicitudOrigenId, lineas, _reloj);
+        var pedido = PedidoCompra.Crear(empresaId, comando.ProveedorId, proveedorTexto, fecha, numero, comando.SolicitudOrigenId, lineas, _reloj, serie);
         if (pedido.EsFallo)
         {
             return Resultado.Fallo<PedidoDto>(pedido.Error);
@@ -274,14 +278,15 @@ public sealed class RecibirMercancia
 {
     private readonly IRepositorioPedidos _pedidos;
     private readonly IRepositorioAlbaranes _albaranes;
+    private readonly IResolverSerie _resolverSerie;
     private readonly IUnidadDeTrabajoCompras _unidad;
     private readonly IReloj _reloj;
     private readonly IEntradaInventarioCompras? _inventario;
 
-    public RecibirMercancia(IRepositorioPedidos pedidos, IRepositorioAlbaranes albaranes, IUnidadDeTrabajoCompras unidad,
+    public RecibirMercancia(IRepositorioPedidos pedidos, IRepositorioAlbaranes albaranes, IResolverSerie resolverSerie, IUnidadDeTrabajoCompras unidad,
         IReloj reloj, IEntradaInventarioCompras? inventario = null)
     {
-        _pedidos = pedidos; _albaranes = albaranes; _unidad = unidad; _reloj = reloj; _inventario = inventario;
+        _pedidos = pedidos; _albaranes = albaranes; _resolverSerie = resolverSerie; _unidad = unidad; _reloj = reloj; _inventario = inventario;
     }
 
     public async Task<Resultado<AlbaranDto>> EjecutarAsync(Guid empresaId, Guid pedidoId, RecibirMercanciaComando comando, CancellationToken ct = default)
@@ -307,6 +312,7 @@ public sealed class RecibirMercancia
 
         var fecha = comando.Fecha ?? DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
         var numero = await _albaranes.SiguienteNumeroAsync(empresaId, fecha.Year, ct).ConfigureAwait(false);
+        var serie = await _resolverSerie.ResolverPrefijoAsync(empresaId, TipoDocumento.AlbaranCompra, pedido.ProveedorId, ct).ConfigureAwait(false);
 
         var lineasAlbaran = recepciones.Select(r =>
         {
@@ -314,7 +320,7 @@ public sealed class RecibirMercancia
             return (r.LineaPedidoId, lp.ProductoId, lp.Descripcion, r.Cantidad);
         }).ToList();
 
-        var albaran = AlbaranCompra.Crear(empresaId, pedidoId, numero, fecha, comando.Referencia, lineasAlbaran, _reloj);
+        var albaran = AlbaranCompra.Crear(empresaId, pedidoId, numero, fecha, comando.Referencia, lineasAlbaran, _reloj, serie);
         if (albaran.EsFallo)
         {
             return Resultado.Fallo<AlbaranDto>(albaran.Error);

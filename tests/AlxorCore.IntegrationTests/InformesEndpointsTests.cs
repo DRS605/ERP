@@ -87,6 +87,22 @@ public sealed class InformesEndpointsTests : IClassFixture<FabricaApiPruebas>
     }
 
     [Fact]
+    public async Task Exporta_las_casillas_del_303_390_y_111_a_csv()
+    {
+        var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+        await EmitirFacturaAsync(cliente); // total 242 (base 200, IVA 42)
+        var anio = DateTime.UtcNow.Year;
+
+        var r303 = await cliente.GetAsync($"/informes/modelo-303/csv?anio={anio}&trimestre=3");
+        r303.StatusCode.Should().Be(HttpStatusCode.OK);
+        r303.Content.Headers.ContentType!.MediaType.Should().Be("text/csv");
+        (await r303.Content.ReadAsStringAsync()).Should().Contain("Modelo 303").And.Contain("IVA devengado");
+
+        (await cliente.GetAsync($"/informes/modelo-390/csv?anio={anio}")).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await cliente.GetAsync($"/informes/modelo-111/csv?anio={anio}&trimestre=3")).StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
     public async Task Dashboard_refleja_facturado_gastado_y_pendientes()
     {
         var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);

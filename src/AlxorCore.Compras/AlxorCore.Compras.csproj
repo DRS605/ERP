@@ -5,6 +5,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\AlxorCore.Nucleo\AlxorCore.Nucleo.csproj" />
+    <ProjectReference Include="..\AlxorCore.Organizacion\AlxorCore.Organizacion.csproj" />
     <ProjectReference Include="..\AlxorCore.Terceros\AlxorCore.Terceros.csproj" />
     <ProjectReference Include="..\AlxorCore.Recepcion\AlxorCore.Recepcion.csproj" />
   </ItemGroup>

@@ -27,6 +27,7 @@ public sealed class EmitirRectificativa
 
     private readonly IConsultaProductos _productos;
     private readonly IServicioNumeracion _numeracion;
+    private readonly IResolverSerie _resolverSerie;
     private readonly IRepositorioFacturas _facturas;
     private readonly IConsultaEmpresas _empresas;
     private readonly IUnidadDeTrabajoFacturacion _unidadDeTrabajo;
@@ -35,6 +36,7 @@ public sealed class EmitirRectificativa
     public EmitirRectificativa(
         IConsultaProductos productos,
         IServicioNumeracion numeracion,
+        IResolverSerie resolverSerie,
         IRepositorioFacturas facturas,
         IConsultaEmpresas empresas,
         IUnidadDeTrabajoFacturacion unidadDeTrabajo,
@@ -42,6 +44,7 @@ public sealed class EmitirRectificativa
     {
         _productos = productos;
         _numeracion = numeracion;
+        _resolverSerie = resolverSerie;
         _facturas = facturas;
         _empresas = empresas;
         _unidadDeTrabajo = unidadDeTrabajo;
@@ -83,7 +86,13 @@ public sealed class EmitirRectificativa
         var hoy = DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
         var fecha = comando.FechaEmision ?? hoy;
         var porcentajeIrpf = comando.PorcentajeIrpf ?? original.PorcentajeIrpf;
-        var serie = string.IsNullOrWhiteSpace(comando.Serie) ? SeriePorDefecto : comando.Serie;
+        var serie = comando.Serie;
+        if (string.IsNullOrWhiteSpace(serie))
+        {
+            serie = await _resolverSerie.ResolverPrefijoAsync(empresaId, TipoDocumento.Rectificativa, original.ClienteId, ct).ConfigureAwait(false);
+        }
+
+        serie = string.IsNullOrWhiteSpace(serie) ? SeriePorDefecto : serie;
 
         var numero = await _numeracion.SiguienteAsync(empresaId, TipoDocumento.Factura, fecha.Year, serie, ct).ConfigureAwait(false);
         if (numero.EsFallo)

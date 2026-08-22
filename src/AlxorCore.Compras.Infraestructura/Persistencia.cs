@@ -73,6 +73,8 @@ internal sealed class ConfiguracionPedido : IEntityTypeConfiguration<PedidoCompr
         builder.Property(p => p.Fecha).HasColumnName("fecha").IsRequired();
         builder.Property(p => p.Ejercicio).HasColumnName("ejercicio").IsRequired();
         builder.Property(p => p.Numero).HasColumnName("numero").IsRequired();
+        builder.Property(p => p.Serie).HasColumnName("serie").HasMaxLength(10);
+        builder.Ignore(p => p.NumeroCompleto);
         builder.Property(p => p.SolicitudOrigenId).HasColumnName("solicitud_origen_id");
         builder.Property(p => p.Estado).HasColumnName("estado").HasMaxLength(20).HasConversion<string>().IsRequired();
         builder.Property(p => p.CreadoEn).HasColumnName("creado_en").IsRequired();
@@ -106,6 +108,8 @@ internal sealed class ConfiguracionAlbaran : IEntityTypeConfiguration<AlbaranCom
         builder.Property(a => a.EmpresaId).HasColumnName("empresa_id").IsRequired();
         builder.Property(a => a.PedidoId).HasColumnName("pedido_id").IsRequired();
         builder.Property(a => a.Numero).HasColumnName("numero").IsRequired();
+        builder.Property(a => a.Serie).HasColumnName("serie").HasMaxLength(10);
+        builder.Ignore(a => a.NumeroCompleto);
         builder.Property(a => a.Fecha).HasColumnName("fecha").IsRequired();
         builder.Property(a => a.Referencia).HasColumnName("referencia").HasMaxLength(120);
         builder.Property(a => a.CreadoEn).HasColumnName("creado_en").IsRequired();
