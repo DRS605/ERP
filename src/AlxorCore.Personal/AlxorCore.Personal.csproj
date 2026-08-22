@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>AlxorCore.Personal</RootNamespace>
+    <AssemblyName>AlxorCore.Personal</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AlxorCore.Nucleo\AlxorCore.Nucleo.csproj" />
+  </ItemGroup>
+</Project>

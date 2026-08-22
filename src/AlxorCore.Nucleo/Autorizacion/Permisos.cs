@@ -42,6 +42,10 @@ public static class Permisos
     public const string ProduccionLeer = "produccion.leer";
     public const string ProduccionGestionar = "produccion.gestionar";
 
+    // Personal (personas con tarifa)
+    public const string PersonalLeer = "personal.leer";
+    public const string PersonalGestionar = "personal.gestionar";
+
     // Terceros y catálogo
     public const string ClienteGestionar = "cliente.gestionar";
     public const string ProductoGestionar = "producto.gestionar";
@@ -65,6 +69,7 @@ public static class Permisos
         CompraLeer, CompraGestionar,
         InventarioLeer, InventarioGestionar,
         ProduccionLeer, ProduccionGestionar,
+        PersonalLeer, PersonalGestionar,
         ClienteGestionar, ProductoGestionar,
         InformeLeer, DatosExportar,
         EmpresaAjustes, UsuarioGestionar,

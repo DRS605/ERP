@@ -413,6 +413,7 @@
     ICON.articulos = '<svg viewBox="0 0 24 24"><path d="M4 5v14M8 5v14M12 5v14M16 5v14M20 5v14"/></svg>';
     ICON.pagos = '<svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18"/></svg>';
     ICON.prevision = '<svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h16"/><path d="M7 15l4-5 3 3 5-7"/></svg>';
+    ICON.personal = '<svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.5 3-5.5 6.5-5.5s6.5 2 6.5 5.5"/><path d="M16 5.5a3 3 0 0 1 0 5.6"/><path d="M18 14.5c2.4.6 4 2.4 4 5"/></svg>';
 
     // Menú agrupado en carpetas: Ventas, Compras y Artículos.
     const NAV = [
@@ -420,12 +421,13 @@
       { t:"grupo", k:"ventas", l:"Ventas", items:[["presupuestos","Presupuestos"],["facturas","Facturas"],["tpv","TPV · Tickets"],["recurrentes","Periódicas"],["clientes","Clientes"],["cobros","Cobros"],["remesas","Remesas SEPA"]] },
       { t:"grupo", k:"compras", l:"Compras", items:[["solicitudes","Solicitudes"],["pedidos","Pedidos de compra"],["recepcion","Buzón de facturas"],["gastos","Gastos"],["proveedores","Proveedores"],["pagos","Pagos"],["conciliacion","Conciliación banco"]] },
       { t:"grupo", k:"articulos", l:"Artículos", items:[["productos","Productos"],["inventario","Inventario / Almacenes"],["produccion","Producción"]] },
+      { t:"item", k:"personal", l:"Personal" },
       { t:"item", k:"prevision", l:"Previsión de tesorería" },
       { t:"item", k:"informes", l:"Informes" },
       { t:"item", k:"contabilidad", l:"Contabilidad" },
       { t:"item", k:"ajustes", l:"Ajustes" },
     ];
-    const TITULOS = { inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", inventario:"Inventario / Almacenes", produccion:"Producción", prevision:"Previsión de tesorería", informes:"Informes", contabilidad:"Contabilidad", ajustes:"Ajustes" };
+    const TITULOS = { inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", prevision:"Previsión de tesorería", informes:"Informes", contabilidad:"Contabilidad", ajustes:"Ajustes" };
     function renderNav() {
       return NAV.map(n => {
         if (n.t === "item") return `<a class="navitem" data-k="${n.k}" onclick="ir('${n.k}')">${ICON[n.k]}<span>${n.l}</span></a>`;
@@ -521,7 +523,7 @@
     function ir(k){ closeMenu(); if(vista==="tpv" && k!=="tpv" && typeof tpvParar==="function") tpvParar(); vista=k;
       document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("active",a.dataset.k===k));
       document.getElementById("viewTitle").textContent=TITULOS[k]||k;
-      ({inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,clientes:vClientes,productos:vProductos,gastos:vGastos,solicitudes:vSolicitudes,pedidos:vPedidos,inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,prevision:vPrevision,informes:vInformes,contabilidad:vContabilidad,ajustes:vAjustes}[k])();
+      ({inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,clientes:vClientes,productos:vProductos,gastos:vGastos,solicitudes:vSolicitudes,pedidos:vPedidos,inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,prevision:vPrevision,informes:vInformes,contabilidad:vContabilidad,ajustes:vAjustes}[k])();
     }
     const view = h => { document.getElementById("view").innerHTML=h; try{ mejorarTablas(); }catch(e){} };
 
@@ -1098,6 +1100,26 @@
       try{ const c=await api(`/productos/${id}/composicion`); const filas=c.componentes.map(x=>`<tr><td>${x.nombre}</td><td class="num">${numCant(x.cantidad*cant)} ${x.unidad}</td></tr>`).join("");
         cont.innerHTML=`<label>Materiales necesarios</label><table><thead><tr><th>Componente</th><th class="num">Cantidad</th></tr></thead><tbody>${filas}</tbody></table><p class="muted" style="font-size:12px;margin:8px 0 0">Al terminar la orden se consumen del almacén y se da entrada del artículo fabricado.</p>`;
       }catch(e){ cont.innerHTML=''; } }
+
+    // ---- Personal: personas con tarifa/hora (para imputar mano de obra a proyectos y producción) ----
+    let _cachePersonal=[];
+    async function vPersonal(){
+      view('<div class="muted">Cargando…</div>');
+      const ps=await api("/personal"); _cachePersonal=ps;
+      const ini = n => `<span class="avatar mini">${(n||'?').slice(0,1).toUpperCase()}</span>`;
+      const filas=ps.map(p=>`<tr><td>${ini(p.nombre)}<strong>${p.nombre}</strong></td><td class="muted">${p.puesto||"—"}</td><td class="num">${eur(p.tarifaHora)}/h</td><td class="right"><button class="btn small secondary" onclick="editarPersona('${p.id}')">Editar</button></td></tr>`).join("");
+      const cuerpo=ps.length?`<table><thead><tr><th>Nombre</th><th>Puesto</th><th class="num">Tarifa</th><th></th></tr></thead><tbody>${filas}</tbody></table>`
+        :vacio("personal","Sin personas todavía","Da de alta a tu equipo con su tarifa por hora para poder imputar mano de obra a proyectos y partes de producción.",`<button class="btn small" onclick="modalPersona()">+ Nueva persona</button>`);
+      view(panel("Personal",cuerpo,`<button class="btn small" onclick="modalPersona()">+ Nueva persona</button>`));
+    }
+    function editarPersona(id){ modalPersona(_cachePersonal.find(p=>p.id===id)); }
+    function modalPersona(p){
+      abrir(p?"Editar persona":"Nueva persona",`<label>Nombre</label><input id="pe_nombre" placeholder="Nombre y apellidos"/>
+        <div class="grid2"><div><label>Puesto (opcional)</label><input id="pe_puesto" placeholder="Ej. Oficial 1ª"/></div><div><label>Tarifa por hora (€/h)</label><input id="pe_tarifa" type="number" step="0.01" value="0"/></div></div>
+        ${p?`<label style="display:flex;align-items:center;gap:8px;margin-top:14px;font-weight:500;cursor:pointer"><input id="pe_activo" type="checkbox" style="width:auto"/> Persona activa</label>`:''}`,
+        async()=>{ const b=JSON.stringify({nombre:val("pe_nombre"),puesto:val("pe_puesto")||null,tarifaHora:Number(val("pe_tarifa")||0),activo:p?document.getElementById("pe_activo").checked:true}); await api("/personal"+(p?"/"+p.id:""),{method:p?"PUT":"POST",body:b}); toast(p?"Persona actualizada.":"Persona creada.","ok"); vPersonal(); });
+      if(p){ rellenar({pe_nombre:p.nombre,pe_puesto:p.puesto,pe_tarifa:p.tarifaHora}); document.getElementById("pe_activo").checked=!!p.activo; }
+    }
 
     // ---- Inventario: almacenes, ubicaciones, movimientos, stock ----
     let _cacheAlm=[], _cacheProdInv=[];

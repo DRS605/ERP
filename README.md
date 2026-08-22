@@ -157,6 +157,7 @@ dotnet ef migrations add <Nombre> \
 | **Compras** (solicitud → pedido → albarán → factura) | ✅ Terminado |
 | **Inventario** (multi-almacén, ubicaciones, movimientos, ubicación por defecto, lotes/series, montaje) | ✅ Terminado |
 | **Producción** (órdenes de fabricación sobre la lista de materiales: consumen componentes y producen el artículo) | ✅ Terminado |
+| **Personal** (personas con tarifa/hora para imputar mano de obra a proyectos y producción) | ✅ Terminado |
 | **Tesorería** (cobros y pagos) | ✅ Terminado |
 | **Documentos** (PDF y email) | ✅ Terminado |
 | **Informes** (dashboard, libros de IVA, gestoría, beneficio) | ✅ Terminado |
