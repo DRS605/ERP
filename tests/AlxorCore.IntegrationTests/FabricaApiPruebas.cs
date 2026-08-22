@@ -87,9 +87,32 @@ public sealed class FabricaApiPruebas : WebApplicationFactory<Program>, IAsyncLi
         await tesoreria.Database.MigrateAsync().ConfigureAwait(false);
         await auditoria.Database.MigrateAsync().ConfigureAwait(false);
 
-        await identidad.Database.ExecuteSqlRawAsync(
-            "TRUNCATE identidad.usuario, organizacion.empresa, organizacion.membresia, organizacion.serie_numeracion, organizacion.asignacion_serie, organizacion.forma_pago, terceros.cliente, terceros.proveedor, catalogo.componente_articulo, catalogo.atributo_variante, catalogo.producto, catalogo.movimiento_stock, facturacion.factura, facturacion.linea_factura, facturacion.factura_recurrente, facturacion.linea_recurrente, facturacion.presupuesto, facturacion.linea_presupuesto, facturacion.linea_albaran_venta, facturacion.albaran_venta, facturacion.linea_pedido_venta, facturacion.pedido_venta, gastos.gasto, recepcion.factura_recibida, contabilidad.apunte, contabilidad.asiento, contabilidad.cuenta, contabilidad.documento_pendiente, contabilidad.regla_contabilizacion, contabilidad.config_contabilidad, contabilidad.dotacion_amortizacion, contabilidad.ajuste_fiscal_amortizacion, contabilidad.inmovilizado, compras.linea_albaran, compras.albaran_compra, compras.linea_pedido, compras.pedido_compra, compras.linea_solicitud, compras.solicitud_compra, inventario.existencia, inventario.movimiento_inventario, inventario.ubicacion_defecto, inventario.ubicacion, inventario.almacen, produccion.componente_plan, produccion.orden_fabricacion, personal.persona, proyectos.imputacion, proyectos.proyecto, tesoreria.movimiento, tesoreria.prevision, auditoria.registro_auditoria")
-            .ConfigureAwait(false);
+        await LimpiarBaseDatosAsync(identidad).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Vacía todas las tablas de negocio de todos los esquemas de la aplicación de forma <b>dinámica</b>
+    /// (descubriéndolas de <c>pg_tables</c>), excluyendo las tablas de historial de migraciones
+    /// (<c>__…</c>). Así no hay que mantener una lista a mano: cualquier tabla nueva se limpia sola.
+    /// <c>CASCADE</c> resuelve el orden por claves foráneas y <c>RESTART IDENTITY</c> reinicia las secuencias.
+    /// </summary>
+    public static async Task LimpiarBaseDatosAsync(DbContext contexto)
+    {
+        ArgumentNullException.ThrowIfNull(contexto);
+        await contexto.Database.ExecuteSqlRawAsync("""
+            DO $$
+            DECLARE sentencia text;
+            BEGIN
+                SELECT 'TRUNCATE ' || string_agg(format('%I.%I', schemaname, tablename), ', ') || ' RESTART IDENTITY CASCADE'
+                INTO sentencia
+                FROM pg_tables
+                WHERE schemaname NOT IN ('pg_catalog', 'information_schema', 'public')
+                  AND tablename NOT LIKE '\_\_%';
+                IF sentencia IS NOT NULL THEN
+                    EXECUTE sentencia;
+                END IF;
+            END $$;
+            """).ConfigureAwait(false);
     }
 
     public new async Task DisposeAsync() => await base.DisposeAsync().ConfigureAwait(false);

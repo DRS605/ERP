@@ -214,7 +214,17 @@ internal sealed class RepositorioCuentas : IRepositorioCuentas
     public async Task<IReadOnlySet<string>> CodigosExistentesAsync(Guid empresaId, CancellationToken ct = default)
     {
         var codigos = await _contexto.Cuentas.Where(c => c.EmpresaId == empresaId).Select(c => c.Codigo).ToListAsync(ct).ConfigureAwait(false);
-        return codigos.ToHashSet(StringComparer.Ordinal);
+        var conjunto = codigos.ToHashSet(StringComparer.Ordinal);
+
+        // Incluye también las cuentas ya añadidas pero aún NO guardadas en esta unidad de trabajo, para
+        // no volver a sembrar el plan (ni recrear una subcuenta) al procesar varios documentos en un
+        // mismo lote antes de guardar (evita duplicar el código y violar el índice único).
+        foreach (var e in _contexto.ChangeTracker.Entries<Cuenta>().Where(e => e.State == EntityState.Added && e.Entity.EmpresaId == empresaId))
+        {
+            conjunto.Add(e.Entity.Codigo);
+        }
+
+        return conjunto;
     }
 
     public Task<Cuenta?> ObtenerPorTerceroAsync(Guid empresaId, Guid terceroId, CancellationToken ct = default) =>
@@ -242,9 +252,21 @@ internal sealed class RepositorioAsientos : IRepositorioAsientos
 
     public async Task<int> SiguienteNumeroAsync(Guid empresaId, int ejercicio, CancellationToken ct = default)
     {
-        var max = await _contexto.Asientos.Where(a => a.EmpresaId == empresaId && a.Ejercicio == ejercicio)
-            .Select(a => (int?)a.Numero).MaxAsync(ct).ConfigureAwait(false);
-        return (max ?? 0) + 1;
+        var maxBd = await _contexto.Asientos.Where(a => a.EmpresaId == empresaId && a.Ejercicio == ejercicio)
+            .Select(a => (int?)a.Numero).MaxAsync(ct).ConfigureAwait(false) ?? 0;
+
+        // También cuenta los asientos ya añadidos pero aún NO guardados en esta unidad de trabajo. Así,
+        // al crear varios asientos en un mismo lote —contabilizar varios pendientes de una vez, el cierre
+        // de ejercicio, la amortización— cada uno recibe un número distinto sin necesidad de guardar entre
+        // medias (antes colisionaban en el índice único). La colisión entre peticiones concurrentes sigue
+        // respaldada por el índice único «ux_asiento_empresa_ejercicio_numero» (imposible duplicar).
+        var maxLocal = _contexto.ChangeTracker.Entries<Asiento>()
+            .Where(e => e.State == EntityState.Added && e.Entity.EmpresaId == empresaId && e.Entity.Ejercicio == ejercicio)
+            .Select(e => e.Entity.Numero)
+            .DefaultIfEmpty(0)
+            .Max();
+
+        return Math.Max(maxBd, maxLocal) + 1;
     }
 
     public async Task<IReadOnlyList<AsientoDto>> DiarioAsync(Guid empresaId, int ejercicio, CancellationToken ct = default)

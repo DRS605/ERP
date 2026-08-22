@@ -318,8 +318,10 @@ public sealed class CerrarEjercicio
             }
         }
 
+        // SiguienteNumeroAsync ya tiene en cuenta la regularización recién añadida (aunque no esté guardada),
+        // así que devuelve el número correcto sin necesidad de sumar uno a mano.
         var numCierre = await _asientos.SiguienteNumeroAsync(empresaId, ejercicio, ct).ConfigureAwait(false);
-        var cierre = Asiento.Crear(empresaId, ejercicio, numCierre + 1, finAnio, "Cierre del ejercicio", "Cierre", lineasCierre, _reloj);
+        var cierre = Asiento.Crear(empresaId, ejercicio, numCierre, finAnio, "Cierre del ejercicio", "Cierre", lineasCierre, _reloj);
         if (cierre.EsFallo)
         {
             return Resultado.Fallo<CierreEjercicioDto>(cierre.Error);
