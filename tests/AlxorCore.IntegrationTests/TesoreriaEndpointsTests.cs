@@ -40,6 +40,34 @@ public sealed class TesoreriaEndpointsTests : IClassFixture<FabricaApiPruebas>
 
     private static string ImporteN43(decimal valor) => ((long)(valor * 100)).ToString("D14", System.Globalization.CultureInfo.InvariantCulture);
 
+    private sealed record PrevisionResp(Guid Id, string Sentido, string Concepto, decimal Importe, DateOnly Fecha);
+
+    [Fact]
+    public async Task Previsiones_crear_listar_y_eliminar()
+    {
+        var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+
+        var crear = await cliente.PostAsJsonAsync("/tesoreria/previsiones", new { Sentido = "Ingreso", Concepto = "Subvención prevista", Importe = 1500m, Fecha = "2026-06-15" });
+        crear.StatusCode.Should().Be(HttpStatusCode.Created);
+        var creada = (await crear.Content.ReadFromJsonAsync<PrevisionResp>())!;
+        creada.Sentido.Should().Be("Ingreso");
+        creada.Importe.Should().Be(1500m);
+
+        await cliente.PostAsJsonAsync("/tesoreria/previsiones", new { Sentido = "Gasto", Concepto = "Alquiler previsto", Importe = 800m, Fecha = "2026-06-01" });
+
+        var lista = await cliente.GetFromJsonAsync<List<PrevisionResp>>("/tesoreria/previsiones");
+        lista.Should().HaveCount(2);
+        lista![0].Fecha.Should().Be(new DateOnly(2026, 6, 1)); // ordenadas por fecha
+
+        var borrar = await cliente.DeleteAsync($"/tesoreria/previsiones/{creada.Id}");
+        borrar.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        (await cliente.GetFromJsonAsync<List<PrevisionResp>>("/tesoreria/previsiones")).Should().HaveCount(1);
+
+        // Importe inválido → 400.
+        (await cliente.PostAsJsonAsync("/tesoreria/previsiones", new { Sentido = "Gasto", Concepto = "X", Importe = 0m, Fecha = "2026-06-01" }))
+            .StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
     [Fact]
     public async Task Conciliar_extracto_n43_sugiere_cobro_de_la_factura_pendiente()
     {

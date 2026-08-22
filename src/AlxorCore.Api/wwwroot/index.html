@@ -236,12 +236,25 @@
     .tabla-buscar input { padding:8px 12px 8px 34px; border-radius:10px; font-size:13px; }
     .tabla-buscar svg { position:absolute; left:11px; top:50%; transform:translateY(-50%); width:15px; height:15px; color:var(--muted); pointer-events:none; }
     .tabla-info { color:var(--muted); font-size:12px; white-space:nowrap; }
+    .tabla-tools .spacer { flex:1; }
+    .cols-btn { display:inline-flex; align-items:center; gap:6px; background:var(--bg); border:1px solid var(--line); color:var(--muted); border-radius:10px; padding:7px 11px; font-size:12.5px; font-weight:600; white-space:nowrap; }
+    .cols-btn:hover { border-color:var(--accent); color:var(--accent); }
+    .cols-wrap { position:relative; }
+    .cols-menu { display:none; position:absolute; right:0; top:calc(100% + 6px); z-index:30; background:var(--surface); border:1px solid var(--line); border-radius:12px; box-shadow:0 16px 40px rgba(11,37,64,.22); padding:8px; min-width:200px; max-height:60vh; overflow:auto; }
+    .cols-menu.show { display:block; }
+    .cols-menu .tit { font-size:11px; text-transform:uppercase; letter-spacing:.03em; color:var(--muted); padding:4px 8px 6px; }
+    .cols-menu label { display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:8px; margin:0; color:var(--ink); font-size:13px; font-weight:500; cursor:pointer; }
+    .cols-menu label:hover { background:var(--accent-soft); }
+    .cols-menu input { width:auto; }
     th.sortable { cursor:pointer; user-select:none; transition:color .12s; }
     th.sortable:hover { color:var(--accent); }
     th.sortable .caret { display:inline-block; width:0; height:0; margin-left:5px; vertical-align:middle; opacity:.55; }
     th.sortable.asc .caret { border-left:4px solid transparent; border-right:4px solid transparent; border-bottom:5px solid currentColor; }
     th.sortable.desc .caret { border-left:4px solid transparent; border-right:4px solid transparent; border-top:5px solid currentColor; }
     tr.fila-link { cursor:pointer; }
+    /* Filas de previsión (ingresos/gastos previstos): se distinguen a simple vista. */
+    tbody tr.fila-prevista td { background:repeating-linear-gradient(135deg, var(--accent-soft), var(--accent-soft) 8px, transparent 8px, transparent 16px); font-style:italic; }
+    tbody tr.fila-prevista td:first-child { box-shadow:inset 3px 0 0 var(--accent); }
     .kbd { display:inline-block; font-family: ui-monospace, Menlo, monospace; font-size:11px; padding:1px 6px; border:1px solid var(--line); border-bottom-width:2px; border-radius:6px; color:var(--muted); background:var(--bg); }
 
     /* ---------- Búsqueda global (⌘K) ---------- */
@@ -399,6 +412,7 @@
     ICON.compras = '<svg viewBox="0 0 24 24"><path d="M6 7V6a3 3 0 0 1 6 0v1"/><path d="M4 7h16l-1 13H5z"/></svg>';
     ICON.articulos = '<svg viewBox="0 0 24 24"><path d="M4 5v14M8 5v14M12 5v14M16 5v14M20 5v14"/></svg>';
     ICON.pagos = '<svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18"/></svg>';
+    ICON.prevision = '<svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h16"/><path d="M7 15l4-5 3 3 5-7"/></svg>';
 
     // Menú agrupado en carpetas: Ventas, Compras y Artículos.
     const NAV = [
@@ -406,11 +420,12 @@
       { t:"grupo", k:"ventas", l:"Ventas", items:[["presupuestos","Presupuestos"],["facturas","Facturas"],["tpv","TPV · Tickets"],["recurrentes","Periódicas"],["clientes","Clientes"],["cobros","Cobros"],["remesas","Remesas SEPA"]] },
       { t:"grupo", k:"compras", l:"Compras", items:[["solicitudes","Solicitudes"],["pedidos","Pedidos de compra"],["recepcion","Buzón de facturas"],["gastos","Gastos"],["proveedores","Proveedores"],["pagos","Pagos"],["conciliacion","Conciliación banco"]] },
       { t:"grupo", k:"articulos", l:"Artículos", items:[["productos","Productos"],["inventario","Inventario / Almacenes"]] },
+      { t:"item", k:"prevision", l:"Previsión de tesorería" },
       { t:"item", k:"informes", l:"Informes" },
       { t:"item", k:"contabilidad", l:"Contabilidad" },
       { t:"item", k:"ajustes", l:"Ajustes" },
     ];
-    const TITULOS = { inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", inventario:"Inventario / Almacenes", informes:"Informes", contabilidad:"Contabilidad", ajustes:"Ajustes" };
+    const TITULOS = { inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", inventario:"Inventario / Almacenes", prevision:"Previsión de tesorería", informes:"Informes", contabilidad:"Contabilidad", ajustes:"Ajustes" };
     function renderNav() {
       return NAV.map(n => {
         if (n.t === "item") return `<a class="navitem" data-k="${n.k}" onclick="ir('${n.k}')">${ICON[n.k]}<span>${n.l}</span></a>`;
@@ -506,7 +521,7 @@
     function ir(k){ closeMenu(); if(vista==="tpv" && k!=="tpv" && typeof tpvParar==="function") tpvParar(); vista=k;
       document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("active",a.dataset.k===k));
       document.getElementById("viewTitle").textContent=TITULOS[k]||k;
-      ({inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,clientes:vClientes,productos:vProductos,gastos:vGastos,solicitudes:vSolicitudes,pedidos:vPedidos,inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,informes:vInformes,contabilidad:vContabilidad,ajustes:vAjustes}[k])();
+      ({inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,clientes:vClientes,productos:vProductos,gastos:vGastos,solicitudes:vSolicitudes,pedidos:vPedidos,inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,prevision:vPrevision,informes:vInformes,contabilidad:vContabilidad,ajustes:vAjustes}[k])();
     }
     const view = h => { document.getElementById("view").innerHTML=h; try{ mejorarTablas(); }catch(e){} };
 
@@ -518,17 +533,26 @@
     function _celdaFecha(t){ const m=(t||"").match(/^\s*(\d{1,2})\/(\d{1,2})\/(\d{2,4})\s*$/); return m?(m[3].padStart(4,"20")+m[2].padStart(2,"0")+m[1].padStart(2,"0")):null; }
 
     /** Añade buscador + ordenación por columnas a las tablas grandes del contenido. */
+    // Columnas ocultas por el usuario, recordadas por firma de la tabla (localStorage).
+    function _colsKey(ths){ return "alxcols:"+ths.map(t=>_norm(t.textContent)).join("|"); }
+    function _colsGet(k){ try{ return new Set(JSON.parse(localStorage.getItem(k)||"[]")); }catch(e){ return new Set(); } }
+    function _colsSet(k,set){ try{ localStorage.setItem(k,JSON.stringify([...set])); }catch(e){} }
+
     function mejorarTablas(){
       const cont=document.getElementById("view"); if(!cont) return;
       cont.querySelectorAll("table").forEach(tabla=>{
         const thead=tabla.tHead, tbody=tabla.tBodies[0];
         if(!thead||!tbody||tabla.dataset.pro) return;
-        const filas=[...tbody.rows]; if(filas.length<4) return; // tablas pequeñas: sin adornos
+        const filas=[...tbody.rows]; if(filas.length<2) return; // tablas mínimas: sin adornos
         tabla.dataset.pro="1";
         const ths=[...thead.rows[0].cells];
+        const nombradas=ths.map((t,i)=>({t,i})).filter(x=>_norm(x.t.textContent)); // columnas con título
+
+        // Mostrar/ocultar una columna (cabecera + celda de cada fila).
+        const setCol=(idx,vis)=>{ if(ths[idx]) ths[idx].style.display=vis?"":"none"; [...tbody.rows].forEach(r=>{ if(r.cells[idx]) r.cells[idx].style.display=vis?"":"none"; }); };
+
         // Ordenación por columna (solo cabeceras con texto).
-        ths.forEach((th,idx)=>{
-          if(!_norm(th.textContent)) return;
+        nombradas.forEach(({t:th,i:idx})=>{
           th.classList.add("sortable"); th.insertAdjacentHTML("beforeend",'<span class="caret"></span>');
           th.addEventListener("click",()=>{
             const asc=!(th.classList.contains("asc"));
@@ -546,17 +570,32 @@
             rows.forEach(r=>tbody.appendChild(r));
           });
         });
-        // Buscador (filtra filas por texto).
+
+        // Barra de herramientas: buscador + selector de columnas.
         const tools=document.createElement("div"); tools.className="tabla-tools";
-        tools.innerHTML='<div class="tabla-buscar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg><input type="search" placeholder="Buscar en la tabla…"/></div><span class="tabla-info"></span>';
+        tools.innerHTML='<div class="tabla-buscar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg><input type="search" placeholder="Filtrar en la tabla…"/></div><span class="tabla-info"></span><span class="spacer"></span>';
         tabla.parentNode.insertBefore(tools,tabla);
         const input=tools.querySelector("input"), info=tools.querySelector(".tabla-info");
         const total=filas.length;
         const pintaInfo=v=>{ info.textContent = v ? `${[...tbody.rows].filter(r=>r.style.display!=="none").length} de ${total}` : `${total} registro${total===1?"":"s"}`; };
         input.addEventListener("input",()=>{ const q=_norm(input.value); [...tbody.rows].forEach(r=>{ r.style.display=(!q||_norm(r.textContent).includes(q))?"":"none"; }); pintaInfo(q); });
         pintaInfo("");
+
+        // Selector de columnas «de quita y pon» (recuerda la elección por tabla).
+        if(nombradas.length>=3){
+          const key=_colsKey(ths); const ocultas=_colsGet(key);
+          ocultas.forEach(i=>setCol(i,false));
+          const wrap=document.createElement("div"); wrap.className="cols-wrap";
+          wrap.innerHTML=`<button class="cols-btn" type="button"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16"/></svg>Columnas</button><div class="cols-menu"><div class="tit">Mostrar columnas</div>${nombradas.map(({t,i})=>`<label><input type="checkbox" data-i="${i}" ${ocultas.has(i)?"":"checked"}/> ${t.textContent.replace(/\s*$/,"")}</label>`).join("")}</div>`;
+          tools.appendChild(wrap);
+          const btn=wrap.querySelector(".cols-btn"), menu=wrap.querySelector(".cols-menu");
+          btn.addEventListener("click",e=>{ e.stopPropagation(); document.querySelectorAll(".cols-menu.show").forEach(m=>{ if(m!==menu) m.classList.remove("show"); }); menu.classList.toggle("show"); });
+          menu.addEventListener("click",e=>e.stopPropagation());
+          menu.querySelectorAll("input").forEach(chk=>chk.addEventListener("change",()=>{ const i=Number(chk.dataset.i); setCol(i,chk.checked); if(chk.checked) ocultas.delete(i); else ocultas.add(i); _colsSet(key,ocultas); }));
+        }
       });
     }
+    document.addEventListener("click",()=>document.querySelectorAll(".cols-menu.show").forEach(m=>m.classList.remove("show")));
 
     /* ---------- Búsqueda global (⌘K) ---------- */
     let _cmdkItems=[], _cmdkSel=0, _cmdkListo=false;
@@ -1334,6 +1373,46 @@
       const cuerpo=gs.length?`<table><thead><tr><th>Concepto</th><th>Proveedor</th><th>Fecha</th><th class="num">Base</th><th class="num">Total</th></tr></thead><tbody>${filas}</tbody></table>`:vacio("gastos","Sin gastos todavía","Registra tus gastos y asígnalos a un proveedor.",`<button class="btn small" onclick="modalGasto()">+ Nuevo gasto</button>`);
       view(panel("Gastos",cuerpo,`<button class="btn small" onclick="modalGasto()">+ Nuevo gasto</button>`));
     }
+    // ---- Previsión de tesorería (malla: vencimientos reales + ingresos/gastos previstos) ----
+    async function vPrevision(){
+      view('<div class="muted">Cargando…</div>');
+      const hoy=new Date().toISOString().slice(0,10);
+      const [fs,gs,previsiones]=await Promise.all([api("/facturas").catch(()=>[]),api("/gastos").catch(()=>[]),api("/tesoreria/previsiones").catch(()=>[])]);
+      const facs=fs.filter(f=>f.estado!=="Rectificada"&&f.estado!=="Anulada");
+      const [sf,sg]=await Promise.all([
+        Promise.all(facs.map(f=>api("/facturas/"+f.id+"/saldo").catch(()=>null))),
+        Promise.all(gs.map(g=>api("/gastos/"+g.id+"/saldo").catch(()=>null))),
+      ]);
+      const filas=[];
+      facs.forEach((f,i)=>{ const s=sf[i]||{}; const pend=s.pendiente??f.total; if((s.estado||"Pendiente")!=="Liquidado"&&pend>0.001){ filas.push({fecha:f.fechaVencimiento,concepto:f.numeroCompleto+" · "+f.clienteNombre,tipo:"Cobro",in:pend,out:0,origen:"Factura",prevista:false,accion:`<button class="btn small secondary" onclick="event.stopPropagation();modalCobro('${f.id}','${f.numeroCompleto}',${pend})">Cobrar</button>`}); } });
+      gs.forEach((g,i)=>{ const s=sg[i]||{}; const pend=s.pendiente??g.total; if((s.estado||"Pendiente")!=="Liquidado"&&pend>0.001){ filas.push({fecha:(g.fechaVencimiento||g.fecha),concepto:g.concepto+(g.proveedorTexto?" · "+g.proveedorTexto:""),tipo:"Pago",in:0,out:pend,origen:"Gasto",prevista:false,accion:`<button class="btn small secondary" onclick="event.stopPropagation();modalPagoGasto('${g.id}','${(g.concepto||'').replace(/'/g,'')}',${pend})">Pagar</button>`}); } });
+      (previsiones||[]).forEach(p=>{ const ing=p.sentido==="Ingreso"; filas.push({fecha:p.fecha,concepto:p.concepto,tipo:ing?"Ingreso previsto":"Gasto previsto",in:ing?p.importe:0,out:ing?0:p.importe,origen:"Previsión",prevista:true,accion:`<button class="btn small ghost" onclick="event.stopPropagation();borrarPrevision('${p.id}')" title="Eliminar previsión">✕</button>`}); });
+      filas.sort((a,b)=>(a.fecha||'').localeCompare(b.fecha||''));
+      let saldo=0,totIn=0,totOut=0,neto30=0;
+      const lim30=new Date(Date.now()+30*864e5).toISOString().slice(0,10);
+      const trs=filas.map(r=>{ saldo+=(r.in-r.out); totIn+=r.in; totOut+=r.out; if((r.fecha||'')<=lim30) neto30+=(r.in-r.out);
+        const venc=!r.prevista&&(r.fecha||'')<hoy;
+        const tipoPill=r.prevista?`<span class="pill part">${r.tipo}</span>`:(r.in?'<span class="pill ok">Cobro</span>':'<span class="pill wait">Pago</span>');
+        return `<tr class="${r.prevista?'fila-prevista':''}"><td class="muted">${fdate(r.fecha)}${venc?' <span class="pill" style="background:#fdecea;color:var(--neg);font-size:10px">vencido</span>':''}</td><td>${r.concepto}</td><td>${tipoPill}</td><td class="num">${r.in?eur(r.in):'—'}</td><td class="num">${r.out?eur(r.out):'—'}</td><td class="num"><strong class="${saldo<0?'neg':''}">${eur(saldo)}</strong></td><td class="muted">${r.origen}</td><td class="right">${r.accion}</td></tr>`;}).join("");
+      const kpis=`<div class="kpis" style="grid-template-columns:repeat(3,1fr);max-width:720px">
+        <div class="kpi"><div class="lbl">Entradas previstas</div><div class="val" style="color:var(--pos)">${eur(totIn)}</div></div>
+        <div class="kpi"><div class="lbl">Salidas previstas</div><div class="val" style="color:var(--neg)">${eur(totOut)}</div></div>
+        <div class="kpi ${neto30<0?'warn':''}"><div class="lbl">Neto a 30 días</div><div class="val ${neto30<0?'neg':''}">${eur(neto30)}</div></div></div>`;
+      const cuerpo=filas.length?`<table><thead><tr><th>Fecha</th><th>Concepto</th><th>Tipo</th><th class="num">Entrada</th><th class="num">Salida</th><th class="num">Saldo proyectado</th><th>Origen</th><th></th></tr></thead><tbody>${trs}</tbody></table>
+        <p class="muted" style="font-size:12px;margin:12px 0 0">El saldo se acumula por fecha. Las filas <span style="background:repeating-linear-gradient(135deg,var(--accent-soft),var(--accent-soft) 6px,transparent 6px,transparent 12px);padding:1px 8px;border-left:3px solid var(--accent)">rayadas</span> son previsiones (ingresos/gastos aún no documentados); el resto son vencimientos reales. Usa <strong>Columnas</strong> para elegir qué ver.</p>`
+        :vacio("cobros","Sin vencimientos ni previsiones","Aquí verás tus cobros y pagos pendientes. También puedes añadir ingresos o gastos previstos para completar la previsión.",`<button class="btn small" onclick="modalPrevision()">+ Añadir previsión</button>`);
+      view(kpis+panel("Previsión de tesorería",cuerpo,`<button class="btn small" onclick="modalPrevision()">+ Añadir previsión</button>`));
+    }
+    function modalPrevision(){ const hoy=new Date().toISOString().slice(0,10);
+      abrir("Añadir previsión",`<div class="grid2"><div><label>Tipo</label><select id="pv_sent"><option value="Ingreso">Ingreso previsto</option><option value="Gasto">Gasto previsto</option></select></div><div><label>Fecha prevista</label><input id="pv_fecha" type="date" value="${hoy}"/></div></div>
+        <label>Concepto</label><input id="pv_conc" placeholder="Ej. Subvención, alquiler, préstamo…"/>
+        <label>Importe (€)</label><input id="pv_imp" type="number" step="0.01" value="0"/>`,
+        async()=>{ await api("/tesoreria/previsiones",{method:"POST",body:JSON.stringify({sentido:val("pv_sent"),concepto:val("pv_conc"),importe:Number(val("pv_imp")||0),fecha:val("pv_fecha")})}); toast("Previsión añadida.","ok"); vPrevision(); }); }
+    async function borrarPrevision(id){ if(!confirm("¿Eliminar esta previsión?"))return; try{ await api("/tesoreria/previsiones/"+id,{method:"DELETE"}); toast("Previsión eliminada.","ok"); vPrevision(); }catch(e){ toast(e.message,"err"); } }
+    function modalPagoGasto(id,concepto,pend){ const hoy=new Date().toISOString().slice(0,10);
+      abrir("Registrar pago · "+concepto,`<div class="grid2"><div><label>Importe (€)</label><input id="pg_imp" type="number" step="0.01" value="${pend}"/></div><div><label>Fecha</label><input id="pg_fecha" type="date" value="${hoy}"/></div></div><label>Método (opcional)</label><input id="pg_metodo" placeholder="Transferencia, efectivo…"/>`,
+        async()=>{ await api("/pagos",{method:"POST",body:JSON.stringify({gastoId:id,importe:Number(val("pg_imp")||0),fecha:val("pg_fecha"),metodo:val("pg_metodo")||null})}); toast("Pago registrado.","ok"); vPrevision(); }); }
+
     async function vCobros() {
       view('<div class="muted">Cargando…</div>');
       const fs=(await api("/facturas")).filter(f=>f.estado!=="Rectificada"&&f.estado!=="Anulada");

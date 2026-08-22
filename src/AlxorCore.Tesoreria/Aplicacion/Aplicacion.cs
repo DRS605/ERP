@@ -189,3 +189,80 @@ public sealed class ConsultarSaldo
             movimientos.Select(MovimientoDto.Desde).ToList()));
     }
 }
+
+// ---------------------------------------------------------------------------- Previsiones (ingresos/gastos previstos)
+
+/// <summary>Vista de una previsión de tesorería.</summary>
+public sealed record PrevisionDto(Guid Id, string Sentido, string Concepto, decimal Importe, DateOnly Fecha)
+{
+    public static PrevisionDto Desde(PrevisionTesoreria p) => new(p.Id, p.Sentido.ToString(), p.Concepto, p.Importe, p.Fecha);
+}
+
+/// <summary>Datos para crear una previsión.</summary>
+public sealed record CrearPrevisionComando(SentidoPrevision Sentido, string Concepto, decimal Importe, DateOnly Fecha);
+
+/// <summary>Repositorio de previsiones de tesorería.</summary>
+public interface IRepositorioPrevisiones
+{
+    void Agregar(PrevisionTesoreria prevision);
+    Task<PrevisionTesoreria?> ObtenerAsync(Guid id, CancellationToken ct = default);
+    void Eliminar(PrevisionTesoreria prevision);
+    Task<IReadOnlyList<PrevisionDto>> ListarAsync(Guid empresaId, CancellationToken ct = default);
+}
+
+/// <summary>Caso de uso: añadir una previsión (ingreso o gasto previsto).</summary>
+public sealed class CrearPrevision
+{
+    private readonly IRepositorioPrevisiones _repo;
+    private readonly IUnidadDeTrabajoTesoreria _unidad;
+    private readonly IReloj _reloj;
+
+    public CrearPrevision(IRepositorioPrevisiones repo, IUnidadDeTrabajoTesoreria unidad, IReloj reloj)
+    {
+        _repo = repo; _unidad = unidad; _reloj = reloj;
+    }
+
+    public async Task<Resultado<PrevisionDto>> EjecutarAsync(Guid empresaId, CrearPrevisionComando comando, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(comando);
+        var prevision = PrevisionTesoreria.Crear(empresaId, comando.Sentido, comando.Concepto, comando.Importe, comando.Fecha, _reloj);
+        if (prevision.EsFallo)
+        {
+            return Resultado.Fallo<PrevisionDto>(prevision.Error);
+        }
+
+        _repo.Agregar(prevision.Valor);
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(PrevisionDto.Desde(prevision.Valor));
+    }
+}
+
+/// <summary>Caso de uso: listar las previsiones de la empresa activa (más próximas primero).</summary>
+public sealed class ListarPrevisiones
+{
+    private readonly IRepositorioPrevisiones _repo;
+    public ListarPrevisiones(IRepositorioPrevisiones repo) => _repo = repo;
+    public Task<IReadOnlyList<PrevisionDto>> EjecutarAsync(Guid empresaId, CancellationToken ct = default) => _repo.ListarAsync(empresaId, ct);
+}
+
+/// <summary>Caso de uso: eliminar una previsión.</summary>
+public sealed class EliminarPrevision
+{
+    private readonly IRepositorioPrevisiones _repo;
+    private readonly IUnidadDeTrabajoTesoreria _unidad;
+
+    public EliminarPrevision(IRepositorioPrevisiones repo, IUnidadDeTrabajoTesoreria unidad) { _repo = repo; _unidad = unidad; }
+
+    public async Task<Resultado> EjecutarAsync(Guid id, CancellationToken ct = default)
+    {
+        var prevision = await _repo.ObtenerAsync(id, ct).ConfigureAwait(false);
+        if (prevision is null)
+        {
+            return Resultado.Fallo(Error.NoEncontrado("prevision.no_encontrada", "No se encontró la previsión."));
+        }
+
+        _repo.Eliminar(prevision);
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok();
+    }
+}

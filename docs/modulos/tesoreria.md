@@ -20,6 +20,18 @@ del **saldo** de cada documento.
 | `GET` | `/gastos/{id}/saldo` | permiso `gasto.leer` | Total, liquidado, pendiente y estado. |
 | `POST` | `/tesoreria/conciliacion` | permiso `cobro.registrar` | Lee un extracto Norma 43 y propone casaciones. |
 | `POST` | `/tesoreria/remesa` | permiso `cobro.registrar` | Genera una remesa de adeudos SEPA (pain.008 / Norma 19). |
+| `GET` | `/tesoreria/previsiones` | permiso `factura.leer` | Lista los ingresos/gastos previstos. |
+| `POST` | `/tesoreria/previsiones` | permiso `cobro.registrar` | Añade un ingreso o gasto previsto. **201** |
+| `DELETE` | `/tesoreria/previsiones/{id}` | permiso `cobro.registrar` | Elimina una previsión. **204** |
+
+## Previsión de tesorería
+
+`PrevisionTesoreria` es un **ingreso o gasto previsto** (aún no facturado ni documentado) que el
+usuario añade a mano: `{ sentido (Ingreso/Gasto), concepto, importe (>0), fecha }`. No mueve saldos
+reales; solo proyecta. La UI monta una **malla de previsión** que combina los vencimientos reales
+(cobros de facturas y pagos de gastos pendientes) con estas previsiones, ordena por fecha, acumula un
+**saldo proyectado** y distingue las previsiones a simple vista (se eliminan con un clic). RLS por
+empresa (migración `PrevisionTesoreria`).
 
 ## Conciliación bancaria (Norma 43)
 

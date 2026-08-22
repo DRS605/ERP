@@ -40,6 +40,18 @@ public static class EndpointsTesoreria
             .WithTags("Tesorería").WithSummary("Genera una remesa de adeudos SEPA (pain.008 / Norma 19) para las facturas indicadas.")
             .RequierePermiso(Permisos.CobroRegistrar);
 
+        rutas.MapGet("/tesoreria/previsiones", ListarPrevisionesAsync)
+            .WithTags("Tesorería").WithSummary("Lista los ingresos y gastos previstos (previsión de tesorería).")
+            .RequierePermiso(Permisos.FacturaLeer);
+
+        rutas.MapPost("/tesoreria/previsiones", CrearPrevisionAsync)
+            .WithTags("Tesorería").WithSummary("Añade un ingreso o gasto previsto.")
+            .RequierePermiso(Permisos.CobroRegistrar);
+
+        rutas.MapDelete("/tesoreria/previsiones/{id:guid}", EliminarPrevisionAsync)
+            .WithTags("Tesorería").WithSummary("Elimina una previsión.")
+            .RequierePermiso(Permisos.CobroRegistrar);
+
         return rutas;
     }
 
@@ -84,6 +96,25 @@ public static class EndpointsTesoreria
         }
 
         return (await caso.EjecutarAsync(contexto.EmpresaId.Value, comando, ct).ConfigureAwait(false)).AOk();
+    }
+
+    private static async Task<IResult> ListarPrevisionesAsync(IContextoEmpresa contexto, ListarPrevisiones caso, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null) return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, ct).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> CrearPrevisionAsync(CrearPrevisionComando comando, IContextoEmpresa contexto, CrearPrevision caso, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null) return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        var r = await caso.EjecutarAsync(contexto.EmpresaId.Value, comando, ct).ConfigureAwait(false);
+        return r.EsCorrecto ? r.ACreado("/tesoreria/previsiones") : ResultadosHttp.AProblema(r.Error);
+    }
+
+    private static async Task<IResult> EliminarPrevisionAsync(Guid id, EliminarPrevision caso, CancellationToken ct)
+    {
+        var r = await caso.EjecutarAsync(id, ct).ConfigureAwait(false);
+        return r.EsCorrecto ? Results.NoContent() : ResultadosHttp.AProblema(r.Error);
     }
 
     private static async Task<IResult> SaldoFacturaAsync(Guid id, ConsultarSaldo caso, CancellationToken ct) =>

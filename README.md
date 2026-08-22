@@ -49,9 +49,15 @@ La API sirve también una **interfaz web** (SPA) en la raíz (`/`), en el mismo 
 `docker compose up` la tienes en `http://localhost:8080`: login, panel con KPIs, facturas, clientes,
 productos, gastos, cobros e informes. Diseño limpio, pocos colores y pocos clics.
 
-Toques profesionales: **tablas con buscador y ordenación por columnas**, **búsqueda global** con
+Toques profesionales: **tablas con buscador, ordenación y columnas «de quita y pon»** (el usuario
+elige qué columnas ver en cualquier tabla del ERP; la elección se recuerda), **búsqueda global** con
 `⌘K` / `Ctrl+K` (facturas, clientes, artículos, proveedores y accesos rápidos) y **detalle de
 documento** al pulsar el número de una factura (líneas, impuestos y registro VeriFactu).
+
+**Previsión de tesorería**: una malla interactiva que combina los **vencimientos reales** (cobros de
+facturas y pagos de gastos pendientes) con **ingresos y gastos previstos** que el usuario añade y
+elimina a mano (se distinguen a simple vista), ordenada por fecha y con **saldo proyectado**
+acumulado y neto a 30 días. Columnas elegibles como en el resto del ERP.
 
 ## Arranque rápido (Docker)
 

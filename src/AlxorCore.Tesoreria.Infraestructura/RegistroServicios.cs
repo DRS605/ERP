@@ -31,9 +31,14 @@ public static class RegistroServicios
         servicios.AddScoped<IRepositorioMovimientos>(sp => sp.GetRequiredService<RepositorioMovimientos>());
         servicios.AddScoped<IConsultaTesoreria>(sp => sp.GetRequiredService<RepositorioMovimientos>());
 
+        servicios.AddScoped<IRepositorioPrevisiones, RepositorioPrevisiones>();
+
         servicios.AddScoped<RegistrarCobro>();
         servicios.AddScoped<RegistrarPago>();
         servicios.AddScoped<ConsultarSaldo>();
+        servicios.AddScoped<CrearPrevision>();
+        servicios.AddScoped<ListarPrevisiones>();
+        servicios.AddScoped<EliminarPrevision>();
         servicios.AddScoped<ConciliarExtracto>();
         servicios.AddScoped<GenerarRemesaSepa>();
 

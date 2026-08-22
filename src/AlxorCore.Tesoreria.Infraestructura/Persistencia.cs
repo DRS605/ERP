@@ -22,6 +22,8 @@ public sealed class TesoreriaDbContext : DbContextEmpresaBase, IUnidadDeTrabajoT
 
     public DbSet<Movimiento> Movimientos => Set<Movimiento>();
 
+    public DbSet<PrevisionTesoreria> Previsiones => Set<PrevisionTesoreria>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Esquema);
@@ -48,6 +50,42 @@ internal sealed class ConfiguracionMovimiento : IEntityTypeConfiguration<Movimie
 
         builder.HasIndex(m => new { m.EmpresaId, m.TipoDocumento, m.DocumentoId }).HasDatabaseName("ix_movimiento_documento");
         builder.Ignore(m => m.EventosDominio);
+    }
+}
+
+internal sealed class ConfiguracionPrevision : IEntityTypeConfiguration<PrevisionTesoreria>
+{
+    public void Configure(EntityTypeBuilder<PrevisionTesoreria> builder)
+    {
+        builder.ToTable("prevision");
+        builder.HasKey(p => p.Id);
+        builder.Property(p => p.Id).HasColumnName("id").ValueGeneratedNever();
+        builder.Property(p => p.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        builder.Property(p => p.Sentido).HasColumnName("sentido").HasMaxLength(20).HasConversion<string>().IsRequired();
+        builder.Property(p => p.Concepto).HasColumnName("concepto").HasMaxLength(PrevisionTesoreria.LongitudMaximaConcepto).IsRequired();
+        builder.Property(p => p.Importe).HasColumnName("importe").HasColumnType("numeric(14,2)").IsRequired();
+        builder.Property(p => p.Fecha).HasColumnName("fecha").IsRequired();
+        builder.Property(p => p.CreadoEn).HasColumnName("creado_en").IsRequired();
+        builder.HasIndex(p => new { p.EmpresaId, p.Fecha }).HasDatabaseName("ix_prevision_empresa_fecha");
+        builder.Ignore(p => p.EventosDominio);
+    }
+}
+
+internal sealed class RepositorioPrevisiones : IRepositorioPrevisiones
+{
+    private readonly TesoreriaDbContext _contexto;
+    public RepositorioPrevisiones(TesoreriaDbContext contexto) => _contexto = contexto;
+
+    public void Agregar(PrevisionTesoreria prevision) => _contexto.Previsiones.Add(prevision);
+    public Task<PrevisionTesoreria?> ObtenerAsync(Guid id, CancellationToken ct = default) =>
+        _contexto.Previsiones.SingleOrDefaultAsync(p => p.Id == id, ct);
+    public void Eliminar(PrevisionTesoreria prevision) => _contexto.Previsiones.Remove(prevision);
+
+    public async Task<IReadOnlyList<PrevisionDto>> ListarAsync(Guid empresaId, CancellationToken ct = default)
+    {
+        var lista = await _contexto.Previsiones.AsNoTracking().Where(p => p.EmpresaId == empresaId)
+            .OrderBy(p => p.Fecha).ToListAsync(ct).ConfigureAwait(false);
+        return lista.Select(PrevisionDto.Desde).ToList();
     }
 }
 
