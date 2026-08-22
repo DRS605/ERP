@@ -27,16 +27,13 @@ internal sealed class GeneradorPdfPresupuestoQuestPdf : IGeneradorPdfPresupuesto
                 pagina.Margin(40);
                 pagina.DefaultTextStyle(x => x.FontSize(10));
 
+                var color = PlantillaImpreso.ColorMarca(emisor);
                 pagina.Header().Row(fila =>
                 {
-                    fila.RelativeItem().Column(col =>
-                    {
-                        col.Item().Text(emisor.RazonSocial).Bold().FontSize(16);
-                        col.Item().Text($"NIF: {emisor.Nif}");
-                    });
+                    fila.RelativeItem().Column(col => PlantillaImpreso.EscribirEmisor(col, emisor, color));
                     fila.ConstantItem(200).AlignRight().Column(col =>
                     {
-                        col.Item().Text("PRESUPUESTO").Bold().FontSize(16);
+                        col.Item().Text("PRESUPUESTO").Bold().FontSize(16).FontColor(color);
                         col.Item().Text(presupuesto.NumeroCompleto);
                         col.Item().Text($"Fecha: {presupuesto.Fecha:dd/MM/yyyy}");
                         col.Item().Text($"Válido hasta: {presupuesto.Validez:dd/MM/yyyy}").FontColor(Colors.Grey.Darken1);
@@ -64,11 +61,12 @@ internal sealed class GeneradorPdfPresupuestoQuestPdf : IGeneradorPdfPresupuesto
 
                         tabla.Header(encabezado =>
                         {
-                            encabezado.Cell().Text("Descripción").Bold();
-                            encabezado.Cell().AlignRight().Text("Cantidad").Bold();
-                            encabezado.Cell().AlignRight().Text("Precio").Bold();
-                            encabezado.Cell().AlignRight().Text("IVA").Bold();
-                            encabezado.Cell().AlignRight().Text("Base").Bold();
+                            static QuestPDF.Infrastructure.IContainer Celda(QuestPDF.Infrastructure.IContainer c, QuestPDF.Infrastructure.Color color) => c.BorderBottom(1.5f).BorderColor(color).PaddingBottom(3);
+                            Celda(encabezado.Cell(), color).Text("Descripción").Bold().FontColor(color);
+                            Celda(encabezado.Cell(), color).AlignRight().Text("Cantidad").Bold().FontColor(color);
+                            Celda(encabezado.Cell(), color).AlignRight().Text("Precio").Bold().FontColor(color);
+                            Celda(encabezado.Cell(), color).AlignRight().Text("IVA").Bold().FontColor(color);
+                            Celda(encabezado.Cell(), color).AlignRight().Text("Base").Bold().FontColor(color);
                         });
 
                         foreach (var linea in presupuesto.Lineas)
@@ -85,18 +83,14 @@ internal sealed class GeneradorPdfPresupuestoQuestPdf : IGeneradorPdfPresupuesto
                     {
                         totales.Item().Text($"Base imponible: {Redondeo.Formatear(presupuesto.BaseImponible)} €");
                         totales.Item().Text($"IVA: {Redondeo.Formatear(presupuesto.CuotaIva)} €");
-                        totales.Item().Text($"TOTAL: {Redondeo.Formatear(presupuesto.Total)} €").Bold().FontSize(13);
+                        totales.Item().Text($"TOTAL: {Redondeo.Formatear(presupuesto.Total)} €").Bold().FontSize(13).FontColor(color);
                     });
 
                     col.Item().PaddingTop(24).Text("Este documento es un presupuesto (oferta) y no tiene carácter de factura. Los importes son válidos hasta la fecha indicada.")
                         .FontSize(8).FontColor(Colors.Grey.Darken1);
                 });
 
-                pagina.Footer().AlignCenter().Text(texto =>
-                {
-                    texto.Span("ALXOR Core · ").FontColor(Colors.Grey.Medium);
-                    texto.Span(emisor.RazonSocial).FontColor(Colors.Grey.Medium);
-                });
+                pagina.Footer().AlignCenter().Text(texto => PlantillaImpreso.EscribirPie(texto, emisor));
             });
         });
 

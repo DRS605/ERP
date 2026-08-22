@@ -41,6 +41,12 @@ internal sealed class ConfiguracionEmpresa : IEntityTypeConfiguration<Empresa>
         builder.Property(e => e.IdentificadorAcreedor).HasColumnName("identificador_acreedor").HasMaxLength(35);
         builder.Property(e => e.MetodoValoracion).HasColumnName("metodo_valoracion").HasMaxLength(20).HasConversion<string>().IsRequired();
         builder.Property(e => e.ControlRiesgo).HasColumnName("control_riesgo").HasMaxLength(20).HasConversion<string>().IsRequired();
+        builder.Property(e => e.Telefono).HasColumnName("telefono").HasMaxLength(40);
+        builder.Property(e => e.Web).HasColumnName("web").HasMaxLength(120);
+        builder.Property(e => e.EmailContacto).HasColumnName("email_contacto").HasMaxLength(254);
+        builder.Property(e => e.ColorPrincipal).HasColumnName("color_principal").HasMaxLength(7);
+        builder.Property(e => e.TextoPie).HasColumnName("texto_pie").HasMaxLength(Empresa.LongitudMaximaTexto);
+        builder.Property(e => e.LogoPng).HasColumnName("logo_png").HasColumnType("bytea");
         builder.Property(e => e.CreadoEn).HasColumnName("creado_en").IsRequired();
         builder.Property(e => e.ActualizadoEn).HasColumnName("actualizado_en").IsRequired();
 

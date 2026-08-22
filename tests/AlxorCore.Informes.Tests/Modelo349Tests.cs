@@ -65,7 +65,7 @@ public class Modelo349Tests
         new(ProvIntra, "Fornitore SRL", "IT-FISCAL", null, "", "", "", "", "IT", 0m, true, default, "IT99999999999", null, null, null, null);
 
     private static EmpresaDto EmpresaDeclarante() =>
-        new(Empresa, "B12345674", "Mi Empresa SL", default(RegimenIva), "EUR", "ES", null, null, MetodoValoracion.Estandar, ControlRiesgo.Aviso);
+        new(Empresa, "B12345674", "Mi Empresa SL", default(RegimenIva), "EUR", "ES", null, null, MetodoValoracion.Estandar, ControlRiesgo.Aviso, "", "", "", "", null, null, null, null, null, null);
 
     private static GenerarModelo349 Caso() => new(
         new FakeFacturas([Factura(new DateOnly(2026, 2, 1), "DE-FISCAL", 1000m)]),

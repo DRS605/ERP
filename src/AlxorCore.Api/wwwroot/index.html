@@ -2366,7 +2366,45 @@
       try{ panelAudit=await panelAuditoriaHtml(); }catch(e){ panelAudit=""; }
       let panelValoracion="";
       try{ panelValoracion=await panelValoracionHtml(); }catch(e){ panelValoracion=""; }
-      view(panelSeries+panelAsig+panelFormas+panelRiesgo+panelImport+panelValoracion+panelCobroHtml()+panelUsuarios+panelDatosHtml()+panelAudit);
+      let panelPlantilla="";
+      try{ panelPlantilla=await panelPlantillaHtml(); }catch(e){ panelPlantilla=""; }
+      view(panelSeries+panelAsig+panelPlantilla+panelFormas+panelRiesgo+panelImport+panelValoracion+panelCobroHtml()+panelUsuarios+panelDatosHtml()+panelAudit);
+    }
+    let _logoPlantillaB64=null; // null = no cambiar; "" = quitar; string = nuevo PNG (base64 sin prefijo)
+    async function panelPlantillaHtml(){
+      const e=await api("/empresas/actual");
+      _logoPlantillaB64=null;
+      const color=e.colorPrincipal||"#0EA5B7";
+      const logoImg=e.logoPng?`<img id="pl_logo_prev" src="data:image/png;base64,${e.logoPng}" alt="logo" style="max-height:60px;max-width:200px;border:1px solid var(--line);border-radius:8px;padding:6px;background:#fff"/>`
+        :`<img id="pl_logo_prev" alt="" style="display:none;max-height:60px;max-width:200px;border:1px solid var(--line);border-radius:8px;padding:6px;background:#fff"/>`;
+      const cuerpo=`<p class="muted" style="margin:0 0 14px">Personaliza cómo se ven tus <strong>facturas, tickets y presupuestos</strong>: logotipo, color, datos de contacto y texto de pie. Los cambios se aplican al generar el próximo PDF.</p>
+        <label>Razón social (encabeza el documento)</label><input id="pl_razon" value="${(e.razonSocial||'').replace(/"/g,'&quot;')}"/>
+        <div class="grid2" style="margin-top:10px"><div><label>Dirección</label><input id="pl_calle" value="${(e.calle||'').replace(/"/g,'&quot;')}" placeholder="Calle y número"/></div><div><label>Código postal</label><input id="pl_cp" value="${e.codigoPostal||''}"/></div></div>
+        <div class="grid2" style="margin-top:10px"><div><label>Población</label><input id="pl_pob" value="${(e.poblacion||'').replace(/"/g,'&quot;')}"/></div><div><label>Provincia</label><input id="pl_prov" value="${(e.provincia||'').replace(/"/g,'&quot;')}"/></div></div>
+        <div class="grid2" style="margin-top:10px"><div><label>Teléfono</label><input id="pl_tel" value="${e.telefono||''}"/></div><div><label>Web</label><input id="pl_web" value="${e.web||''}"/></div></div>
+        <div class="grid2" style="margin-top:10px"><div><label>Correo de contacto</label><input id="pl_email" value="${e.emailContacto||''}"/></div><div><label>Color corporativo</label><input id="pl_color" type="color" value="${color}" style="height:38px;padding:4px"/></div></div>
+        <label style="margin-top:12px">Texto de pie (condiciones, forma de pago, agradecimiento…)</label><textarea id="pl_pie" rows="2" style="width:100%">${(e.textoPie||'').replace(/</g,'&lt;')}</textarea>
+        <label style="margin-top:12px">Logotipo (PNG, máx. 512 KB)</label>
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">${logoImg}
+          <label class="btn small ghost" style="cursor:pointer;width:auto;margin:0">Elegir logo…<input type="file" accept="image/png" style="display:none" onchange="elegirLogo(this)"/></label>
+          <button class="btn small ghost" onclick="quitarLogo()">Quitar logo</button></div>
+        <button class="btn small" style="margin-top:16px" onclick="guardarPlantilla()">Guardar plantilla</button>`;
+      return panel("Plantilla de documentos (logo y marca)",cuerpo);
+    }
+    async function elegirLogo(input){
+      const f=input.files&&input.files[0]; input.value="";
+      if(!f) return;
+      if(f.size>512*1024){ toast("El logo supera los 512 KB.","err"); return; }
+      const dataUrl=await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(String(r.result)); r.onerror=rej; r.readAsDataURL(f); });
+      _logoPlantillaB64=dataUrl.split(",")[1]||"";
+      const img=document.getElementById("pl_logo_prev"); if(img){ img.src=dataUrl; img.style.display=""; }
+    }
+    function quitarLogo(){ _logoPlantillaB64=""; const img=document.getElementById("pl_logo_prev"); if(img){ img.removeAttribute("src"); img.style.display="none"; } toast("El logo se quitará al guardar.","wait"); }
+    async function guardarPlantilla(){
+      const body={ razonSocial:val("pl_razon")||null, calle:val("pl_calle")||null, codigoPostal:val("pl_cp")||null, poblacion:val("pl_pob")||null, provincia:val("pl_prov")||null,
+        telefono:val("pl_tel")||null, web:val("pl_web")||null, email:val("pl_email")||null, colorPrincipal:val("pl_color")||null, textoPie:val("pl_pie")||null, logoPngBase64:_logoPlantillaB64 };
+      try{ await api("/empresas/actual/plantilla",{method:"PUT",body:JSON.stringify(body)}); toast("Plantilla guardada. Se aplicará en los próximos PDF.","ok"); vAjustes(); }
+      catch(e){ toast(e.message,"err"); }
     }
     function panelImportacionHtml(){
       const fila=(tipo,titulo,cols)=>`<div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--line)">

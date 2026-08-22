@@ -48,16 +48,13 @@ internal sealed class GeneradorPdfFacturaQuestPdf : IGeneradorPdfFactura
                 pagina.Margin(40);
                 pagina.DefaultTextStyle(x => x.FontSize(10));
 
+                var color = PlantillaImpreso.ColorMarca(emisor);
                 pagina.Header().Row(fila =>
                 {
-                    fila.RelativeItem().Column(col =>
-                    {
-                        col.Item().Text(emisor.RazonSocial).Bold().FontSize(16);
-                        col.Item().Text($"NIF: {emisor.Nif}");
-                    });
+                    fila.RelativeItem().Column(col => PlantillaImpreso.EscribirEmisor(col, emisor, color));
                     fila.ConstantItem(200).AlignRight().Column(col =>
                     {
-                        col.Item().Text("FACTURA").Bold().FontSize(16);
+                        col.Item().Text("FACTURA").Bold().FontSize(16).FontColor(color);
                         col.Item().Text(factura.NumeroCompleto);
                         col.Item().Text($"Fecha: {factura.FechaEmision:dd/MM/yyyy}");
                     });
@@ -88,11 +85,12 @@ internal sealed class GeneradorPdfFacturaQuestPdf : IGeneradorPdfFactura
 
                         tabla.Header(encabezado =>
                         {
-                            encabezado.Cell().Text("Descripción").Bold();
-                            encabezado.Cell().AlignRight().Text("Cantidad").Bold();
-                            encabezado.Cell().AlignRight().Text("Precio").Bold();
-                            encabezado.Cell().AlignRight().Text("IVA").Bold();
-                            encabezado.Cell().AlignRight().Text("Base").Bold();
+                            static IContainer Celda(IContainer c, Color color) => c.BorderBottom(1.5f).BorderColor(color).PaddingBottom(3);
+                            Celda(encabezado.Cell(), color).Text("Descripción").Bold().FontColor(color);
+                            Celda(encabezado.Cell(), color).AlignRight().Text("Cantidad").Bold().FontColor(color);
+                            Celda(encabezado.Cell(), color).AlignRight().Text("Precio").Bold().FontColor(color);
+                            Celda(encabezado.Cell(), color).AlignRight().Text("IVA").Bold().FontColor(color);
+                            Celda(encabezado.Cell(), color).AlignRight().Text("Base").Bold().FontColor(color);
                         });
 
                         foreach (var linea in factura.Lineas)
@@ -119,7 +117,7 @@ internal sealed class GeneradorPdfFacturaQuestPdf : IGeneradorPdfFactura
                             totales.Item().Text($"Retención IRPF ({factura.PorcentajeIrpf:0}%): -{Redondeo.Formatear(factura.RetencionIrpf)} €");
                         }
 
-                        totales.Item().Text($"TOTAL: {Redondeo.Formatear(factura.Total)} €").Bold().FontSize(13);
+                        totales.Item().Text($"TOTAL: {Redondeo.Formatear(factura.Total)} €").Bold().FontSize(13).FontColor(color);
                     });
 
                     var qr = GenerarQr(factura, emisor);
@@ -138,11 +136,7 @@ internal sealed class GeneradorPdfFacturaQuestPdf : IGeneradorPdfFactura
                     }
                 });
 
-                pagina.Footer().AlignCenter().Text(texto =>
-                {
-                    texto.Span("ALXOR Core · ").FontColor(Colors.Grey.Medium);
-                    texto.Span(emisor.RazonSocial).FontColor(Colors.Grey.Medium);
-                });
+                pagina.Footer().AlignCenter().Text(texto => PlantillaImpreso.EscribirPie(texto, emisor));
             });
         });
 
@@ -164,8 +158,17 @@ internal sealed class GeneradorPdfFacturaQuestPdf : IGeneradorPdfFactura
                 {
                     col.Spacing(2);
 
+                    if (emisor.LogoPng is { Length: > 0 })
+                    {
+                        col.Item().AlignCenter().Height(40).Image(emisor.LogoPng).FitHeight();
+                    }
+
                     col.Item().AlignCenter().Text(emisor.RazonSocial).Bold().FontSize(11);
                     col.Item().AlignCenter().Text($"NIF: {emisor.Nif}");
+                    var dirTicket = PlantillaImpreso.LineaDireccion(emisor);
+                    if (dirTicket is not null) col.Item().AlignCenter().Text(dirTicket).FontSize(7);
+                    var contactoTicket = PlantillaImpreso.LineaContacto(emisor);
+                    if (contactoTicket is not null) col.Item().AlignCenter().Text(contactoTicket).FontSize(7);
                     col.Item().PaddingVertical(3).LineHorizontal(0.5f).LineColor(Colors.Grey.Medium);
 
                     col.Item().AlignCenter().Text("TICKET · FACTURA SIMPLIFICADA").Bold();
@@ -203,8 +206,7 @@ internal sealed class GeneradorPdfFacturaQuestPdf : IGeneradorPdfFactura
                     }
 
                     col.Item().PaddingVertical(4).LineHorizontal(0.5f).LineColor(Colors.Grey.Medium);
-                    col.Item().AlignCenter().Text("¡Gracias por su compra!").Bold();
-                    col.Item().AlignCenter().PaddingTop(4).Text("ALXOR Core").FontSize(7).FontColor(Colors.Grey.Medium);
+                    col.Item().AlignCenter().Text(string.IsNullOrWhiteSpace(emisor.TextoPie) ? "¡Gracias por su compra!" : emisor.TextoPie).Bold();
                 });
             });
         });

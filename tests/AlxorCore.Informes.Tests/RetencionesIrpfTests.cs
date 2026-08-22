@@ -48,7 +48,7 @@ public class RetencionesIrpfTests
         new(new FakeGastos(gastos), new FakeProveedores(proveedores), new FakeEmpresas(empresa));
 
     private static EmpresaDto EmpresaDeclarante() =>
-        new(Empresa, "B12345674", "Mi Empresa SL", default(RegimenIva), "EUR", "ES", null, null, MetodoValoracion.Estandar, ControlRiesgo.Aviso);
+        new(Empresa, "B12345674", "Mi Empresa SL", default(RegimenIva), "EUR", "ES", null, null, MetodoValoracion.Estandar, ControlRiesgo.Aviso, "", "", "", "", null, null, null, null, null, null);
 
     [Fact]
     public async Task El_111_suma_las_retenciones_del_trimestre_y_cuenta_perceptores()
