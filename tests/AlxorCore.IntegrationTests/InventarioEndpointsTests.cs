@@ -19,6 +19,37 @@ public sealed class InventarioEndpointsTests : IClassFixture<FabricaApiPruebas>
     private sealed record TrazaResp(string Lote, List<ExistenciaResp> Existencias, List<MovimientoResp> Movimientos);
     private sealed record ProductoIdResp(Guid Id);
     private sealed record UbiDefResp(Guid Id, Guid ProductoId, Guid AlmacenId, Guid? ProveedorId, Guid UbicacionId, string UbicacionCodigo);
+    private sealed record ValLineaResp(Guid ProductoId, string Nombre, decimal Cantidad, decimal CosteUnitario, decimal Valor);
+    private sealed record ValoracionResp(string Metodo, decimal ValorTotal, List<ValLineaResp> Lineas);
+
+    [Fact]
+    public async Task Valoracion_de_inventario_segun_metodo_de_la_empresa()
+    {
+        var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+        var prod = (await (await cliente.PostAsJsonAsync("/productos", new { Nombre = "Materia prima", PrecioUnitario = 10m, PrecioCompra = 2.5m, CodigoIva = "IVA21" })).Content.ReadFromJsonAsync<ProductoIdResp>())!;
+        var alm = (await (await cliente.PostAsJsonAsync("/inventario/almacenes", new { Codigo = "VAL", Nombre = "Val" })).Content.ReadFromJsonAsync<AlmacenResp>())!;
+        // Dos entradas con distinto coste: 100 @ 2 y 100 @ 4.
+        await cliente.PostAsJsonAsync("/inventario/entrada", new { ProductoId = prod.Id, AlmacenId = alm.Id, Cantidad = 100m, CosteUnitario = 2m });
+        await cliente.PostAsJsonAsync("/inventario/entrada", new { ProductoId = prod.Id, AlmacenId = alm.Id, Cantidad = 100m, CosteUnitario = 4m });
+
+        // PMP: (100×2 + 100×4)/200 = 3 → valor 200×3 = 600.
+        (await cliente.PutAsJsonAsync("/empresas/actual/metodo-valoracion", new { MetodoValoracion = "Pmp" })).StatusCode.Should().Be(HttpStatusCode.OK);
+        var pmp = await cliente.GetFromJsonAsync<ValoracionResp>("/inventario/valoracion");
+        pmp!.Metodo.Should().Be("Pmp");
+        var lp = pmp.Lineas.Single(l => l.ProductoId == prod.Id);
+        lp.CosteUnitario.Should().Be(3m);
+        lp.Valor.Should().Be(600m);
+
+        // Última compra: coste 4 → valor 800.
+        await cliente.PutAsJsonAsync("/empresas/actual/metodo-valoracion", new { MetodoValoracion = "UltimaCompra" });
+        var uc = await cliente.GetFromJsonAsync<ValoracionResp>("/inventario/valoracion");
+        uc!.Lineas.Single(l => l.ProductoId == prod.Id).CosteUnitario.Should().Be(4m);
+
+        // Estándar: coste de ficha 2,5 → valor 500.
+        await cliente.PutAsJsonAsync("/empresas/actual/metodo-valoracion", new { MetodoValoracion = "Estandar" });
+        var est = await cliente.GetFromJsonAsync<ValoracionResp>("/inventario/valoracion");
+        est!.Lineas.Single(l => l.ProductoId == prod.Id).CosteUnitario.Should().Be(2.5m);
+    }
 
     [Fact]
     public async Task Entradas_salidas_ajuste_y_traspaso_entre_almacenes()

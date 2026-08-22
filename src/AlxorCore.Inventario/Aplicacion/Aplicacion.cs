@@ -60,7 +60,7 @@ public interface IUnidadDeTrabajoInventario : IUnidadDeTrabajo;
 // ---------------------------------------------------------------------------- Comandos
 public sealed record CrearAlmacenComando(string Codigo, string Nombre);
 public sealed record CrearUbicacionComando(Guid AlmacenId, string Codigo, string? Nombre = null);
-public sealed record MovimientoComando(Guid ProductoId, Guid AlmacenId, decimal Cantidad, Guid? UbicacionId = null, DateOnly? Fecha = null, string? Motivo = null, string? Referencia = null, string? Lote = null);
+public sealed record MovimientoComando(Guid ProductoId, Guid AlmacenId, decimal Cantidad, Guid? UbicacionId = null, DateOnly? Fecha = null, string? Motivo = null, string? Referencia = null, string? Lote = null, decimal? CosteUnitario = null);
 public sealed record TraspasoComando(Guid ProductoId, decimal Cantidad, Guid AlmacenOrigenId, Guid AlmacenDestinoId, Guid? UbicacionOrigenId = null, Guid? UbicacionDestinoId = null, DateOnly? Fecha = null, string? Lote = null);
 public sealed record UbicacionDefectoComando(Guid ProductoId, Guid AlmacenId, Guid UbicacionId, Guid? ProveedorId = null);
 
@@ -147,7 +147,7 @@ public sealed class MovimientosInventario
         var e = await ObtenerOCrearAsync(empresaId, c.ProductoId, c.AlmacenId, c.UbicacionId, c.Lote, ct).ConfigureAwait(false);
         e.Aumentar(c.Cantidad);
         _movimientos.Agregar(MovimientoInventario.Registrar(empresaId, c.ProductoId, c.AlmacenId, c.UbicacionId,
-            TipoMovimientoInventario.Entrada, c.Cantidad, c.Fecha ?? Hoy(), c.Motivo, c.Referencia, _reloj, c.Lote));
+            TipoMovimientoInventario.Entrada, c.Cantidad, c.Fecha ?? Hoy(), c.Motivo, c.Referencia, _reloj, c.Lote, c.CosteUnitario));
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return Resultado.Ok(new ExistenciaDto(e.ProductoId, e.AlmacenId, string.Empty, e.UbicacionId, null, e.Cantidad, e.Lote));
     }
@@ -269,6 +269,18 @@ public sealed class TrazabilidadLote
 
 /// <summary>Resultado de una consulta de trazabilidad: existencias actuales del lote y su historial.</summary>
 public sealed record TrazabilidadDto(string Lote, IReadOnlyList<ExistenciaDto> Existencias, IReadOnlyList<MovimientoDto> Movimientos);
+
+/// <summary>Línea del informe de valoración de existencias.</summary>
+public sealed record ValoracionLineaDto(Guid ProductoId, string Nombre, decimal Cantidad, decimal CosteUnitario, decimal Valor);
+
+/// <summary>Informe de valoración de existencias según el método de la empresa.</summary>
+public sealed record ValoracionInventarioDto(string Metodo, decimal ValorTotal, IReadOnlyList<ValoracionLineaDto> Lineas);
+
+/// <summary>Calcula la valoración del inventario con el método de la empresa (lo implementa la infraestructura).</summary>
+public interface IInformeValoracion
+{
+    Task<ValoracionInventarioDto> EjecutarAsync(Guid empresaId, CancellationToken ct = default);
+}
 
 /// <summary>
 /// Puerto para conocer la lista de materiales de un artículo compuesto (la implementa la

@@ -68,7 +68,7 @@ public sealed class MovimientoInventario : RaizAgregadoEmpresa<Guid>
     private MovimientoInventario(Guid id) : base(id, Guid.Empty) { }
 
     private MovimientoInventario(Guid id, Guid empresaId, Guid productoId, Guid almacenId, Guid? ubicacionId,
-        TipoMovimientoInventario tipo, decimal cantidad, DateOnly fecha, string? motivo, string? referencia, string? lote, DateTimeOffset ahora)
+        TipoMovimientoInventario tipo, decimal cantidad, DateOnly fecha, string? motivo, string? referencia, string? lote, decimal? costeUnitario, DateTimeOffset ahora)
         : base(id, empresaId)
     {
         ProductoId = productoId;
@@ -80,6 +80,7 @@ public sealed class MovimientoInventario : RaizAgregadoEmpresa<Guid>
         Motivo = motivo;
         Referencia = referencia;
         Lote = lote;
+        CosteUnitario = costeUnitario;
         CreadoEn = ahora;
     }
 
@@ -91,6 +92,9 @@ public sealed class MovimientoInventario : RaizAgregadoEmpresa<Guid>
 
     /// <summary>Lote o número de serie afectado por el movimiento (null si no aplica). Base de la trazabilidad.</summary>
     public string? Lote { get; private set; }
+
+    /// <summary>Coste unitario de la entrada (para PMP/FIFO/última compra). Null en salidas o si no se conoce.</summary>
+    public decimal? CosteUnitario { get; private set; }
 
     public TipoMovimientoInventario Tipo { get; private set; }
 
@@ -106,12 +110,12 @@ public sealed class MovimientoInventario : RaizAgregadoEmpresa<Guid>
     public DateTimeOffset CreadoEn { get; private set; }
 
     public static MovimientoInventario Registrar(Guid empresaId, Guid productoId, Guid almacenId, Guid? ubicacionId,
-        TipoMovimientoInventario tipo, decimal cantidadConSigno, DateOnly fecha, string? motivo, string? referencia, IReloj reloj, string? lote = null)
+        TipoMovimientoInventario tipo, decimal cantidadConSigno, DateOnly fecha, string? motivo, string? referencia, IReloj reloj, string? lote = null, decimal? costeUnitario = null)
     {
         ArgumentNullException.ThrowIfNull(reloj);
         return new MovimientoInventario(Guid.NewGuid(), empresaId, productoId, almacenId, ubicacionId, tipo,
             cantidadConSigno, fecha, string.IsNullOrWhiteSpace(motivo) ? null : motivo.Trim(),
             string.IsNullOrWhiteSpace(referencia) ? null : referencia.Trim(),
-            string.IsNullOrWhiteSpace(lote) ? null : lote.Trim(), reloj.AhoraUtc);
+            string.IsNullOrWhiteSpace(lote) ? null : lote.Trim(), costeUnitario, reloj.AhoraUtc);
     }
 }

@@ -27,16 +27,17 @@ internal sealed class EntradaInventarioCompras : IEntradaInventarioCompras
     }
 
     public async Task RegistrarEntradaAsync(Guid empresaId, Guid productoId, Guid almacenId, Guid? proveedorId,
-        decimal cantidad, string? referencia, DateOnly fecha, string? lote, CancellationToken ct = default)
+        decimal cantidad, string? referencia, DateOnly fecha, string? lote, decimal costeUnitarioCompra, CancellationToken ct = default)
     {
         var producto = await _productos.ObtenerAsync(productoId, ct).ConfigureAwait(false);
-        var cantidadBase = (producto is not null && producto.FactorCompra > 0m)
-            ? Math.Round(cantidad * producto.FactorCompra, 3, MidpointRounding.AwayFromZero)
-            : cantidad;
+        var factor = (producto is not null && producto.FactorCompra > 0m) ? producto.FactorCompra : 1m;
+        var cantidadBase = Math.Round(cantidad * factor, 3, MidpointRounding.AwayFromZero);
+        // El precio del pedido es por unidad de compra; el coste por unidad base = precio / factor.
+        var costeBase = Math.Round(costeUnitarioCompra / factor, 4, MidpointRounding.AwayFromZero);
 
         var ubicacionId = await _ubicaciones.ResolverAsync(empresaId, productoId, almacenId, proveedorId, ct).ConfigureAwait(false);
         await _movimientos.EntradaAsync(empresaId,
-            new MovimientoComando(productoId, almacenId, cantidadBase, ubicacionId, fecha, "Recepción de compra", referencia, string.IsNullOrWhiteSpace(lote) ? null : lote.Trim()), ct)
+            new MovimientoComando(productoId, almacenId, cantidadBase, ubicacionId, fecha, "Recepción de compra", referencia, string.IsNullOrWhiteSpace(lote) ? null : lote.Trim(), costeBase), ct)
             .ConfigureAwait(false);
     }
 }

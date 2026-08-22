@@ -38,6 +38,9 @@ public static class RegistroServicios
         servicios.AddScoped<TrazabilidadLote>();
         servicios.AddScoped<IConsultaComposicion, ConsultaComposicionCatalogo>();
         servicios.AddScoped<MontajeArticulo>();
+        servicios.AddScoped<ValoracionArticulos>();
+        servicios.AddScoped<AlxorCore.Nucleo.Aplicacion.IValoracionArticulos>(sp => sp.GetRequiredService<ValoracionArticulos>());
+        servicios.AddScoped<IInformeValoracion>(sp => sp.GetRequiredService<ValoracionArticulos>());
 
         return servicios;
     }

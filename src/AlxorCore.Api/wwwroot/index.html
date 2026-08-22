@@ -1111,8 +1111,17 @@
         :vacio("productos","Sin almacenes","Crea tu primer almacén para llevar stock por ubicaciones.",`<button class="btn small" onclick="modalAlmacen()">+ Nuevo almacén</button>`);
       const hayCompuestos=_cacheProdInv.some(x=>x.esCompuesto);
       const btnMontaje=hayCompuestos?`<button class="btn small ghost" onclick="modalMontaje()">Montar compuesto</button> `:'';
-      view(panel("Almacenes",tablaAlm,`<span>${btnMontaje}<button class="btn small ghost" onclick="modalMovimiento()">Registrar movimiento</button> <button class="btn small" onclick="modalAlmacen()">+ Nuevo almacén</button></span>`)
+      view(panel("Almacenes",tablaAlm,`<span><button class="btn small ghost" onclick="verValoracion()">Valoración</button> ${btnMontaje}<button class="btn small ghost" onclick="modalMovimiento()">Registrar movimiento</button> <button class="btn small" onclick="modalAlmacen()">+ Nuevo almacén</button></span>`)
         +`<div id="inv_stock"></div>`);
+    }
+    async function verValoracion(){
+      const cont=document.getElementById("inv_stock"); cont.innerHTML='<div class="muted">Calculando…</div>';
+      const v=await api("/inventario/valoracion");
+      const nombreMetodo={Estandar:"Precio estándar",UltimaCompra:"Última compra",Pmp:"PMP",Fifo:"FIFO"}[v.metodo]||v.metodo;
+      const filas=v.lineas.map(l=>`<tr><td>${l.nombre}</td><td class="num">${numCant(l.cantidad)}</td><td class="num">${eur(l.costeUnitario)}</td><td class="num"><strong>${eur(l.valor)}</strong></td></tr>`).join("");
+      const total=`<tr><td colspan="3" class="right"><strong>Valor total</strong></td><td class="num"><strong>${eur(v.valorTotal)}</strong></td></tr>`;
+      const cuerpo=v.lineas.length?`<table><thead><tr><th>Artículo</th><th class="num">Existencias</th><th class="num">Coste unit.</th><th class="num">Valor</th></tr></thead><tbody>${filas}${total}</tbody></table>`:'<p class="muted">Sin existencias que valorar.</p>';
+      cont.innerHTML=panel(`Valoración de existencias · ${nombreMetodo}`,cuerpo);
     }
     async function modalMontaje(){
       if(!_cacheAlm.length){ toast("Crea un almacén primero.","err"); return; }
@@ -1651,8 +1660,19 @@
       try{ panelUsuarios=await panelUsuariosHtml(); }catch(e){ panelUsuarios=""; }
       let panelAudit="";
       try{ panelAudit=await panelAuditoriaHtml(); }catch(e){ panelAudit=""; }
-      view(panelSeries+panelCobroHtml()+panelUsuarios+panelDatosHtml()+panelAudit);
+      let panelValoracion="";
+      try{ panelValoracion=await panelValoracionHtml(); }catch(e){ panelValoracion=""; }
+      view(panelSeries+panelValoracion+panelCobroHtml()+panelUsuarios+panelDatosHtml()+panelAudit);
     }
+    async function panelValoracionHtml(){
+      const emp=await api("/empresas/actual").catch(()=>null); const actual=emp?.metodoValoracion||"Estandar";
+      const opts=[["Estandar","Precio estándar (ficha del artículo)"],["UltimaCompra","Precio de última compra"],["Pmp","Precio medio ponderado (PMP)"],["Fifo","FIFO (primeras entradas, primeras salidas)"]]
+        .map(o=>`<option value="${o[0]}"${o[0]===actual?" selected":""}>${o[1]}</option>`).join("");
+      const cuerpo=`<p class="muted" style="margin:0 0 12px">Método con el que se valoran las <strong>existencias</strong>, los <strong>consumos de proyectos</strong> y los <strong>partes de producción</strong>. Se fija en la implantación y afecta a todo el ERP.</p>
+        <label>Método de valoración</label><select id="val_metodo" style="max-width:420px" onchange="guardarMetodoValoracion(this.value)">${opts}</select>`;
+      return panel("Método de valoración",cuerpo);
+    }
+    async function guardarMetodoValoracion(m){ try{ await api("/empresas/actual/metodo-valoracion",{method:"PUT",body:JSON.stringify({metodoValoracion:m})}); toast("Método de valoración guardado.","ok"); }catch(e){ toast(e.message,"err"); } }
     function panelCobroHtml(){
       const cuerpo=`<p class="muted" style="margin:0 0 14px">Para cobrar por <strong>domiciliación bancaria</strong> (remesas SEPA) necesitas el IBAN donde ingresar los recibos y tu <strong>identificador de acreedor</strong> (te lo da tu banco).</p>
         <div class="grid2"><div><label>IBAN de la empresa</label><input id="cb_iban" value="${empresa.iban||""}" placeholder="ES.."/></div><div><label>Identificador de acreedor SEPA</label><input id="cb_id" value="${empresa.identificadorAcreedor||""}" placeholder="ES..M.."/></div></div>

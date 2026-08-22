@@ -101,6 +101,7 @@ internal sealed class ConfiguracionMovimiento : IEntityTypeConfiguration<Movimie
         b.Property(x => x.Motivo).HasColumnName("motivo").HasMaxLength(200);
         b.Property(x => x.Referencia).HasColumnName("referencia").HasMaxLength(120);
         b.Property(x => x.Lote).HasColumnName("lote").HasMaxLength(80);
+        b.Property(x => x.CosteUnitario).HasColumnName("coste_unitario").HasColumnType("numeric(14,4)");
         b.Property(x => x.CreadoEn).HasColumnName("creado_en").IsRequired();
         b.HasIndex(x => new { x.EmpresaId, x.ProductoId }).HasDatabaseName("ix_movimiento_empresa_producto");
         b.Ignore(x => x.EventosDominio);

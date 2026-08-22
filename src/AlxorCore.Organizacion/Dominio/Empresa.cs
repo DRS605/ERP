@@ -4,6 +4,8 @@ using AlxorCore.Nucleo.Resultados;
 using AlxorCore.Nucleo.Tiempo;
 using AlxorCore.Organizacion.Dominio.Eventos;
 
+// El método de valoración (MetodoValoracion) vive en el núcleo por ser transversal.
+
 namespace AlxorCore.Organizacion.Dominio;
 
 /// <summary>
@@ -31,6 +33,7 @@ public sealed class Empresa : RaizAgregado<Guid>
         RegimenIva = regimenIva;
         Moneda = "EUR";
         Pais = "ES";
+        MetodoValoracion = MetodoValoracion.Estandar;
         CreadoEn = ahora;
         ActualizadoEn = ahora;
     }
@@ -52,6 +55,9 @@ public sealed class Empresa : RaizAgregado<Guid>
 
     /// <summary>Identificador del acreedor SEPA (lo asigna el banco). Necesario para emitir remesas. Opcional.</summary>
     public string? IdentificadorAcreedor { get; private set; }
+
+    /// <summary>Método de valoración de existencias/consumos elegido en la implantación. Por defecto, estándar.</summary>
+    public MetodoValoracion MetodoValoracion { get; private set; } = MetodoValoracion.Estandar;
 
     public DateTimeOffset CreadoEn { get; private set; }
 
@@ -102,6 +108,14 @@ public sealed class Empresa : RaizAgregado<Guid>
 
         Iban = string.IsNullOrWhiteSpace(iban) ? null : iban.Replace(" ", string.Empty, StringComparison.Ordinal).ToUpperInvariant();
         IdentificadorAcreedor = string.IsNullOrWhiteSpace(identificadorAcreedor) ? null : identificadorAcreedor.Replace(" ", string.Empty, StringComparison.Ordinal).ToUpperInvariant();
+        ActualizadoEn = reloj.AhoraUtc;
+    }
+
+    /// <summary>Fija el método de valoración de la empresa (parámetro de implantación).</summary>
+    public void EstablecerMetodoValoracion(MetodoValoracion metodo, IReloj reloj)
+    {
+        ArgumentNullException.ThrowIfNull(reloj);
+        MetodoValoracion = metodo;
         ActualizadoEn = reloj.AhoraUtc;
     }
 }

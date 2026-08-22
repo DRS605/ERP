@@ -23,6 +23,7 @@ public static class EndpointsInventario
         g.MapGet("/stock/almacen/{almacenId:guid}", StockAlmacenAsync).WithSummary("Existencias de un almacén.").RequierePermiso(Permisos.InventarioLeer);
         g.MapGet("/movimientos/producto/{productoId:guid}", MovimientosAsync).WithSummary("Movimientos (trazabilidad) de un artículo.").RequierePermiso(Permisos.InventarioLeer);
         g.MapGet("/trazabilidad/{productoId:guid}", TrazabilidadAsync).WithSummary("Trazabilidad de un lote o nº de serie: existencias e historial.").RequierePermiso(Permisos.InventarioLeer);
+        g.MapGet("/valoracion", ValoracionAsync).WithSummary("Valoración de existencias con el método de la empresa (estándar/última compra/PMP/FIFO).").RequierePermiso(Permisos.InventarioLeer);
 
         g.MapPost("/entrada", EntradaAsync).WithSummary("Registra una entrada de stock.").RequierePermiso(Permisos.InventarioGestionar);
         g.MapPost("/salida", SalidaAsync).WithSummary("Registra una salida de stock.").RequierePermiso(Permisos.InventarioGestionar);
@@ -89,6 +90,9 @@ public static class EndpointsInventario
         var r = await caso.TraspasarAsync(c.EmpresaId.Value, cmd, ct).ConfigureAwait(false);
         return r.EsCorrecto ? Results.Ok() : ResultadosHttp.AProblema(r.Error);
     }
+
+    private static async Task<IResult> ValoracionAsync(IContextoEmpresa c, IInformeValoracion caso, CancellationToken ct)
+        => c.EmpresaId is null ? SinEmpresa() : Results.Ok(await caso.EjecutarAsync(c.EmpresaId.Value, ct).ConfigureAwait(false));
 
     private static async Task<IResult> MontajeAsync(MontajeComando cmd, IContextoEmpresa c, MontajeArticulo caso, CancellationToken ct)
         => c.EmpresaId is null ? SinEmpresa() : (await caso.EjecutarAsync(c.EmpresaId.Value, cmd, ct).ConfigureAwait(false)).AOk();

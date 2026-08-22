@@ -38,9 +38,11 @@ public static class RegistroServicios
         servicios.AddScoped<IRepositorioSeries, RepositorioSeries>();
         servicios.AddScoped<IConsultasOrganizacion, ConsultasOrganizacion>();
         servicios.AddScoped<IServicioNumeracion, ServicioNumeracion>();
+        servicios.AddScoped<AlxorCore.Nucleo.Aplicacion.IConfiguracionEmpresa, ConfiguracionEmpresaOrganizacion>();
 
         servicios.AddScoped<CrearEmpresa>();
         servicios.AddScoped<ActualizarDatosCobro>();
+        servicios.AddScoped<ActualizarMetodoValoracion>();
         servicios.AddScoped<ListarMisEmpresas>();
         servicios.AddScoped<ObtenerEmpresa>();
         servicios.AddScoped<SeleccionarEmpresa>();

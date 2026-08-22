@@ -37,6 +37,10 @@ public static class EndpointsOrganizacion
             .WithSummary("Fija los datos de cobro por domiciliación (IBAN e identificador del acreedor SEPA).")
             .RequierePermiso(Permisos.EmpresaAjustes);
 
+        empresas.MapPut("/actual/metodo-valoracion", MetodoValoracionAsync)
+            .WithSummary("Fija el método de valoración de existencias/consumos de la empresa (parámetro de implantación).")
+            .RequierePermiso(Permisos.EmpresaAjustes);
+
         var series = rutas.MapGroup("/series").WithTags("Series");
 
         series.MapGet("", ListarSeriesAsync)
@@ -110,6 +114,16 @@ public static class EndpointsOrganizacion
 
         var resultado = await caso.EjecutarAsync(contexto.EmpresaId.Value, comando, ct).ConfigureAwait(false);
         return resultado.AOk();
+    }
+
+    private static async Task<IResult> MetodoValoracionAsync(MetodoValoracionComando comando, IContextoEmpresa contexto, ActualizarMetodoValoracion caso, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        return (await caso.EjecutarAsync(contexto.EmpresaId.Value, comando, ct).ConfigureAwait(false)).AOk();
     }
 
     private static async Task<IResult> ListarSeriesAsync(IContextoEmpresa contexto, ListarSeries caso, CancellationToken ct)

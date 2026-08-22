@@ -72,7 +72,7 @@ public interface IUnidadDeTrabajoCompras : IUnidadDeTrabajo;
 public interface IEntradaInventarioCompras
 {
     Task RegistrarEntradaAsync(Guid empresaId, Guid productoId, Guid almacenId, Guid? proveedorId,
-        decimal cantidad, string? referencia, DateOnly fecha, string? lote, CancellationToken ct = default);
+        decimal cantidad, string? referencia, DateOnly fecha, string? lote, decimal costeUnitarioCompra, CancellationToken ct = default);
 }
 
 // ---------------------------------------------------------------------------- Comandos
@@ -337,7 +337,7 @@ public sealed class RecibirMercancia
 
                 var lote = comando.Lineas!.First(x => x.LineaPedidoId == r.LineaPedidoId).Lote;
                 await _inventario.RegistrarEntradaAsync(empresaId, productoId, almacenId, pedido.ProveedorId,
-                    r.Cantidad, referencia, fecha, lote, ct).ConfigureAwait(false);
+                    r.Cantidad, referencia, fecha, lote, lp.PrecioUnitario, ct).ConfigureAwait(false);
             }
         }
 
