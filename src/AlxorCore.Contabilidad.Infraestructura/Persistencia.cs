@@ -26,6 +26,8 @@ public sealed class ContabilidadDbContext : DbContextEmpresaBase, IUnidadDeTraba
 
     public DbSet<ConfiguracionContabilidad> Configuraciones => Set<ConfiguracionContabilidad>();
 
+    public DbSet<DocumentoPendiente> DocumentosPendientes => Set<DocumentoPendiente>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Esquema);
@@ -91,8 +93,64 @@ internal sealed class ConfiguracionConfigContabilidad : IEntityTypeConfiguration
         builder.Property(c => c.Id).HasColumnName("id").ValueGeneratedNever();
         builder.Property(c => c.EmpresaId).HasColumnName("empresa_id").IsRequired();
         builder.Property(c => c.Modo).HasColumnName("modo").HasMaxLength(20).HasConversion<string>().IsRequired();
+        builder.Property(c => c.ContabilizacionAutomatica).HasColumnName("contabilizacion_automatica").IsRequired();
         builder.Ignore(c => c.EventosDominio);
     }
+}
+
+internal sealed class ConfiguracionDocumentoPendiente : IEntityTypeConfiguration<DocumentoPendiente>
+{
+    public void Configure(EntityTypeBuilder<DocumentoPendiente> builder)
+    {
+        builder.ToTable("documento_pendiente");
+        builder.HasKey(d => d.Id);
+        builder.Property(d => d.Id).HasColumnName("id").ValueGeneratedNever();
+        builder.Property(d => d.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        builder.Property(d => d.Sentido).HasColumnName("sentido").HasMaxLength(10).HasConversion<string>().IsRequired();
+        builder.Property(d => d.OrigenTipo).HasColumnName("origen_tipo").HasMaxLength(40).IsRequired();
+        builder.Property(d => d.OrigenId).HasColumnName("origen_id").IsRequired();
+        builder.Property(d => d.Referencia).HasColumnName("referencia").HasMaxLength(80).IsRequired();
+        builder.Property(d => d.TerceroId).HasColumnName("tercero_id");
+        builder.Property(d => d.TerceroNombre).HasColumnName("tercero_nombre").HasMaxLength(200).IsRequired();
+        builder.Property(d => d.FechaDocumento).HasColumnName("fecha_documento").IsRequired();
+        builder.Property(d => d.FechaRegistro).HasColumnName("fecha_registro").IsRequired();
+        builder.Property(d => d.BaseImponible).HasColumnName("base_imponible").HasColumnType("numeric(14,2)").IsRequired();
+        builder.Property(d => d.CodigoIva).HasColumnName("codigo_iva").HasMaxLength(10).IsRequired();
+        builder.Property(d => d.CuotaIva).HasColumnName("cuota_iva").HasColumnType("numeric(14,2)").IsRequired();
+        builder.Property(d => d.PorcentajeIrpf).HasColumnName("porcentaje_irpf").HasColumnType("numeric(5,2)").IsRequired();
+        builder.Property(d => d.RetencionIrpf).HasColumnName("retencion_irpf").HasColumnType("numeric(14,2)").IsRequired();
+        builder.Property(d => d.Total).HasColumnName("total").HasColumnType("numeric(14,2)").IsRequired();
+        builder.Property(d => d.ProductoId).HasColumnName("producto_id");
+        builder.Property(d => d.Familia).HasColumnName("familia").HasMaxLength(80);
+        builder.Property(d => d.TipoTercero).HasColumnName("tipo_tercero").HasMaxLength(80);
+        builder.Property(d => d.Estado).HasColumnName("estado").HasMaxLength(20).HasConversion<string>().IsRequired();
+        builder.Property(d => d.AsientoId).HasColumnName("asiento_id");
+        builder.Property(d => d.CreadoEn).HasColumnName("creado_en").IsRequired();
+        builder.HasIndex(d => new { d.EmpresaId, d.Estado }).HasDatabaseName("ix_documento_pendiente_empresa_estado");
+        builder.Ignore(d => d.EventosDominio);
+    }
+}
+
+internal sealed class RepositorioDocumentosPendientes : IRepositorioDocumentosPendientes
+{
+    private readonly ContabilidadDbContext _contexto;
+
+    public RepositorioDocumentosPendientes(ContabilidadDbContext contexto) => _contexto = contexto;
+
+    public void Agregar(DocumentoPendiente documento) => _contexto.DocumentosPendientes.Add(documento);
+
+    public Task<DocumentoPendiente?> ObtenerAsync(Guid id, CancellationToken ct = default) =>
+        _contexto.DocumentosPendientes.SingleOrDefaultAsync(d => d.Id == id, ct);
+
+    public async Task<IReadOnlyList<DocumentoPendiente>> ListarPendientesAsync(Guid empresaId, CancellationToken ct = default) =>
+        await _contexto.DocumentosPendientes.AsNoTracking()
+            .Where(d => d.EmpresaId == empresaId && d.Estado == Dominio.EstadoContabilizacion.Pendiente)
+            .OrderBy(d => d.FechaDocumento).ThenBy(d => d.CreadoEn).ToListAsync(ct).ConfigureAwait(false);
+
+    public async Task<IReadOnlyList<DocumentoPendiente>> ListarAsync(Guid empresaId, CancellationToken ct = default) =>
+        await _contexto.DocumentosPendientes.AsNoTracking()
+            .Where(d => d.EmpresaId == empresaId)
+            .OrderByDescending(d => d.CreadoEn).ToListAsync(ct).ConfigureAwait(false);
 }
 
 internal sealed class RepositorioCuentas : IRepositorioCuentas

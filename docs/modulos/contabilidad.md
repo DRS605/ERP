@@ -10,11 +10,33 @@ puede además generar su asiento, según el **modo de contabilidad** de la empre
 Cada empresa elige su modo (`GET`/`PUT /contabilidad/modo`):
 
 - **Simple** (por defecto): contabilizar = registrar un **gasto** con IVA soportado (Libro de IVA,
-  303/130). Es lo que necesita un autónomo. No genera asientos.
+  303/130). Es lo que necesita un autónomo. No genera asientos ni usa el panel de pendientes.
 - **Completo**: además del gasto, genera el **asiento** de partida doble (libro diario y mayor).
 
-El adaptador `ContabilizadorSegunModo` implementa el puerto `IContabilizador` de Recepción y decide
-según el modo. Así, activar la partida doble **no cambia** el flujo de recepción ni el de gastos.
+El adaptador `ContabilizadorSegunModo` implementa el puerto `IContabilizador` de Recepción y registra
+el gasto; el **asiento** ya no se genera aquí en línea, sino a través de la **cola de
+contabilización** (ver abajo). Así, activar la partida doble **no cambia** el flujo de recepción ni el
+de gastos.
+
+## Contabilización diferida y panel del contable
+
+Cumpliendo la petición de que **las facturas no contabilicen por defecto**, en modo Completo cada
+documento (factura emitida, gasto, factura recibida) se **encola** como *documento pendiente de
+contabilizar* en vez de asentarse al instante. El contable dispone de un **panel único**
+(`GET /contabilidad/pendientes`) donde:
+
+- revisa cada documento (venta/compra, tercero, base, IVA, total);
+- ajusta la **fecha de registro** —editable, imprescindible para las **facturas recibidas** que
+  llegan fuera de plazo y deben registrarse en otro periodo— con
+  `PUT /contabilidad/pendientes/{id}/fecha-registro`;
+- **contabiliza** los que elija de una vez (`POST /contabilidad/pendientes/contabilizar`), generando
+  cada asiento con su fecha de registro (el ejercicio se deriva de esa fecha).
+
+El puerto compartido `IColaContabilizacion` (en `AlxorCore.Nucleo`) recibe los documentos desde
+Facturación, Gastos, Recepción y Compras sin que esos módulos conozcan Contabilidad. Su
+implementación (`EncolarDocumento`) crea el pendiente y —solo si la empresa activó la
+**contabilización automática** (`PUT /contabilidad/contabilizacion-automatica`)— genera el asiento en
+el acto. En modo Simple la cola es un no-op (esas empresas solo llevan Libro de IVA).
 
 ## Asiento de una factura de proveedor (modo Completo)
 
@@ -27,8 +49,17 @@ Para una factura de base `B`, IVA `i %` y retención `r %`:
 | `4751` H.P. acreedora por retenciones | | `B · r%` |
 | `400` Proveedores | | `B + B·i% − B·r%` |
 
-El asiento **cuadra** por construcción (Σ debe = Σ haber). El número es correlativo por empresa y
-ejercicio (el ejercicio se deriva del año de la fecha).
+## Asiento de una factura de venta (modo Completo)
+
+| Cuenta | Debe | Haber |
+|---|---|---|
+| `430` Clientes | `B + B·i% − B·r%` | |
+| `473` H.P. retenciones y pagos a cuenta | `B · r%` | |
+| `705` Prestaciones de servicios (ingreso) | | `B` |
+| `477` H.P. IVA repercutido | | `B · i%` |
+
+Ambos asientos **cuadran** por construcción (Σ debe = Σ haber). El número es correlativo por empresa y
+ejercicio (el ejercicio se deriva del año de la **fecha de registro**).
 
 ## Invariantes
 
@@ -48,6 +79,11 @@ ejercicio (el ejercicio se deriva del año de la fecha).
 | `POST` | `/contabilidad/asientos` | `contabilidad.gestionar` | Crea un asiento manual. **201** |
 | `GET` | `/contabilidad/modo` | `contabilidad.leer` | Modo de contabilidad actual. |
 | `PUT` | `/contabilidad/modo` | `contabilidad.gestionar` | Cambia el modo (Simple / Completo). |
+| `GET` | `/contabilidad/config` | `contabilidad.leer` | Modo + si contabiliza automáticamente. |
+| `PUT` | `/contabilidad/contabilizacion-automatica` | `contabilidad.gestionar` | Activa/desactiva la contabilización automática. |
+| `GET` | `/contabilidad/pendientes` | `contabilidad.leer` | Documentos pendientes de contabilizar (panel). |
+| `PUT` | `/contabilidad/pendientes/{id}/fecha-registro` | `contabilidad.gestionar` | Cambia la fecha de registro de un pendiente. **204** |
+| `POST` | `/contabilidad/pendientes/contabilizar` | `contabilidad.gestionar` | Contabiliza (asienta) los pendientes indicados. |
 
 ## Plan de cuentas
 
@@ -57,27 +93,36 @@ asientos referencian cuentas por su código; el plan da el nombre para los infor
 
 ## Persistencia
 
-- Esquema **`contabilidad`**: `cuenta`, `asiento` (con `apunte` como colección propia), `config_contabilidad`.
-- RLS por empresa en `cuenta`, `asiento` y `config_contabilidad`; el `apunte` se protege a través de
-  su `asiento` (filtro global de EF Core).
-- Índices únicos: `(empresa_id, codigo)` en cuenta y `(empresa_id, ejercicio, numero)` en asiento.
-- Migración: `MigracionInicialContabilidad` (incluye la activación de RLS).
+- Esquema **`contabilidad`**: `cuenta`, `asiento` (con `apunte` como colección propia),
+  `config_contabilidad` y `documento_pendiente`.
+- RLS por empresa en `cuenta`, `asiento`, `config_contabilidad` y `documento_pendiente`; el `apunte`
+  se protege a través de su `asiento` (filtro global de EF Core).
+- Índices: únicos `(empresa_id, codigo)` en cuenta y `(empresa_id, ejercicio, numero)` en asiento;
+  `(empresa_id, estado)` en `documento_pendiente`.
+- `config_contabilidad` incorpora la columna `contabilizacion_automatica` (por defecto `false`).
+- Migraciones: `MigracionInicialContabilidad` y `ContabilizacionDiferida` (tabla `documento_pendiente`
+  + columna `contabilizacion_automatica` + activación de RLS).
 
 ## Composición
 
 - Recepción define el puerto `IContabilizador`; Contabilidad lo implementa con `ContabilizadorSegunModo`
-  (registrado **después** de Recepción para sustituir el adaptador por defecto).
-- En modo Completo, contabilizar crea el **gasto** (módulo Gastos) **y** el **asiento** (este módulo).
-  No es una transacción única entre módulos: si el asiento fallara, se devuelve el error (mejora futura:
-  outbox/transacción distribuida).
+  (registrado **después** de Recepción para sustituir el adaptador por defecto). Hoy solo registra el
+  gasto; el asiento llega por la cola.
+- `AlxorCore.Nucleo` define el puerto `IColaContabilizacion`; Contabilidad lo implementa con
+  `EncolarDocumento`. Facturación, Gastos, Recepción y Compras **encolan** sus documentos sin conocer
+  este módulo. El asiento se genera al contabilizar desde el panel (o al encolar si la contabilización
+  automática está activa). No es una transacción única entre módulos (mejora futura: outbox).
 
 ## Tests
 
-- **Unitarios**: cuadre del asiento (cuadrado/descuadrado, apunte debe-y-haber, mínimo de apuntes) y
-  validación del código de cuenta.
+- **Unitarios**: cuadre del asiento (cuadrado/descuadrado, apunte debe-y-haber, mínimo de apuntes),
+  validación del código de cuenta, y el `documento_pendiente` (fecha de registro editable solo mientras
+  está pendiente; no se recontabiliza).
 - **Integración**: modo por defecto Simple; alta de asiento manual y su aparición en el diario;
-  asiento descuadrado → 400; y el flujo en modo Completo (contabilizar una factura genera el asiento
-  de partida doble que cuadra: 629/472 al debe, 400 al haber).
+  asiento descuadrado → 400; una compra queda **pendiente** sin asiento por defecto; el contable ajusta
+  la fecha de registro y contabiliza desde el panel (asiento 629/472 al debe, 400 al haber); con
+  contabilización automática se asienta al instante; una **venta** genera el asiento de ingreso
+  (430 al debe; 705/477 al haber); y en modo Simple no se crean pendientes.
 
 ## Futuro (documentado)
 

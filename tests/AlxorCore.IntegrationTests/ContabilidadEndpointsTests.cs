@@ -16,6 +16,27 @@ public sealed class ContabilidadEndpointsTests : IClassFixture<FabricaApiPruebas
     private sealed record AsientoResp(Guid Id, int Ejercicio, int Numero, string Concepto, string Origen, decimal Total, List<ApunteResp> Apuntes);
     private sealed record ModoResp(string Modo);
     private sealed record FacturaRecibidaResp(Guid Id, string Estado, Guid? GastoId);
+    private sealed record ConfigResp(string Modo, bool ContabilizacionAutomatica);
+    private sealed record PendienteResp(Guid Id, string Sentido, string OrigenTipo, string Referencia, string FechaDocumento, string FechaRegistro, decimal Total, string Estado, Guid? AsientoId);
+    private sealed record FacturaResp(Guid Id, decimal Total);
+
+    private static async Task PonerModoCompletoAsync(HttpClient cliente)
+    {
+        var modo = await cliente.PutAsJsonAsync("/contabilidad/modo", new { Modo = "Completo" });
+        modo.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    private static async Task<PendienteResp> RecibirYValidarCompraAsync(HttpClient cliente)
+    {
+        var pdf = Convert.ToBase64String(new byte[] { 0x25, 0x50, 0x44, 0x46 });
+        var recibida = (await (await cliente.PostAsJsonAsync("/recepcion/facturas", new { NombreArchivo = "f.pdf", ContenidoBase64 = pdf, TipoContenido = "application/pdf" })).Content.ReadFromJsonAsync<FacturaRecibidaResp>())!;
+        await cliente.PostAsJsonAsync($"/recepcion/facturas/{recibida.Id}/validar", new { BaseImponible = 300m, FechaFactura = "2026-08-01", ProveedorTexto = "Suministros Ebro SL", NumeroFactura = "P-1", CodigoIva = "IVA21", PorcentajeIrpf = 0m });
+        var contab = await cliente.PostAsync($"/recepcion/facturas/{recibida.Id}/contabilizar", null);
+        contab.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var pendientes = await cliente.GetFromJsonAsync<List<PendienteResp>>("/contabilidad/pendientes");
+        return pendientes!.Single(p => p.Sentido == "Compra");
+    }
 
     [Fact]
     public async Task Modo_por_defecto_es_simple()
@@ -63,23 +84,35 @@ public sealed class ContabilidadEndpointsTests : IClassFixture<FabricaApiPruebas
     }
 
     [Fact]
-    public async Task En_modo_completo_contabilizar_una_factura_genera_el_asiento_de_partida_doble()
+    public async Task Por_defecto_una_compra_queda_pendiente_de_contabilizar_sin_generar_asiento()
     {
         var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+        await PonerModoCompletoAsync(cliente);
 
-        // Activar partida doble.
-        var modo = await cliente.PutAsJsonAsync("/contabilidad/modo", new { Modo = "Completo" });
-        modo.StatusCode.Should().Be(HttpStatusCode.OK);
+        var pendiente = await RecibirYValidarCompraAsync(cliente);
 
-        // Recibir + validar + contabilizar una factura de proveedor (base 300, IVA 21 %).
-        var pdf = Convert.ToBase64String(new byte[] { 0x25, 0x50, 0x44, 0x46 });
-        var recibida = (await (await cliente.PostAsJsonAsync("/recepcion/facturas", new { NombreArchivo = "f.pdf", ContenidoBase64 = pdf, TipoContenido = "application/pdf" })).Content.ReadFromJsonAsync<FacturaRecibidaResp>())!;
-        await cliente.PostAsJsonAsync($"/recepcion/facturas/{recibida.Id}/validar", new { BaseImponible = 300m, FechaFactura = "2026-08-01", ProveedorTexto = "Suministros Ebro SL", NumeroFactura = "P-1", CodigoIva = "IVA21", PorcentajeIrpf = 0m });
-        var contab = await cliente.PostAsync($"/recepcion/facturas/{recibida.Id}/contabilizar", null);
+        // Queda pendiente: aún no hay asiento en el diario.
+        pendiente.Estado.Should().Be("Pendiente");
+        pendiente.AsientoId.Should().BeNull();
+        var diario = await cliente.GetFromJsonAsync<List<AsientoResp>>("/contabilidad/diario?ejercicio=2026");
+        diario!.Should().NotContain(a => a.Origen == "Compra");
+    }
+
+    [Fact]
+    public async Task El_contable_ajusta_la_fecha_de_registro_y_contabiliza_desde_el_panel()
+    {
+        var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+        await PonerModoCompletoAsync(cliente);
+        var pendiente = await RecibirYValidarCompraAsync(cliente);
+
+        // La factura es del 01/08 pero el contable la registra en septiembre.
+        var cambio = await cliente.PutAsJsonAsync($"/contabilidad/pendientes/{pendiente.Id}/fecha-registro", new { Fecha = "2026-09-30" });
+        cambio.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        var contab = await cliente.PostAsJsonAsync("/contabilidad/pendientes/contabilizar", new { Ids = new[] { pendiente.Id } });
         contab.StatusCode.Should().Be(HttpStatusCode.OK);
-        (await contab.Content.ReadFromJsonAsync<FacturaRecibidaResp>())!.Estado.Should().Be("Contabilizada");
 
-        // El diario del 2026 tiene el asiento de compra, cuadrado.
+        // El asiento de compra (base 300, IVA 21 %) queda cuadrado y con la fecha de registro.
         var diario = await cliente.GetFromJsonAsync<List<AsientoResp>>("/contabilidad/diario?ejercicio=2026");
         var asiento = diario!.Single(a => a.Origen == "Compra");
         asiento.Total.Should().Be(363m);
@@ -87,5 +120,73 @@ public sealed class ContabilidadEndpointsTests : IClassFixture<FabricaApiPruebas
         asiento.Apuntes.Should().Contain(x => x.CuentaCodigo == "629" && x.Debe == 300m);
         asiento.Apuntes.Should().Contain(x => x.CuentaCodigo == "472" && x.Debe == 63m);
         asiento.Apuntes.Should().Contain(x => x.CuentaCodigo == "400" && x.Haber == 363m);
+
+        // Ya no aparece entre los pendientes.
+        var pendientes = await cliente.GetFromJsonAsync<List<PendienteResp>>("/contabilidad/pendientes");
+        pendientes!.Should().NotContain(p => p.Id == pendiente.Id);
+    }
+
+    [Fact]
+    public async Task Con_contabilizacion_automatica_la_compra_se_asienta_al_instante()
+    {
+        var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+        await PonerModoCompletoAsync(cliente);
+
+        var config = await (await cliente.PutAsJsonAsync("/contabilidad/contabilizacion-automatica", new { Automatica = true })).Content.ReadFromJsonAsync<ConfigResp>();
+        config!.ContabilizacionAutomatica.Should().BeTrue();
+
+        var pdf = Convert.ToBase64String(new byte[] { 0x25, 0x50, 0x44, 0x46 });
+        var recibida = (await (await cliente.PostAsJsonAsync("/recepcion/facturas", new { NombreArchivo = "f.pdf", ContenidoBase64 = pdf, TipoContenido = "application/pdf" })).Content.ReadFromJsonAsync<FacturaRecibidaResp>())!;
+        await cliente.PostAsJsonAsync($"/recepcion/facturas/{recibida.Id}/validar", new { BaseImponible = 300m, FechaFactura = "2026-08-01", ProveedorTexto = "Suministros Ebro SL", NumeroFactura = "P-1", CodigoIva = "IVA21", PorcentajeIrpf = 0m });
+        await cliente.PostAsync($"/recepcion/facturas/{recibida.Id}/contabilizar", null);
+
+        // No queda nada pendiente y el asiento ya está en el diario.
+        var pendientes = await cliente.GetFromJsonAsync<List<PendienteResp>>("/contabilidad/pendientes");
+        pendientes!.Should().BeEmpty();
+        var diario = await cliente.GetFromJsonAsync<List<AsientoResp>>("/contabilidad/diario?ejercicio=2026");
+        diario!.Should().ContainSingle(a => a.Origen == "Compra" && a.Total == 363m);
+    }
+
+    [Fact]
+    public async Task Una_factura_de_venta_en_modo_completo_genera_asiento_de_ingreso_al_contabilizar()
+    {
+        var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+        await PonerModoCompletoAsync(cliente);
+
+        var clienteId = (await (await cliente.PostAsJsonAsync("/clientes", new { Nombre = "Cliente Venta SL", NifFiscal = "B12345674" })).Content.ReadFromJsonAsync<FacturaResp>())!.Id;
+        var factura = await (await cliente.PostAsJsonAsync("/facturas", new
+        {
+            ClienteId = clienteId,
+            FechaEmision = "2026-08-10",
+            Lineas = new[] { new { Cantidad = 1m, Descripcion = "Servicio", PrecioUnitario = 1000m, CodigoIva = "IVA21" } },
+        })).Content.ReadFromJsonAsync<FacturaResp>();
+
+        var pendientes = await cliente.GetFromJsonAsync<List<PendienteResp>>("/contabilidad/pendientes");
+        var venta = pendientes!.Single(p => p.Sentido == "Venta");
+        venta.Total.Should().Be(1210m);
+
+        var contab = await cliente.PostAsJsonAsync("/contabilidad/pendientes/contabilizar", new { Ids = new[] { venta.Id } });
+        contab.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var diario = await cliente.GetFromJsonAsync<List<AsientoResp>>("/contabilidad/diario?ejercicio=2026");
+        var asiento = diario!.Single(a => a.Origen == "Venta");
+        asiento.Apuntes.Sum(x => x.Debe).Should().Be(asiento.Apuntes.Sum(x => x.Haber));
+        asiento.Apuntes.Should().Contain(x => x.CuentaCodigo == "430" && x.Debe == 1210m);   // cliente
+        asiento.Apuntes.Should().Contain(x => x.CuentaCodigo == "705" && x.Haber == 1000m);  // ingreso
+        asiento.Apuntes.Should().Contain(x => x.CuentaCodigo == "477" && x.Haber == 210m);   // IVA repercutido
+    }
+
+    [Fact]
+    public async Task En_modo_simple_no_se_crean_documentos_pendientes()
+    {
+        var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+        // Modo por defecto = Simple; recibir + validar + contabilizar una compra.
+        var pdf = Convert.ToBase64String(new byte[] { 0x25, 0x50, 0x44, 0x46 });
+        var recibida = (await (await cliente.PostAsJsonAsync("/recepcion/facturas", new { NombreArchivo = "f.pdf", ContenidoBase64 = pdf, TipoContenido = "application/pdf" })).Content.ReadFromJsonAsync<FacturaRecibidaResp>())!;
+        await cliente.PostAsJsonAsync($"/recepcion/facturas/{recibida.Id}/validar", new { BaseImponible = 100m, FechaFactura = "2026-08-01", ProveedorTexto = "Prov", NumeroFactura = "P-9", CodigoIva = "IVA21", PorcentajeIrpf = 0m });
+        await cliente.PostAsync($"/recepcion/facturas/{recibida.Id}/contabilizar", null);
+
+        var pendientes = await cliente.GetFromJsonAsync<List<PendienteResp>>("/contabilidad/pendientes");
+        pendientes!.Should().BeEmpty();
     }
 }

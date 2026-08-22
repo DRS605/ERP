@@ -28,5 +28,14 @@ public sealed class ConfiguracionContabilidad : RaizAgregadoEmpresa<Guid>
 
     public ModoContabilidad Modo { get; private set; }
 
+    /// <summary>
+    /// Si es <c>true</c>, los documentos se contabilizan automáticamente al crearse; si es
+    /// <c>false</c> (por defecto), quedan <b>pendientes de contabilizar</b> a la espera de que el
+    /// contable los revise y confirme (pudiendo ajustar la fecha de registro).
+    /// </summary>
+    public bool ContabilizacionAutomatica { get; private set; }
+
     public void CambiarModo(ModoContabilidad modo) => Modo = modo;
+
+    public void CambiarContabilizacionAutomatica(bool automatica) => ContabilizacionAutomatica = automatica;
 }

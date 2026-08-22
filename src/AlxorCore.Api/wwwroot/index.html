@@ -1377,22 +1377,46 @@
     }
 
     // ---- Contabilidad (partida doble: modo, diario, balance, asientos) ----
+    let _cachePendientes=[];
     async function vContabilidad() {
       view('<div class="muted">Cargando…</div>');
       const anio=new Date().getFullYear();
-      const [modoR,diario,balance]=await Promise.all([
-        api("/contabilidad/modo"),
+      const [cfg,diario,balance,pendientes]=await Promise.all([
+        api("/contabilidad/config"),
         api("/contabilidad/diario?ejercicio="+anio),
         api("/contabilidad/balance?ejercicio="+anio),
+        api("/contabilidad/pendientes").catch(()=>[]),
       ]);
-      const modo=modoR.modo||"Simple";
+      const modo=cfg.modo||"Simple";
+      const auto=!!cfg.contabilizacionAutomatica;
+      _cachePendientes=pendientes||[];
       const banner=`<div class="panel" style="padding:16px 18px;margin-bottom:18px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
         <div style="flex:1;min-width:240px"><strong>Modo de contabilidad</strong>
-          <div class="muted" style="font-size:12.5px;margin-top:2px">${modo==="Completo"?"Partida doble: cada factura de proveedor genera su asiento (libro diario y mayor).":"Un libro: contabilizar registra el gasto con IVA soportado. Sin asientos."}</div></div>
+          <div class="muted" style="font-size:12.5px;margin-top:2px">${modo==="Completo"?"Partida doble: cada factura genera su asiento (libro diario y mayor).":"Un libro: contabilizar registra el gasto con IVA soportado. Sin asientos."}</div></div>
         <select id="cont_modo" onchange="cambiarModoContab(this.value)" style="width:auto;min-width:180px">
           <option value="Simple"${modo==="Simple"?" selected":""}>Simple (un libro)</option>
           <option value="Completo"${modo==="Completo"?" selected":""}>Completo (partida doble)</option>
-        </select></div>`;
+        </select>
+        ${modo==="Completo"?`<label style="display:flex;align-items:center;gap:8px;width:auto;margin:0;font-weight:600;font-size:13px;white-space:nowrap">
+          <input type="checkbox" style="width:auto;margin:0"${auto?" checked":""} onchange="cambiarAutomatica(this.checked)"/> Contabilización automática</label>`:''}</div>`;
+      // Pendientes de contabilizar (solo modo Completo): el panel del contable.
+      let panelPend="";
+      if(modo==="Completo"){
+        if(_cachePendientes.length){
+          const filas=_cachePendientes.map((p,i)=>`<tr>
+            <td style="width:34px"><input type="checkbox" class="pend-chk" data-id="${p.id}" checked style="width:auto;margin:0"/></td>
+            <td><span class="pill ${p.sentido==="Venta"?"ok":"part"}">${p.sentido}</span> <strong>${p.referencia}</strong><div class="muted" style="font-size:12px">${p.terceroNombre||''} · ${p.origenTipo}</div></td>
+            <td class="muted">${fdate(p.fechaDocumento)}</td>
+            <td><input type="date" value="${p.fechaRegistro}" onchange="cambiarFechaRegPend('${p.id}',this.value)" style="width:auto;padding:6px 8px;font-size:13px"/></td>
+            <td class="num"><strong>${eur(p.total)}</strong></td></tr>`).join("");
+          panelPend=panel("Pendientes de contabilizar ("+_cachePendientes.length+")",
+            `<p class="muted" style="margin:0 0 10px">Revisa la <strong>fecha de registro</strong> (editable, útil para facturas recibidas fuera de plazo) y contabiliza. Cada documento generará su asiento con esa fecha.</p>
+             <table><thead><tr><th style="width:34px"></th><th>Documento</th><th>Fecha doc.</th><th>Fecha registro</th><th class="num">Total</th></tr></thead><tbody>${filas}</tbody></table>`,
+            `<button class="btn small" onclick="contabilizarPendientes()">Contabilizar seleccionados</button>`);
+        } else {
+          panelPend=panel("Pendientes de contabilizar",vacio("informes","Nada pendiente","Cuando emitas facturas o registres gastos aparecerán aquí para contabilizar."));
+        }
+      }
       // Diario
       const asientoHtml=a=>{
         const ap=a.apuntes.map(p=>`<tr><td style="padding-left:24px" class="muted">${p.cuentaCodigo}${p.concepto?(' · '+p.concepto):''}</td><td class="num">${p.debe>0?eur(p.debe):''}</td><td class="num">${p.haber>0?eur(p.haber):''}</td></tr>`).join("");
@@ -1407,12 +1431,30 @@
         ? `<table><thead><tr><th>Cuenta</th><th>Nombre</th><th class="num">Debe</th><th class="num">Haber</th><th class="num">Saldo D</th><th class="num">Saldo A</th></tr></thead><tbody>${balance.map(s=>`<tr><td><strong>${s.cuentaCodigo}</strong></td><td class="muted">${s.cuentaNombre}</td><td class="num">${eur(s.sumaDebe)}</td><td class="num">${eur(s.sumaHaber)}</td><td class="num">${s.saldoDeudor>0?eur(s.saldoDeudor):''}</td><td class="num">${s.saldoAcreedor>0?eur(s.saldoAcreedor):''}</td></tr>`).join("")}<tr style="border-top:2px solid var(--line)"><td colspan="2"><strong>Totales</strong></td><td class="num"><strong>${eur(totD)}</strong></td><td class="num"><strong>${eur(totH)}</strong></td><td colspan="2"></td></tr></tbody></table>`
         : '<p class="muted">Sin movimientos en '+anio+'.</p>';
       view(banner
+        +panelPend
         +panel("Libro diario · "+anio,diarioTabla,`<button class="btn small" onclick="modalAsiento()">+ Nuevo asiento</button>`)
         +panel("Balance de sumas y saldos · "+anio,balTabla));
     }
     async function cambiarModoContab(modo){
       try{ await api("/contabilidad/modo",{method:"PUT",body:JSON.stringify({modo})});
         toast("Modo de contabilidad: "+modo,"ok"); vContabilidad();
+      }catch(e){ toast(e.message,"err"); vContabilidad(); }
+    }
+    async function cambiarAutomatica(automatica){
+      try{ await api("/contabilidad/contabilizacion-automatica",{method:"PUT",body:JSON.stringify({automatica})});
+        toast(automatica?"Contabilización automática activada.":"Contabilización diferida (pendientes).","ok"); vContabilidad();
+      }catch(e){ toast(e.message,"err"); vContabilidad(); }
+    }
+    async function cambiarFechaRegPend(id,fecha){
+      try{ await api("/contabilidad/pendientes/"+id+"/fecha-registro",{method:"PUT",body:JSON.stringify({fecha})});
+        toast("Fecha de registro actualizada.","ok");
+      }catch(e){ toast(e.message,"err"); vContabilidad(); }
+    }
+    async function contabilizarPendientes(){
+      const ids=[...document.querySelectorAll('.pend-chk')].filter(c=>c.checked).map(c=>c.dataset.id);
+      if(!ids.length){ toast("Selecciona al menos un documento.","err"); return; }
+      try{ const r=await api("/contabilidad/pendientes/contabilizar",{method:"POST",body:JSON.stringify({ids})});
+        toast(r.contabilizados+" documento(s) contabilizado(s).","ok"); vContabilidad();
       }catch(e){ toast(e.message,"err"); vContabilidad(); }
     }
     function asientoLineaHtml(){

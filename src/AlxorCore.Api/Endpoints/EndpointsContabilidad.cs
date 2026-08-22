@@ -11,6 +11,15 @@ namespace AlxorCore.Api.Endpoints;
 /// <summary>Petición para cambiar el modo de contabilidad de la empresa.</summary>
 public sealed record CambiarModoContabilidadPeticion(ModoContabilidad Modo);
 
+/// <summary>Petición para activar/desactivar la contabilización automática.</summary>
+public sealed record ContabilizacionAutomaticaPeticion(bool Automatica);
+
+/// <summary>Petición para cambiar la fecha de registro de un documento pendiente.</summary>
+public sealed record CambiarFechaRegistroPeticion(DateOnly Fecha);
+
+/// <summary>Petición para contabilizar varios documentos pendientes de una vez.</summary>
+public sealed record ContabilizarPendientesPeticion(IReadOnlyList<Guid> Ids);
+
 /// <summary>Endpoints REST del módulo Contabilidad (partida doble).</summary>
 public static class EndpointsContabilidad
 {
@@ -46,6 +55,26 @@ public static class EndpointsContabilidad
 
         grupo.MapPut("/modo", CambiarModoAsync)
             .WithSummary("Cambia el modo de contabilidad de la empresa.")
+            .RequierePermiso(Permisos.ContabilidadGestionar);
+
+        grupo.MapGet("/config", ConfigAsync)
+            .WithSummary("Configuración contable: modo y contabilización automática.")
+            .RequierePermiso(Permisos.ContabilidadLeer);
+
+        grupo.MapPut("/contabilizacion-automatica", ContabilizacionAutomaticaAsync)
+            .WithSummary("Activa o desactiva la contabilización automática (por defecto: diferida).")
+            .RequierePermiso(Permisos.ContabilidadGestionar);
+
+        grupo.MapGet("/pendientes", PendientesAsync)
+            .WithSummary("Documentos pendientes de contabilizar (panel del contable).")
+            .RequierePermiso(Permisos.ContabilidadLeer);
+
+        grupo.MapPut("/pendientes/{id:guid}/fecha-registro", FechaRegistroAsync)
+            .WithSummary("Cambia la fecha de registro de un documento pendiente (típico en recibidas).")
+            .RequierePermiso(Permisos.ContabilidadGestionar);
+
+        grupo.MapPost("/pendientes/contabilizar", ContabilizarPendientesAsync)
+            .WithSummary("Contabiliza (genera el asiento de) los documentos pendientes indicados.")
             .RequierePermiso(Permisos.ContabilidadGestionar);
 
         return rutas;
@@ -125,5 +154,61 @@ public static class EndpointsContabilidad
 
         var modo = await caso.EjecutarAsync(contexto.EmpresaId.Value, peticion.Modo, ct).ConfigureAwait(false);
         return Results.Ok(new { modo = modo.ToString() });
+    }
+
+    private static async Task<IResult> ConfigAsync(IContextoEmpresa contexto, ObtenerConfigContabilidad caso, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, ct).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> ContabilizacionAutomaticaAsync(ContabilizacionAutomaticaPeticion peticion, IContextoEmpresa contexto, CambiarContabilizacionAutomatica caso, ObtenerConfigContabilidad config, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(peticion);
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        await caso.EjecutarAsync(contexto.EmpresaId.Value, peticion.Automatica, ct).ConfigureAwait(false);
+        return Results.Ok(await config.EjecutarAsync(contexto.EmpresaId.Value, ct).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> PendientesAsync(IContextoEmpresa contexto, ListarPendientesContabilizar caso, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, ct).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> FechaRegistroAsync(Guid id, CambiarFechaRegistroPeticion peticion, IContextoEmpresa contexto, CambiarFechaRegistro caso, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(peticion);
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        var resultado = await caso.EjecutarAsync(id, peticion.Fecha, ct).ConfigureAwait(false);
+        return resultado.EsCorrecto ? Results.NoContent() : ResultadosHttp.AProblema(resultado.Error);
+    }
+
+    private static async Task<IResult> ContabilizarPendientesAsync(ContabilizarPendientesPeticion peticion, IContextoEmpresa contexto, ContabilizarPendientes caso, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(peticion);
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        var resultado = await caso.EjecutarAsync(contexto.EmpresaId.Value, peticion.Ids ?? Array.Empty<Guid>(), ct).ConfigureAwait(false);
+        return resultado.EsCorrecto ? Results.Ok(new { contabilizados = resultado.Valor }) : ResultadosHttp.AProblema(resultado.Error);
     }
 }

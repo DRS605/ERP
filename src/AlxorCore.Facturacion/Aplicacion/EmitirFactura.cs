@@ -1,5 +1,6 @@
 using AlxorCore.Catalogo.Aplicacion;
 using AlxorCore.Facturacion.Dominio;
+using AlxorCore.Nucleo.Aplicacion;
 using AlxorCore.Nucleo.Comun;
 using AlxorCore.Nucleo.Resultados;
 using AlxorCore.Nucleo.Tiempo;
@@ -45,6 +46,7 @@ public sealed class EmitirFactura
     private readonly IConsultaEmpresas _empresas;
     private readonly IUnidadDeTrabajoFacturacion _unidadDeTrabajo;
     private readonly IStockVentas _stock;
+    private readonly IColaContabilizacion _cola;
     private readonly IReloj _reloj;
 
     public EmitirFactura(
@@ -56,6 +58,7 @@ public sealed class EmitirFactura
         IConsultaEmpresas empresas,
         IUnidadDeTrabajoFacturacion unidadDeTrabajo,
         IStockVentas stock,
+        IColaContabilizacion cola,
         IReloj reloj)
     {
         _clientes = clientes;
@@ -66,6 +69,7 @@ public sealed class EmitirFactura
         _empresas = empresas;
         _unidadDeTrabajo = unidadDeTrabajo;
         _stock = stock;
+        _cola = cola;
         _reloj = reloj;
     }
 
@@ -137,7 +141,15 @@ public sealed class EmitirFactura
             await _stock.DescontarVentaAsync(empresaId, lineasVenta, ct).ConfigureAwait(false);
         }
 
-        return Resultado.Ok(FacturaDto.Desde(factura.Valor));
+        // Encola el documento para contabilizar (queda pendiente salvo contabilización automática).
+        var f = factura.Valor;
+        var codigoIva = f.Lineas.Count > 0 ? f.Lineas[0].CodigoIva : "IVA21";
+        var productoId = f.Lineas.FirstOrDefault(l => l.ProductoId is not null)?.ProductoId;
+        await _cola.EncolarAsync(empresaId, new DocumentoContabilizable(
+            SentidoContable.Venta, "FacturaVenta", f.Id, f.NumeroCompleto, f.ClienteId, f.ClienteNombre,
+            f.FechaEmision, f.BaseImponible, codigoIva, f.CuotaIva, f.PorcentajeIrpf, f.RetencionIrpf, f.Total, productoId), ct).ConfigureAwait(false);
+
+        return Resultado.Ok(FacturaDto.Desde(f));
     }
 }
 

@@ -52,13 +52,20 @@ public sealed class RegistrarGasto
     private readonly IRepositorioGastos _gastos;
     private readonly IConsultaProveedores _proveedores;
     private readonly IUnidadDeTrabajoGastos _unidadDeTrabajo;
+    private readonly IColaContabilizacion _cola;
     private readonly IReloj _reloj;
 
-    public RegistrarGasto(IRepositorioGastos gastos, IConsultaProveedores proveedores, IUnidadDeTrabajoGastos unidadDeTrabajo, IReloj reloj)
+    public RegistrarGasto(
+        IRepositorioGastos gastos,
+        IConsultaProveedores proveedores,
+        IUnidadDeTrabajoGastos unidadDeTrabajo,
+        IColaContabilizacion cola,
+        IReloj reloj)
     {
         _gastos = gastos;
         _proveedores = proveedores;
         _unidadDeTrabajo = unidadDeTrabajo;
+        _cola = cola;
         _reloj = reloj;
     }
 
@@ -87,7 +94,14 @@ public sealed class RegistrarGasto
 
         _gastos.Agregar(gasto.Valor);
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
-        return Resultado.Ok(GastoDto.Desde(gasto.Valor));
+
+        // Encola el gasto para contabilizar (queda pendiente salvo contabilización automática).
+        var g = gasto.Valor;
+        await _cola.EncolarAsync(empresaId, new DocumentoContabilizable(
+            SentidoContable.Compra, "Gasto", g.Id, g.Concepto, g.ProveedorId, g.ProveedorTexto ?? g.Concepto,
+            g.Fecha, g.BaseImponible, g.CodigoIva, g.CuotaIva, g.PorcentajeIrpf, g.RetencionIrpf, g.Total), ct).ConfigureAwait(false);
+
+        return Resultado.Ok(GastoDto.Desde(g));
     }
 }
 

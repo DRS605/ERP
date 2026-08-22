@@ -74,8 +74,12 @@ public static class PlanBasico
 {
     public const string CuentaCompras = "629";      // Otros servicios (gasto genérico de proveedor)
     public const string CuentaIvaSoportado = "472"; // H.P. IVA soportado
-    public const string CuentaRetencion = "4751";   // H.P. acreedora por retenciones
+    public const string CuentaRetencion = "4751";   // H.P. acreedora por retenciones (compras)
     public const string CuentaProveedores = "400";  // Proveedores
+    public const string CuentaVentas = "705";        // Prestaciones de servicios (ingreso genérico)
+    public const string CuentaClientes = "430";      // Clientes
+    public const string CuentaIvaRepercutido = "477"; // H.P. IVA repercutido
+    public const string CuentaRetencionVenta = "473"; // H.P. retenciones y pagos a cuenta (ventas)
 
     public static readonly IReadOnlyList<(string Codigo, string Nombre)> Cuentas = new[]
     {
@@ -83,6 +87,7 @@ public static class PlanBasico
         ("400", "Proveedores"),
         ("410", "Acreedores por prestaciones de servicios"),
         ("472", "H.P. IVA soportado"),
+        ("473", "H.P. retenciones y pagos a cuenta"),
         ("477", "H.P. IVA repercutido"),
         ("475", "H.P. acreedora por conceptos fiscales"),
         ("4751", "H.P. acreedora por retenciones practicadas"),

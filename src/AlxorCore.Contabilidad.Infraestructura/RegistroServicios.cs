@@ -30,6 +30,7 @@ public static class RegistroServicios
         servicios.AddScoped<IRepositorioCuentas, RepositorioCuentas>();
         servicios.AddScoped<IRepositorioAsientos, RepositorioAsientos>();
         servicios.AddScoped<IRepositorioConfigContabilidad, RepositorioConfigContabilidad>();
+        servicios.AddScoped<IRepositorioDocumentosPendientes, RepositorioDocumentosPendientes>();
 
         servicios.AddScoped<ListarCuentas>();
         servicios.AddScoped<CrearAsiento>();
@@ -39,6 +40,17 @@ public static class RegistroServicios
         servicios.AddScoped<ObtenerModoContabilidad>();
         servicios.AddScoped<CambiarModoContabilidad>();
         servicios.AddScoped<GenerarAsientoCompra>();
+
+        // Cola de contabilización: documentos pendientes + panel del contable.
+        servicios.AddScoped<IResolverCuentas, ResolverCuentasBasico>();
+        servicios.AddScoped<PosterDocumento>();
+        servicios.AddScoped<EncolarDocumento>();
+        servicios.AddScoped<AlxorCore.Nucleo.Aplicacion.IColaContabilizacion>(sp => sp.GetRequiredService<EncolarDocumento>());
+        servicios.AddScoped<ObtenerConfigContabilidad>();
+        servicios.AddScoped<CambiarContabilizacionAutomatica>();
+        servicios.AddScoped<ListarPendientesContabilizar>();
+        servicios.AddScoped<CambiarFechaRegistro>();
+        servicios.AddScoped<ContabilizarPendientes>();
 
         // Sustituye al contabilizador por defecto (Recepción): ahora decide según el modo de la
         // empresa (Simple = solo gasto; Completo = gasto + asiento de partida doble).
