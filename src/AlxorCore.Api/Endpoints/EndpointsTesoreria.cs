@@ -40,6 +40,10 @@ public static class EndpointsTesoreria
             .WithTags("Tesorería").WithSummary("Genera una remesa de adeudos SEPA (pain.008 / Norma 19) para las facturas indicadas.")
             .RequierePermiso(Permisos.CobroRegistrar);
 
+        rutas.MapPost("/tesoreria/transferencias", TransferenciasAsync)
+            .WithTags("Tesorería").WithSummary("Genera una remesa de transferencias SEPA (pain.001 / Cuaderno 34) para pagar los gastos indicados.")
+            .RequierePermiso(Permisos.PagoRegistrar);
+
         rutas.MapGet("/tesoreria/previsiones", ListarPrevisionesAsync)
             .WithTags("Tesorería").WithSummary("Lista los ingresos y gastos previstos (previsión de tesorería).")
             .RequierePermiso(Permisos.FacturaLeer);
@@ -56,6 +60,17 @@ public static class EndpointsTesoreria
     }
 
     private static async Task<IResult> RemesaAsync(GenerarRemesaComando comando, IContextoEmpresa contexto, GenerarRemesaSepa caso, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        var resultado = await caso.EjecutarAsync(contexto.EmpresaId.Value, comando, ct).ConfigureAwait(false);
+        return resultado.AOk();
+    }
+
+    private static async Task<IResult> TransferenciasAsync(GenerarPagosComando comando, IContextoEmpresa contexto, GenerarTransferenciasSepa caso, CancellationToken ct)
     {
         if (contexto.EmpresaId is null)
         {

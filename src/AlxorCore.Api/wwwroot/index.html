@@ -848,27 +848,49 @@
     /* ---------- Remesas SEPA (adeudos domiciliados, Norma 19) ---------- */
     async function vRemesa(){
       view('<div class="muted">Cargando…</div>');
-      const fs=(await api("/facturas")).filter(f=>f.estado==="Emitida");
+      const [facs,gastos]=await Promise.all([api("/facturas"),api("/gastos").catch(()=>[])]);
+      const fs=facs.filter(f=>f.estado==="Emitida");
       const aviso=(!empresa.iban||!empresa.identificadorAcreedor)?`<div style="background:var(--accent-soft);border-radius:12px;padding:10px 14px;margin-bottom:14px">Configura primero el <strong>IBAN e identificador de acreedor</strong> de la empresa en <a onclick="ir('ajustes')" style="cursor:pointer;text-decoration:underline">Ajustes → Datos de cobro</a>.</div>`:"";
       const filas=fs.map(f=>`<tr><td><input type="checkbox" class="rem_chk" value="${f.id}" style="width:auto"/></td><td><strong>${f.numeroCompleto}</strong></td><td>${f.clienteNombre}</td><td class="muted">${fdate(f.fechaEmision)}</td><td class="num"><strong>${eur(f.total)}</strong></td></tr>`).join("");
-      const cuerpo=fs.length?`${aviso}<table><thead><tr><th></th><th>Número</th><th>Cliente</th><th>Fecha</th><th class="num">Total</th></tr></thead><tbody>${filas}</tbody></table>
-        <p class="muted" style="font-size:12px;margin:12px 0 0">Marca las facturas a domiciliar y genera el fichero SEPA (pain.008) para subirlo a tu banco. Solo se incluirán las de clientes con IBAN y mandato; el resto se listan como omitidas.</p>`
+      const opciones=`<div class="grid2" style="margin:6px 0 12px">
+        <div><label>Esquema</label><select id="rem_esq"><option value="CORE">CORE (particulares)</option><option value="B2B">B2B (empresas)</option></select></div>
+        <div><label>Secuencia</label><select id="rem_seq"><option value="OOFF">Único (OOFF)</option><option value="FRST">Primero (FRST)</option><option value="RCUR">Recurrente (RCUR)</option><option value="FNAL">Último (FNAL)</option></select></div></div>`;
+      const cuerpoCobro=fs.length?`${aviso}${opciones}<table><thead><tr><th></th><th>Número</th><th>Cliente</th><th>Fecha</th><th class="num">Total</th></tr></thead><tbody>${filas}</tbody></table>
+        <p class="muted" style="font-size:12px;margin:12px 0 0">Marca las facturas a domiciliar y genera el fichero SEPA (pain.008 / Norma 19.14). Solo se incluirán las de clientes con IBAN y mandato; el resto se listan como omitidas.</p>`
         :vacio("facturas","No hay facturas emitidas","Emite facturas para poder domiciliarlas.");
-      const acc=`<button class="btn small" onclick="generarRemesa()">Generar remesa SEPA</button>`;
-      view(panel("Remesas de adeudos SEPA",cuerpo,fs.length?acc:""));
+      // Pagos a proveedores (transferencias SEPA / Cuaderno 34).
+      const gfilas=(gastos||[]).map(g=>`<tr><td><input type="checkbox" class="pag_chk" value="${g.id}" style="width:auto"/></td><td><strong>${g.concepto}</strong></td><td>${g.proveedorTexto||'—'}</td><td class="muted">${fdate(g.fecha)}</td><td class="num"><strong>${eur(g.total)}</strong></td></tr>`).join("");
+      const cuerpoPago=(gastos&&gastos.length)?`<table><thead><tr><th></th><th>Concepto</th><th>Proveedor</th><th>Fecha</th><th class="num">Total</th></tr></thead><tbody>${gfilas}</tbody></table>
+        <p class="muted" style="font-size:12px;margin:12px 0 0">Marca los gastos a pagar y genera el fichero de transferencias SEPA (pain.001 / Cuaderno 34) para tu banco. Solo se incluyen proveedores con IBAN y gastos pendientes.</p>`
+        :vacio("pagos","Sin gastos","Registra gastos de proveedores para poder pagarlos por transferencia.");
+      view(panel("Remesas de adeudos SEPA (cobros)",cuerpoCobro,fs.length?`<button class="btn small" onclick="generarRemesa()">Generar remesa SEPA</button>`:"")
+        +panel("Transferencias a proveedores (pagos)",cuerpoPago,(gastos&&gastos.length)?`<button class="btn small" onclick="generarTransferencias()">Generar transferencias SEPA</button>`:""));
     }
     async function generarRemesa(){
       const ids=[...document.querySelectorAll(".rem_chk:checked")].map(c=>c.value);
       if(!ids.length){ toast("Marca al menos una factura","err"); return; }
       try{
-        const r=await api("/tesoreria/remesa",{method:"POST",body:JSON.stringify({facturaIds:ids})});
-        const blob=new Blob([r.ficheroXml],{type:"application/xml"});
-        const u=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=u; a.download=r.nombreArchivo; a.click(); setTimeout(()=>URL.revokeObjectURL(u),60000);
+        const r=await api("/tesoreria/remesa",{method:"POST",body:JSON.stringify({facturaIds:ids,esquema:val("rem_esq"),secuencia:val("rem_seq")})});
+        descargarTexto(r.ficheroXml,r.nombreArchivo,"application/xml");
         let msg=`Remesa generada: ${r.numeroAdeudos} adeudo(s), ${eur(r.total)}.`;
         if(r.omitidas&&r.omitidas.length) msg+=` ${r.omitidas.length} omitida(s).`;
         toast(msg,"ok");
         if(r.omitidas&&r.omitidas.length) alert("Facturas omitidas:\n\n"+r.omitidas.join("\n"));
       }catch(e){ toast(e.message,"err"); } }
+    async function generarTransferencias(){
+      const ids=[...document.querySelectorAll(".pag_chk:checked")].map(c=>c.value);
+      if(!ids.length){ toast("Marca al menos un gasto","err"); return; }
+      try{
+        const r=await api("/tesoreria/transferencias",{method:"POST",body:JSON.stringify({gastoIds:ids})});
+        descargarTexto(r.fichero,r.nombreArchivo,"application/xml");
+        let msg=`Transferencias generadas: ${r.numeroPagos} pago(s), ${eur(r.total)}.`;
+        if(r.omitidos&&r.omitidos.length){ msg+=` ${r.omitidos.length} omitido(s).`; alert("Gastos omitidos:\n\n"+r.omitidos.join("\n")); }
+        toast(msg,"ok");
+      }catch(e){ toast(e.message,"err"); } }
+    function descargarTexto(contenido,nombre,tipo){
+      const blob=new Blob([contenido],{type:tipo||"text/plain"}); const u=URL.createObjectURL(blob);
+      const a=document.createElement("a"); a.href=u; a.download=nombre; a.click(); setTimeout(()=>URL.revokeObjectURL(u),60000);
+    }
     /* ---------- Conciliación bancaria (Norma 43) ---------- */
     let _concApuntes=null;
     function vConciliacion(){
@@ -2116,9 +2138,10 @@
       <label style="margin-top:14px">Tipo (opcional, para reglas de contabilización)</label>
       <input id="pr_tipo" placeholder="Ej. Servicios, Suministros, Profesional"/>
       <label style="margin-top:14px">Forma de pago habitual (opcional)</label>${formaPagoSel("pr_forma",pr&&pr.formaPagoDefectoId)}
-      <label style="margin-top:14px">Límite de riesgo (€, opcional)</label><input id="pr_riesgo" type="number" step="0.01" placeholder="Sin límite"/>`,
-      async()=>{ const r=val("pr_riesgo"); const b=JSON.stringify({nombre:val("pr_nombre"),nifFiscal:val("pr_nif")||null,email:val("pr_email")||null,porcentajeIrpfDefecto:Number(val("pr_irpf")),formaPago:val("pr_pago"),nifIva:val("pr_iva")||null,tipo:val("pr_tipo")||null,formaPagoDefectoId:val("pr_forma")||null,limiteRiesgo:r?Number(r):null}); await api("/proveedores"+(pr?"/"+pr.id:""),{method:pr?"PUT":"POST",body:b}); vProveedores(); });
-      if(pr) rellenar({pr_nombre:pr.nombre,pr_nif:pr.nifFiscal,pr_email:pr.email,pr_irpf:pr.porcentajeIrpfDefecto,pr_pago:pr.formaPago,pr_iva:pr.nifIva,pr_tipo:pr.tipo,pr_riesgo:pr.limiteRiesgo}); }
+      <label style="margin-top:14px">Límite de riesgo (€, opcional)</label><input id="pr_riesgo" type="number" step="0.01" placeholder="Sin límite"/>
+      <label style="margin-top:14px">IBAN (para pagarle por transferencia/confirming, opcional)</label><input id="pr_iban" placeholder="ES.."/>`,
+      async()=>{ const r=val("pr_riesgo"); const b=JSON.stringify({nombre:val("pr_nombre"),nifFiscal:val("pr_nif")||null,email:val("pr_email")||null,porcentajeIrpfDefecto:Number(val("pr_irpf")),formaPago:val("pr_pago"),nifIva:val("pr_iva")||null,tipo:val("pr_tipo")||null,formaPagoDefectoId:val("pr_forma")||null,limiteRiesgo:r?Number(r):null,iban:val("pr_iban")||null}); await api("/proveedores"+(pr?"/"+pr.id:""),{method:pr?"PUT":"POST",body:b}); vProveedores(); });
+      if(pr) rellenar({pr_nombre:pr.nombre,pr_nif:pr.nifFiscal,pr_email:pr.email,pr_irpf:pr.porcentajeIrpfDefecto,pr_pago:pr.formaPago,pr_iva:pr.nifIva,pr_tipo:pr.tipo,pr_riesgo:pr.limiteRiesgo,pr_iban:pr.iban}); }
     async function modalProducto(p){ const [provs,prods]=await Promise.all([api("/proveedores").catch(()=>[]),api("/productos").catch(()=>[])]);
       const provOpts=`<option value="">— Sin asignar —</option>`+provs.map(x=>`<option value="${x.id}">${x.nombre}</option>`).join("");
       const editar=p&&p.id;

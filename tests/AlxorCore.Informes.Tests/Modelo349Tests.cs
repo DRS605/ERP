@@ -57,7 +57,7 @@ public class Modelo349Tests
         new(Guid.NewGuid(), "Kunde GmbH", "DE-FISCAL", null, "", "", "", "", "DE", 0m, true, false, null, null, null, "DE123456789", null, null, null);
 
     private static ProveedorDto ProveedorIntra() =>
-        new(ProvIntra, "Fornitore SRL", "IT-FISCAL", null, "", "", "", "", "IT", 0m, true, default, "IT99999999999", null, null, null);
+        new(ProvIntra, "Fornitore SRL", "IT-FISCAL", null, "", "", "", "", "IT", 0m, true, default, "IT99999999999", null, null, null, null);
 
     private static EmpresaDto EmpresaDeclarante() =>
         new(Empresa, "B12345674", "Mi Empresa SL", default(RegimenIva), "EUR", "ES", null, null, MetodoValoracion.Estandar, ControlRiesgo.Aviso);

@@ -13,8 +13,12 @@ namespace AlxorCore.Tesoreria.Aplicacion;
 /// <summary>Resultado de generar una remesa de adeudos SEPA (Norma 19).</summary>
 public sealed record RemesaSepaDto(string FicheroXml, string NombreArchivo, int NumeroAdeudos, decimal Total, IReadOnlyList<string> Omitidas);
 
-/// <summary>Datos para generar una remesa: las facturas que se quieren domiciliar.</summary>
-public sealed record GenerarRemesaComando(IReadOnlyList<Guid> FacturaIds, DateOnly? FechaCobro = null);
+/// <summary>
+/// Datos para generar una remesa de adeudos: facturas a domiciliar, fecha de cobro y esquema.
+/// <paramref name="Esquema"/> = CORE (particulares) o B2B (empresas). <paramref name="Secuencia"/> =
+/// OOFF (único), FRST (primero), RCUR (recurrente) o FNAL (último).
+/// </summary>
+public sealed record GenerarRemesaComando(IReadOnlyList<Guid> FacturaIds, DateOnly? FechaCobro = null, string? Esquema = null, string? Secuencia = null);
 
 /// <summary>
 /// Caso de uso: genera una <b>remesa de adeudos directos SEPA</b> (fichero <c>pain.008.001.02</c>,
@@ -97,13 +101,20 @@ public sealed class GenerarRemesaSepa
         }
 
         var fechaCobro = comando.FechaCobro ?? DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime).AddDays(3);
-        var xml = Construir(empresa.RazonSocial, empresa.Nif, empresa.Iban!, empresa.IdentificadorAcreedor!, fechaCobro, adeudos);
+        var esquema = string.Equals(comando.Esquema, "B2B", StringComparison.OrdinalIgnoreCase) ? "B2B" : "CORE";
+        var secuencia = (comando.Secuencia ?? "OOFF").ToUpperInvariant();
+        if (secuencia is not ("OOFF" or "FRST" or "RCUR" or "FNAL"))
+        {
+            secuencia = "OOFF";
+        }
+
+        var xml = Construir(empresa.RazonSocial, empresa.Nif, empresa.Iban!, empresa.IdentificadorAcreedor!, fechaCobro, adeudos, esquema, secuencia);
         var total = Redondeo.Dos(adeudos.Sum(a => a.Importe));
         var nombre = $"remesa-{fechaCobro:yyyyMMdd}.xml";
         return Resultado.Ok(new RemesaSepaDto(xml, nombre, adeudos.Count, total, omitidas));
     }
 
-    private string Construir(string acreedorNombre, string acreedorNif, string acreedorIban, string acreedorId, DateOnly fechaCobro, IReadOnlyList<Adeudo> adeudos)
+    private string Construir(string acreedorNombre, string acreedorNif, string acreedorIban, string acreedorId, DateOnly fechaCobro, IReadOnlyList<Adeudo> adeudos, string esquema, string secuencia)
     {
         var total = Redondeo.Dos(adeudos.Sum(a => a.Importe)).ToString("F2", CultureInfo.InvariantCulture);
         var numero = adeudos.Count.ToString(CultureInfo.InvariantCulture);
@@ -147,8 +158,8 @@ public sealed class GenerarRemesaSepa
                         new XElement(
                             Ns + "PmtTpInf",
                             new XElement(Ns + "SvcLvl", new XElement(Ns + "Cd", "SEPA")),
-                            new XElement(Ns + "LclInstrm", new XElement(Ns + "Cd", "CORE")),
-                            new XElement(Ns + "SeqTp", "OOFF")),
+                            new XElement(Ns + "LclInstrm", new XElement(Ns + "Cd", esquema)),
+                            new XElement(Ns + "SeqTp", secuencia)),
                         new XElement(Ns + "ReqdColltnDt", fechaCobro.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)),
                         new XElement(Ns + "Cdtr", new XElement(Ns + "Nm", Limitar(acreedorNombre, 70))),
                         new XElement(Ns + "CdtrAcct", new XElement(Ns + "Id", new XElement(Ns + "IBAN", acreedorIban))),

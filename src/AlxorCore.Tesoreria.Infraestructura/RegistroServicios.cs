@@ -43,6 +43,7 @@ public static class RegistroServicios
         servicios.AddScoped<EliminarPrevision>();
         servicios.AddScoped<ConciliarExtracto>();
         servicios.AddScoped<GenerarRemesaSepa>();
+        servicios.AddScoped<GenerarTransferenciasSepa>();
 
         return servicios;
     }

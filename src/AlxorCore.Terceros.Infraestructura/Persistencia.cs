@@ -124,6 +124,7 @@ internal sealed class ConfiguracionProveedor : IEntityTypeConfiguration<Proveedo
         builder.Property(p => p.Tipo).HasColumnName("tipo").HasMaxLength(Proveedor.LongitudMaximaTipo);
         builder.Property(p => p.FormaPagoDefectoId).HasColumnName("forma_pago_defecto_id");
         builder.Property(p => p.LimiteRiesgo).HasColumnName("limite_riesgo").HasColumnType("numeric(14,2)");
+        builder.Property(p => p.Iban).HasColumnName("iban").HasMaxLength(34);
         builder.Property(p => p.Activo).HasColumnName("activo").IsRequired();
         builder.Property(p => p.CreadoEn).HasColumnName("creado_en").IsRequired();
         builder.Property(p => p.ActualizadoEn).HasColumnName("actualizado_en").IsRequired();
