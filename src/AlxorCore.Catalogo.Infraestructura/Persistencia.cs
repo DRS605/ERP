@@ -22,6 +22,8 @@ public sealed class CatalogoDbContext : DbContextEmpresaBase, IUnidadDeTrabajoCa
 
     public DbSet<Producto> Productos => Set<Producto>();
 
+    public DbSet<Familia> Familias => Set<Familia>();
+
     public DbSet<HistoricoPrecio> HistoricoPrecios => Set<HistoricoPrecio>();
 
     public DbSet<MovimientoStock> MovimientosStock => Set<MovimientoStock>();
@@ -45,6 +47,7 @@ internal sealed class ConfiguracionProducto : IEntityTypeConfiguration<Producto>
         builder.Property(p => p.Referencia).HasColumnName("referencia").HasMaxLength(60);
         builder.Property(p => p.Nombre).HasColumnName("nombre").HasMaxLength(Producto.LongitudMaximaNombre).IsRequired();
         builder.Property(p => p.Familia).HasColumnName("familia").HasMaxLength(Producto.LongitudMaximaFamilia);
+        builder.Property(p => p.FamiliaId).HasColumnName("familia_id");
         builder.Property(p => p.Tipo).HasColumnName("tipo").HasMaxLength(20).HasConversion<string>().IsRequired();
         builder.Property(p => p.PrecioUnitario).HasColumnName("precio_unitario").HasColumnType("numeric(12,2)").IsRequired();
         builder.Property(p => p.PrecioCompra).HasColumnName("precio_compra").HasColumnType("numeric(12,2)").IsRequired();
@@ -66,6 +69,7 @@ internal sealed class ConfiguracionProducto : IEntityTypeConfiguration<Producto>
         builder.Property(p => p.ActualizadoEn).HasColumnName("actualizado_en").IsRequired();
 
         builder.HasIndex(p => new { p.EmpresaId, p.Nombre }).HasDatabaseName("ix_producto_empresa_nombre");
+        builder.HasIndex(p => p.FamiliaId).HasDatabaseName("ix_producto_familia");
         builder.Ignore(p => p.EventosDominio);
         // Propiedades calculadas (no se persisten).
         builder.Ignore(p => p.UnidadCompraEfectiva);
@@ -93,6 +97,26 @@ internal sealed class ConfiguracionProducto : IEntityTypeConfiguration<Producto>
             a.Property(x => x.Nombre).HasColumnName("nombre").HasMaxLength(60).IsRequired();
             a.Property(x => x.Valor).HasColumnName("valor").HasMaxLength(80).IsRequired();
         });
+    }
+}
+
+internal sealed class ConfiguracionFamilia : IEntityTypeConfiguration<Familia>
+{
+    public void Configure(EntityTypeBuilder<Familia> builder)
+    {
+        builder.ToTable("familia");
+        builder.HasKey(f => f.Id);
+        builder.Property(f => f.Id).HasColumnName("id");
+        builder.Property(f => f.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        builder.Property(f => f.Nombre).HasColumnName("nombre").HasMaxLength(Familia.LongitudMaximaNombre).IsRequired();
+        builder.Property(f => f.Codigo).HasColumnName("codigo").HasMaxLength(Familia.LongitudMaximaCodigo);
+        builder.Property(f => f.PadreId).HasColumnName("padre_id");
+        builder.Property(f => f.Activo).HasColumnName("activo").IsRequired();
+        builder.Property(f => f.CreadoEn).HasColumnName("creado_en").IsRequired();
+        builder.Property(f => f.ActualizadoEn).HasColumnName("actualizado_en").IsRequired();
+
+        builder.HasIndex(f => new { f.EmpresaId, f.PadreId }).HasDatabaseName("ix_familia_empresa_padre");
+        builder.Ignore(f => f.EventosDominio);
     }
 }
 
@@ -204,6 +228,40 @@ internal sealed class RepositorioProductos : IRepositorioProductos, IConsultaPro
         var variantes = await _contexto.Productos.Where(p => p.ProductoPadreId == padreId)
             .OrderBy(p => p.Nombre).ToListAsync(ct).ConfigureAwait(false);
         return variantes.Select(ProductoDto.Desde).ToList();
+    }
+}
+
+internal sealed class RepositorioFamilias : IRepositorioFamilias, IConsultaFamilias
+{
+    private readonly CatalogoDbContext _contexto;
+
+    public RepositorioFamilias(CatalogoDbContext contexto) => _contexto = contexto;
+
+    public Task<Familia?> ObtenerPorIdAsync(Guid id, CancellationToken ct = default) =>
+        _contexto.Familias.SingleOrDefaultAsync(f => f.Id == id, ct);
+
+    public async Task<IReadOnlyList<Familia>> ListarTodasAsync(Guid empresaId, CancellationToken ct = default) =>
+        await _contexto.Familias.Where(f => f.EmpresaId == empresaId).ToListAsync(ct).ConfigureAwait(false);
+
+    public void Agregar(Familia familia) => _contexto.Familias.Add(familia);
+
+    public void Eliminar(Familia familia) => _contexto.Familias.Remove(familia);
+
+    public Task<bool> TieneArticulosAsync(Guid familiaId, CancellationToken ct = default) =>
+        _contexto.Productos.AnyAsync(p => p.FamiliaId == familiaId, ct);
+
+    public async Task<FamiliaDto?> ObtenerAsync(Guid familiaId, CancellationToken ct = default)
+    {
+        var familia = await _contexto.Familias.SingleOrDefaultAsync(f => f.Id == familiaId, ct).ConfigureAwait(false);
+        if (familia is null)
+        {
+            return null;
+        }
+
+        var todas = await _contexto.Familias.Where(f => f.EmpresaId == familia.EmpresaId).ToListAsync(ct).ConfigureAwait(false);
+        var porId = todas.ToDictionary(f => f.Id);
+        var (ruta, nivel) = ArbolFamilias.RutaYNivel(familia, porId);
+        return new FamiliaDto(familia.Id, familia.Nombre, familia.Codigo, familia.PadreId, familia.Activo, ruta, nivel);
     }
 }
 

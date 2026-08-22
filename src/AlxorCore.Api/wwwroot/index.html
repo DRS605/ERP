@@ -422,7 +422,7 @@
       { t:"item", k:"inicio", l:"Inicio" },
       { t:"grupo", k:"ventas", l:"Ventas", items:[["presupuestos","Presupuestos"],["pedidosventa","Pedidos de venta"],["facturas","Facturas"],["tpv","TPV · Tickets"],["recurrentes","Periódicas"],["clientes","Clientes"],["cobros","Cobros"],["remesas","Remesas SEPA"]] },
       { t:"grupo", k:"compras", l:"Compras", items:[["solicitudes","Solicitudes"],["pedidos","Pedidos de compra"],["recepcion","Buzón de facturas"],["gastos","Gastos"],["proveedores","Proveedores"],["pagos","Pagos"],["conciliacion","Conciliación banco"]] },
-      { t:"grupo", k:"articulos", l:"Artículos", items:[["productos","Productos"],["inventario","Inventario / Almacenes"],["produccion","Producción"]] },
+      { t:"grupo", k:"articulos", l:"Artículos", items:[["productos","Productos"],["familias","Familias"],["inventario","Inventario / Almacenes"],["produccion","Producción"]] },
       { t:"item", k:"personal", l:"Personal" },
       { t:"item", k:"proyectos", l:"Proyectos" },
       { t:"item", k:"prevision", l:"Previsión de tesorería" },
@@ -431,7 +431,7 @@
       { t:"item", k:"inmovilizado", l:"Inmovilizado" },
       { t:"item", k:"ajustes", l:"Ajustes" },
     ];
-    const TITULOS = { inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", ajustes:"Ajustes" };
+    const TITULOS = { inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", ajustes:"Ajustes" };
     function renderNav() {
       return NAV.map(n => {
         if (n.t === "item") return `<a class="navitem" data-k="${n.k}" onclick="ir('${n.k}')">${ICON[n.k]}<span>${n.l}</span></a>`;
@@ -527,7 +527,7 @@
     function ir(k){ closeMenu(); if(vista==="tpv" && k!=="tpv" && typeof tpvParar==="function") tpvParar(); vista=k;
       document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("active",a.dataset.k===k));
       document.getElementById("viewTitle").textContent=TITULOS[k]||k;
-      ({inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:vPedidosVenta,clientes:vClientes,productos:vProductos,gastos:vGastos,solicitudes:vSolicitudes,pedidos:vPedidos,inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,contabilidad:vContabilidad,inmovilizado:vInmovilizado,ajustes:vAjustes}[k])();
+      ({inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:vPedidosVenta,clientes:vClientes,productos:vProductos,familias:vFamilias,gastos:vGastos,solicitudes:vSolicitudes,pedidos:vPedidos,inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,contabilidad:vContabilidad,inmovilizado:vInmovilizado,ajustes:vAjustes}[k])();
     }
     const view = h => { document.getElementById("view").innerHTML=h; try{ mejorarTablas(); }catch(e){} };
 
@@ -1076,9 +1076,9 @@
       const stockBtn=p=>p.controlarStock?`<button class="btn small ghost" onclick="event.stopPropagation();modalStock('${p.id}')" title="Stock">📦</button> `:'';
       const badge=p=>{ if(p.esPlantilla) return ' <span class="pill part" style="font-size:10px">plantilla</span>'; if(p.productoPadreId) return ` <span class="pill" style="font-size:10px">variante: ${p.variante}</span>`; if(p.esCompuesto) return ' <span class="pill" style="font-size:10px">compuesto</span>'; return ''; };
       const varBtn=p=>p.productoPadreId?'':`<button class="btn small secondary" onclick="event.stopPropagation();modalVariantes('${p.id}','${p.nombre.replace(/'/g,"")}')" title="Variantes">Variantes</button> `;
-      const filas=ps.map(p=>`<tr data-b="${(p.nombre+' '+(p.referencia||'')).toLowerCase()}" style="cursor:pointer" onclick="verHistorico('${p.id}','${p.nombre.replace(/'/g,"")}')"><td><strong>${p.nombre}</strong>${badge(p)}</td><td class="muted mono">${p.referencia||"—"}</td><td class="muted">${p.proveedorHabitualId?provNombre(p.proveedorHabitualId):"—"}</td><td class="num">${eur(p.precioUnitario)}</td><td class="num muted">${p.precioCompra?eur(p.precioCompra):"—"}</td><td class="num">${margen(p)}</td><td class="num">${p.porcentajeIva}%</td><td class="num">${stockCell(p)}</td><td class="right" style="white-space:nowrap">${stockBtn(p)}${varBtn(p)}<button class="btn small secondary" onclick="editarProducto('${p.id}',event)">Editar</button> <button class="btn small secondary" onclick="event.stopPropagation();duplicarProducto('${p.id}')" title="Duplicar">⎘</button></td></tr>`).join("");
+      const filas=ps.map(p=>`<tr data-b="${(p.nombre+' '+(p.referencia||'')).toLowerCase()}" style="cursor:pointer" onclick="verHistorico('${p.id}','${p.nombre.replace(/'/g,"")}')"><td><strong>${p.nombre}</strong>${badge(p)}</td><td class="muted mono">${p.referencia||"—"}</td><td class="muted">${p.familia||"—"}</td><td class="muted">${p.proveedorHabitualId?provNombre(p.proveedorHabitualId):"—"}</td><td class="num">${eur(p.precioUnitario)}</td><td class="num muted">${p.precioCompra?eur(p.precioCompra):"—"}</td><td class="num">${margen(p)}</td><td class="num">${p.porcentajeIva}%</td><td class="num">${stockCell(p)}</td><td class="right" style="white-space:nowrap">${stockBtn(p)}${varBtn(p)}<button class="btn small secondary" onclick="editarProducto('${p.id}',event)">Editar</button> <button class="btn small secondary" onclick="event.stopPropagation();duplicarProducto('${p.id}')" title="Duplicar">⎘</button></td></tr>`).join("");
       const acciones=`<div style="display:flex;gap:10px;align-items:center"><input id="prodBuscar" placeholder="Buscar por nombre o código…" style="max-width:220px;padding:8px 12px" oninput="filtrarProductos()"/><button class="btn small ghost" onclick="modalImportar('productos')">↥ Importar CSV</button><button class="btn small" onclick="modalProducto()">+ Nuevo</button></div>`;
-      const cuerpo=ps.length?`<table><thead><tr><th>Artículo</th><th>Código / EAN</th><th>Proveedor habitual</th><th class="num">Venta</th><th class="num">Compra</th><th class="num">Margen</th><th class="num">IVA</th><th class="num">Stock</th><th></th></tr></thead><tbody id="prodBody">${filas}</tbody></table><p class="muted" style="font-size:12px;margin:12px 0 0">Toca un artículo para ver su histórico de precios, o pulsa Editar. El stock se descuenta solo al facturar.</p>`:vacio("articulos","Sin artículos todavía","Crea productos o servicios con su código para reutilizarlos al facturar.",`<button class="btn small" onclick="modalProducto()">+ Nuevo artículo</button>`);
+      const cuerpo=ps.length?`<table><thead><tr><th>Artículo</th><th>Código / EAN</th><th>Familia</th><th>Proveedor habitual</th><th class="num">Venta</th><th class="num">Compra</th><th class="num">Margen</th><th class="num">IVA</th><th class="num">Stock</th><th></th></tr></thead><tbody id="prodBody">${filas}</tbody></table><p class="muted" style="font-size:12px;margin:12px 0 0">Toca un artículo para ver su histórico de precios, o pulsa Editar. El stock se descuenta solo al facturar.</p>`:vacio("articulos","Sin artículos todavía","Crea productos o servicios con su código para reutilizarlos al facturar.",`<button class="btn small" onclick="modalProducto()">+ Nuevo artículo</button>`);
       view(panel("",cuerpo,acciones));
     }
     async function verHistorico(id,nombre){
@@ -1105,6 +1105,47 @@
           toast("Variante creada.","ok"); vProductos(); });
     }
     function varAtrHtml(nom,v){ return `<div class="var-atr" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px"><input class="va-nom" placeholder="Eje (Talla, Color…)" value="${nom||''}"/><input class="va-val" placeholder="Valor (M, Rojo…)" value="${v||''}"/></div>`; }
+
+    let _cacheFamilias=[];
+    async function vFamilias() {
+      view('<div class="muted">Cargando…</div>');
+      const fams=await api("/familias"); _cacheFamilias=fams;
+      // Filas jerárquicas: la ruta ya viene calculada; sangramos por nivel para que se lea el árbol.
+      const filas=fams.map(f=>{
+        const sangria=f.nivel>0?`<span class="muted">${'&nbsp;&nbsp;&nbsp;&nbsp;'.repeat(f.nivel)}└ </span>`:'';
+        const estado=f.activo?'':' <span class="pill neg" style="font-size:10px">inactiva</span>';
+        return `<tr data-b="${(f.rutaCompleta||f.nombre).toLowerCase()}"><td>${sangria}<strong>${f.nombre}</strong>${estado}</td><td class="muted mono">${f.codigo||"—"}</td><td class="muted">${f.rutaCompleta}</td><td class="right" style="white-space:nowrap"><button class="btn small secondary" onclick="modalFamilia('${f.id}')">Editar</button> <button class="btn small ghost" onclick="borrarFamilia('${f.id}')" title="Eliminar">🗑</button></td></tr>`;
+      }).join("");
+      const acciones=`<div style="display:flex;gap:10px;align-items:center"><input id="famBuscar" placeholder="Buscar familia…" style="max-width:220px;padding:8px 12px" oninput="filtrarFamilias()"/><button class="btn small" onclick="modalFamilia()">+ Nueva familia</button></div>`;
+      const cuerpo=fams.length
+        ? `<table><thead><tr><th>Familia</th><th>Código</th><th>Ruta completa</th><th></th></tr></thead><tbody id="famBody">${filas}</tbody></table><p class="muted" style="font-size:12px;margin:12px 0 0">Organiza los artículos en familias y subfamilias (árbol). Las familias sirven además para elegir la cuenta contable con las reglas de contabilización.</p>`
+        : vacio("productos","Sin familias todavía","Crea familias y subfamilias para clasificar tus artículos (p. ej. Alimentación → Bebidas → Refrescos).",`<button class="btn small" onclick="modalFamilia()">+ Nueva familia</button>`);
+      view(panel("",cuerpo,acciones));
+    }
+    function filtrarFamilias(){ const q=document.getElementById("famBuscar").value.toLowerCase().trim();
+      document.querySelectorAll("#famBody tr").forEach(tr=>{ tr.style.display=tr.dataset.b.includes(q)?"":"none"; }); }
+    function modalFamilia(id){
+      const f=id?_cacheFamilias.find(x=>x.id===id):null;
+      // Opciones de padre: todas menos la propia familia (evitar el ciclo directo en la UI).
+      const padreOpts=`<option value="">— Ninguna (familia raíz) —</option>`+_cacheFamilias.filter(x=>!f||x.id!==f.id).map(x=>`<option value="${x.id}">${'  '.repeat(x.nivel)}${x.nombre}</option>`).join("");
+      abrir(f?"Editar familia":"Nueva familia",
+        `<label>Nombre</label><input id="fa_nombre" placeholder="Ej. Bebidas"/>
+         <div class="grid2"><div><label>Código (opcional)</label><input id="fa_codigo" placeholder="Ej. BEB"/></div><div><label>Familia padre (opcional)</label><select id="fa_padre">${padreOpts}</select></div></div>
+         ${f?`<label style="display:flex;align-items:center;gap:8px;margin-top:14px;font-weight:500;cursor:pointer"><input id="fa_activo" type="checkbox" style="width:auto" checked/> Familia activa</label>`:''}
+         <p class="muted" style="font-size:12px;margin:10px 0 0">Elige una familia padre para crear una <strong>subfamilia</strong>. Una familia no puede colgar de una de sus propias subfamilias.</p>`,
+        async()=>{
+          const b=JSON.stringify({nombre:val("fa_nombre"),codigo:val("fa_codigo")||null,padreId:val("fa_padre")||null,activo:f?document.getElementById("fa_activo").checked:true});
+          await api("/familias"+(f?"/"+f.id:""),{method:f?"PUT":"POST",body:b});
+          toast(f?"Familia actualizada.":"Familia creada.","ok"); vFamilias();
+        });
+      if(f){ rellenar({fa_nombre:f.nombre,fa_codigo:f.codigo,fa_padre:f.padreId}); if(document.getElementById("fa_activo")) document.getElementById("fa_activo").checked=f.activo; }
+    }
+    async function borrarFamilia(id){
+      const f=_cacheFamilias.find(x=>x.id===id);
+      if(!confirm(`¿Eliminar la familia «${f?f.nombre:''}»?\n\nSolo se puede si no tiene subfamilias ni artículos.`)) return;
+      try{ await api(`/familias/${id}`,{method:"DELETE"}); toast("Familia eliminada.","ok"); vFamilias(); }
+      catch(e){ toast(e.message||"No se pudo eliminar.","err"); }
+    }
 
     async function vPagos() {
       view('<div class="muted">Cargando…</div>');
@@ -2515,8 +2556,9 @@
       async()=>{ const r=val("pr_riesgo"); const b=JSON.stringify({nombre:val("pr_nombre"),nifFiscal:val("pr_nif")||null,email:val("pr_email")||null,porcentajeIrpfDefecto:Number(val("pr_irpf")),formaPago:val("pr_pago"),nifIva:val("pr_iva")||null,tipo:val("pr_tipo")||null,formaPagoDefectoId:val("pr_forma")||null,limiteRiesgo:r?Number(r):null,iban:val("pr_iban")||null}); const resp=await api("/proveedores"+(pr?"/"+pr.id:""),{method:pr?"PUT":"POST",body:b}); await guardarSubcuentaCampo("Proveedor", pr?pr.id:(resp&&resp.id), val("pr_nombre"), "pr_cuenta"); vProveedores(); });
       if(pr) rellenar({pr_nombre:pr.nombre,pr_nif:pr.nifFiscal,pr_email:pr.email,pr_irpf:pr.porcentajeIrpfDefecto,pr_pago:pr.formaPago,pr_iva:pr.nifIva,pr_tipo:pr.tipo,pr_riesgo:pr.limiteRiesgo,pr_iban:pr.iban});
       cargarSubcuentaCampo("Proveedor", pr?pr.id:null, "pr_cuenta"); }
-    async function modalProducto(p){ const [provs,prods]=await Promise.all([api("/proveedores").catch(()=>[]),api("/productos").catch(()=>[])]);
+    async function modalProducto(p){ const [provs,prods,fams]=await Promise.all([api("/proveedores").catch(()=>[]),api("/productos").catch(()=>[]),api("/familias").catch(()=>[])]);
       const provOpts=`<option value="">— Sin asignar —</option>`+provs.map(x=>`<option value="${x.id}">${x.nombre}</option>`).join("");
+      const famOpts=`<option value="">— Sin familia —</option>`+fams.filter(f=>f.activo).map(f=>`<option value="${f.id}">${'  '.repeat(f.nivel)}${f.nombre}</option>`).join("");
       const editar=p&&p.id;
       // Opciones de componentes (excluye el propio artículo al editar).
       window._compProdOpts=prods.filter(x=>!editar||x.id!==p.id).map(x=>`<option value="${x.id}">${x.nombre}</option>`).join("");
@@ -2527,7 +2569,9 @@
       <div class="grid2"><div><label>Código / EAN (opcional)</label><input id="p_ref" placeholder="Ej. 8412345678901"/></div><div><label>IVA</label>${ivaSel("p_iva")}</div></div>
       <div class="grid2"><div><label>Precio de venta (€)</label><input id="p_precio" type="number" step="0.01" value="0"/></div><div><label>Precio de compra / coste (€)</label><input id="p_compra" type="number" step="0.01" value="0"/></div></div>
       <label>Proveedor habitual (opcional)</label><select id="p_prov">${provOpts}</select>
-      <label style="margin-top:14px">Familia (opcional, para reglas de contabilización)</label><input id="p_familia" placeholder="Ej. Mercaderías, Servicios, Suministros"/>
+      <label style="margin-top:14px">Familia (opcional, para reglas de contabilización)</label>
+      <select id="p_familiaId">${famOpts}</select>
+      <p class="muted" style="font-size:12px;margin:6px 0 0">Organiza los artículos por familia y subfamilia. Gestiona el árbol en <a onclick="ir('familias')" style="cursor:pointer;text-decoration:underline">Artículos → Familias</a>.</p>
       <details style="margin-top:14px;border:1px solid var(--line);border-radius:11px;padding:10px 12px" ${(p&&(p.unidadCompra||p.unidadVenta))?'open':''}>
         <summary style="cursor:pointer;font-weight:600;font-size:13px">Unidades y envases</summary>
         <div style="margin-top:10px">
@@ -2553,7 +2597,7 @@
       <div id="p_stock_box" style="display:none;margin-top:8px"><label>Stock inicial (en unidad base)${editar?' <span class="muted">(no se modifica al editar; usa el botón 📦)</span>':''}</label><input id="p_stock_ini" type="number" step="0.001" value="0" ${editar?'disabled':''}/></div>
       <p class="muted" style="font-size:12px;margin:10px 0 0">El precio de compra sirve para calcular el margen en el informe de beneficio. El stock se descuenta automáticamente al facturar.</p>`,
       async()=>{ const fc=Number(val("p_fcompra")||1)||1, fv=Number(val("p_fventa")||1)||1;
-        const b=JSON.stringify({nombre:val("p_nombre"),referencia:val("p_ref")||null,precioUnitario:Number(val("p_precio")),precioCompra:Number(val("p_compra")),codigoIva:val("p_iva"),tipo:(p&&p.tipo)?p.tipo:"Servicio",proveedorHabitualId:val("p_prov")||null,familia:val("p_familia")||null,unidad:val("p_unidad")||"ud",unidadCompra:val("p_ucompra")||null,factorCompra:fc,unidadVenta:val("p_uventa")||null,factorVenta:fv,seguimiento:val("p_seguimiento"),controlarStock:document.getElementById("p_stock_ctrl").checked,stockInicial:Number(val("p_stock_ini")||0)});
+        const b=JSON.stringify({nombre:val("p_nombre"),referencia:val("p_ref")||null,precioUnitario:Number(val("p_precio")),precioCompra:Number(val("p_compra")),codigoIva:val("p_iva"),tipo:(p&&p.tipo)?p.tipo:"Servicio",proveedorHabitualId:val("p_prov")||null,familiaId:val("p_familiaId")||null,unidad:val("p_unidad")||"ud",unidadCompra:val("p_ucompra")||null,factorCompra:fc,unidadVenta:val("p_uventa")||null,factorVenta:fv,seguimiento:val("p_seguimiento"),controlarStock:document.getElementById("p_stock_ctrl").checked,stockInicial:Number(val("p_stock_ini")||0)});
         const guardado=await api("/productos"+(editar?"/"+p.id:""),{method:editar?"PUT":"POST",body:b});
         // Lista de materiales (si la sección existe): siempre se envía (lista vacía = quitar composición).
         if(document.getElementById("p_comp_lineas")){
@@ -2561,7 +2605,7 @@
           await api(`/productos/${guardado.id}/composicion`,{method:"PUT",body:JSON.stringify({componentes:comps})});
         }
         vProductos(); });
-      if(p){ rellenar({p_nombre:p.nombre,p_ref:p.referencia,p_precio:p.precioUnitario,p_compra:p.precioCompra,p_iva:p.codigoIva,p_prov:p.proveedorHabitualId,p_familia:p.familia,p_unidad:p.unidad||"ud",p_ucompra:p.unidadCompra,p_fcompra:p.factorCompra??1,p_uventa:p.unidadVenta,p_fventa:p.factorVenta??1,p_seguimiento:p.seguimiento||"Ninguno"});
+      if(p){ rellenar({p_nombre:p.nombre,p_ref:p.referencia,p_precio:p.precioUnitario,p_compra:p.precioCompra,p_iva:p.codigoIva,p_prov:p.proveedorHabitualId,p_familiaId:p.familiaId,p_unidad:p.unidad||"ud",p_ucompra:p.unidadCompra,p_fcompra:p.factorCompra??1,p_uventa:p.unidadVenta,p_fventa:p.factorVenta??1,p_seguimiento:p.seguimiento||"Ninguno"});
         if(p.controlarStock){ document.getElementById("p_stock_ctrl").checked=true; document.getElementById("p_stock_box").style.display="block"; } }
       prevEnvase(); prevCompCoste(); }
     function compLineaHtml(prodId,cant){ const po=(window._compProdOpts||''); const opts=prodId?po.replace(`value="${prodId}"`,`value="${prodId}" selected`):po; return `<div class="cmp-comp" style="display:grid;grid-template-columns:3fr 1fr;gap:8px;margin-bottom:6px"><select class="cc-prod" onchange="prevCompCoste()"><option value="">— Componente —</option>${opts}</select><input class="cc-cant" type="number" step="0.001" placeholder="Cantidad" value="${cant??''}" oninput="prevCompCoste()"/></div>`; }

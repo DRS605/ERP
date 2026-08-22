@@ -30,14 +30,15 @@ public sealed record ProductoDto(
     Guid? ProductoPadreId,
     bool EsPlantilla,
     string Variante,
-    string? Familia)
+    string? Familia,
+    Guid? FamiliaId)
 {
     public static ProductoDto Desde(Producto p)
     {
         var porcentaje = Impuesto.PorCodigoImpuesto(p.CodigoIva).Valor.Porcentaje;
         return new ProductoDto(p.Id, p.Referencia, p.Nombre, p.Tipo, p.PrecioUnitario, p.CodigoIva, porcentaje, p.Unidad, p.Activo, p.PrecioCompra, p.ProveedorHabitualId, p.ControlarStock, p.Stock,
             p.UnidadCompra, p.FactorCompra, p.UnidadVenta, p.FactorVenta, p.PrecioCompraPorUnidadCompra, p.PrecioVentaPorUnidadVenta, p.Seguimiento, p.EsCompuesto,
-            p.ProductoPadreId, p.EsPlantilla, p.ResumenVariante, p.Familia);
+            p.ProductoPadreId, p.EsPlantilla, p.ResumenVariante, p.Familia, p.FamiliaId);
     }
 }
 

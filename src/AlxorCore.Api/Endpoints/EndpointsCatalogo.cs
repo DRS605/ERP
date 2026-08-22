@@ -69,7 +69,72 @@ public static class EndpointsCatalogo
             .WithSummary("Lista los tipos de IVA disponibles.")
             .RequireAuthorization();
 
+        var familias = rutas.MapGroup("/familias").WithTags("Familias");
+
+        familias.MapGet("", ListarFamiliasAsync)
+            .WithSummary("Lista las familias de artículos (en plano, con su ruta completa).")
+            .RequireAuthorization();
+
+        familias.MapGet("/arbol", ArbolFamiliasAsync)
+            .WithSummary("Devuelve el árbol de familias (raíces con sus subfamilias anidadas).")
+            .RequireAuthorization();
+
+        familias.MapPost("", CrearFamiliaAsync)
+            .WithSummary("Crea una familia (o subfamilia si se indica padre).")
+            .RequierePermiso(Permisos.ProductoGestionar);
+
+        familias.MapPut("/{id:guid}", ActualizarFamiliaAsync)
+            .WithSummary("Actualiza una familia (nombre, código, padre y estado).")
+            .RequierePermiso(Permisos.ProductoGestionar);
+
+        familias.MapDelete("/{id:guid}", EliminarFamiliaAsync)
+            .WithSummary("Elimina una familia (solo si no tiene subfamilias ni artículos).")
+            .RequierePermiso(Permisos.ProductoGestionar);
+
         return rutas;
+    }
+
+    /// <summary>Cuerpo de la petición para crear o actualizar una familia.</summary>
+    public sealed record PeticionFamilia(string Nombre, string? Codigo = null, Guid? PadreId = null, bool Activo = true);
+
+    private static async Task<IResult> ListarFamiliasAsync(IContextoEmpresa contexto, ListarFamilias caso, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, ct).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> ArbolFamiliasAsync(IContextoEmpresa contexto, ListarArbolFamilias caso, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, ct).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> CrearFamiliaAsync(PeticionFamilia peticion, IContextoEmpresa contexto, CrearFamilia caso, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        var r = await caso.EjecutarAsync(contexto.EmpresaId.Value, new DatosFamilia(peticion.Nombre, peticion.Codigo, peticion.PadreId), ct).ConfigureAwait(false);
+        return r.EsCorrecto ? r.ACreado($"/familias/{r.Valor.Id}") : ResultadosHttp.AProblema(r.Error);
+    }
+
+    private static async Task<IResult> ActualizarFamiliaAsync(Guid id, PeticionFamilia peticion, ActualizarFamilia caso, CancellationToken ct) =>
+        (await caso.EjecutarAsync(id, new DatosFamilia(peticion.Nombre, peticion.Codigo, peticion.PadreId), peticion.Activo, ct).ConfigureAwait(false)).AOk();
+
+    private static async Task<IResult> EliminarFamiliaAsync(Guid id, EliminarFamilia caso, CancellationToken ct)
+    {
+        var r = await caso.EjecutarAsync(id, ct).ConfigureAwait(false);
+        return r.EsCorrecto ? Results.NoContent() : ResultadosHttp.AProblema(r.Error);
     }
 
     private static async Task<IResult> ListarAsync(IContextoEmpresa contexto, ListarProductos caso, CancellationToken ct)

@@ -22,20 +22,23 @@ public sealed record DatosProducto(
     string? UnidadVenta = null,
     decimal FactorVenta = 1m,
     SeguimientoArticulo Seguimiento = SeguimientoArticulo.Ninguno,
-    string? Familia = null);
+    string? Familia = null,
+    Guid? FamiliaId = null);
 
 /// <summary>Caso de uso: crear un producto en la empresa activa.</summary>
 public sealed class CrearProducto
 {
     private readonly IRepositorioProductos _productos;
     private readonly IRepositorioHistoricoPrecios _historico;
+    private readonly IConsultaFamilias _familias;
     private readonly IUnidadDeTrabajoCatalogo _unidadDeTrabajo;
     private readonly IReloj _reloj;
 
-    public CrearProducto(IRepositorioProductos productos, IRepositorioHistoricoPrecios historico, IUnidadDeTrabajoCatalogo unidadDeTrabajo, IReloj reloj)
+    public CrearProducto(IRepositorioProductos productos, IRepositorioHistoricoPrecios historico, IConsultaFamilias familias, IUnidadDeTrabajoCatalogo unidadDeTrabajo, IReloj reloj)
     {
         _productos = productos;
         _historico = historico;
+        _familias = familias;
         _unidadDeTrabajo = unidadDeTrabajo;
         _reloj = reloj;
     }
@@ -50,7 +53,12 @@ public sealed class CrearProducto
             return Resultado.Fallo<ProductoDto>(producto.Error);
         }
 
-        producto.Valor.EstablecerFamilia(datos.Familia);
+        var familia = await ResolverFamilia.AplicarAsync(_familias, producto.Valor, datos, ct).ConfigureAwait(false);
+        if (familia.EsFallo)
+        {
+            return Resultado.Fallo<ProductoDto>(familia.Error);
+        }
+
         _productos.Agregar(producto.Valor);
         _historico.Agregar(HistoricoPrecio.Registrar(empresaId, producto.Valor.Id, producto.Valor.PrecioUnitario, producto.Valor.PrecioCompra, _reloj.AhoraUtc));
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
@@ -63,13 +71,15 @@ public sealed class ActualizarProducto
 {
     private readonly IRepositorioProductos _productos;
     private readonly IRepositorioHistoricoPrecios _historico;
+    private readonly IConsultaFamilias _familias;
     private readonly IUnidadDeTrabajoCatalogo _unidadDeTrabajo;
     private readonly IReloj _reloj;
 
-    public ActualizarProducto(IRepositorioProductos productos, IRepositorioHistoricoPrecios historico, IUnidadDeTrabajoCatalogo unidadDeTrabajo, IReloj reloj)
+    public ActualizarProducto(IRepositorioProductos productos, IRepositorioHistoricoPrecios historico, IConsultaFamilias familias, IUnidadDeTrabajoCatalogo unidadDeTrabajo, IReloj reloj)
     {
         _productos = productos;
         _historico = historico;
+        _familias = familias;
         _unidadDeTrabajo = unidadDeTrabajo;
         _reloj = reloj;
     }
@@ -93,7 +103,11 @@ public sealed class ActualizarProducto
             return Resultado.Fallo<ProductoDto>(r.Error);
         }
 
-        producto.EstablecerFamilia(datos.Familia);
+        var familia = await ResolverFamilia.AplicarAsync(_familias, producto, datos, ct).ConfigureAwait(false);
+        if (familia.EsFallo)
+        {
+            return Resultado.Fallo<ProductoDto>(familia.Error);
+        }
 
         // Solo dejamos rastro en el histórico si algún precio cambió.
         if (producto.PrecioUnitario != precioVentaAnterior || producto.PrecioCompra != precioCompraAnterior)

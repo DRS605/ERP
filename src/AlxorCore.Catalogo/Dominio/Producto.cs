@@ -129,8 +129,13 @@ public sealed class Producto : RaizAgregadoEmpresa<Guid>
     /// <summary>
     /// Familia o categoría del artículo (p. ej. «Mercaderías», «Servicios», «Suministros»). Sirve para
     /// elegir la cuenta contable de ingreso/gasto mediante reglas de contabilización. Null = sin familia.
+    /// Cuando el artículo está enlazado a una <see cref="FamiliaId"/>, este texto refleja el nombre de
+    /// esa familia; si no, es texto libre (compatibilidad con importaciones antiguas).
     /// </summary>
     public string? Familia { get; private set; }
+
+    /// <summary>Familia del catálogo a la que pertenece el artículo (árbol de familias). Null = sin familia.</summary>
+    public Guid? FamiliaId { get; private set; }
 
     public TipoProducto Tipo { get; private set; }
 
@@ -394,6 +399,21 @@ public sealed class Producto : RaizAgregadoEmpresa<Guid>
         }
 
         Familia = limpia;
+    }
+
+    /// <summary>
+    /// Enlaza el artículo con una familia del catálogo (o lo desvincula si <paramref name="familiaId"/>
+    /// es null). El texto <see cref="Familia"/> se mantiene sincronizado con el nombre de la familia
+    /// enlazada, de modo que las reglas de contabilización (que casan por nombre de familia) siguen
+    /// funcionando sin cambios.
+    /// </summary>
+    public void EstablecerFamiliaId(Guid? familiaId, string? nombreFamilia)
+    {
+        FamiliaId = familiaId;
+        if (familiaId is not null)
+        {
+            EstablecerFamilia(nombreFamilia);
+        }
     }
 
     private static Error? Validar(string? nombre, decimal precio, decimal precioCompra, ref string? codigoIva)
