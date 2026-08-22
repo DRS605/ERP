@@ -38,6 +38,10 @@ public static class Permisos
     public const string InventarioLeer = "inventario.leer";
     public const string InventarioGestionar = "inventario.gestionar";
 
+    // Producción (órdenes de fabricación sobre la lista de materiales)
+    public const string ProduccionLeer = "produccion.leer";
+    public const string ProduccionGestionar = "produccion.gestionar";
+
     // Terceros y catálogo
     public const string ClienteGestionar = "cliente.gestionar";
     public const string ProductoGestionar = "producto.gestionar";
@@ -60,6 +64,7 @@ public static class Permisos
         ContabilidadLeer, ContabilidadGestionar,
         CompraLeer, CompraGestionar,
         InventarioLeer, InventarioGestionar,
+        ProduccionLeer, ProduccionGestionar,
         ClienteGestionar, ProductoGestionar,
         InformeLeer, DatosExportar,
         EmpresaAjustes, UsuarioGestionar,

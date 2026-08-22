@@ -419,13 +419,13 @@
       { t:"item", k:"inicio", l:"Inicio" },
       { t:"grupo", k:"ventas", l:"Ventas", items:[["presupuestos","Presupuestos"],["facturas","Facturas"],["tpv","TPV · Tickets"],["recurrentes","Periódicas"],["clientes","Clientes"],["cobros","Cobros"],["remesas","Remesas SEPA"]] },
       { t:"grupo", k:"compras", l:"Compras", items:[["solicitudes","Solicitudes"],["pedidos","Pedidos de compra"],["recepcion","Buzón de facturas"],["gastos","Gastos"],["proveedores","Proveedores"],["pagos","Pagos"],["conciliacion","Conciliación banco"]] },
-      { t:"grupo", k:"articulos", l:"Artículos", items:[["productos","Productos"],["inventario","Inventario / Almacenes"]] },
+      { t:"grupo", k:"articulos", l:"Artículos", items:[["productos","Productos"],["inventario","Inventario / Almacenes"],["produccion","Producción"]] },
       { t:"item", k:"prevision", l:"Previsión de tesorería" },
       { t:"item", k:"informes", l:"Informes" },
       { t:"item", k:"contabilidad", l:"Contabilidad" },
       { t:"item", k:"ajustes", l:"Ajustes" },
     ];
-    const TITULOS = { inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", inventario:"Inventario / Almacenes", prevision:"Previsión de tesorería", informes:"Informes", contabilidad:"Contabilidad", ajustes:"Ajustes" };
+    const TITULOS = { inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", inventario:"Inventario / Almacenes", produccion:"Producción", prevision:"Previsión de tesorería", informes:"Informes", contabilidad:"Contabilidad", ajustes:"Ajustes" };
     function renderNav() {
       return NAV.map(n => {
         if (n.t === "item") return `<a class="navitem" data-k="${n.k}" onclick="ir('${n.k}')">${ICON[n.k]}<span>${n.l}</span></a>`;
@@ -521,7 +521,7 @@
     function ir(k){ closeMenu(); if(vista==="tpv" && k!=="tpv" && typeof tpvParar==="function") tpvParar(); vista=k;
       document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("active",a.dataset.k===k));
       document.getElementById("viewTitle").textContent=TITULOS[k]||k;
-      ({inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,clientes:vClientes,productos:vProductos,gastos:vGastos,solicitudes:vSolicitudes,pedidos:vPedidos,inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,prevision:vPrevision,informes:vInformes,contabilidad:vContabilidad,ajustes:vAjustes}[k])();
+      ({inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,clientes:vClientes,productos:vProductos,gastos:vGastos,solicitudes:vSolicitudes,pedidos:vPedidos,inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,prevision:vPrevision,informes:vInformes,contabilidad:vContabilidad,ajustes:vAjustes}[k])();
     }
     const view = h => { document.getElementById("view").innerHTML=h; try{ mejorarTablas(); }catch(e){} };
 
@@ -1065,6 +1065,40 @@
       const cuerpo=gs.length?`<table><thead><tr><th>Concepto</th><th>Proveedor</th><th class="num">Total</th><th class="num">Pagado</th><th class="num">Pendiente</th><th class="right">Estado</th></tr></thead><tbody>${filas}</tbody></table>`:vacio("pagos","Nada que pagar aún","Cuando registres gastos verás aquí su estado de pago.");
       view(panel("Pagos a proveedores",cuerpo));
     }
+    // ---- Producción: órdenes de fabricación sobre la lista de materiales ----
+    function estadoPillProd(e){ const m={Planificada:"wait",EnCurso:"part",Terminada:"ok",Cancelada:"neg"}; return `<span class="pill ${m[e]||''}">${e}</span>`; }
+    async function vProduccion(){
+      view('<div class="muted">Cargando…</div>');
+      const ordenes=await api("/produccion/ordenes");
+      const acc=o=>{ const b=[];
+        if(o.estado==="Planificada"){ b.push(`<button class="btn small secondary" onclick="accionOrden('${o.id}','iniciar')">Iniciar</button>`); }
+        if(o.estado==="Planificada"||o.estado==="EnCurso"){ b.push(`<button class="btn small" style="width:auto;margin:0;padding:9px 14px" onclick="accionOrden('${o.id}','terminar')">Terminar</button>`); b.push(`<button class="btn small ghost" onclick="accionOrden('${o.id}','cancelar')" title="Cancelar">✕</button>`); }
+        return b.join(" "); };
+      const filas=ordenes.map(o=>`<tr><td><strong>OF ${o.numero}/${o.ejercicio}</strong></td><td>${o.productoNombre}</td><td class="num">${numCant(o.cantidad)}</td><td class="muted">${fdate(o.fecha)}</td><td class="muted" style="font-size:12px">${o.componentes.length} componente(s)</td><td class="right">${estadoPillProd(o.estado)}</td><td class="right" style="white-space:nowrap">${acc(o)}</td></tr>`).join("");
+      const cuerpo=ordenes.length?`<table><thead><tr><th>Orden</th><th>Artículo</th><th class="num">Cantidad</th><th>Fecha</th><th>Materiales</th><th class="right">Estado</th><th class="right">Acciones</th></tr></thead><tbody>${filas}</tbody></table>`
+        :vacio("articulos","Sin órdenes de fabricación","Crea una orden para fabricar un artículo compuesto: al terminarla se consumen los componentes y se produce el artículo.",`<button class="btn small" onclick="modalOrden()">+ Nueva orden</button>`);
+      view(panel("Órdenes de fabricación",cuerpo,`<button class="btn small" onclick="modalOrden()">+ Nueva orden</button>`));
+    }
+    async function accionOrden(id,accion){ if(accion==="cancelar"&&!confirm("¿Cancelar la orden?"))return;
+      try{ await api(`/produccion/ordenes/${id}/${accion}`,{method:"POST"}); toast("Orden "+({iniciar:"iniciada",terminar:"terminada · stock actualizado",cancelar:"cancelada"}[accion])+".","ok"); vProduccion(); }catch(e){ toast(e.message,"err"); } }
+    async function modalOrden(){
+      const [prods,almacenes]=await Promise.all([api("/productos").catch(()=>[]),api("/inventario/almacenes").catch(()=>[])]);
+      const compuestos=prods.filter(p=>p.esCompuesto);
+      if(!compuestos.length){ toast("Primero define un artículo compuesto (con lista de materiales).","err"); return; }
+      if(!almacenes.length){ toast("Crea un almacén primero.","err"); return; }
+      const prodOpts=compuestos.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join("");
+      const almOpts=almacenes.map(a=>`<option value="${a.id}">${a.codigo} · ${a.nombre}</option>`).join("");
+      abrir("Nueva orden de fabricación",`<label>Artículo a fabricar (compuesto)</label><select id="of_prod" onchange="ofEscandallo()">${prodOpts}</select>
+        <div class="grid2"><div><label>Cantidad</label><input id="of_cant" type="number" step="0.001" value="1" oninput="ofEscandallo()"/></div><div><label>Almacén</label><select id="of_alm">${almOpts}</select></div></div>
+        <div id="of_esc" style="margin-top:12px"></div>`,
+        async()=>{ await api("/produccion/ordenes",{method:"POST",body:JSON.stringify({productoId:val("of_prod"),cantidad:Number(val("of_cant")||0),almacenId:val("of_alm")})}); toast("Orden creada.","ok"); vProduccion(); });
+      ofEscandallo();
+    }
+    async function ofEscandallo(){ const cont=document.getElementById("of_esc"); if(!cont)return; const id=val("of_prod"), cant=Number(val("of_cant")||0);
+      try{ const c=await api(`/productos/${id}/composicion`); const filas=c.componentes.map(x=>`<tr><td>${x.nombre}</td><td class="num">${numCant(x.cantidad*cant)} ${x.unidad}</td></tr>`).join("");
+        cont.innerHTML=`<label>Materiales necesarios</label><table><thead><tr><th>Componente</th><th class="num">Cantidad</th></tr></thead><tbody>${filas}</tbody></table><p class="muted" style="font-size:12px;margin:8px 0 0">Al terminar la orden se consumen del almacén y se da entrada del artículo fabricado.</p>`;
+      }catch(e){ cont.innerHTML=''; } }
+
     // ---- Inventario: almacenes, ubicaciones, movimientos, stock ----
     let _cacheAlm=[], _cacheProdInv=[];
     const nombreProd = id => (_cacheProdInv.find(p=>p.id===id)||{}).nombre || id.slice(0,8);

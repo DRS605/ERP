@@ -23,6 +23,7 @@
     <ProjectReference Include="..\AlxorCore.Contabilidad.Infraestructura\AlxorCore.Contabilidad.Infraestructura.csproj" />
     <ProjectReference Include="..\AlxorCore.Compras.Infraestructura\AlxorCore.Compras.Infraestructura.csproj" />
     <ProjectReference Include="..\AlxorCore.Inventario.Infraestructura\AlxorCore.Inventario.Infraestructura.csproj" />
+    <ProjectReference Include="..\AlxorCore.Produccion.Infraestructura\AlxorCore.Produccion.Infraestructura.csproj" />
     <ProjectReference Include="..\AlxorCore.Tesoreria\AlxorCore.Tesoreria.csproj" />
     <ProjectReference Include="..\AlxorCore.Tesoreria.Infraestructura\AlxorCore.Tesoreria.Infraestructura.csproj" />
     <ProjectReference Include="..\AlxorCore.Documentos\AlxorCore.Documentos.csproj" />
