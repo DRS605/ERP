@@ -1,5 +1,6 @@
 using AlxorCore.Gastos.Aplicacion;
 using AlxorCore.Nucleo.Comun;
+using AlxorCore.Organizacion.Aplicacion.Puertos;
 using AlxorCore.Terceros.Aplicacion;
 
 namespace AlxorCore.Informes.Aplicacion;
@@ -61,11 +62,13 @@ public sealed class GenerarRetencionesIrpf
 
     private readonly IConsultaGastos _gastos;
     private readonly IConsultaProveedores _proveedores;
+    private readonly IConsultaEmpresas _empresas;
 
-    public GenerarRetencionesIrpf(IConsultaGastos gastos, IConsultaProveedores proveedores)
+    public GenerarRetencionesIrpf(IConsultaGastos gastos, IConsultaProveedores proveedores, IConsultaEmpresas empresas)
     {
         _gastos = gastos;
         _proveedores = proveedores;
+        _empresas = empresas;
     }
 
     public async Task<Modelo111Dto> Modelo111Async(Guid empresaId, int anio, int trimestre, CancellationToken ct = default)
@@ -89,6 +92,28 @@ public sealed class GenerarRetencionesIrpf
         var totalRetenciones = Redondeo.Dos(perceptores.ConNif.Concat(perceptores.SinNif).Sum(p => p.Retenciones));
         var numero = perceptores.ConNif.Count + perceptores.SinNif.Count;
         return new Modelo190Dto(anio, numero, totalPercepciones, totalRetenciones, perceptores.ConNif, perceptores.SinNif);
+    }
+
+    /// <summary>
+    /// Genera el fichero telemático oficial del modelo 190 del ejercicio (bytes ISO-8859-1). Devuelve
+    /// null si no hay empresa o no hay ningún perceptor con NIF (sin datos que declarar).
+    /// </summary>
+    public async Task<byte[]?> FicheroModelo190Async(Guid empresaId, int anio, CancellationToken ct = default)
+    {
+        var empresa = await _empresas.ObtenerAsync(empresaId, ct).ConfigureAwait(false);
+        if (empresa is null)
+        {
+            return null;
+        }
+
+        var modelo = await Modelo190Async(empresaId, anio, ct).ConfigureAwait(false);
+        if (modelo.Perceptores.Count == 0)
+        {
+            return null;
+        }
+
+        var declarante = new DeclaranteAeat(empresa.Nif, empresa.RazonSocial);
+        return FicheroModelo190.Generar(declarante, modelo);
     }
 
     /// <summary>Agrupa los gastos con retención del periodo por perceptor, resolviendo NIF y datos del maestro.</summary>

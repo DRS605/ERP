@@ -5,9 +5,10 @@
     <AssemblyName>AlxorCore.Informes</AssemblyName>
   </PropertyGroup>
 
-  <!-- Informes compone lecturas de Facturación, Gastos, Tesorería y Terceros. Solo lectura, sin persistencia. -->
+  <!-- Informes compone lecturas de Organización, Facturación, Gastos, Tesorería y Terceros. Solo lectura, sin persistencia. -->
   <ItemGroup>
     <ProjectReference Include="..\AlxorCore.Nucleo\AlxorCore.Nucleo.csproj" />
+    <ProjectReference Include="..\AlxorCore.Organizacion\AlxorCore.Organizacion.csproj" />
     <ProjectReference Include="..\AlxorCore.Facturacion\AlxorCore.Facturacion.csproj" />
     <ProjectReference Include="..\AlxorCore.Gastos\AlxorCore.Gastos.csproj" />
     <ProjectReference Include="..\AlxorCore.Tesoreria\AlxorCore.Tesoreria.csproj" />

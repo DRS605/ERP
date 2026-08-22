@@ -1596,11 +1596,13 @@
     async function vInformes() {
       view('<div class="muted">Cargando…</div>');
       const anio=new Date().getFullYear();
-      const [libro,resumen,benef,anual,facturas,gastos]=await Promise.all([
+      const [libro,resumen,benef,anual,m111,m190,facturas,gastos]=await Promise.all([
         api(`/informes/libro-iva?tipo=Repercutido&desde=${anio}-01-01&hasta=${anio}-12-31`),
         api(`/informes/resumen-trimestral?anio=${anio}&trimestre=${trimSel}`).catch(()=>null),
         api(`/informes/beneficio?desde=${anio}-01-01&hasta=${anio}-12-31`).catch(()=>null),
         api(`/informes/declaracion-anual?anio=${anio}`).catch(()=>null),
+        api(`/informes/modelo-111?anio=${anio}&trimestre=${trimSel}`).catch(()=>null),
+        api(`/informes/modelo-190?anio=${anio}`).catch(()=>null),
         api("/facturas").catch(()=>[]),
         api("/gastos").catch(()=>[]),
       ]);
@@ -1609,8 +1611,30 @@
       const total=`<tr><td colspan="3" class="right"><strong>Totales</strong></td><td class="num"><strong>${eur(libro.totalBase)}</strong></td><td class="num"><strong>${eur(libro.totalCuota)}</strong></td></tr>`;
       const cuerpo=libro.asientos.length?`<table><thead><tr><th>Fecha</th><th>Documento</th><th>Cliente</th><th class="num">Base</th><th class="num">Cuota IVA</th></tr></thead><tbody>${filas}${total}</tbody></table>`:vacio("informes","Sin movimientos en el periodo","Emite facturas para ver aquí tu libro de IVA repercutido.");
       const panelLibro=panel(`Libro de IVA repercutido · ${anio}`,cuerpo,`<button class="btn small ghost" onclick="descargarCsv()">↓ Exportar CSV (gestoría)</button>`);
-      view(panelGraficos+(benef?panelBeneficio(benef,anio):"")+(benef&&benef.porProducto.length?panelRanking(benef,anio):"")+(resumen?panelResumen(resumen,anio):"")+(anual?panelAnual(anual,anio):"")+panelLibro);
+      view(panelGraficos+(benef?panelBeneficio(benef,anio):"")+(benef&&benef.porProducto.length?panelRanking(benef,anio):"")+(resumen?panelResumen(resumen,anio):"")+((m111||m190)?panelRetenciones(m111,m190,anio):"")+(anual?panelAnual(anual,anio):"")+panelLibro);
     }
+    function panelRetenciones(m111,m190,anio){
+      const fila=(l,v,fuerte)=>`<tr><td class="${fuerte?'':'muted'}">${l}</td><td class="num">${fuerte?'<strong>':''}${eur(v)}${fuerte?'</strong>':''}</td></tr>`;
+      const t111=m111?`<table><tbody>
+        ${fila('Nº de perceptores',m111.numeroPerceptores)}
+        ${fila('Base de las percepciones',m111.basePercepciones)}
+        <tr><td><strong>Retenciones a ingresar</strong> <span class="pill ${m111.totalAIngresar>0.005?'neg':'part'}">${m111.totalAIngresar>0.005?'A ingresar':'Sin retenciones'}</span></td><td class="num"><strong>${eur(m111.totalAIngresar)}</strong></td></tr>
+        </tbody></table>`:'<p class="muted">Sin datos.</p>';
+      const perc=m190?m190.perceptores.map(p=>`<tr><td><strong>${p.nombre}</strong>${p.nif?` <span class="muted">${p.nif}</span>`:''} <span class="pill" style="font-size:11px">Clave ${p.clave}</span></td><td class="num">${eur(p.basePercepciones)}</td><td class="num"><strong>${eur(p.retenciones)}</strong></td></tr>`).join(""):"";
+      const avisos=(m190&&m190.perceptoresSinNif.length)?`<p class="muted" style="font-size:12px;margin:8px 0 0">⚠️ ${m190.perceptoresSinNif.length} perceptor(es) con retención pero <strong>sin NIF</strong> (gasto sin proveedor en la ficha): no pueden incluirse en el fichero oficial. Añádeles la ficha de proveedor con su NIF.</p>`:"";
+      const t190=m190?(m190.perceptores.length?`<table><thead><tr><th>Perceptor</th><th class="num">Percepciones</th><th class="num">Retenciones</th></tr></thead><tbody>${perc}<tr><td class="right"><strong>Total</strong></td><td class="num"><strong>${eur(m190.totalPercepciones)}</strong></td><td class="num"><strong>${eur(m190.totalRetenciones)}</strong></td></tr></tbody></table>${avisos}`:`<p class="muted">Sin retenciones practicadas en ${anio}.</p>${avisos}`):'<p class="muted">Sin datos.</p>';
+      const botonFichero=(m190&&m190.perceptores.length)?`<button class="btn small ghost" onclick="descargarModelo190(${anio})">↓ Fichero oficial 190</button>`:"";
+      const cuerpo=`<div class="grid2">
+        <div><h4 style="margin:0 0 8px">Modelo 111 · Retenciones IRPF <span class="muted" style="font-weight:400;font-size:12.5px">(trimestral)</span></h4>${t111}</div>
+        <div><h4 style="margin:0 0 8px">Modelo 190 · Resumen anual de retenciones</h4>${t190}</div></div>
+        <p class="muted" style="font-size:12px;margin:14px 0 0">Recoge las retenciones de IRPF practicadas a profesionales/proveedores (gastos con retención). El fichero del 190 sigue el diseño de la AEAT; <strong>valídalo con el servicio de predeclaración de la AEAT</strong> antes de presentarlo. Ayuda informativa, no es un envío oficial.</p>`;
+      return panel(`Retenciones de IRPF · ${anio}`,cuerpo,selTrim(anio)+" "+botonFichero);
+    }
+    async function descargarModelo190(anio){
+      try{ const r=await fetch(`/informes/modelo-190/fichero?anio=${anio}`,{headers:{Authorization:"Bearer "+token}});
+        if(!r.ok){ toast("No hay perceptores con NIF para el 190.","err"); return; }
+        const b=await r.blob(); const u=URL.createObjectURL(b); const a=document.createElement("a"); a.href=u; a.download=`modelo-190-${anio}.txt`; a.click(); URL.revokeObjectURL(u);
+      }catch(e){ toast(e.message,"err"); } }
     // Gráficos de Informes (SVG puro, sin dependencias): barras de facturación vs gasto por mes + donut de gastos.
     function graficosHtml(facturas,gastos,anio){
       const mesFact=Array(12).fill(0), mesGasto=Array(12).fill(0);

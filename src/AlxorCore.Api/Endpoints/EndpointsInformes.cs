@@ -36,6 +36,18 @@ public static class EndpointsInformes
             .WithSummary("Declaraciones anuales: modelo 390 (resumen IVA) y modelo 347 (operaciones con terceros).")
             .RequierePermiso(Permisos.InformeLeer);
 
+        informes.MapGet("/modelo-111", Modelo111Async)
+            .WithSummary("Modelo 111 (retenciones de IRPF del trimestre) a partir de los gastos con retención.")
+            .RequierePermiso(Permisos.InformeLeer);
+
+        informes.MapGet("/modelo-190", Modelo190Async)
+            .WithSummary("Modelo 190 (resumen anual de retenciones de IRPF): detalle por perceptor.")
+            .RequierePermiso(Permisos.InformeLeer);
+
+        informes.MapGet("/modelo-190/fichero", Modelo190FicheroAsync)
+            .WithSummary("Genera el fichero telemático (diseño AEAT) del modelo 190.")
+            .RequierePermiso(Permisos.DatosExportar);
+
         informes.MapGet("/beneficio", BeneficioAsync)
             .WithSummary("Beneficio del periodo: margen bruto (venta − compra) y neto (menos gastos).")
             .RequierePermiso(Permisos.InformeLeer);
@@ -114,6 +126,53 @@ public static class EndpointsInformes
 
         var ejercicio = anio ?? DateTime.UtcNow.Year;
         return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, ejercicio, ct).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> Modelo111Async(
+        IContextoEmpresa contexto, GenerarRetencionesIrpf caso, CancellationToken ct, int? anio = null, int trimestre = 1)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        if (trimestre is < 1 or > 4)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("trimestre.invalido", "El trimestre debe estar entre 1 y 4."));
+        }
+
+        var ejercicio = anio ?? DateTime.UtcNow.Year;
+        return Results.Ok(await caso.Modelo111Async(contexto.EmpresaId.Value, ejercicio, trimestre, ct).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> Modelo190Async(
+        IContextoEmpresa contexto, GenerarRetencionesIrpf caso, CancellationToken ct, int? anio = null)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        var ejercicio = anio ?? DateTime.UtcNow.Year;
+        return Results.Ok(await caso.Modelo190Async(contexto.EmpresaId.Value, ejercicio, ct).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> Modelo190FicheroAsync(
+        IContextoEmpresa contexto, GenerarRetencionesIrpf caso, CancellationToken ct, int? anio = null)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        var ejercicio = anio ?? DateTime.UtcNow.Year;
+        var bytes = await caso.FicheroModelo190Async(contexto.EmpresaId.Value, ejercicio, ct).ConfigureAwait(false);
+        if (bytes is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("modelo190.sin_datos", "No hay perceptores con NIF para declarar en el modelo 190 de ese ejercicio."));
+        }
+
+        return Results.File(bytes, "text/plain", $"modelo-190-{ejercicio}.txt");
     }
 
     private static async Task<IResult> BeneficioAsync(
