@@ -105,6 +105,24 @@ public static class PlanBasico
         ("629", "Otros servicios"),
         ("700", "Ventas de mercaderías"),
         ("705", "Prestaciones de servicios"),
+
+        // Inmovilizado material (activo no corriente) y sus cuentas asociadas.
+        ("211", "Construcciones"),
+        ("213", "Maquinaria"),
+        ("216", "Mobiliario"),
+        ("217", "Equipos para procesos de información"),
+        ("218", "Elementos de transporte"),
+        ("280", "Amortización acumulada del inmovilizado intangible"),
+        ("281", "Amortización acumulada del inmovilizado material"),
+        ("680", "Amortización del inmovilizado intangible"),
+        ("681", "Amortización del inmovilizado material"),
+        ("671", "Pérdidas procedentes del inmovilizado material"),
+        ("771", "Beneficios procedentes del inmovilizado material"),
+
+        // Impuesto sobre beneficios diferido (diferencias temporarias).
+        ("4740", "Activos por diferencias temporarias deducibles"),
+        ("479", "Pasivos por diferencias temporarias imponibles"),
+        ("6301", "Impuesto diferido"),
     };
 }
 

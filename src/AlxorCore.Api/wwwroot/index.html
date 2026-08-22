@@ -408,6 +408,7 @@
       tpv:'<svg viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 12h10"/></svg>',
       ajustes:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 0 1-4 0v-.1A1.7 1.7 0 0 0 7 19.4a1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9H1a2 2 0 0 1 0-4h.1A1.7 1.7 0 0 0 2.6 7a1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 9 1.6V1a2 2 0 0 1 4 0v.1A1.7 1.7 0 0 0 17 2.6a1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0 1.2 2.9H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>'
     };
+    ICON.inmovilizado = '<svg viewBox="0 0 24 24"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-5h6v5"/><path d="M9 10h.01M15 10h.01"/></svg>';
     ICON.ventas = '<svg viewBox="0 0 24 24"><path d="M3 6h18l-1.5 9H4.5z"/><circle cx="9" cy="20" r="1.4"/><circle cx="17" cy="20" r="1.4"/><path d="M3 6L2 3"/></svg>';
     ICON.compras = '<svg viewBox="0 0 24 24"><path d="M6 7V6a3 3 0 0 1 6 0v1"/><path d="M4 7h16l-1 13H5z"/></svg>';
     ICON.articulos = '<svg viewBox="0 0 24 24"><path d="M4 5v14M8 5v14M12 5v14M16 5v14M20 5v14"/></svg>';
@@ -427,9 +428,10 @@
       { t:"item", k:"prevision", l:"Previsión de tesorería" },
       { t:"item", k:"informes", l:"Informes" },
       { t:"item", k:"contabilidad", l:"Contabilidad" },
+      { t:"item", k:"inmovilizado", l:"Inmovilizado" },
       { t:"item", k:"ajustes", l:"Ajustes" },
     ];
-    const TITULOS = { inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", contabilidad:"Contabilidad", ajustes:"Ajustes" };
+    const TITULOS = { inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", ajustes:"Ajustes" };
     function renderNav() {
       return NAV.map(n => {
         if (n.t === "item") return `<a class="navitem" data-k="${n.k}" onclick="ir('${n.k}')">${ICON[n.k]}<span>${n.l}</span></a>`;
@@ -525,7 +527,7 @@
     function ir(k){ closeMenu(); if(vista==="tpv" && k!=="tpv" && typeof tpvParar==="function") tpvParar(); vista=k;
       document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("active",a.dataset.k===k));
       document.getElementById("viewTitle").textContent=TITULOS[k]||k;
-      ({inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,clientes:vClientes,productos:vProductos,gastos:vGastos,solicitudes:vSolicitudes,pedidos:vPedidos,inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,contabilidad:vContabilidad,ajustes:vAjustes}[k])();
+      ({inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,clientes:vClientes,productos:vProductos,gastos:vGastos,solicitudes:vSolicitudes,pedidos:vPedidos,inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,contabilidad:vContabilidad,inmovilizado:vInmovilizado,ajustes:vAjustes}[k])();
     }
     const view = h => { document.getElementById("view").innerHTML=h; try{ mejorarTablas(); }catch(e){} };
 
@@ -1619,6 +1621,144 @@
           await api("/contabilidad/asientos",{method:"POST",body:JSON.stringify({fecha:val("asi_fecha"),concepto:val("asi_concepto"),lineas})});
           toast("Asiento registrado.","ok"); vContabilidad();
         });
+    }
+
+    // ---- Inmovilizado y amortizaciones (contable + fiscal, impuesto diferido, baja, enajenación) ----
+    const estadoPillInmo = e => `<span class="pill ${e==="Activo"?"ok":(e==="Enajenado"?"part":"wait")}">${e}</span>`;
+    async function vInmovilizado(){
+      view('<div class="muted">Cargando…</div>');
+      const anio=new Date().getFullYear();
+      const lista=await api("/contabilidad/inmovilizado").catch(()=>[]);
+      const acciones=i=>{
+        const b=[`<button class="btn small ghost" onclick="verCuadro('${i.id}')">Cuadro</button>`];
+        if(i.estado==="Activo"){
+          b.push(`<button class="btn small ghost" onclick="modalEnajenar('${i.id}','${i.codigo}')">Vender</button>`);
+          b.push(`<button class="btn small ghost" onclick="modalBaja('${i.id}','${i.codigo}')" title="Dar de baja">Baja</button>`);
+        }
+        return b.join(" ");
+      };
+      const filas=lista.map(i=>`<tr>
+        <td><strong>${i.codigo}</strong><div class="muted" style="font-size:12px">${i.descripcion}</div></td>
+        <td class="muted">${i.metodoContable} ${i.vidaUtilContable}a / fiscal ${i.metodoFiscal} ${i.vidaUtilFiscal}a</td>
+        <td class="num">${eur(i.valorAdquisicion)}</td>
+        <td class="num">${eur(i.amortizacionAcumulada)}</td>
+        <td class="num"><strong>${eur(i.valorNetoContable)}</strong></td>
+        <td class="right">${estadoPillInmo(i.estado)}</td>
+        <td class="right" style="white-space:nowrap">${acciones(i)}</td></tr>`).join("");
+      const tabla=lista.length
+        ? `<table><thead><tr><th>Inmovilizado</th><th>Amortización</th><th class="num">Adquisición</th><th class="num">Amort. acum.</th><th class="num">Valor neto</th><th class="right">Estado</th><th class="right">Acciones</th></tr></thead><tbody>${filas}</tbody></table>`
+        : vacio("inmovilizado","Sin inmovilizados","Da de alta tus activos (maquinaria, mobiliario, vehículos…) con su amortización contable y fiscal.",`<button class="btn small" onclick="modalInmovilizado()">+ Nuevo inmovilizado</button>`);
+      const panelAmortizar=panel("Amortización del ejercicio",
+        `<p class="muted" style="margin:0 0 10px">Genera la dotación contable (68x → 28x) de todos los activos y, por la diferencia con la amortización fiscal, el asiento de <strong>impuesto diferido</strong> (4740/479 contra 6301). Es idempotente: no repite periodos ya contabilizados.</p>
+         <div class="grid2" style="align-items:end">
+           <div><label>Ejercicio</label><input id="am_anio" type="number" value="${anio}"/></div>
+           <div><label>Tipo Impuesto de Sociedades (%)</label><input id="am_tipo" type="number" step="0.01" value="25"/></div>
+         </div>
+         <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-weight:600;font-size:13px">
+           <input type="checkbox" id="am_dif" checked style="width:auto;margin:0"/> Generar asientos de impuesto diferido</label>`,
+        `<button class="btn small" onclick="amortizarEjercicio()">Generar amortización</button>`);
+      view(panel("Inmovilizado",tabla,`<button class="btn small" onclick="modalInmovilizado()">+ Nuevo inmovilizado</button>`)
+        +panelAmortizar);
+    }
+    function modalInmovilizado(){
+      const hoy=new Date().toISOString().slice(0,10);
+      const metodos='<option value="Lineal">Lineal</option><option value="Degresivo">Degresivo (% sobre saldo)</option><option value="Digitos">Suma de dígitos</option>';
+      abrir("Nuevo inmovilizado",`
+        <div class="grid2">
+          <div><label>Código</label><input id="in_cod" placeholder="Ej. FURG-01"/></div>
+          <div><label>Descripción</label><input id="in_desc" placeholder="Ej. Furgoneta de reparto"/></div>
+        </div>
+        <div class="grid2" style="margin-top:10px">
+          <div><label>Fecha de adquisición</label><input id="in_fadq" type="date" value="${hoy}"/></div>
+          <div><label>Puesta en funcionamiento</label><input id="in_falta" type="date" value="${hoy}"/></div>
+        </div>
+        <div class="grid2" style="margin-top:10px">
+          <div><label>Valor de adquisición (€)</label><input id="in_valor" type="number" step="0.01" placeholder="12000"/></div>
+          <div><label>Valor residual (€)</label><input id="in_residual" type="number" step="0.01" value="0"/></div>
+        </div>
+        <div class="grid3" style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+          <div><label>Cuenta activo</label><input id="in_cta" placeholder="213"/></div>
+          <div><label>Cuenta amort. acum.</label><input id="in_ctaam" value="281"/></div>
+          <div><label>Cuenta dotación</label><input id="in_ctado" value="681"/></div>
+        </div>
+        <label style="margin-top:12px">Periodicidad de la dotación</label>
+        <select id="in_period"><option value="Anual">Anual (un asiento al 31/12)</option><option value="Mensual">Mensual (un asiento por mes)</option></select>
+        <div class="grid2" style="margin-top:14px">
+          <div style="border:1px solid var(--line);border-radius:12px;padding:12px">
+            <strong>Amortización contable</strong>
+            <label style="margin-top:8px">Método</label><select id="in_mc">${metodos}</select>
+            <div class="grid2" style="margin-top:8px"><div><label>Vida útil (años)</label><input id="in_vc" type="number" value="5"/></div>
+            <div><label>% degresivo</label><input id="in_pc" type="number" step="0.01" value="0"/></div></div>
+          </div>
+          <div style="border:1px solid var(--line);border-radius:12px;padding:12px">
+            <strong>Amortización fiscal</strong>
+            <label style="margin-top:8px">Método</label><select id="in_mf">${metodos}</select>
+            <div class="grid2" style="margin-top:8px"><div><label>Vida útil (años)</label><input id="in_vf" type="number" value="5"/></div>
+            <div><label>% degresivo</label><input id="in_pf" type="number" step="0.01" value="0"/></div></div>
+          </div>
+        </div>
+        <p class="muted" style="font-size:12px;margin:10px 0 0">La amortización fiscal suele ser más acelerada; la diferencia genera el impuesto diferido. El % degresivo solo se usa con el método degresivo.</p>`,
+        async()=>{
+          const cuerpo={
+            codigo:val("in_cod"), descripcion:val("in_desc"),
+            cuentaActivo:val("in_cta"), cuentaAmortizacion:val("in_ctaam")||"281", cuentaDotacion:val("in_ctado")||"681",
+            fechaAdquisicion:val("in_fadq"), fechaAlta:val("in_falta"),
+            valorAdquisicion:Number(val("in_valor")||0), valorResidual:Number(val("in_residual")||0),
+            periodicidad:val("in_period"),
+            metodoContable:val("in_mc"), vidaUtilContable:Number(val("in_vc")||0), porcentajeDegresivoContable:Number(val("in_pc")||0),
+            metodoFiscal:val("in_mf"), vidaUtilFiscal:Number(val("in_vf")||0), porcentajeDegresivoFiscal:Number(val("in_pf")||0),
+          };
+          await api("/contabilidad/inmovilizado",{method:"POST",body:JSON.stringify(cuerpo)});
+          toast("Inmovilizado dado de alta.","ok"); vInmovilizado();
+        });
+    }
+    async function verCuadro(id){
+      const c=await api("/contabilidad/inmovilizado/"+id+"/cuadro");
+      const filas=c.filas.map(f=>`<tr><td><strong>${f.ejercicio}</strong></td><td class="num">${eur(f.contable)}</td><td class="num">${eur(f.fiscal)}</td><td class="num" style="color:${f.diferenciaTemporaria>=0?'var(--ok,#0a7d3b)':'#c0392b'}">${eur(f.diferenciaTemporaria)}</td><td class="num">${f.contabilizado>0?eur(f.contabilizado):'<span class="muted">—</span>'}</td></tr>`).join("");
+      abrir("Cuadro de amortización · "+c.codigo,
+        `<p class="muted" style="margin:0 0 12px">${c.descripcion} · Base amortizable <strong>${eur(c.baseAmortizable)}</strong> · Amortización acumulada <strong>${eur(c.amortizacionAcumulada)}</strong></p>
+         <table><thead><tr><th>Ejercicio</th><th class="num">Contable</th><th class="num">Fiscal</th><th class="num">Diferencia</th><th class="num">Contabilizado</th></tr></thead><tbody>${filas}</tbody></table>`,
+        null);
+      document.getElementById("modalOk").style.display="none";
+    }
+    function modalBaja(id,codigo){
+      const hoy=new Date().toISOString().slice(0,10);
+      abrir("Dar de baja · "+codigo,
+        `<p class="muted">Baja sin contraprestación: el valor neto contable pendiente se lleva a pérdidas (671) y se cancela la amortización acumulada.</p>
+         <label>Fecha de baja</label><input id="ba_fecha" type="date" value="${hoy}"/>`,
+        async()=>{
+          await api("/contabilidad/inmovilizado/"+id+"/baja",{method:"POST",body:JSON.stringify({fecha:val("ba_fecha")})});
+          toast("Inmovilizado dado de baja.","ok"); vInmovilizado();
+        });
+    }
+    function modalEnajenar(id,codigo){
+      const hoy=new Date().toISOString().slice(0,10);
+      abrir("Vender (enajenar) · "+codigo,
+        `<p class="muted">El resultado (precio − valor neto) se registra como beneficio (771) o pérdida (671).</p>
+         <div class="grid2">
+           <div><label>Fecha</label><input id="en_fecha" type="date" value="${hoy}"/></div>
+           <div><label>Precio de venta (€)</label><input id="en_precio" type="number" step="0.01" placeholder="10000"/></div>
+         </div>
+         <div class="grid2" style="margin-top:10px">
+           <div><label>IVA repercutido (%)</label><input id="en_iva" type="number" step="0.01" value="21"/></div>
+           <div><label>Cuenta de cobro</label><input id="en_cta" value="572"/></div>
+         </div>`,
+        async()=>{
+          await api("/contabilidad/inmovilizado/"+id+"/enajenar",{method:"POST",body:JSON.stringify({
+            fecha:val("en_fecha"), valorEnajenacion:Number(val("en_precio")||0),
+            porcentajeIva:Number(val("en_iva")||0), cuentaCobro:val("en_cta")||"572"})});
+          toast("Inmovilizado enajenado.","ok"); vInmovilizado();
+        });
+    }
+    async function amortizarEjercicio(){
+      const anio=Number(val("am_anio")||new Date().getFullYear());
+      const tipo=Number(val("am_tipo")||25)/100;
+      const dif=document.getElementById("am_dif").checked;
+      try{
+        const r=await api(`/contabilidad/inmovilizado/amortizar?ejercicio=${anio}&tipoImpuesto=${tipo}&impuestoDiferido=${dif}`,{method:"POST"});
+        toast(r.asientosGenerados+" asiento(s) · dotado "+eur(r.totalDotado)+(r.totalImpuestoDiferido>0?(" · impuesto diferido "+eur(r.totalImpuestoDiferido)):""),"ok");
+        vInmovilizado();
+      }catch(e){ toast(e.message,"err"); }
     }
 
     // ---- Recepción de facturas de proveedor (bandeja + contabilización) ----

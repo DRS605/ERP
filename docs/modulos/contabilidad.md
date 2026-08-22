@@ -201,7 +201,12 @@ informes).
   el **cierre** genera regularización + cierre en el ejercicio y apertura en el siguiente; y no se puede
   cerrar dos veces ni asentar en un ejercicio ya cerrado.
 
+## Inmovilizado y amortizaciones
+
+La amortización del inmovilizado (contable y fiscal, impuesto diferido, baja y enajenación) es un
+submódulo de Contabilidad con su propia documentación: ver [`inmovilizado.md`](inmovilizado.md).
+
 ## Futuro (documentado)
 
-Amortizaciones automáticas, modelo oficial de PyG y balance con todos los epígrafes normalizados del
-PGC (activo/pasivo/PN abreviado y normal), y numeración de asientos 100 % sin huecos ante fallos.
+Modelo oficial de PyG y balance con todos los epígrafes normalizados del PGC (activo/pasivo/PN
+abreviado y normal), y numeración de asientos 100 % sin huecos ante fallos.

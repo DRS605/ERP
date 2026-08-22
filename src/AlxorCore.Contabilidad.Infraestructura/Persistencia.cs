@@ -30,6 +30,8 @@ public sealed class ContabilidadDbContext : DbContextEmpresaBase, IUnidadDeTraba
 
     public DbSet<ReglaContabilizacion> ReglasContabilizacion => Set<ReglaContabilizacion>();
 
+    public DbSet<Inmovilizado> Inmovilizados => Set<Inmovilizado>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Esquema);

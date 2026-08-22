@@ -86,7 +86,14 @@ public sealed class GenerarBalanceSituacion
             }
 
             var masa = ClasificarMasa(s.Codigo, s.Grupo, neto);
-            var linea = new LineaInformeDto(s.Codigo, s.Nombre, Math.Abs(neto));
+            var esActivo = masa is Masa.ActivoNoCorriente or Masa.ActivoCorriente;
+
+            // Importe con signo: el activo se muestra por su saldo deudor (neto) —así una cuenta
+            // correctora como la amortización acumulada (28x, acreedora) minora el activo— y el
+            // patrimonio neto y el pasivo por su saldo acreedor (−neto). Con este convenio el balance
+            // cuadra por construcción (Σ activo = Σ pn+pasivo + resultado).
+            var importe = esActivo ? neto : -neto;
+            var linea = new LineaInformeDto(s.Codigo, s.Nombre, importe);
             switch (masa)
             {
                 case Masa.ActivoNoCorriente: activoNoCorriente.Add(linea); break;

@@ -167,6 +167,7 @@ app.MapearFacturacion();
 app.MapearGastos();
 app.MapearRecepcion();
 app.MapearContabilidad();
+app.MapearInmovilizado();
 app.MapearCompras();
 app.MapearInventario();
 app.MapearProduccion();
