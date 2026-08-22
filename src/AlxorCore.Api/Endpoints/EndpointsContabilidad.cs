@@ -103,6 +103,10 @@ public static class EndpointsContabilidad
             .WithSummary("Subcuenta contable asignada a un tercero (o la raíz común en modo Simple).")
             .RequierePermiso(Permisos.ContabilidadLeer);
 
+        grupo.MapGet("/subcuentas", SubcuentasAsync)
+            .WithSummary("Subcuentas individuales asignadas a los terceros de un tipo (para los listados).")
+            .RequierePermiso(Permisos.ContabilidadLeer);
+
         grupo.MapPut("/subcuenta", AsignarSubcuentaAsync)
             .WithSummary("Asigna o edita la subcuenta contable de un tercero (autonumerada o manual).")
             .RequierePermiso(Permisos.ContabilidadGestionar);
@@ -311,6 +315,16 @@ public static class EndpointsContabilidad
         }
 
         return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, tipo, terceroId, ct).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> SubcuentasAsync(TipoTerceroContable tipo, IContextoEmpresa contexto, ListarSubcuentasTercero caso, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, tipo, ct).ConfigureAwait(false));
     }
 
     private static async Task<IResult> AsignarSubcuentaAsync(AsignarSubcuentaPeticion peticion, IContextoEmpresa contexto, AsignarSubcuentaTercero caso, CancellationToken ct)

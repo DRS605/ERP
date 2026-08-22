@@ -135,6 +135,20 @@ public sealed class ObtenerSiguienteSubcuenta
     }
 }
 
+/// <summary>Lista las subcuentas individuales de un tipo de tercero (para enriquecer los listados).</summary>
+public sealed class ListarSubcuentasTercero
+{
+    private readonly IRepositorioCuentas _cuentas;
+
+    public ListarSubcuentasTercero(IRepositorioCuentas cuentas) => _cuentas = cuentas;
+
+    public async Task<IReadOnlyList<SubcuentaTerceroDto>> EjecutarAsync(Guid empresaId, TipoTerceroContable tipo, CancellationToken ct = default)
+    {
+        var dict = await _cuentas.SubcuentasPorTipoAsync(empresaId, tipo.ToString(), ct).ConfigureAwait(false);
+        return dict.Select(kv => new SubcuentaTerceroDto(tipo.ToString(), kv.Key, kv.Value, true)).ToList();
+    }
+}
+
 /// <summary>Obtiene la subcuenta asignada a un tercero concreto (o la raíz común en modo Simple).</summary>
 public sealed class ObtenerSubcuentaTercero
 {

@@ -233,6 +233,7 @@ tiene asignada; si no, la cuenta raíz genérica.
 |---|---|---|---|
 | `GET` | `/contabilidad/subcuenta-siguiente?tipo=Cliente\|Proveedor\|Trabajador` | `contabilidad.leer` | Sugiere el código siguiente (o la raíz en modo Simple). |
 | `GET` | `/contabilidad/subcuenta?tipo=&terceroId=` | `contabilidad.leer` | Subcuenta asignada a un tercero. |
+| `GET` | `/contabilidad/subcuentas?tipo=` | `contabilidad.leer` | Subcuentas asignadas de un tipo (para los listados). |
 | `PUT` | `/contabilidad/subcuenta` | `contabilidad.gestionar` | Asigna/edita la subcuenta de un tercero (autonumerada o manual). |
 | `PUT` | `/contabilidad/longitud-subcuenta` | `contabilidad.gestionar` | Cambia la longitud de subcuenta de la empresa. |
 

@@ -222,6 +222,14 @@ internal sealed class RepositorioCuentas : IRepositorioCuentas
 
     public Task<Cuenta?> ObtenerPorCodigoAsync(Guid empresaId, string codigo, CancellationToken ct = default) =>
         _contexto.Cuentas.FirstOrDefaultAsync(c => c.EmpresaId == empresaId && c.Codigo == codigo, ct);
+
+    public async Task<IReadOnlyDictionary<Guid, string>> SubcuentasPorTipoAsync(Guid empresaId, string tipoTercero, CancellationToken ct = default)
+    {
+        var filas = await _contexto.Cuentas.AsNoTracking()
+            .Where(c => c.EmpresaId == empresaId && c.TipoTercero == tipoTercero && c.TerceroId != null)
+            .Select(c => new { c.TerceroId, c.Codigo }).ToListAsync(ct).ConfigureAwait(false);
+        return filas.ToDictionary(f => f.TerceroId!.Value, f => f.Codigo);
+    }
 }
 
 internal sealed class RepositorioAsientos : IRepositorioAsientos

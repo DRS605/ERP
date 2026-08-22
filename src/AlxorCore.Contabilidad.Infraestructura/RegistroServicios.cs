@@ -56,6 +56,7 @@ public static class RegistroServicios
         // Subcuentas de tercero (código contable siguiente para clientes, proveedores y trabajadores).
         servicios.AddScoped<ObtenerSiguienteSubcuenta>();
         servicios.AddScoped<ObtenerSubcuentaTercero>();
+        servicios.AddScoped<ListarSubcuentasTercero>();
         servicios.AddScoped<AsignarSubcuentaTercero>();
         servicios.AddScoped<CambiarLongitudSubcuenta>();
         servicios.AddScoped<GenerarAsientoCompra>();

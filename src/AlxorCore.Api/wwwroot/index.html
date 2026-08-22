@@ -1049,20 +1049,22 @@
 
     async function vClientes() {
       view('<div class="muted">Cargando…</div>');
-      const cs=await api("/clientes"); _cacheCli=cs;
+      const [cs,subs]=await Promise.all([api("/clientes"),api("/contabilidad/subcuentas?tipo=Cliente").catch(()=>[])]); _cacheCli=cs;
+      const mapa={}; (subs||[]).forEach(s=>mapa[s.terceroId]=s.cuentaCodigo);
       const ini = n => `<span class="avatar mini">${(n||'?').slice(0,1).toUpperCase()}</span>`;
-      const filas=cs.map(c=>`<tr><td>${ini(c.nombre)}<strong>${c.nombre}</strong></td><td class="muted">${c.nifFiscal||"—"}</td><td class="muted">${c.email||"—"}</td><td class="num">${c.porcentajeIrpfDefecto>0?c.porcentajeIrpfDefecto+"%":"—"}</td><td class="right"><button class="btn small secondary" onclick="editarCliente('${c.id}')">Editar</button></td></tr>`).join("");
-      const cuerpo=cs.length?`<table><thead><tr><th>Nombre</th><th>NIF</th><th>Email</th><th class="num">IRPF</th><th></th></tr></thead><tbody>${filas}</tbody></table>`:vacio("clientes","Sin clientes todavía","Añade tu primer cliente o impórtalos desde un CSV.",`<button class="btn small" onclick="modalCliente()">+ Nuevo cliente</button>`);
+      const filas=cs.map(c=>`<tr><td>${ini(c.nombre)}<strong>${c.nombre}</strong></td><td class="muted">${c.nifFiscal||"—"}</td><td class="muted">${c.email||"—"}</td><td class="num">${c.porcentajeIrpfDefecto>0?c.porcentajeIrpfDefecto+"%":"—"}</td><td class="muted">${mapa[c.id]||"—"}</td><td class="right"><button class="btn small secondary" onclick="editarCliente('${c.id}')">Editar</button></td></tr>`).join("");
+      const cuerpo=cs.length?`<table><thead><tr><th>Nombre</th><th>NIF</th><th>Email</th><th class="num">IRPF</th><th>Cuenta</th><th></th></tr></thead><tbody>${filas}</tbody></table>`:vacio("clientes","Sin clientes todavía","Añade tu primer cliente o impórtalos desde un CSV.",`<button class="btn small" onclick="modalCliente()">+ Nuevo cliente</button>`);
       const acc=`<div style="display:flex;gap:10px"><button class="btn small ghost" onclick="modalImportar('clientes')">↥ Importar CSV</button><button class="btn small" onclick="modalCliente()">+ Nuevo cliente</button></div>`;
       view(panel("Clientes",cuerpo,acc));
     }
     async function vProveedores() {
       view('<div class="muted">Cargando…</div>');
-      const ps=await api("/proveedores"); _cacheProv=ps;
+      const [ps,subs]=await Promise.all([api("/proveedores"),api("/contabilidad/subcuentas?tipo=Proveedor").catch(()=>[])]); _cacheProv=ps;
+      const mapa={}; (subs||[]).forEach(s=>mapa[s.terceroId]=s.cuentaCodigo);
       const ini = n => `<span class="avatar mini">${(n||'?').slice(0,1).toUpperCase()}</span>`;
       const pago=c=>({NoIndicada:"—",Transferencia:"Transferencia",Domiciliacion:"Domiciliación",Efectivo:"Efectivo",Tarjeta:"Tarjeta",Pagare:"Pagaré",Confirming:"Confirming",Otro:"Otro"}[c]||"—");
-      const filas=ps.map(p=>`<tr><td>${ini(p.nombre)}<strong>${p.nombre}</strong></td><td class="muted">${p.nifFiscal||"—"}</td><td class="muted">${pago(p.formaPago)}</td><td class="muted">${p.email||"—"}</td><td class="num">${p.porcentajeIrpfDefecto>0?p.porcentajeIrpfDefecto+"%":"—"}</td><td class="right"><button class="btn small secondary" onclick="editarProveedor('${p.id}')">Editar</button></td></tr>`).join("");
-      const cuerpo=ps.length?`<table><thead><tr><th>Nombre</th><th>NIF</th><th>Forma de pago</th><th>Email</th><th class="num">IRPF</th><th></th></tr></thead><tbody>${filas}</tbody></table>`:vacio("proveedores","Sin proveedores todavía","Da de alta a tus proveedores para asociarlos a tus gastos.",`<button class="btn small" onclick="modalProveedor()">+ Nuevo proveedor</button>`);
+      const filas=ps.map(p=>`<tr><td>${ini(p.nombre)}<strong>${p.nombre}</strong></td><td class="muted">${p.nifFiscal||"—"}</td><td class="muted">${pago(p.formaPago)}</td><td class="muted">${p.email||"—"}</td><td class="num">${p.porcentajeIrpfDefecto>0?p.porcentajeIrpfDefecto+"%":"—"}</td><td class="muted">${mapa[p.id]||"—"}</td><td class="right"><button class="btn small secondary" onclick="editarProveedor('${p.id}')">Editar</button></td></tr>`).join("");
+      const cuerpo=ps.length?`<table><thead><tr><th>Nombre</th><th>NIF</th><th>Forma de pago</th><th>Email</th><th class="num">IRPF</th><th>Cuenta</th><th></th></tr></thead><tbody>${filas}</tbody></table>`:vacio("proveedores","Sin proveedores todavía","Da de alta a tus proveedores para asociarlos a tus gastos.",`<button class="btn small" onclick="modalProveedor()">+ Nuevo proveedor</button>`);
       view(panel("Proveedores",cuerpo,`<button class="btn small" onclick="modalProveedor()">+ Nuevo proveedor</button>`));
     }
     async function vProductos() {
@@ -1151,10 +1153,11 @@
     let _cachePersonal=[];
     async function vPersonal(){
       view('<div class="muted">Cargando…</div>');
-      const ps=await api("/personal"); _cachePersonal=ps;
+      const [ps,subs]=await Promise.all([api("/personal"),api("/contabilidad/subcuentas?tipo=Trabajador").catch(()=>[])]); _cachePersonal=ps;
+      const mapa={}; (subs||[]).forEach(s=>mapa[s.terceroId]=s.cuentaCodigo);
       const ini = n => `<span class="avatar mini">${(n||'?').slice(0,1).toUpperCase()}</span>`;
-      const filas=ps.map(p=>`<tr><td>${ini(p.nombre)}<strong>${p.nombre}</strong></td><td class="muted">${p.puesto||"—"}</td><td class="num">${eur(p.tarifaHora)}/h</td><td class="right"><button class="btn small secondary" onclick="editarPersona('${p.id}')">Editar</button></td></tr>`).join("");
-      const cuerpo=ps.length?`<table><thead><tr><th>Nombre</th><th>Puesto</th><th class="num">Tarifa</th><th></th></tr></thead><tbody>${filas}</tbody></table>`
+      const filas=ps.map(p=>`<tr><td>${ini(p.nombre)}<strong>${p.nombre}</strong></td><td class="muted">${p.puesto||"—"}</td><td class="num">${eur(p.tarifaHora)}/h</td><td class="muted">${mapa[p.id]||"—"}</td><td class="right"><button class="btn small secondary" onclick="editarPersona('${p.id}')">Editar</button></td></tr>`).join("");
+      const cuerpo=ps.length?`<table><thead><tr><th>Nombre</th><th>Puesto</th><th class="num">Tarifa</th><th>Cuenta</th><th></th></tr></thead><tbody>${filas}</tbody></table>`
         :vacio("personal","Sin personas todavía","Da de alta a tu equipo con su tarifa por hora para poder imputar mano de obra a proyectos y partes de producción.",`<button class="btn small" onclick="modalPersona()">+ Nueva persona</button>`);
       view(panel("Personal",cuerpo,`<button class="btn small" onclick="modalPersona()">+ Nueva persona</button>`));
     }

@@ -47,6 +47,9 @@ public interface IRepositorioCuentas
 
     /// <summary>Cuenta por su código (con seguimiento). Null si no existe.</summary>
     Task<Cuenta?> ObtenerPorCodigoAsync(Guid empresaId, string codigo, CancellationToken ct = default);
+
+    /// <summary>Subcuentas individuales de un tipo de tercero: tercero_id → código de cuenta.</summary>
+    Task<IReadOnlyDictionary<Guid, string>> SubcuentasPorTipoAsync(Guid empresaId, string tipoTercero, CancellationToken ct = default);
 }
 
 public interface IRepositorioAsientos

@@ -60,6 +60,25 @@ public sealed class SubcuentasTercerosEndpointsTests : IClassFixture<FabricaApiP
     }
 
     [Fact]
+    public async Task El_listado_de_subcuentas_devuelve_las_asignadas_de_un_tipo()
+    {
+        var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+        await ModoAsync(cliente, "Completo");
+        var t1 = Guid.NewGuid();
+        var t2 = Guid.NewGuid();
+        await cliente.PutAsJsonAsync("/contabilidad/subcuenta", new { Tipo = "Cliente", TerceroId = t1, Nombre = "Uno" });
+        await cliente.PutAsJsonAsync("/contabilidad/subcuenta", new { Tipo = "Cliente", TerceroId = t2, Nombre = "Dos" });
+        // Un proveedor no debe aparecer en el listado de clientes.
+        await cliente.PutAsJsonAsync("/contabilidad/subcuenta", new { Tipo = "Proveedor", TerceroId = Guid.NewGuid(), Nombre = "Prov" });
+
+        var lista = await cliente.GetFromJsonAsync<List<SubcuentaResp>>("/contabilidad/subcuentas?tipo=Cliente");
+        lista!.Should().HaveCount(2);
+        lista.Should().Contain(s => s.TerceroId == t1 && s.CuentaCodigo == "43000001");
+        lista.Should().Contain(s => s.TerceroId == t2 && s.CuentaCodigo == "43000002");
+        lista.Should().OnlyContain(s => s.CuentaCodigo.StartsWith("430"));
+    }
+
+    [Fact]
     public async Task Se_puede_indicar_una_cuenta_manual_que_no_empieza_por_la_raiz()
     {
         var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);
