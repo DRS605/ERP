@@ -40,6 +40,7 @@ public static class RegistroServicios
         servicios.AddScoped<BalanceSumasYSaldos>();
         servicios.AddScoped<GenerarPerdidasGanancias>();
         servicios.AddScoped<GenerarBalanceSituacion>();
+        servicios.AddScoped<GenerarCuentasAnuales>();
         servicios.AddScoped<CerrarEjercicio>();
 
         // Inmovilizado y amortizaciones (contable + fiscal, impuesto diferido, baja y enajenación).

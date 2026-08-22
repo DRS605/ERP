@@ -237,6 +237,22 @@ tiene asignada; si no, la cuenta raíz genérica.
 | `PUT` | `/contabilidad/subcuenta` | `contabilidad.gestionar` | Asigna/edita la subcuenta de un tercero (autonumerada o manual). |
 | `PUT` | `/contabilidad/longitud-subcuenta` | `contabilidad.gestionar` | Cambia la longitud de subcuenta de la empresa. |
 
+## Cuentas Anuales y modelo 200 (Impuesto de Sociedades)
+
+A partir de los mismos saldos contables se generan (aproximación PGC-Pymes abreviado, mejor esfuerzo a
+validar con la gestoría):
+
+- **Cuentas Anuales** (`GET /contabilidad/cuentas-anuales?ejercicio=`): balance de situación
+  normalizado por masas y epígrafes (activo no corriente/corriente; patrimonio neto, pasivo no
+  corriente/corriente) y cuenta de PyG normalizada con subtotales (resultado de explotación,
+  financiero, antes de impuestos y del ejercicio). El balance cuadra por construcción.
+- **Modelo 200 / liquidación del IS** (`GET /contabilidad/modelo-200?ejercicio=&tipo=&ajustesAumentos=&ajustesDisminuciones=&deducciones=&retenciones=`):
+  resultado contable antes de impuestos (ingresos del grupo 7 − gastos del grupo 6 salvo el 630),
+  base imponible (± ajustes extracontables), cuota íntegra al tipo indicado (25 % por defecto), cuota
+  líquida (− deducciones) y cuota diferencial (− retenciones y pagos a cuenta; las retenciones se
+  toman del saldo deudor de la 473 si no se indican). No es el modelo 200 oficial completo con todas
+  sus casillas: es la liquidación calculada desde la contabilidad.
+
 ## Inmovilizado y amortizaciones
 
 La amortización del inmovilizado (contable y fiscal, impuesto diferido, baja y enajenación) es un

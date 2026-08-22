@@ -59,6 +59,14 @@ public static class EndpointsContabilidad
             .WithSummary("Balance de situación clasificado por masas del ejercicio.")
             .RequierePermiso(Permisos.ContabilidadLeer);
 
+        grupo.MapGet("/cuentas-anuales", CuentasAnualesAsync)
+            .WithSummary("Cuentas Anuales normalizadas (balance y PyG, PGC-Pymes).")
+            .RequierePermiso(Permisos.ContabilidadLeer);
+
+        grupo.MapGet("/modelo-200", Modelo200Async)
+            .WithSummary("Liquidación del Impuesto de Sociedades (modelo 200) desde la contabilidad.")
+            .RequierePermiso(Permisos.ContabilidadLeer);
+
         grupo.MapPost("/cierre", CierreAsync)
             .WithSummary("Cierra el ejercicio (regularización + cierre + apertura del siguiente).")
             .RequierePermiso(Permisos.ContabilidadGestionar);
@@ -194,6 +202,29 @@ public static class EndpointsContabilidad
         }
 
         return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, Ejercicio(ejercicio, reloj), ct).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> CuentasAnualesAsync(int? ejercicio, IContextoEmpresa contexto, GenerarCuentasAnuales caso, IReloj reloj, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, Ejercicio(ejercicio, reloj), ct).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> Modelo200Async(int? ejercicio, decimal? tipo, decimal? ajustesAumentos, decimal? ajustesDisminuciones,
+        decimal? deducciones, decimal? retenciones, IContextoEmpresa contexto, GenerarCuentasAnuales caso, IReloj reloj, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        var resultado = await caso.LiquidacionAsync(contexto.EmpresaId.Value, Ejercicio(ejercicio, reloj),
+            tipo ?? 0.25m, ajustesAumentos ?? 0m, ajustesDisminuciones ?? 0m, deducciones ?? 0m, retenciones, ct).ConfigureAwait(false);
+        return Results.Ok(resultado);
     }
 
     private static async Task<IResult> CierreAsync(int? ejercicio, IContextoEmpresa contexto, CerrarEjercicio caso, IReloj reloj, CancellationToken ct)

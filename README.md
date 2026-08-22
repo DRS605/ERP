@@ -153,7 +153,7 @@ dotnet ef migrations add <Nombre> \
 | **Facturación** (facturas emitidas) | ✅ Terminado |
 | **Gastos** | ✅ Terminado |
 | **Recepción de facturas de proveedor** (buzón de correo + contabilización) | ✅ Terminado |
-| **Contabilidad** (partida doble: plan PGC, asientos, diario, mayor, balance, PyG, balance de situación, cierre de ejercicio, subcuentas de tercero autonumeradas) | ✅ Terminado |
+| **Contabilidad** (partida doble: plan PGC, asientos, diario, mayor, balance, PyG, balance de situación, cierre de ejercicio, subcuentas de tercero autonumeradas, Cuentas Anuales normalizadas y modelo 200/IS) | ✅ Terminado |
 | **Inmovilizado** (amortización contable y fiscal —lineal/degresivo/dígitos—, impuesto diferido, baja y enajenación) | ✅ Terminado |
 | **Ventas** (presupuesto → pedido de venta → albarán de entrega → factura) | ✅ Terminado |
 | **Compras** (solicitud → pedido → albarán → factura) | ✅ Terminado |

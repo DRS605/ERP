@@ -1430,7 +1430,7 @@
     async function vContabilidad() {
       view('<div class="muted">Cargando…</div>');
       const anio=new Date().getFullYear();
-      const [cfg,diario,balance,pendientes,reglas,cuentas,pyg,balsit]=await Promise.all([
+      const [cfg,diario,balance,pendientes,reglas,cuentas,pyg,balsit,anuales,is200]=await Promise.all([
         api("/contabilidad/config"),
         api("/contabilidad/diario?ejercicio="+anio),
         api("/contabilidad/balance?ejercicio="+anio),
@@ -1439,6 +1439,8 @@
         api("/contabilidad/cuentas").catch(()=>[]),
         api("/contabilidad/pyg?ejercicio="+anio).catch(()=>null),
         api("/contabilidad/balance-situacion?ejercicio="+anio).catch(()=>null),
+        api("/contabilidad/cuentas-anuales?ejercicio="+anio).catch(()=>null),
+        api("/contabilidad/modelo-200?ejercicio="+anio).catch(()=>null),
       ]);
       window._ctaOpts=cuentas;
       const modo=cfg.modo||"Simple";
@@ -1544,6 +1546,46 @@
             : `<p class="muted" style="margin:0 0 10px">Cerrar el ejercicio regulariza los grupos 6 y 7 contra la cuenta de resultado (129), genera el asiento de cierre de todas las cuentas patrimoniales y abre esos saldos en ${anio+1}. Tras cerrar, ${anio} no admite más asientos.</p>`,
           yaCerrado?'':`<button class="btn small" onclick="cerrarEjercicio(${anio})">Cerrar ejercicio ${anio}</button>`);
       }
+      // Cuentas Anuales normalizadas (PGC-Pymes) + liquidación del Impuesto de Sociedades (modelo 200).
+      let panelAnuales="";
+      if(anuales){
+        const b=anuales.balance, pg=anuales.perdidasGanancias;
+        const eps=(titulo,lineas)=>lineas&&lineas.length?`<tr><td colspan="2" style="background:var(--bg-soft,rgba(0,0,0,.03));font-weight:700">${titulo}</td></tr>`+lineas.map(l=>`<tr><td>${l.concepto}</td><td class="num">${eur(l.importe)}</td></tr>`).join(""):"";
+        const activo=`<table><thead><tr><th>Activo</th><th class="num">Importe</th></tr></thead><tbody>
+          ${eps("A) Activo no corriente",b.activoNoCorriente)}${eps("B) Activo corriente",b.activoCorriente)}
+          <tr style="border-top:2px solid var(--line)"><td><strong>Total activo</strong></td><td class="num"><strong>${eur(b.totalActivo)}</strong></td></tr></tbody></table>`;
+        const pasivo=`<table><thead><tr><th>Patrimonio neto y pasivo</th><th class="num">Importe</th></tr></thead><tbody>
+          ${eps("A) Patrimonio neto",b.patrimonioNeto)}${eps("B) Pasivo no corriente",b.pasivoNoCorriente)}${eps("C) Pasivo corriente",b.pasivoCorriente)}
+          <tr style="border-top:2px solid var(--line)"><td><strong>Total P. neto y pasivo</strong></td><td class="num"><strong>${eur(b.totalPatrimonioNetoYPasivo)}</strong></td></tr></tbody></table>`;
+        const pygTabla=`<table><thead><tr><th>Concepto</th><th class="num">Importe</th></tr></thead><tbody>
+          ${pg.explotacion.map(l=>`<tr><td>${l.concepto}</td><td class="num">${eur(l.importe)}</td></tr>`).join("")}
+          <tr style="border-top:1px solid var(--line)"><td><strong>Resultado de explotación</strong></td><td class="num"><strong>${eur(pg.resultadoExplotacion)}</strong></td></tr>
+          ${pg.financiero.map(l=>`<tr><td>${l.concepto}</td><td class="num">${eur(l.importe)}</td></tr>`).join("")}
+          <tr><td><strong>Resultado financiero</strong></td><td class="num"><strong>${eur(pg.resultadoFinanciero)}</strong></td></tr>
+          <tr style="border-top:1px solid var(--line)"><td><strong>Resultado antes de impuestos</strong></td><td class="num"><strong>${eur(pg.resultadoAntesImpuestos)}</strong></td></tr>
+          <tr><td>Impuesto sobre beneficios</td><td class="num">${eur(-pg.impuestoSociedades)}</td></tr>
+          <tr style="border-top:2px solid var(--line)"><td><strong>Resultado del ejercicio</strong></td><td class="num"><strong>${eur(pg.resultadoEjercicio)}</strong></td></tr>
+          </tbody></table>`;
+        panelAnuales=panel("Cuentas Anuales · "+anio,
+          `<p class="muted" style="margin:0 0 10px">Modelo abreviado PGC-Pymes ${b.cuadra?'<span class="pill ok">Balance cuadra</span>':'<span class="pill wait">Descuadre</span>'} (aproximación, a validar con la gestoría).</p>
+           <div class="grid2" style="align-items:start">${activo}${pasivo}</div>
+           <label style="margin-top:16px;display:block;font-weight:650">Cuenta de Pérdidas y Ganancias</label>${pygTabla}`);
+      }
+      let panelIS="";
+      if(is200){
+        panelIS=panel("Impuesto de Sociedades (modelo 200) · "+anio,
+          `<p class="muted" style="margin:0 0 10px">Liquidación calculada desde la contabilidad al tipo del <strong>${(is200.tipoGravamen*100).toFixed(0)}%</strong>. Ajustes extracontables y deducciones se introducen aparte con la gestoría.</p>
+           <table><tbody>
+             <tr><td>Resultado contable antes de impuestos</td><td class="num">${eur(is200.resultadoContableAntesImpuestos)}</td></tr>
+             <tr><td>(+) Aumentos / (−) Disminuciones (ajustes)</td><td class="num">${eur(is200.ajustesAumentos-is200.ajustesDisminuciones)}</td></tr>
+             <tr style="border-top:1px solid var(--line)"><td><strong>Base imponible</strong></td><td class="num"><strong>${eur(is200.baseImponible)}</strong></td></tr>
+             <tr><td>Cuota íntegra (${(is200.tipoGravamen*100).toFixed(0)}%)</td><td class="num">${eur(is200.cuotaIntegra)}</td></tr>
+             <tr><td>(−) Deducciones</td><td class="num">${eur(-is200.deducciones)}</td></tr>
+             <tr><td><strong>Cuota líquida</strong></td><td class="num"><strong>${eur(is200.cuotaLiquida)}</strong></td></tr>
+             <tr><td>(−) Retenciones y pagos a cuenta</td><td class="num">${eur(-is200.retencionesYPagosACuenta)}</td></tr>
+             <tr style="border-top:2px solid var(--line)"><td><strong>Cuota diferencial (a ingresar / devolver)</strong></td><td class="num"><strong>${eur(is200.cuotaDiferencial)}</strong></td></tr>
+           </tbody></table>`);
+      }
       view(banner
         +panelPend
         +panelReglas
@@ -1551,6 +1593,8 @@
         +panel("Balance de sumas y saldos · "+anio,balTabla)
         +panelPyg
         +panelBalSit
+        +panelAnuales
+        +panelIS
         +panelCierre);
     }
     async function cerrarEjercicio(anio){
