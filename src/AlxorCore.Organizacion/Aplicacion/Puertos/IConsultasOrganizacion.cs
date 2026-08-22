@@ -14,3 +14,14 @@ public interface IConsultaEmpresas
 {
     Task<EmpresaDto?> ObtenerAsync(Guid empresaId, CancellationToken ct = default);
 }
+
+/// <summary>
+/// Consulta de formas de pago (la usan Facturación y Gastos para resolver vencimiento y pago
+/// automático al emitir/registrar un documento).
+/// </summary>
+public interface IConsultaFormasPago
+{
+    Task<FormaPagoDto?> ObtenerAsync(Guid formaPagoId, CancellationToken ct = default);
+
+    Task<IReadOnlyList<FormaPagoDto>> ListarAsync(Guid empresaId, bool incluirInactivas = false, CancellationToken ct = default);
+}

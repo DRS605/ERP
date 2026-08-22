@@ -126,3 +126,31 @@ internal sealed class ConsultasOrganizacion : IConsultasOrganizacion
             .ToList();
     }
 }
+
+internal sealed class RepositorioFormasPago : IRepositorioFormasPago, IConsultaFormasPago
+{
+    private readonly OrganizacionDbContext _contexto;
+
+    public RepositorioFormasPago(OrganizacionDbContext contexto) => _contexto = contexto;
+
+    public void Agregar(FormaPago forma) => _contexto.FormasPago.Add(forma);
+
+    public Task<FormaPago?> ObtenerAsync(Guid id, CancellationToken ct = default) =>
+        _contexto.FormasPago.SingleOrDefaultAsync(f => f.Id == id, ct);
+
+    public async Task<IReadOnlyList<FormaPago>> ListarAsync(Guid empresaId, bool incluirInactivas = false, CancellationToken ct = default) =>
+        await _contexto.FormasPago
+            .Where(f => f.EmpresaId == empresaId && (incluirInactivas || f.Activo))
+            .OrderBy(f => f.Nombre).ToListAsync(ct).ConfigureAwait(false);
+
+    async Task<FormaPagoDto?> IConsultaFormasPago.ObtenerAsync(Guid formaPagoId, CancellationToken ct)
+    {
+        var forma = await _contexto.FormasPago.AsNoTracking().SingleOrDefaultAsync(f => f.Id == formaPagoId, ct).ConfigureAwait(false);
+        return forma is null ? null : FormaPagoDto.Desde(forma);
+    }
+
+    async Task<IReadOnlyList<FormaPagoDto>> IConsultaFormasPago.ListarAsync(Guid empresaId, bool incluirInactivas, CancellationToken ct) =>
+        await _contexto.FormasPago.AsNoTracking()
+            .Where(f => f.EmpresaId == empresaId && (incluirInactivas || f.Activo))
+            .OrderBy(f => f.Nombre).Select(f => FormaPagoDto.Desde(f)).ToListAsync(ct).ConfigureAwait(false);
+}

@@ -4,6 +4,7 @@ using AlxorCore.Nucleo.Aplicacion;
 using AlxorCore.Nucleo.Comun;
 using AlxorCore.Nucleo.Resultados;
 using AlxorCore.Nucleo.Tiempo;
+using AlxorCore.Organizacion.Aplicacion.Modelos;
 using AlxorCore.Organizacion.Aplicacion.Puertos;
 using AlxorCore.Organizacion.Dominio;
 using AlxorCore.Terceros.Aplicacion;
@@ -29,7 +30,8 @@ public sealed record EmitirFacturaComando(
     decimal? PorcentajeIrpf = null,
     string? Serie = null,
     int? DiasVencimiento = null,
-    bool RecargoEquivalencia = false);
+    bool RecargoEquivalencia = false,
+    Guid? FormaPagoId = null);
 
 /// <summary>
 /// Caso de uso estrella: emitir una factura. Compone cliente (Terceros), productos/impuestos
@@ -47,6 +49,8 @@ public sealed class EmitirFactura
     private readonly IUnidadDeTrabajoFacturacion _unidadDeTrabajo;
     private readonly IStockVentas _stock;
     private readonly IColaContabilizacion _cola;
+    private readonly IConsultaFormasPago _formasPago;
+    private readonly IPagosAutomaticos _pagos;
     private readonly IReloj _reloj;
 
     public EmitirFactura(
@@ -59,6 +63,8 @@ public sealed class EmitirFactura
         IUnidadDeTrabajoFacturacion unidadDeTrabajo,
         IStockVentas stock,
         IColaContabilizacion cola,
+        IConsultaFormasPago formasPago,
+        IPagosAutomaticos pagos,
         IReloj reloj)
     {
         _clientes = clientes;
@@ -70,6 +76,8 @@ public sealed class EmitirFactura
         _unidadDeTrabajo = unidadDeTrabajo;
         _stock = stock;
         _cola = cola;
+        _formasPago = formasPago;
+        _pagos = pagos;
         _reloj = reloj;
     }
 
@@ -98,7 +106,17 @@ public sealed class EmitirFactura
         var hoy = DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
         var fechaEmision = comando.FechaEmision ?? hoy;
         var fechaOperacion = comando.FechaOperacion ?? fechaEmision;
-        var fechaVencimiento = fechaEmision.AddDays(Math.Max(0, comando.DiasVencimiento ?? 0));
+
+        // Forma de pago: la indicada o la habitual del cliente. Determina el vencimiento y si el cobro
+        // se registra en el acto (documento «ya pagado»).
+        var formaPagoId = comando.FormaPagoId ?? cliente.FormaPagoDefectoId;
+        FormaPagoDto? formaPago = formaPagoId is { } fpid
+            ? await _formasPago.ObtenerAsync(fpid, ct).ConfigureAwait(false)
+            : null;
+        var diasVencimiento = formaPago is not null
+            ? (formaPago.GeneraVencimiento ? formaPago.DiasVencimiento : 0)
+            : Math.Max(0, comando.DiasVencimiento ?? 0);
+        var fechaVencimiento = fechaEmision.AddDays(diasVencimiento);
         var porcentajeIrpf = comando.PorcentajeIrpf ?? cliente.PorcentajeIrpfDefecto;
 
         var clienteFacturado = new ClienteFacturado(
@@ -156,6 +174,13 @@ public sealed class EmitirFactura
         await _cola.EncolarAsync(empresaId, new DocumentoContabilizable(
             SentidoContable.Venta, "FacturaVenta", f.Id, f.NumeroCompleto, f.ClienteId, f.ClienteNombre,
             f.FechaEmision, f.BaseImponible, codigoIva, f.CuotaIva, f.PorcentajeIrpf, f.RetencionIrpf, f.Total, productoId, familia, cliente.Tipo), ct).ConfigureAwait(false);
+
+        // Si la forma de pago registra el pago automáticamente, se cobra el total en el acto (queda
+        // saldada, fuera de la cartera). Se omite si el pago se registra aparte.
+        if (formaPago?.RegistrarPagoAutomatico == true)
+        {
+            await _pagos.RegistrarCobroTotalAsync(empresaId, f.Id, f.Total, f.FechaEmision, ct).ConfigureAwait(false);
+        }
 
         return Resultado.Ok(FacturaDto.Desde(f));
     }

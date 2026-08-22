@@ -31,6 +31,8 @@ public sealed class OrganizacionDbContext : DbContextEmpresaBase, AlxorCore.Orga
 
     public DbSet<AsignacionSerie> AsignacionesSerie => Set<AsignacionSerie>();
 
+    public DbSet<FormaPago> FormasPago => Set<FormaPago>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Esquema);

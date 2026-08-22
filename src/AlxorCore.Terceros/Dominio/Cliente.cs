@@ -82,6 +82,9 @@ public sealed class Cliente : RaizAgregadoEmpresa<Guid>
     /// </summary>
     public string? Tipo { get; private set; }
 
+    /// <summary>Forma de pago habitual del cliente (referencia opcional al catálogo de Organización).</summary>
+    public Guid? FormaPagoDefectoId { get; private set; }
+
     public bool Activo { get; private set; }
 
     public DateTimeOffset CreadoEn { get; private set; }
@@ -99,6 +102,9 @@ public sealed class Cliente : RaizAgregadoEmpresa<Guid>
 
         Tipo = limpia;
     }
+
+    /// <summary>Fija la forma de pago habitual del cliente (null = sin defecto).</summary>
+    public void EstablecerFormaPagoDefecto(Guid? formaPagoId) => FormaPagoDefectoId = formaPagoId;
 
     public static Resultado<Cliente> Crear(
         Guid empresaId,

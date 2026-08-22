@@ -58,6 +58,7 @@ internal sealed class ConfiguracionCliente : IEntityTypeConfiguration<Cliente>
         builder.Property(c => c.MandatoFecha).HasColumnName("mandato_fecha");
         builder.Property(c => c.NifIva).HasColumnName("nif_iva").HasMaxLength(20);
         builder.Property(c => c.Tipo).HasColumnName("tipo").HasMaxLength(Cliente.LongitudMaximaTipo);
+        builder.Property(c => c.FormaPagoDefectoId).HasColumnName("forma_pago_defecto_id");
         builder.Property(c => c.Activo).HasColumnName("activo").IsRequired();
         builder.Property(c => c.CreadoEn).HasColumnName("creado_en").IsRequired();
         builder.Property(c => c.ActualizadoEn).HasColumnName("actualizado_en").IsRequired();
@@ -120,6 +121,7 @@ internal sealed class ConfiguracionProveedor : IEntityTypeConfiguration<Proveedo
         builder.Property(p => p.FormaPago).HasColumnName("forma_pago").HasMaxLength(20).HasConversion<string>().IsRequired();
         builder.Property(p => p.NifIva).HasColumnName("nif_iva").HasMaxLength(20);
         builder.Property(p => p.Tipo).HasColumnName("tipo").HasMaxLength(Proveedor.LongitudMaximaTipo);
+        builder.Property(p => p.FormaPagoDefectoId).HasColumnName("forma_pago_defecto_id");
         builder.Property(p => p.Activo).HasColumnName("activo").IsRequired();
         builder.Property(p => p.CreadoEn).HasColumnName("creado_en").IsRequired();
         builder.Property(p => p.ActualizadoEn).HasColumnName("actualizado_en").IsRequired();

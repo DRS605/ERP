@@ -3,6 +3,7 @@ using AlxorCore.Facturacion.Dominio;
 using AlxorCore.Nucleo.Aplicacion;
 using AlxorCore.Nucleo.Resultados;
 using AlxorCore.Nucleo.Tiempo;
+using AlxorCore.Organizacion.Aplicacion.Modelos;
 using AlxorCore.Organizacion.Aplicacion.Puertos;
 using AlxorCore.Organizacion.Dominio;
 using AlxorCore.Terceros.Aplicacion;
@@ -14,7 +15,8 @@ public sealed record EmitirTicketComando(
     IReadOnlyList<LineaComando> Lineas,
     Guid? ClienteId = null,
     string? Serie = null,
-    DateOnly? FechaEmision = null);
+    DateOnly? FechaEmision = null,
+    Guid? FormaPagoId = null);
 
 /// <summary>
 /// Caso de uso del TPV: emite un <b>ticket</b> (factura simplificada). Reutiliza la resolución de
@@ -35,6 +37,8 @@ public sealed class EmitirTicket
     private readonly IUnidadDeTrabajoFacturacion _unidadDeTrabajo;
     private readonly IStockVentas _stock;
     private readonly IColaContabilizacion _cola;
+    private readonly IConsultaFormasPago _formasPago;
+    private readonly IPagosAutomaticos _pagos;
     private readonly IReloj _reloj;
 
     public EmitirTicket(
@@ -47,6 +51,8 @@ public sealed class EmitirTicket
         IUnidadDeTrabajoFacturacion unidadDeTrabajo,
         IStockVentas stock,
         IColaContabilizacion cola,
+        IConsultaFormasPago formasPago,
+        IPagosAutomaticos pagos,
         IReloj reloj)
     {
         _clientes = clientes;
@@ -58,6 +64,8 @@ public sealed class EmitirTicket
         _unidadDeTrabajo = unidadDeTrabajo;
         _stock = stock;
         _cola = cola;
+        _formasPago = formasPago;
+        _pagos = pagos;
         _reloj = reloj;
     }
 
@@ -73,6 +81,7 @@ public sealed class EmitirTicket
         // Destinatario opcional: si se indica cliente se congelan sus datos; si no, "cliente de contado".
         var cliente = ClienteFacturado.Contado;
         string? tipoTercero = null;
+        Guid? formaPagoDefectoId = null;
         if (comando.ClienteId is not null)
         {
             var datos = await _clientes.ObtenerAsync(comando.ClienteId.Value, ct).ConfigureAwait(false);
@@ -84,7 +93,13 @@ public sealed class EmitirTicket
             cliente = new ClienteFacturado(
                 datos.Id, datos.Nombre, datos.NifFiscal, datos.Calle, datos.CodigoPostal, datos.Poblacion, datos.Provincia, datos.Pais);
             tipoTercero = datos.Tipo;
+            formaPagoDefectoId = datos.FormaPagoDefectoId;
         }
+
+        var formaPagoId = comando.FormaPagoId ?? formaPagoDefectoId;
+        FormaPagoDto? formaPago = formaPagoId is { } fpid
+            ? await _formasPago.ObtenerAsync(fpid, ct).ConfigureAwait(false)
+            : null;
 
         var resolucion = await ResolucionLineasFactura.ResolverAsync(comando.Lineas, _productos, ct).ConfigureAwait(false);
         if (resolucion.EsFallo)
@@ -143,6 +158,11 @@ public sealed class EmitirTicket
         await _cola.EncolarAsync(empresaId, new DocumentoContabilizable(
             SentidoContable.Venta, "Ticket", t.Id, t.NumeroCompleto, comando.ClienteId, t.ClienteNombre,
             t.FechaEmision, t.BaseImponible, codigoIva, t.CuotaIva, t.PorcentajeIrpf, t.RetencionIrpf, t.Total, productoId, familia, tipoTercero), ct).ConfigureAwait(false);
+
+        if (formaPago?.RegistrarPagoAutomatico == true)
+        {
+            await _pagos.RegistrarCobroTotalAsync(empresaId, t.Id, t.Total, t.FechaEmision, ct).ConfigureAwait(false);
+        }
 
         return Resultado.Ok(FacturaDto.Desde(t));
     }

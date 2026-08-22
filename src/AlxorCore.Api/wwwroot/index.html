@@ -1888,13 +1888,57 @@
       const panelSeries=panel("Series de facturación",intro+cuerpo,`<button class="btn small" onclick="modalSerie()">+ Nueva serie</button>`);
       let panelAsig="";
       try{ panelAsig=await panelAsignacionesHtml(); }catch(e){ panelAsig=""; }
+      let panelFormas="";
+      try{ panelFormas=await panelFormasPagoHtml(); }catch(e){ panelFormas=""; }
       let panelUsuarios="";
       try{ panelUsuarios=await panelUsuariosHtml(); }catch(e){ panelUsuarios=""; }
       let panelAudit="";
       try{ panelAudit=await panelAuditoriaHtml(); }catch(e){ panelAudit=""; }
       let panelValoracion="";
       try{ panelValoracion=await panelValoracionHtml(); }catch(e){ panelValoracion=""; }
-      view(panelSeries+panelAsig+panelValoracion+panelCobroHtml()+panelUsuarios+panelDatosHtml()+panelAudit);
+      view(panelSeries+panelAsig+panelFormas+panelValoracion+panelCobroHtml()+panelUsuarios+panelDatosHtml()+panelAudit);
+    }
+    let _cacheFormasPago=[];
+    async function panelFormasPagoHtml(){
+      const formas=await api("/formas-pago").catch(()=>[]);
+      _cacheFormasPago=formas;
+      const comp=f=>{
+        const venc=f.generaVencimiento?(f.diasVencimiento>0?(f.diasVencimiento+" días"):"contado"):"sin vencimiento";
+        const pago=f.registrarPagoAutomatico?'<span class="pill ok" style="margin-left:6px">registra el pago</span>':"";
+        return `${venc}${pago}`;
+      };
+      const filas=formas.map(f=>`<tr><td><strong>${f.nombre}</strong></td><td class="muted">${comp(f)}</td>
+        <td class="right" style="white-space:nowrap">
+          <button class="btn small ghost" onclick='modalFormaPago(${JSON.stringify(f)})'>Editar</button>
+          <button class="btn small ghost" onclick="eliminarFormaPago('${f.id}')" title="Desactivar">✕</button></td></tr>`).join("");
+      const cuerpo=formas.length
+        ? `<table><thead><tr><th>Forma de pago</th><th>Comportamiento</th><th></th></tr></thead><tbody>${filas}</tbody></table>`
+        : vacio("cobros","Sin formas de pago","Crea modalidades como «Contado (pagado)» o «Transferencia 30 días». Las que no generan vencimiento y registran el pago dejan el documento saldado al momento.");
+      const intro=`<p class="muted" style="margin:0 0 12px">Define cómo se cobra/paga cada documento: si <strong>genera vencimiento</strong> (y a cuántos días) y si <strong>registra el pago automáticamente</strong> (para facturas ya pagadas al contado). Puedes asignar una por defecto a cada cliente/proveedor y cambiarla al emitir.</p>`;
+      return panel("Formas de pago",intro+cuerpo,`<button class="btn small" onclick="modalFormaPago()">+ Nueva forma de pago</button>`);
+    }
+    function modalFormaPago(f){
+      abrir(f?"Editar forma de pago":"Nueva forma de pago",`
+        <label>Nombre</label><input id="fp_nombre" placeholder="Ej. Contado (pagado), Transferencia 30 días"/>
+        <label style="display:flex;align-items:center;gap:8px;margin-top:14px;font-weight:500;cursor:pointer"><input id="fp_venc" type="checkbox" style="width:auto" onchange="document.getElementById('fp_dias_box').style.display=this.checked?'block':'none'"/> Genera vencimiento (documento aplazado)</label>
+        <div id="fp_dias_box" style="display:none;margin-top:8px"><label>Días hasta el vencimiento</label><input id="fp_dias" type="number" value="30"/></div>
+        <label style="display:flex;align-items:center;gap:8px;margin-top:14px;font-weight:500;cursor:pointer"><input id="fp_pago" type="checkbox" style="width:auto"/> Registrar el pago automáticamente (documento ya pagado)</label>
+        <p class="muted" style="font-size:12px;margin:10px 0 0">Si el pago lo registras a mano, deja esta casilla desmarcada para no duplicarlo.</p>`,
+        async()=>{
+          const genera=document.getElementById("fp_venc").checked;
+          const b=JSON.stringify({nombre:val("fp_nombre"),generaVencimiento:genera,diasVencimiento:genera?Number(val("fp_dias")||0):0,registrarPagoAutomatico:document.getElementById("fp_pago").checked});
+          await api("/formas-pago"+(f?"/"+f.id:""),{method:f?"PUT":"POST",body:b});
+          toast("Forma de pago guardada.","ok"); vAjustes();
+        });
+      if(f){ rellenar({fp_nombre:f.nombre,fp_dias:f.diasVencimiento||30}); document.getElementById("fp_venc").checked=!!f.generaVencimiento; document.getElementById("fp_dias_box").style.display=f.generaVencimiento?"block":"none"; document.getElementById("fp_pago").checked=!!f.registrarPagoAutomatico; }
+    }
+    async function eliminarFormaPago(id){
+      if(!confirm("¿Desactivar esta forma de pago?"))return;
+      try{ await api("/formas-pago/"+id,{method:"DELETE"}); toast("Forma de pago desactivada.","ok"); vAjustes(); }catch(e){ toast(e.message,"err"); }
+    }
+    function formaPagoSel(idSel,selected){
+      const opts=[`<option value="">— Según cliente/proveedor —</option>`].concat((_cacheFormasPago||[]).map(f=>`<option value="${f.id}"${f.id===selected?" selected":""}>${f.nombre}</option>`)).join("");
+      return `<select id="${idSel}">${opts}</select>`;
     }
     const DOCS_SERIE=[["Factura","Facturas"],["Ticket","Tickets / TPV"],["Rectificativa","Rectificativas"],["Presupuesto","Presupuestos"],["PedidoCompra","Pedidos de compra"],["AlbaranCompra","Albaranes de compra"]];
     async function panelAsignacionesHtml(){
@@ -2034,7 +2078,7 @@
     function editarCliente(id){ modalCliente(_cacheCli.find(c=>c.id===id)); }
     function editarProveedor(id){ modalProveedor(_cacheProv.find(p=>p.id===id)); }
     function editarProducto(id,ev){ if(ev) ev.stopPropagation(); modalProducto(_cacheProd.find(p=>p.id===id)); }
-    function modalCliente(c){ abrir(c?"Editar cliente":"Nuevo cliente",`<label>Nombre</label><input id="c_nombre" placeholder="Nombre o razón social"/><div class="grid2"><div><label>NIF (opcional)</label><input id="c_nif"/></div><div><label>Email (opcional)</label><input id="c_email"/></div></div><label>IRPF por defecto (%)</label><input id="c_irpf" type="number" value="0"/>
+    async function modalCliente(c){ _cacheFormasPago=await api("/formas-pago").catch(()=>[]); abrir(c?"Editar cliente":"Nuevo cliente",`<label>Nombre</label><input id="c_nombre" placeholder="Nombre o razón social"/><div class="grid2"><div><label>NIF (opcional)</label><input id="c_nif"/></div><div><label>Email (opcional)</label><input id="c_email"/></div></div><label>IRPF por defecto (%)</label><input id="c_irpf" type="number" value="0"/>
       <label style="display:flex;align-items:center;gap:8px;margin-top:14px;font-weight:500;cursor:pointer"><input id="c_recargo" type="checkbox" style="width:auto"/> Cliente en recargo de equivalencia (minorista)</label>
       <label style="margin-top:14px">Domiciliación bancaria (opcional, para remesas SEPA)</label>
       <input id="c_iban" placeholder="IBAN del cliente (ES..)"/>
@@ -2042,17 +2086,19 @@
       <label style="margin-top:14px">NIF-IVA intracomunitario (opcional, para el modelo 349)</label>
       <input id="c_iva" placeholder="Ej. DE123456789"/>
       <label style="margin-top:14px">Tipo (opcional, para reglas de contabilización)</label>
-      <input id="c_tipo" placeholder="Ej. Nacional, Intracomunitario, Minorista"/>`,
-      async()=>{ const b=JSON.stringify({nombre:val("c_nombre"),nifFiscal:val("c_nif")||null,email:val("c_email")||null,porcentajeIrpfDefecto:Number(val("c_irpf")),recargoEquivalencia:document.getElementById("c_recargo").checked,iban:val("c_iban")||null,mandatoReferencia:val("c_mref")||null,mandatoFecha:val("c_mfecha")||null,nifIva:val("c_iva")||null,tipo:val("c_tipo")||null}); await api("/clientes"+(c?"/"+c.id:""),{method:c?"PUT":"POST",body:b}); vClientes(); });
+      <input id="c_tipo" placeholder="Ej. Nacional, Intracomunitario, Minorista"/>
+      <label style="margin-top:14px">Forma de pago habitual (opcional)</label>${formaPagoSel("c_forma",c&&c.formaPagoDefectoId)}`,
+      async()=>{ const b=JSON.stringify({nombre:val("c_nombre"),nifFiscal:val("c_nif")||null,email:val("c_email")||null,porcentajeIrpfDefecto:Number(val("c_irpf")),recargoEquivalencia:document.getElementById("c_recargo").checked,iban:val("c_iban")||null,mandatoReferencia:val("c_mref")||null,mandatoFecha:val("c_mfecha")||null,nifIva:val("c_iva")||null,tipo:val("c_tipo")||null,formaPagoDefectoId:val("c_forma")||null}); await api("/clientes"+(c?"/"+c.id:""),{method:c?"PUT":"POST",body:b}); vClientes(); });
       if(c){ rellenar({c_nombre:c.nombre,c_nif:c.nifFiscal,c_email:c.email,c_irpf:c.porcentajeIrpfDefecto,c_iban:c.iban,c_mref:c.mandatoReferencia,c_mfecha:c.mandatoFecha,c_iva:c.nifIva,c_tipo:c.tipo}); document.getElementById("c_recargo").checked=!!c.recargoEquivalencia; } }
-    function modalProveedor(pr){ const fp=[["NoIndicada","Sin especificar"],["Transferencia","Transferencia"],["Domiciliacion","Domiciliación"],["Efectivo","Efectivo"],["Tarjeta","Tarjeta"],["Pagare","Pagaré"],["Confirming","Confirming"],["Otro","Otro"]].map(o=>`<option value="${o[0]}">${o[1]}</option>`).join("");
+    async function modalProveedor(pr){ _cacheFormasPago=await api("/formas-pago").catch(()=>[]); const fp=[["NoIndicada","Sin especificar"],["Transferencia","Transferencia"],["Domiciliacion","Domiciliación"],["Efectivo","Efectivo"],["Tarjeta","Tarjeta"],["Pagare","Pagaré"],["Confirming","Confirming"],["Otro","Otro"]].map(o=>`<option value="${o[0]}">${o[1]}</option>`).join("");
       abrir(pr?"Editar proveedor":"Nuevo proveedor",`<label>Nombre</label><input id="pr_nombre" placeholder="Nombre o razón social"/><div class="grid2"><div><label>NIF (opcional)</label><input id="pr_nif"/></div><div><label>IRPF (opcional)</label><input id="pr_irpf" type="number" value="0"/></div></div>
       <div class="grid2"><div><label>Forma de pago</label><select id="pr_pago">${fp}</select></div><div><label>Email (opcional)</label><input id="pr_email"/></div></div>
       <label style="margin-top:14px">NIF-IVA intracomunitario (opcional, para el modelo 349)</label>
       <input id="pr_iva" placeholder="Ej. IT12345678901"/>
       <label style="margin-top:14px">Tipo (opcional, para reglas de contabilización)</label>
-      <input id="pr_tipo" placeholder="Ej. Servicios, Suministros, Profesional"/>`,
-      async()=>{ const b=JSON.stringify({nombre:val("pr_nombre"),nifFiscal:val("pr_nif")||null,email:val("pr_email")||null,porcentajeIrpfDefecto:Number(val("pr_irpf")),formaPago:val("pr_pago"),nifIva:val("pr_iva")||null,tipo:val("pr_tipo")||null}); await api("/proveedores"+(pr?"/"+pr.id:""),{method:pr?"PUT":"POST",body:b}); vProveedores(); });
+      <input id="pr_tipo" placeholder="Ej. Servicios, Suministros, Profesional"/>
+      <label style="margin-top:14px">Forma de pago habitual (opcional)</label>${formaPagoSel("pr_forma",pr&&pr.formaPagoDefectoId)}`,
+      async()=>{ const b=JSON.stringify({nombre:val("pr_nombre"),nifFiscal:val("pr_nif")||null,email:val("pr_email")||null,porcentajeIrpfDefecto:Number(val("pr_irpf")),formaPago:val("pr_pago"),nifIva:val("pr_iva")||null,tipo:val("pr_tipo")||null,formaPagoDefectoId:val("pr_forma")||null}); await api("/proveedores"+(pr?"/"+pr.id:""),{method:pr?"PUT":"POST",body:b}); vProveedores(); });
       if(pr) rellenar({pr_nombre:pr.nombre,pr_nif:pr.nifFiscal,pr_email:pr.email,pr_irpf:pr.porcentajeIrpfDefecto,pr_pago:pr.formaPago,pr_iva:pr.nifIva,pr_tipo:pr.tipo}); }
     async function modalProducto(p){ const [provs,prods]=await Promise.all([api("/proveedores").catch(()=>[]),api("/productos").catch(()=>[])]);
       const provOpts=`<option value="">— Sin asignar —</option>`+provs.map(x=>`<option value="${x.id}">${x.nombre}</option>`).join("");
@@ -2143,13 +2189,13 @@
       const r=await api(`/${impTipo}/importar`,{method:"POST",body:JSON.stringify({contenido:impContenido,previsualizar:false})});
       (impTipo==="clientes"?vClientes:vProductos)();
       toast(`${r.importadas} importados`+(r.errores.length?` · ${r.errores.length} con error`:""),"ok"); }
-    async function modalGasto(){ const provs=await api("/proveedores");
+    async function modalGasto(){ const [provs,formas]=await Promise.all([api("/proveedores"),api("/formas-pago").catch(()=>[])]); _cacheFormasPago=formas;
       const opts=`<option value="">— Sin proveedor —</option>`+provs.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join("");
       abrir("Nuevo gasto",`<label>Concepto</label><input id="g_conc" placeholder="Ej. Alquiler, suministros…"/>
         <div class="grid2"><div><label>Proveedor</label><select id="g_prov">${opts}</select></div><div><label>Base (€)</label><input id="g_base" type="number" value="0"/></div></div>
-        <label>IVA</label>${ivaSel("g_iva")}`,
-        async()=>{ await api("/gastos",{method:"POST",body:JSON.stringify({concepto:val("g_conc"),proveedorId:val("g_prov")||null,baseImponible:Number(val("g_base")),codigoIva:val("g_iva")})}); vGastos(); }); }
-    async function modalFactura(src){ const [cs,series]=await Promise.all([api("/clientes"),api("/series").catch(()=>[])]); _cacheCli=cs;
+        <div class="grid2"><div><label>IVA</label>${ivaSel("g_iva")}</div><div><label>Forma de pago</label>${formaPagoSel("g_forma")}</div></div>`,
+        async()=>{ await api("/gastos",{method:"POST",body:JSON.stringify({concepto:val("g_conc"),proveedorId:val("g_prov")||null,baseImponible:Number(val("g_base")),codigoIva:val("g_iva"),formaPagoId:val("g_forma")||null})}); vGastos(); }); }
+    async function modalFactura(src){ const [cs,series,formas]=await Promise.all([api("/clientes"),api("/series").catch(()=>[]),api("/formas-pago").catch(()=>[])]); _cacheCli=cs; _cacheFormasPago=formas;
       const opts=cs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join("");
       const prefijos=[...new Set(["FA",...series.map(s=>s.prefijo)])];
       const serieBox=prefijos.length>1?`<div><label>Serie</label><select id="f_serie">${prefijos.map(p=>`<option value="${p}">${p}</option>`).join("")}</select></div>`:`<div></div>`;
@@ -2158,7 +2204,8 @@
         ? src.lineas.map(l=>({descripcion:l.descripcion,cantidad:l.cantidad,precio:l.precioUnitario,iva:l.codigoIva,dto:l.porcentajeDescuento||0}))
         : [{descripcion:"",cantidad:1,precio:0,iva:"IVA21",dto:0}];
       abrir(src?"Nueva factura (copia)":"Nueva factura",`<div class="grid2"><div><label>Cliente</label><select id="f_cli" onchange="ajustarRecargoCliente()">${opts}</select></div><div><label>Vencimiento</label>${vencSel}</div></div>
-        <div class="grid2">${serieBox}<div></div></div>
+        <div class="grid2">${serieBox}<div><label>Forma de pago</label>${formaPagoSel("f_forma")}</div></div>
+        <p class="muted" style="font-size:12px;margin:2px 0 0">Si eliges una forma de pago, manda sobre el vencimiento de arriba (y puede marcar la factura como pagada).</p>
         <label style="margin-top:16px">Líneas</label>
         <div id="f_lineas">${facLineasHtml()}</div>
         <button class="btn small ghost" style="margin-top:6px" onclick="facAnadirLinea()">+ Añadir línea</button>
@@ -2167,7 +2214,7 @@
         async()=>{ const serie=document.getElementById("f_serie")?document.getElementById("f_serie").value:null;
           const lineas=_facLineas.filter(l=>l.descripcion.trim()&&l.cantidad>0).map(l=>({descripcion:l.descripcion,cantidad:l.cantidad,precioUnitario:l.precio,codigoIva:l.iva,porcentajeDescuento:l.dto||0}));
           if(!lineas.length) throw new Error("Añade al menos una línea con descripción y cantidad.");
-          await api("/facturas",{method:"POST",body:JSON.stringify({clienteId:val("f_cli"),serie,diasVencimiento:Number(val("f_venc")),recargoEquivalencia:document.getElementById("f_recargo").checked,lineas})}); vFacturas(); });
+          await api("/facturas",{method:"POST",body:JSON.stringify({clienteId:val("f_cli"),serie,diasVencimiento:Number(val("f_venc")),formaPagoId:val("f_forma")||null,recargoEquivalencia:document.getElementById("f_recargo").checked,lineas})}); vFacturas(); });
       if(src&&src.clienteId){ const sel=document.getElementById("f_cli"); if([...sel.options].some(o=>o.value===src.clienteId)) sel.value=src.clienteId; }
       ajustarRecargoCliente(); facTotal(); }
     let _facLineas=[];

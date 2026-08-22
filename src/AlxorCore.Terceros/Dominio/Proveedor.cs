@@ -94,6 +94,9 @@ public sealed class Proveedor : RaizAgregadoEmpresa<Guid>
     /// </summary>
     public string? Tipo { get; private set; }
 
+    /// <summary>Forma de pago habitual del proveedor (referencia opcional al catálogo de Organización).</summary>
+    public Guid? FormaPagoDefectoId { get; private set; }
+
     public bool Activo { get; private set; }
 
     public DateTimeOffset CreadoEn { get; private set; }
@@ -111,6 +114,9 @@ public sealed class Proveedor : RaizAgregadoEmpresa<Guid>
 
         Tipo = limpia;
     }
+
+    /// <summary>Fija la forma de pago habitual del proveedor (null = sin defecto).</summary>
+    public void EstablecerFormaPagoDefecto(Guid? formaPagoId) => FormaPagoDefectoId = formaPagoId;
 
     public static Resultado<Proveedor> Crear(
         Guid empresaId, string? nombre, string? nifFiscal, string? email, Direccion direccion, decimal porcentajeIrpfDefecto, FormaPago formaPago, IReloj reloj, string? nifIva = null)

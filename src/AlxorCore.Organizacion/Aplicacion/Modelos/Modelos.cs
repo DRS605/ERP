@@ -4,6 +4,13 @@ using AlxorCore.Organizacion.Dominio;
 namespace AlxorCore.Organizacion.Aplicacion.Modelos;
 
 /// <summary>Vista completa de una empresa.</summary>
+/// <summary>Vista de una forma de pago (modalidad: contado, aplazada…).</summary>
+public sealed record FormaPagoDto(Guid Id, string Nombre, bool GeneraVencimiento, int DiasVencimiento, bool RegistrarPagoAutomatico, bool Activo)
+{
+    public static FormaPagoDto Desde(AlxorCore.Organizacion.Dominio.FormaPago f) =>
+        new(f.Id, f.Nombre, f.GeneraVencimiento, f.DiasVencimiento, f.RegistrarPagoAutomatico, f.Activo);
+}
+
 public sealed record EmpresaDto(Guid Id, string Nif, string RazonSocial, RegimenIva RegimenIva, string Moneda, string Pais, string? Iban, string? IdentificadorAcreedor, MetodoValoracion MetodoValoracion)
 {
     public static EmpresaDto Desde(Empresa empresa) =>

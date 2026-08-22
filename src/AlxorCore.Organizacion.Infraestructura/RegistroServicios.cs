@@ -1,3 +1,4 @@
+using AlxorCore.Organizacion.Aplicacion;
 using AlxorCore.Organizacion.Aplicacion.CasosDeUso;
 using AlxorCore.Organizacion.Aplicacion.Puertos;
 using AlxorCore.Organizacion.Infraestructura.Numeracion;
@@ -39,6 +40,9 @@ public static class RegistroServicios
         servicios.AddScoped<RepositorioAsignacionesSerie>();
         servicios.AddScoped<IRepositorioAsignacionesSerie>(sp => sp.GetRequiredService<RepositorioAsignacionesSerie>());
         servicios.AddScoped<IResolverSerie>(sp => sp.GetRequiredService<RepositorioAsignacionesSerie>());
+        servicios.AddScoped<RepositorioFormasPago>();
+        servicios.AddScoped<IRepositorioFormasPago>(sp => sp.GetRequiredService<RepositorioFormasPago>());
+        servicios.AddScoped<IConsultaFormasPago>(sp => sp.GetRequiredService<RepositorioFormasPago>());
         servicios.AddScoped<IConsultasOrganizacion, ConsultasOrganizacion>();
         servicios.AddScoped<IServicioNumeracion, ServicioNumeracion>();
         servicios.AddScoped<AlxorCore.Nucleo.Aplicacion.IConfiguracionEmpresa, ConfiguracionEmpresaOrganizacion>();
@@ -54,6 +58,9 @@ public static class RegistroServicios
         servicios.AddScoped<AsignarSerie>();
         servicios.AddScoped<EliminarAsignacionSerie>();
         servicios.AddScoped<ListarAsignacionesSerie>();
+        servicios.AddScoped<ListarFormasPago>();
+        servicios.AddScoped<GuardarFormaPago>();
+        servicios.AddScoped<EliminarFormaPago>();
         servicios.AddScoped<ListarMembresias>();
         servicios.AddScoped<AgregarMembresia>();
         servicios.AddScoped<CambiarRolMembresia>();

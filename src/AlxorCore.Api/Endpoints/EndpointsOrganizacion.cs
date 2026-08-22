@@ -3,6 +3,7 @@ using AlxorCore.Api.Contratos;
 using AlxorCore.Nucleo.Autorizacion;
 using AlxorCore.Nucleo.Multiempresa;
 using AlxorCore.Nucleo.Resultados;
+using AlxorCore.Organizacion.Aplicacion;
 using AlxorCore.Organizacion.Aplicacion.CasosDeUso;
 using System.Security.Claims;
 
@@ -63,7 +64,63 @@ public static class EndpointsOrganizacion
             .WithSummary("Elimina una asignación de serie.")
             .RequierePermiso(Permisos.EmpresaAjustes);
 
+        var formasPago = rutas.MapGroup("/formas-pago").WithTags("Formas de pago");
+
+        formasPago.MapGet("", ListarFormasPagoAsync)
+            .WithSummary("Lista las formas de pago (modalidades: contado, aplazada…).")
+            .RequireAuthorization();
+
+        formasPago.MapPost("", CrearFormaPagoAsync)
+            .WithSummary("Crea una forma de pago.")
+            .RequierePermiso(Permisos.EmpresaAjustes);
+
+        formasPago.MapPut("/{id:guid}", ActualizarFormaPagoAsync)
+            .WithSummary("Actualiza una forma de pago.")
+            .RequierePermiso(Permisos.EmpresaAjustes);
+
+        formasPago.MapDelete("/{id:guid}", EliminarFormaPagoAsync)
+            .WithSummary("Desactiva una forma de pago.")
+            .RequierePermiso(Permisos.EmpresaAjustes);
+
         return rutas;
+    }
+
+    private static async Task<IResult> ListarFormasPagoAsync(IContextoEmpresa contexto, ListarFormasPago caso, CancellationToken ct)
+        => contexto.EmpresaId is null
+            ? ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."))
+            : Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, false, ct).ConfigureAwait(false));
+
+    private static async Task<IResult> CrearFormaPagoAsync(DatosFormaPago datos, IContextoEmpresa contexto, GuardarFormaPago caso, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        var r = await caso.EjecutarAsync(contexto.EmpresaId.Value, null, datos, ct).ConfigureAwait(false);
+        return r.EsCorrecto ? r.ACreado("/formas-pago") : ResultadosHttp.AProblema(r.Error);
+    }
+
+    private static async Task<IResult> ActualizarFormaPagoAsync(Guid id, DatosFormaPago datos, IContextoEmpresa contexto, GuardarFormaPago caso, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        var r = await caso.EjecutarAsync(contexto.EmpresaId.Value, id, datos, ct).ConfigureAwait(false);
+        return r.EsCorrecto ? Results.Ok(r.Valor) : ResultadosHttp.AProblema(r.Error);
+    }
+
+    private static async Task<IResult> EliminarFormaPagoAsync(Guid id, IContextoEmpresa contexto, EliminarFormaPago caso, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        var r = await caso.EjecutarAsync(contexto.EmpresaId.Value, id, ct).ConfigureAwait(false);
+        return r.EsCorrecto ? Results.NoContent() : ResultadosHttp.AProblema(r.Error);
     }
 
     private static async Task<IResult> ListarAsignacionesAsync(IContextoEmpresa contexto, ListarAsignacionesSerie caso, CancellationToken ct)

@@ -33,6 +33,16 @@ public interface IRepositorioSeries
     Task<bool> ExisteAsync(Guid empresaId, TipoDocumento tipo, int ejercicio, string prefijo, CancellationToken ct = default);
 }
 
+/// <summary>Repositorio de formas de pago (modalidades: contado, aplazada…).</summary>
+public interface IRepositorioFormasPago
+{
+    void Agregar(FormaPago forma);
+
+    Task<FormaPago?> ObtenerAsync(Guid id, CancellationToken ct = default);
+
+    Task<IReadOnlyList<FormaPago>> ListarAsync(Guid empresaId, bool incluirInactivas = false, CancellationToken ct = default);
+}
+
 /// <summary>Repositorio de asignaciones de serie (empresa/cliente/proveedor por tipo de documento).</summary>
 public interface IRepositorioAsignacionesSerie
 {

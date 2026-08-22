@@ -106,3 +106,21 @@ internal sealed class ConfiguracionAsignacionSerie : IEntityTypeConfiguration<As
         builder.Ignore(a => a.EventosDominio);
     }
 }
+
+internal sealed class ConfiguracionFormaPago : IEntityTypeConfiguration<FormaPago>
+{
+    public void Configure(EntityTypeBuilder<FormaPago> builder)
+    {
+        builder.ToTable("forma_pago");
+        builder.HasKey(f => f.Id);
+        builder.Property(f => f.Id).HasColumnName("id");
+        builder.Property(f => f.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        builder.Property(f => f.Nombre).HasColumnName("nombre").HasMaxLength(FormaPago.LongitudMaximaNombre).IsRequired();
+        builder.Property(f => f.GeneraVencimiento).HasColumnName("genera_vencimiento").IsRequired();
+        builder.Property(f => f.DiasVencimiento).HasColumnName("dias_vencimiento").IsRequired();
+        builder.Property(f => f.RegistrarPagoAutomatico).HasColumnName("registrar_pago_automatico").IsRequired();
+        builder.Property(f => f.Activo).HasColumnName("activo").IsRequired();
+        builder.HasIndex(f => f.EmpresaId).HasDatabaseName("ix_forma_pago_empresa");
+        builder.Ignore(f => f.EventosDominio);
+    }
+}

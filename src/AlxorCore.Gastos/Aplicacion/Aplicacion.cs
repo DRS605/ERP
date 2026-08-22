@@ -2,6 +2,8 @@ using AlxorCore.Gastos.Dominio;
 using AlxorCore.Nucleo.Aplicacion;
 using AlxorCore.Nucleo.Resultados;
 using AlxorCore.Nucleo.Tiempo;
+using AlxorCore.Organizacion.Aplicacion.Modelos;
+using AlxorCore.Organizacion.Aplicacion.Puertos;
 using AlxorCore.Terceros.Aplicacion;
 
 namespace AlxorCore.Gastos.Aplicacion;
@@ -44,7 +46,8 @@ public sealed record RegistrarGastoComando(
     string? ProveedorTexto = null,
     string? CodigoIva = null,
     decimal PorcentajeIrpf = 0m,
-    DateOnly? Fecha = null);
+    DateOnly? Fecha = null,
+    Guid? FormaPagoId = null);
 
 /// <summary>Caso de uso: registrar un gasto. Si se indica un proveedor, se copia su nombre.</summary>
 public sealed class RegistrarGasto
@@ -53,6 +56,8 @@ public sealed class RegistrarGasto
     private readonly IConsultaProveedores _proveedores;
     private readonly IUnidadDeTrabajoGastos _unidadDeTrabajo;
     private readonly IColaContabilizacion _cola;
+    private readonly IConsultaFormasPago _formasPago;
+    private readonly IPagosAutomaticos _pagos;
     private readonly IReloj _reloj;
 
     public RegistrarGasto(
@@ -60,12 +65,16 @@ public sealed class RegistrarGasto
         IConsultaProveedores proveedores,
         IUnidadDeTrabajoGastos unidadDeTrabajo,
         IColaContabilizacion cola,
+        IConsultaFormasPago formasPago,
+        IPagosAutomaticos pagos,
         IReloj reloj)
     {
         _gastos = gastos;
         _proveedores = proveedores;
         _unidadDeTrabajo = unidadDeTrabajo;
         _cola = cola;
+        _formasPago = formasPago;
+        _pagos = pagos;
         _reloj = reloj;
     }
 
@@ -75,6 +84,7 @@ public sealed class RegistrarGasto
 
         var proveedorTexto = comando.ProveedorTexto;
         string? tipoTercero = null;
+        Guid? formaPagoDefectoId = null;
         if (comando.ProveedorId is { } provId)
         {
             var proveedor = await _proveedores.ObtenerAsync(provId, ct).ConfigureAwait(false);
@@ -85,7 +95,13 @@ public sealed class RegistrarGasto
 
             proveedorTexto = proveedor.Nombre;
             tipoTercero = proveedor.Tipo;
+            formaPagoDefectoId = proveedor.FormaPagoDefectoId;
         }
+
+        var formaPagoId = comando.FormaPagoId ?? formaPagoDefectoId;
+        FormaPagoDto? formaPago = formaPagoId is { } fpid
+            ? await _formasPago.ObtenerAsync(fpid, ct).ConfigureAwait(false)
+            : null;
 
         var fecha = comando.Fecha ?? DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
         var gasto = Gasto.Registrar(empresaId, comando.ProveedorId, proveedorTexto, comando.Concepto, fecha, comando.BaseImponible, comando.CodigoIva, comando.PorcentajeIrpf, _reloj);
@@ -102,6 +118,12 @@ public sealed class RegistrarGasto
         await _cola.EncolarAsync(empresaId, new DocumentoContabilizable(
             SentidoContable.Compra, "Gasto", g.Id, g.Concepto, g.ProveedorId, g.ProveedorTexto ?? g.Concepto,
             g.Fecha, g.BaseImponible, g.CodigoIva, g.CuotaIva, g.PorcentajeIrpf, g.RetencionIrpf, g.Total, TipoTercero: tipoTercero), ct).ConfigureAwait(false);
+
+        // Forma de pago «ya pagada»: registra el pago total en el acto (no genera vencimiento abierto).
+        if (formaPago?.RegistrarPagoAutomatico == true)
+        {
+            await _pagos.RegistrarPagoTotalAsync(empresaId, g.Id, g.Total, g.Fecha, ct).ConfigureAwait(false);
+        }
 
         return Resultado.Ok(GastoDto.Desde(g));
     }
