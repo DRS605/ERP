@@ -1,5 +1,6 @@
 using AlxorCore.Catalogo.Aplicacion;
 using AlxorCore.Facturacion.Dominio;
+using AlxorCore.Nucleo.Aplicacion;
 using AlxorCore.Nucleo.Resultados;
 using AlxorCore.Nucleo.Tiempo;
 using AlxorCore.Organizacion.Aplicacion.Puertos;
@@ -33,6 +34,7 @@ public sealed class EmitirTicket
     private readonly IConsultaEmpresas _empresas;
     private readonly IUnidadDeTrabajoFacturacion _unidadDeTrabajo;
     private readonly IStockVentas _stock;
+    private readonly IColaContabilizacion _cola;
     private readonly IReloj _reloj;
 
     public EmitirTicket(
@@ -44,6 +46,7 @@ public sealed class EmitirTicket
         IConsultaEmpresas empresas,
         IUnidadDeTrabajoFacturacion unidadDeTrabajo,
         IStockVentas stock,
+        IColaContabilizacion cola,
         IReloj reloj)
     {
         _clientes = clientes;
@@ -54,6 +57,7 @@ public sealed class EmitirTicket
         _empresas = empresas;
         _unidadDeTrabajo = unidadDeTrabajo;
         _stock = stock;
+        _cola = cola;
         _reloj = reloj;
     }
 
@@ -68,6 +72,7 @@ public sealed class EmitirTicket
 
         // Destinatario opcional: si se indica cliente se congelan sus datos; si no, "cliente de contado".
         var cliente = ClienteFacturado.Contado;
+        string? tipoTercero = null;
         if (comando.ClienteId is not null)
         {
             var datos = await _clientes.ObtenerAsync(comando.ClienteId.Value, ct).ConfigureAwait(false);
@@ -78,6 +83,7 @@ public sealed class EmitirTicket
 
             cliente = new ClienteFacturado(
                 datos.Id, datos.Nombre, datos.NifFiscal, datos.Calle, datos.CodigoPostal, datos.Poblacion, datos.Provincia, datos.Pais);
+            tipoTercero = datos.Tipo;
         }
 
         var resolucion = await ResolucionLineasFactura.ResolverAsync(comando.Lineas, _productos, ct).ConfigureAwait(false);
@@ -122,6 +128,22 @@ public sealed class EmitirTicket
             await _stock.DescontarVentaAsync(empresaId, lineasVenta, ct).ConfigureAwait(false);
         }
 
-        return Resultado.Ok(FacturaDto.Desde(ticket.Valor));
+        // Encola la venta para contabilizar (igual que una factura ordinaria): pendiente salvo
+        // contabilización automática, y solo en modo Completo.
+        var t = ticket.Valor;
+        var codigoIva = t.Lineas.Count > 0 ? t.Lineas[0].CodigoIva : "IVA21";
+        var productoId = t.Lineas.FirstOrDefault(l => l.ProductoId is not null)?.ProductoId;
+        string? familia = null;
+        if (productoId is { } pid)
+        {
+            var producto = await _productos.ObtenerAsync(pid, ct).ConfigureAwait(false);
+            familia = producto?.Familia;
+        }
+
+        await _cola.EncolarAsync(empresaId, new DocumentoContabilizable(
+            SentidoContable.Venta, "Ticket", t.Id, t.NumeroCompleto, comando.ClienteId, t.ClienteNombre,
+            t.FechaEmision, t.BaseImponible, codigoIva, t.CuotaIva, t.PorcentajeIrpf, t.RetencionIrpf, t.Total, productoId, familia, tipoTercero), ct).ConfigureAwait(false);
+
+        return Resultado.Ok(FacturaDto.Desde(t));
     }
 }

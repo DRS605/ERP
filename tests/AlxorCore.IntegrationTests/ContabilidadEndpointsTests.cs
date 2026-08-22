@@ -204,6 +204,24 @@ public sealed class ContabilidadEndpointsTests : IClassFixture<FabricaApiPruebas
     }
 
     [Fact]
+    public async Task Un_ticket_del_TPV_en_modo_completo_queda_pendiente_de_contabilizar()
+    {
+        var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+        await PonerModoCompletoAsync(cliente);
+
+        var ticket = await cliente.PostAsJsonAsync("/tickets", new
+        {
+            ClienteId = (Guid?)null,
+            Serie = (string?)null,
+            Lineas = new[] { new { Cantidad = 1m, Descripcion = "Café", PrecioUnitario = 2m, CodigoIva = "IVA21" } },
+        });
+        ticket.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var pendientes = await cliente.GetFromJsonAsync<List<PendienteResp>>("/contabilidad/pendientes");
+        pendientes!.Should().Contain(p => p.Sentido == "Venta" && p.OrigenTipo == "Ticket");
+    }
+
+    [Fact]
     public async Task En_modo_simple_no_se_crean_documentos_pendientes()
     {
         var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);
