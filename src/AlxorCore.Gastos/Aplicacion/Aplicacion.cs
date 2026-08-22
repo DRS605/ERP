@@ -1,6 +1,7 @@
 using AlxorCore.Gastos.Dominio;
 using AlxorCore.Nucleo.Aplicacion;
 using AlxorCore.Nucleo.Comun;
+using AlxorCore.Nucleo.Consultas;
 using AlxorCore.Nucleo.Resultados;
 using AlxorCore.Nucleo.Tiempo;
 using AlxorCore.Organizacion.Aplicacion.Modelos;
@@ -28,12 +29,28 @@ public interface IRepositorioGastos
     void Agregar(Gasto gasto);
 }
 
+/// <summary>
+/// Filtros de búsqueda de gastos en servidor (todos opcionales). <paramref name="Texto"/> busca en el
+/// concepto y en el texto libre del proveedor.
+/// </summary>
+public sealed record FiltroGastos(
+    string? Texto = null,
+    string? Estado = null,
+    DateOnly? Desde = null,
+    DateOnly? Hasta = null,
+    decimal? ImporteMin = null,
+    decimal? ImporteMax = null,
+    Guid? ProveedorId = null);
+
 /// <summary>Consultas de lectura de gastos (las usan la API, Tesorería e Informes).</summary>
 public interface IConsultaGastos
 {
     Task<GastoDto?> ObtenerAsync(Guid gastoId, CancellationToken ct = default);
 
     Task<IReadOnlyList<GastoDto>> ListarAsync(Guid empresaId, CancellationToken ct = default);
+
+    /// <summary>Búsqueda paginada y filtrada de gastos (el filtrado ocurre en la base de datos).</summary>
+    Task<PaginaResultado<GastoDto>> BuscarAsync(Guid empresaId, FiltroGastos filtro, Paginacion paginacion, CancellationToken ct = default);
 }
 
 /// <summary>Unidad de trabajo del módulo Gastos.</summary>
@@ -173,6 +190,17 @@ public sealed class ListarGastos
 
     public Task<IReadOnlyList<GastoDto>> EjecutarAsync(Guid empresaId, CancellationToken ct = default) =>
         _consulta.ListarAsync(empresaId, ct);
+}
+
+/// <summary>Caso de uso: buscar gastos con filtros y paginación (en servidor).</summary>
+public sealed class BuscarGastos
+{
+    private readonly IConsultaGastos _consulta;
+
+    public BuscarGastos(IConsultaGastos consulta) => _consulta = consulta;
+
+    public Task<PaginaResultado<GastoDto>> EjecutarAsync(Guid empresaId, FiltroGastos filtro, Paginacion paginacion, CancellationToken ct = default) =>
+        _consulta.BuscarAsync(empresaId, filtro, paginacion, ct);
 }
 
 /// <summary>Caso de uso: obtener un gasto.</summary>

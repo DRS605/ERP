@@ -1,6 +1,7 @@
 using AlxorCore.Facturacion.Aplicacion;
 using AlxorCore.Gastos.Aplicacion;
 using AlxorCore.Informes.Aplicacion;
+using AlxorCore.Nucleo.Consultas;
 using FluentAssertions;
 using Xunit;
 
@@ -22,6 +23,8 @@ public class ResumenesFiscalesTests
 
         public Task<IReadOnlyList<FacturaResumen>> ListarAsync(Guid empresaId, CancellationToken ct = default) => Task.FromResult(lista);
 
+        public Task<PaginaResultado<FacturaResumen>> BuscarAsync(Guid e, FiltroFacturas f, Paginacion p, CancellationToken ct = default) => throw new NotImplementedException();
+
         public Task<IReadOnlyList<LineaMargenDto>> ListarLineasMargenAsync(Guid empresaId, DateOnly desde, DateOnly hasta, CancellationToken ct = default) =>
             Task.FromResult<IReadOnlyList<LineaMargenDto>>([]);
     }
@@ -31,6 +34,8 @@ public class ResumenesFiscalesTests
         public Task<GastoDto?> ObtenerAsync(Guid gastoId, CancellationToken ct = default) => Task.FromResult<GastoDto?>(null);
 
         public Task<IReadOnlyList<GastoDto>> ListarAsync(Guid empresaId, CancellationToken ct = default) => Task.FromResult(lista);
+
+        public Task<PaginaResultado<GastoDto>> BuscarAsync(Guid e, FiltroGastos f, Paginacion p, CancellationToken ct = default) => throw new NotImplementedException();
     }
 
     private static GenerarResumenesFiscales Caso(IReadOnlyList<FacturaResumen> facturas, IReadOnlyList<GastoDto> gastos) =>

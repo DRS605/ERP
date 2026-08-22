@@ -1,6 +1,7 @@
 using AlxorCore.Catalogo.Aplicacion;
 using AlxorCore.Catalogo.Dominio;
 using AlxorCore.Nucleo.Aplicacion;
+using AlxorCore.Nucleo.Consultas;
 using AlxorCore.Nucleo.Dominio;
 using AlxorCore.Nucleo.Multiempresa;
 using AlxorCore.Persistencia;
@@ -221,6 +222,38 @@ internal sealed class RepositorioProductos : IRepositorioProductos, IConsultaPro
 
         var productos = await consulta.OrderBy(p => p.Nombre).ToListAsync(ct).ConfigureAwait(false);
         return productos.Select(ProductoDto.Desde).ToList();
+    }
+
+    public async Task<PaginaResultado<ProductoDto>> BuscarAsync(Guid empresaId, FiltroProductos filtro, Paginacion paginacion, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(filtro);
+        ArgumentNullException.ThrowIfNull(paginacion);
+
+        var consulta = _contexto.Productos.Where(p => p.EmpresaId == empresaId);
+        if (!filtro.IncluirInactivos)
+        {
+            consulta = consulta.Where(p => p.Activo);
+        }
+
+        if (!string.IsNullOrWhiteSpace(filtro.Texto))
+        {
+            var patron = $"%{filtro.Texto.Trim()}%";
+            consulta = consulta.Where(p =>
+                EF.Functions.ILike(p.Nombre, patron) ||
+                (p.Referencia != null && EF.Functions.ILike(p.Referencia, patron)));
+        }
+
+        if (filtro.FamiliaId is Guid familiaId)
+        {
+            consulta = consulta.Where(p => p.FamiliaId == familiaId);
+        }
+
+        var total = await consulta.CountAsync(ct).ConfigureAwait(false);
+        var productos = await consulta
+            .OrderBy(p => p.Nombre)
+            .Skip(paginacion.Saltar).Take(paginacion.TamanoPagina)
+            .ToListAsync(ct).ConfigureAwait(false);
+        return PaginaResultado<ProductoDto>.Crear(productos.Select(ProductoDto.Desde).ToList(), total, paginacion);
     }
 
     public async Task<IReadOnlyList<ProductoDto>> ListarVariantesAsync(Guid padreId, CancellationToken ct = default)

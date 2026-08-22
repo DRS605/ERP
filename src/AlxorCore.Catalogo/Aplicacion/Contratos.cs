@@ -1,6 +1,7 @@
 using AlxorCore.Catalogo.Dominio;
 using AlxorCore.Nucleo.Aplicacion;
 using AlxorCore.Nucleo.Comun;
+using AlxorCore.Nucleo.Consultas;
 
 namespace AlxorCore.Catalogo.Aplicacion;
 
@@ -74,12 +75,24 @@ public interface IRepositorioProductos
     void Agregar(Producto producto);
 }
 
+/// <summary>
+/// Filtros de búsqueda de productos en servidor (todos opcionales). <paramref name="Texto"/> busca en
+/// el nombre y la referencia; <paramref name="FamiliaId"/> filtra por familia del catálogo.
+/// </summary>
+public sealed record FiltroProductos(
+    string? Texto = null,
+    Guid? FamiliaId = null,
+    bool IncluirInactivos = false);
+
 /// <summary>Consultas de lectura de productos (las usan la API y Facturación).</summary>
 public interface IConsultaProductos
 {
     Task<ProductoDto?> ObtenerAsync(Guid productoId, CancellationToken ct = default);
 
     Task<IReadOnlyList<ProductoDto>> ListarAsync(Guid empresaId, bool incluirInactivos = false, CancellationToken ct = default);
+
+    /// <summary>Búsqueda paginada y filtrada de productos (el filtrado ocurre en la base de datos).</summary>
+    Task<PaginaResultado<ProductoDto>> BuscarAsync(Guid empresaId, FiltroProductos filtro, Paginacion paginacion, CancellationToken ct = default);
 
     Task<IReadOnlyList<ProductoDto>> ListarVariantesAsync(Guid padreId, CancellationToken ct = default);
 }

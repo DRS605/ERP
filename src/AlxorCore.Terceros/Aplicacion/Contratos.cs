@@ -1,7 +1,14 @@
 using AlxorCore.Nucleo.Aplicacion;
+using AlxorCore.Nucleo.Consultas;
 using AlxorCore.Terceros.Dominio;
 
 namespace AlxorCore.Terceros.Aplicacion;
+
+/// <summary>
+/// Filtros de búsqueda de terceros (clientes o proveedores) en servidor. <paramref name="Texto"/>
+/// busca en el nombre, el NIF y el correo.
+/// </summary>
+public sealed record FiltroTerceros(string? Texto = null, bool IncluirInactivos = false);
 
 /// <summary>Vista de un cliente.</summary>
 public sealed record ClienteDto(
@@ -45,6 +52,9 @@ public interface IConsultaClientes
     Task<ClienteDto?> ObtenerAsync(Guid clienteId, CancellationToken ct = default);
 
     Task<IReadOnlyList<ClienteDto>> ListarAsync(Guid empresaId, bool incluirInactivos = false, CancellationToken ct = default);
+
+    /// <summary>Búsqueda paginada y filtrada de clientes (el filtrado ocurre en la base de datos).</summary>
+    Task<PaginaResultado<ClienteDto>> BuscarAsync(Guid empresaId, FiltroTerceros filtro, Paginacion paginacion, CancellationToken ct = default);
 }
 
 /// <summary>Unidad de trabajo del módulo Terceros.</summary>

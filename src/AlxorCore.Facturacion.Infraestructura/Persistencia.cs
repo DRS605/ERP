@@ -1,6 +1,7 @@
 using AlxorCore.Facturacion.Aplicacion;
 using AlxorCore.Facturacion.Dominio;
 using AlxorCore.Nucleo.Aplicacion;
+using AlxorCore.Nucleo.Consultas;
 using AlxorCore.Nucleo.Dominio;
 using AlxorCore.Nucleo.Multiempresa;
 using AlxorCore.Persistencia;
@@ -282,6 +283,65 @@ internal sealed class RepositorioFacturas : IRepositorioFacturas, IConsultaFactu
             .Select(f => new FacturaResumen(
                 f.Id, f.NumeroCompleto, f.FechaEmision, f.FechaVencimiento, f.ClienteNombre, f.ClienteNif, f.BaseImponible, f.CuotaIva, f.RetencionIrpf, f.Total, f.Estado.ToString(), f.TipoFactura.ToString(), f.ClienteId))
             .ToList();
+    }
+
+    public async Task<PaginaResultado<FacturaResumen>> BuscarAsync(Guid empresaId, FiltroFacturas filtro, Paginacion paginacion, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(filtro);
+        ArgumentNullException.ThrowIfNull(paginacion);
+
+        var consulta = _contexto.Facturas.Where(f => f.EmpresaId == empresaId);
+
+        if (!string.IsNullOrWhiteSpace(filtro.Texto))
+        {
+            var patron = $"%{filtro.Texto.Trim()}%";
+            consulta = consulta.Where(f =>
+                EF.Functions.ILike(f.NumeroCompleto, patron) ||
+                EF.Functions.ILike(f.ClienteNombre, patron) ||
+                (f.ClienteNif != null && EF.Functions.ILike(f.ClienteNif, patron)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(filtro.Estado) && Enum.TryParse<EstadoFactura>(filtro.Estado, ignoreCase: true, out var estado))
+        {
+            consulta = consulta.Where(f => f.Estado == estado);
+        }
+
+        if (filtro.Desde is DateOnly desde)
+        {
+            consulta = consulta.Where(f => f.FechaEmision >= desde);
+        }
+
+        if (filtro.Hasta is DateOnly hasta)
+        {
+            consulta = consulta.Where(f => f.FechaEmision <= hasta);
+        }
+
+        if (filtro.ImporteMin is decimal min)
+        {
+            consulta = consulta.Where(f => f.Total >= min);
+        }
+
+        if (filtro.ImporteMax is decimal max)
+        {
+            consulta = consulta.Where(f => f.Total <= max);
+        }
+
+        if (filtro.ClienteId is Guid clienteId)
+        {
+            consulta = consulta.Where(f => f.ClienteId == clienteId);
+        }
+
+        var total = await consulta.CountAsync(ct).ConfigureAwait(false);
+        var facturas = await consulta
+            .OrderByDescending(f => f.FechaEmision).ThenByDescending(f => f.Numero)
+            .Skip(paginacion.Saltar).Take(paginacion.TamanoPagina)
+            .ToListAsync(ct).ConfigureAwait(false);
+
+        var elementos = facturas
+            .Select(f => new FacturaResumen(
+                f.Id, f.NumeroCompleto, f.FechaEmision, f.FechaVencimiento, f.ClienteNombre, f.ClienteNif, f.BaseImponible, f.CuotaIva, f.RetencionIrpf, f.Total, f.Estado.ToString(), f.TipoFactura.ToString(), f.ClienteId))
+            .ToList();
+        return PaginaResultado<FacturaResumen>.Crear(elementos, total, paginacion);
     }
 
     public async Task<IReadOnlyList<LineaMargenDto>> ListarLineasMargenAsync(Guid empresaId, DateOnly desde, DateOnly hasta, CancellationToken ct = default)

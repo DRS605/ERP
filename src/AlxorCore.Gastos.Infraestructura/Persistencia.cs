@@ -1,6 +1,7 @@
 using AlxorCore.Gastos.Aplicacion;
 using AlxorCore.Gastos.Dominio;
 using AlxorCore.Nucleo.Aplicacion;
+using AlxorCore.Nucleo.Consultas;
 using AlxorCore.Nucleo.Dominio;
 using AlxorCore.Nucleo.Multiempresa;
 using AlxorCore.Persistencia;
@@ -84,6 +85,59 @@ internal sealed class RepositorioGastos : IRepositorioGastos, IConsultaGastos
             .OrderByDescending(g => g.Fecha)
             .ToListAsync(ct).ConfigureAwait(false);
         return gastos.Select(GastoDto.Desde).ToList();
+    }
+
+    public async Task<PaginaResultado<GastoDto>> BuscarAsync(Guid empresaId, FiltroGastos filtro, Paginacion paginacion, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(filtro);
+        ArgumentNullException.ThrowIfNull(paginacion);
+
+        var consulta = _contexto.Gastos.Where(g => g.EmpresaId == empresaId);
+
+        if (!string.IsNullOrWhiteSpace(filtro.Texto))
+        {
+            var patron = $"%{filtro.Texto.Trim()}%";
+            consulta = consulta.Where(g =>
+                EF.Functions.ILike(g.Concepto, patron) ||
+                (g.ProveedorTexto != null && EF.Functions.ILike(g.ProveedorTexto, patron)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(filtro.Estado) && Enum.TryParse<EstadoGasto>(filtro.Estado, ignoreCase: true, out var estado))
+        {
+            consulta = consulta.Where(g => g.Estado == estado);
+        }
+
+        if (filtro.Desde is DateOnly desde)
+        {
+            consulta = consulta.Where(g => g.Fecha >= desde);
+        }
+
+        if (filtro.Hasta is DateOnly hasta)
+        {
+            consulta = consulta.Where(g => g.Fecha <= hasta);
+        }
+
+        if (filtro.ImporteMin is decimal min)
+        {
+            consulta = consulta.Where(g => g.Total >= min);
+        }
+
+        if (filtro.ImporteMax is decimal max)
+        {
+            consulta = consulta.Where(g => g.Total <= max);
+        }
+
+        if (filtro.ProveedorId is Guid proveedorId)
+        {
+            consulta = consulta.Where(g => g.ProveedorId == proveedorId);
+        }
+
+        var total = await consulta.CountAsync(ct).ConfigureAwait(false);
+        var gastos = await consulta
+            .OrderByDescending(g => g.Fecha)
+            .Skip(paginacion.Saltar).Take(paginacion.TamanoPagina)
+            .ToListAsync(ct).ConfigureAwait(false);
+        return PaginaResultado<GastoDto>.Crear(gastos.Select(GastoDto.Desde).ToList(), total, paginacion);
     }
 }
 

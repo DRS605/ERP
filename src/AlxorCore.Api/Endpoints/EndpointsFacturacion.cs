@@ -1,6 +1,7 @@
 using AlxorCore.Api.Comun;
 using AlxorCore.Facturacion.Aplicacion;
 using AlxorCore.Nucleo.Autorizacion;
+using AlxorCore.Nucleo.Consultas;
 using AlxorCore.Nucleo.Multiempresa;
 using AlxorCore.Nucleo.Resultados;
 
@@ -21,6 +22,10 @@ public static class EndpointsFacturacion
 
         facturas.MapGet("", ListarAsync)
             .WithSummary("Lista las facturas de la empresa activa.")
+            .RequierePermiso(Permisos.FacturaLeer);
+
+        facturas.MapGet("/buscar", BuscarAsync)
+            .WithSummary("Busca facturas con filtros (texto, estado, fechas, importe, cliente) y paginación.")
             .RequierePermiso(Permisos.FacturaLeer);
 
         facturas.MapGet("/{id:guid}", ObtenerAsync)
@@ -235,6 +240,20 @@ public static class EndpointsFacturacion
         }
 
         return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, ct).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> BuscarAsync(IContextoEmpresa contexto, BuscarFacturas caso,
+        string? texto, string? estado, DateOnly? desde, DateOnly? hasta, decimal? importeMin, decimal? importeMax, Guid? clienteId,
+        int? pagina, int? tamanoPagina, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        var filtro = new FiltroFacturas(texto, estado, desde, hasta, importeMin, importeMax, clienteId);
+        var paginacion = Paginacion.Normalizar(pagina, tamanoPagina);
+        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, filtro, paginacion, ct).ConfigureAwait(false));
     }
 
     private static async Task<IResult> ObtenerAsync(Guid id, ObtenerFactura caso, CancellationToken ct) =>

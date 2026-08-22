@@ -1,5 +1,6 @@
 using AlxorCore.Facturacion.Dominio;
 using AlxorCore.Nucleo.Aplicacion;
+using AlxorCore.Nucleo.Consultas;
 
 namespace AlxorCore.Facturacion.Aplicacion;
 
@@ -56,6 +57,19 @@ public sealed record FacturaResumen(
     string? ClienteNif, decimal BaseImponible, decimal CuotaIva, decimal RetencionIrpf, decimal Total, string Estado, string Tipo,
     Guid? ClienteId);
 
+/// <summary>
+/// Filtros de búsqueda de facturas en servidor. Todos son opcionales (null = no filtra por ese
+/// criterio). <paramref name="Texto"/> busca en número, nombre y NIF del cliente.
+/// </summary>
+public sealed record FiltroFacturas(
+    string? Texto = null,
+    string? Estado = null,
+    DateOnly? Desde = null,
+    DateOnly? Hasta = null,
+    decimal? ImporteMin = null,
+    decimal? ImporteMax = null,
+    Guid? ClienteId = null);
+
 /// <summary>Repositorio de facturas (escritura).</summary>
 public interface IRepositorioFacturas
 {
@@ -73,6 +87,9 @@ public interface IConsultaFacturas
     Task<FacturaDto?> ObtenerAsync(Guid facturaId, CancellationToken ct = default);
 
     Task<IReadOnlyList<FacturaResumen>> ListarAsync(Guid empresaId, CancellationToken ct = default);
+
+    /// <summary>Búsqueda paginada y filtrada de facturas (el filtrado ocurre en la base de datos).</summary>
+    Task<PaginaResultado<FacturaResumen>> BuscarAsync(Guid empresaId, FiltroFacturas filtro, Paginacion paginacion, CancellationToken ct = default);
 
     /// <summary>Líneas de las facturas emitidas en un periodo, para el cálculo de márgenes.</summary>
     Task<IReadOnlyList<LineaMargenDto>> ListarLineasMargenAsync(Guid empresaId, DateOnly desde, DateOnly hasta, CancellationToken ct = default);

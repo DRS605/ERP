@@ -1,4 +1,5 @@
 using AlxorCore.Nucleo.Aplicacion;
+using AlxorCore.Nucleo.Consultas;
 using AlxorCore.Nucleo.Dominio;
 using AlxorCore.Nucleo.Multiempresa;
 using AlxorCore.Persistencia;
@@ -97,6 +98,34 @@ internal sealed class RepositorioClientes : IRepositorioClientes, IConsultaClien
         var clientes = await consulta.OrderBy(c => c.Nombre).ToListAsync(ct).ConfigureAwait(false);
         return clientes.Select(ClienteDto.Desde).ToList();
     }
+
+    public async Task<PaginaResultado<ClienteDto>> BuscarAsync(Guid empresaId, FiltroTerceros filtro, Paginacion paginacion, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(filtro);
+        ArgumentNullException.ThrowIfNull(paginacion);
+
+        var consulta = _contexto.Clientes.Where(c => c.EmpresaId == empresaId);
+        if (!filtro.IncluirInactivos)
+        {
+            consulta = consulta.Where(c => c.Activo);
+        }
+
+        if (!string.IsNullOrWhiteSpace(filtro.Texto))
+        {
+            var patron = $"%{filtro.Texto.Trim()}%";
+            consulta = consulta.Where(c =>
+                EF.Functions.ILike(c.Nombre, patron) ||
+                (c.NifFiscal != null && EF.Functions.ILike(c.NifFiscal, patron)) ||
+                (c.Email != null && EF.Functions.ILike(c.Email, patron)));
+        }
+
+        var total = await consulta.CountAsync(ct).ConfigureAwait(false);
+        var clientes = await consulta
+            .OrderBy(c => c.Nombre)
+            .Skip(paginacion.Saltar).Take(paginacion.TamanoPagina)
+            .ToListAsync(ct).ConfigureAwait(false);
+        return PaginaResultado<ClienteDto>.Crear(clientes.Select(ClienteDto.Desde).ToList(), total, paginacion);
+    }
 }
 
 internal sealed class ConfiguracionProveedor : IEntityTypeConfiguration<Proveedor>
@@ -161,6 +190,34 @@ internal sealed class RepositorioProveedores : IRepositorioProveedores, IConsult
 
         var proveedores = await consulta.OrderBy(p => p.Nombre).ToListAsync(ct).ConfigureAwait(false);
         return proveedores.Select(ProveedorDto.Desde).ToList();
+    }
+
+    public async Task<PaginaResultado<ProveedorDto>> BuscarAsync(Guid empresaId, FiltroTerceros filtro, Paginacion paginacion, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(filtro);
+        ArgumentNullException.ThrowIfNull(paginacion);
+
+        var consulta = _contexto.Proveedores.Where(p => p.EmpresaId == empresaId);
+        if (!filtro.IncluirInactivos)
+        {
+            consulta = consulta.Where(p => p.Activo);
+        }
+
+        if (!string.IsNullOrWhiteSpace(filtro.Texto))
+        {
+            var patron = $"%{filtro.Texto.Trim()}%";
+            consulta = consulta.Where(p =>
+                EF.Functions.ILike(p.Nombre, patron) ||
+                (p.NifFiscal != null && EF.Functions.ILike(p.NifFiscal, patron)) ||
+                (p.Email != null && EF.Functions.ILike(p.Email, patron)));
+        }
+
+        var total = await consulta.CountAsync(ct).ConfigureAwait(false);
+        var proveedores = await consulta
+            .OrderBy(p => p.Nombre)
+            .Skip(paginacion.Saltar).Take(paginacion.TamanoPagina)
+            .ToListAsync(ct).ConfigureAwait(false);
+        return PaginaResultado<ProveedorDto>.Crear(proveedores.Select(ProveedorDto.Desde).ToList(), total, paginacion);
     }
 }
 

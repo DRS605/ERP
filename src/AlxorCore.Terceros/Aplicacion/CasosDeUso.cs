@@ -109,6 +109,17 @@ public sealed class ListarClientes
         _consulta.ListarAsync(empresaId, incluirInactivos: false, ct);
 }
 
+/// <summary>Caso de uso: buscar clientes con filtros y paginación (en servidor).</summary>
+public sealed class BuscarClientes
+{
+    private readonly IConsultaClientes _consulta;
+
+    public BuscarClientes(IConsultaClientes consulta) => _consulta = consulta;
+
+    public Task<Nucleo.Consultas.PaginaResultado<ClienteDto>> EjecutarAsync(Guid empresaId, FiltroTerceros filtro, Nucleo.Consultas.Paginacion paginacion, CancellationToken ct = default) =>
+        _consulta.BuscarAsync(empresaId, filtro, paginacion, ct);
+}
+
 /// <summary>Caso de uso: obtener un cliente por su identificador.</summary>
 public sealed class ObtenerCliente
 {

@@ -125,6 +125,7 @@ CreadoEn } (RLS por empresa, histórico inmutable).
 |---|---|---|---|
 | `GET` | `/impuestos` | JWT | Tipos de IVA disponibles. |
 | `GET` | `/productos` | JWT + empresa | Lista de productos activos. |
+| `GET` | `/productos/buscar` | JWT + empresa | Búsqueda paginada: `texto` (nombre/referencia), `familiaId`, `incluirInactivos`, `pagina`, `tamanoPagina`. |
 | `GET` | `/productos/{id}` | JWT + empresa | Obtiene un producto. |
 | `GET` | `/productos/{id}/precios` | JWT + empresa | Histórico de precios del producto. |
 | `POST` | `/productos` | permiso `producto.gestionar` | Crea un producto. **201** |

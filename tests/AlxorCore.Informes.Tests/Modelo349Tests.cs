@@ -3,6 +3,7 @@ using AlxorCore.Facturacion.Aplicacion;
 using AlxorCore.Gastos.Aplicacion;
 using AlxorCore.Informes.Aplicacion;
 using AlxorCore.Nucleo.Comun;
+using AlxorCore.Nucleo.Consultas;
 using AlxorCore.Organizacion.Aplicacion.Modelos;
 using AlxorCore.Organizacion.Aplicacion.Puertos;
 using AlxorCore.Organizacion.Dominio;
@@ -21,6 +22,7 @@ public class Modelo349Tests
     {
         public Task<FacturaDto?> ObtenerAsync(Guid id, CancellationToken ct = default) => Task.FromResult<FacturaDto?>(null);
         public Task<IReadOnlyList<FacturaResumen>> ListarAsync(Guid e, CancellationToken ct = default) => Task.FromResult(l);
+        public Task<PaginaResultado<FacturaResumen>> BuscarAsync(Guid e, FiltroFacturas f, Paginacion p, CancellationToken ct = default) => throw new NotImplementedException();
         public Task<IReadOnlyList<LineaMargenDto>> ListarLineasMargenAsync(Guid e, DateOnly d, DateOnly h, CancellationToken ct = default) => Task.FromResult<IReadOnlyList<LineaMargenDto>>([]);
     }
 
@@ -28,18 +30,21 @@ public class Modelo349Tests
     {
         public Task<GastoDto?> ObtenerAsync(Guid id, CancellationToken ct = default) => Task.FromResult<GastoDto?>(null);
         public Task<IReadOnlyList<GastoDto>> ListarAsync(Guid e, CancellationToken ct = default) => Task.FromResult(l);
+        public Task<PaginaResultado<GastoDto>> BuscarAsync(Guid e, FiltroGastos f, Paginacion p, CancellationToken ct = default) => throw new NotImplementedException();
     }
 
     private sealed class FakeClientes(IReadOnlyList<ClienteDto> l) : IConsultaClientes
     {
         public Task<ClienteDto?> ObtenerAsync(Guid id, CancellationToken ct = default) => Task.FromResult<ClienteDto?>(null);
         public Task<IReadOnlyList<ClienteDto>> ListarAsync(Guid e, bool inc = false, CancellationToken ct = default) => Task.FromResult(l);
+        public Task<PaginaResultado<ClienteDto>> BuscarAsync(Guid e, FiltroTerceros f, Paginacion p, CancellationToken ct = default) => throw new NotImplementedException();
     }
 
     private sealed class FakeProveedores(IReadOnlyList<ProveedorDto> l) : IConsultaProveedores
     {
         public Task<ProveedorDto?> ObtenerAsync(Guid id, CancellationToken ct = default) => Task.FromResult<ProveedorDto?>(null);
         public Task<IReadOnlyList<ProveedorDto>> ListarAsync(Guid e, bool inc = false, CancellationToken ct = default) => Task.FromResult(l);
+        public Task<PaginaResultado<ProveedorDto>> BuscarAsync(Guid e, FiltroTerceros f, Paginacion p, CancellationToken ct = default) => throw new NotImplementedException();
     }
 
     private sealed class FakeEmpresas(EmpresaDto e) : IConsultaEmpresas

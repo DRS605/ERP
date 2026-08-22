@@ -1,6 +1,7 @@
 using AlxorCore.Api.Comun;
 using AlxorCore.Gastos.Aplicacion;
 using AlxorCore.Nucleo.Autorizacion;
+using AlxorCore.Nucleo.Consultas;
 using AlxorCore.Nucleo.Multiempresa;
 using AlxorCore.Nucleo.Resultados;
 
@@ -17,6 +18,10 @@ public static class EndpointsGastos
 
         gastos.MapGet("", ListarAsync)
             .WithSummary("Lista los gastos de la empresa activa.")
+            .RequierePermiso(Permisos.GastoLeer);
+
+        gastos.MapGet("/buscar", BuscarAsync)
+            .WithSummary("Busca gastos con filtros (texto, estado, fechas, importe, proveedor) y paginación.")
             .RequierePermiso(Permisos.GastoLeer);
 
         gastos.MapGet("/{id:guid}", ObtenerAsync)
@@ -38,6 +43,19 @@ public static class EndpointsGastos
         }
 
         return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, ct).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> BuscarAsync(IContextoEmpresa contexto, BuscarGastos caso,
+        string? texto, string? estado, DateOnly? desde, DateOnly? hasta, decimal? importeMin, decimal? importeMax, Guid? proveedorId,
+        int? pagina, int? tamanoPagina, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        var filtro = new FiltroGastos(texto, estado, desde, hasta, importeMin, importeMax, proveedorId);
+        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, filtro, Paginacion.Normalizar(pagina, tamanoPagina), ct).ConfigureAwait(false));
     }
 
     private static async Task<IResult> ObtenerAsync(Guid id, ObtenerGasto caso, CancellationToken ct) =>

@@ -1,5 +1,6 @@
 using AlxorCore.Api.Comun;
 using AlxorCore.Nucleo.Autorizacion;
+using AlxorCore.Nucleo.Consultas;
 using AlxorCore.Nucleo.Multiempresa;
 using AlxorCore.Nucleo.Resultados;
 using AlxorCore.Terceros.Aplicacion;
@@ -17,6 +18,10 @@ public static class EndpointsTerceros
 
         clientes.MapGet("", ListarAsync)
             .WithSummary("Lista los clientes de la empresa activa.")
+            .RequireAuthorization();
+
+        clientes.MapGet("/buscar", BuscarClientesAsync)
+            .WithSummary("Busca clientes por texto (nombre, NIF, email) con paginación.")
             .RequireAuthorization();
 
         clientes.MapGet("/{id:guid}", ObtenerAsync)
@@ -39,6 +44,10 @@ public static class EndpointsTerceros
 
         proveedores.MapGet("", ListarProvAsync)
             .WithSummary("Lista los proveedores de la empresa activa.")
+            .RequireAuthorization();
+
+        proveedores.MapGet("/buscar", BuscarProvAsync)
+            .WithSummary("Busca proveedores por texto (nombre, NIF, email) con paginación.")
             .RequireAuthorization();
 
         proveedores.MapGet("/{id:guid}", ObtenerProvAsync)
@@ -64,6 +73,30 @@ public static class EndpointsTerceros
         }
 
         return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, ct).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> BuscarProvAsync(IContextoEmpresa contexto, BuscarProveedores caso,
+        string? texto, bool? incluirInactivos, int? pagina, int? tamanoPagina, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        var filtro = new FiltroTerceros(texto, incluirInactivos ?? false);
+        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, filtro, Paginacion.Normalizar(pagina, tamanoPagina), ct).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> BuscarClientesAsync(IContextoEmpresa contexto, BuscarClientes caso,
+        string? texto, bool? incluirInactivos, int? pagina, int? tamanoPagina, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        var filtro = new FiltroTerceros(texto, incluirInactivos ?? false);
+        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, filtro, Paginacion.Normalizar(pagina, tamanoPagina), ct).ConfigureAwait(false));
     }
 
     private static async Task<IResult> ObtenerProvAsync(Guid id, ObtenerProveedor caso, CancellationToken ct) =>

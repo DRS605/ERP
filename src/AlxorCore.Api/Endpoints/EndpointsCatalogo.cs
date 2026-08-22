@@ -2,6 +2,7 @@ using AlxorCore.Api.Comun;
 using AlxorCore.Catalogo.Aplicacion;
 using AlxorCore.Catalogo.Dominio;
 using AlxorCore.Nucleo.Autorizacion;
+using AlxorCore.Nucleo.Consultas;
 using AlxorCore.Nucleo.Multiempresa;
 using AlxorCore.Nucleo.Resultados;
 
@@ -18,6 +19,10 @@ public static class EndpointsCatalogo
 
         productos.MapGet("", ListarAsync)
             .WithSummary("Lista los productos de la empresa activa.")
+            .RequireAuthorization();
+
+        productos.MapGet("/buscar", BuscarAsync)
+            .WithSummary("Busca productos con filtros (texto, familia, incluir inactivos) y paginación.")
             .RequireAuthorization();
 
         productos.MapGet("/{id:guid}", ObtenerAsync)
@@ -145,6 +150,18 @@ public static class EndpointsCatalogo
         }
 
         return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, ct).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> BuscarAsync(IContextoEmpresa contexto, BuscarProductos caso,
+        string? texto, Guid? familiaId, bool? incluirInactivos, int? pagina, int? tamanoPagina, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        var filtro = new FiltroProductos(texto, familiaId, incluirInactivos ?? false);
+        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, filtro, Paginacion.Normalizar(pagina, tamanoPagina), ct).ConfigureAwait(false));
     }
 
     private static async Task<IResult> ObtenerAsync(Guid id, ObtenerProducto caso, CancellationToken ct) =>

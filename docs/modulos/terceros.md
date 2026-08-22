@@ -19,6 +19,8 @@ igualmente un campo **Tipo** (categoría para elegir la cuenta de gasto).
 | Método | Ruta | Auth | Descripción |
 |---|---|---|---|
 | `GET` | `/clientes` | JWT + empresa | Lista los clientes activos. |
+| `GET` | `/clientes/buscar` | JWT + empresa | Búsqueda paginada de clientes: `texto` (nombre/NIF/email), `incluirInactivos`, `pagina`, `tamanoPagina`. |
+| `GET` | `/proveedores/buscar` | JWT + empresa | Búsqueda paginada de proveedores (mismos parámetros). |
 | `GET` | `/clientes/{id}` | JWT + empresa | Obtiene un cliente. |
 | `POST` | `/clientes` | permiso `cliente.gestionar` | Crea un cliente. **201** |
 | `PUT` | `/clientes/{id}` | permiso `cliente.gestionar` | Actualiza un cliente. |

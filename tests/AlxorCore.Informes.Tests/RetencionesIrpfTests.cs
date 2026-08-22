@@ -2,6 +2,7 @@ using System.Text;
 using AlxorCore.Gastos.Aplicacion;
 using AlxorCore.Informes.Aplicacion;
 using AlxorCore.Nucleo.Comun;
+using AlxorCore.Nucleo.Consultas;
 using AlxorCore.Organizacion.Aplicacion.Modelos;
 using AlxorCore.Organizacion.Aplicacion.Puertos;
 using AlxorCore.Organizacion.Dominio;
@@ -28,12 +29,14 @@ public class RetencionesIrpfTests
     {
         public Task<GastoDto?> ObtenerAsync(Guid gastoId, CancellationToken ct = default) => Task.FromResult<GastoDto?>(null);
         public Task<IReadOnlyList<GastoDto>> ListarAsync(Guid empresaId, CancellationToken ct = default) => Task.FromResult(lista);
+        public Task<PaginaResultado<GastoDto>> BuscarAsync(Guid e, FiltroGastos f, Paginacion p, CancellationToken ct = default) => throw new NotImplementedException();
     }
 
     private sealed class FakeProveedores(IReadOnlyList<ProveedorDto> lista) : IConsultaProveedores
     {
         public Task<ProveedorDto?> ObtenerAsync(Guid proveedorId, CancellationToken ct = default) => Task.FromResult<ProveedorDto?>(null);
         public Task<IReadOnlyList<ProveedorDto>> ListarAsync(Guid empresaId, bool incluirInactivos = false, CancellationToken ct = default) => Task.FromResult(lista);
+        public Task<PaginaResultado<ProveedorDto>> BuscarAsync(Guid e, FiltroTerceros f, Paginacion p, CancellationToken ct = default) => throw new NotImplementedException();
     }
 
     private sealed class FakeEmpresas(EmpresaDto? empresa) : IConsultaEmpresas

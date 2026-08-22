@@ -142,6 +142,17 @@ public sealed class ListarProductos
         _consulta.ListarAsync(empresaId, incluirInactivos: false, ct);
 }
 
+/// <summary>Caso de uso: buscar productos con filtros (texto, familia, activos) y paginación en servidor.</summary>
+public sealed class BuscarProductos
+{
+    private readonly IConsultaProductos _consulta;
+
+    public BuscarProductos(IConsultaProductos consulta) => _consulta = consulta;
+
+    public Task<Nucleo.Consultas.PaginaResultado<ProductoDto>> EjecutarAsync(Guid empresaId, FiltroProductos filtro, Nucleo.Consultas.Paginacion paginacion, CancellationToken ct = default) =>
+        _consulta.BuscarAsync(empresaId, filtro, paginacion, ct);
+}
+
 /// <summary>Caso de uso: obtener un producto por su identificador.</summary>
 public sealed class ObtenerProducto
 {

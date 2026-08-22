@@ -315,6 +315,17 @@ public sealed class ListarFacturas
         _consulta.ListarAsync(empresaId, ct);
 }
 
+/// <summary>Caso de uso: buscar facturas con filtros y paginación (en servidor).</summary>
+public sealed class BuscarFacturas
+{
+    private readonly IConsultaFacturas _consulta;
+
+    public BuscarFacturas(IConsultaFacturas consulta) => _consulta = consulta;
+
+    public Task<Nucleo.Consultas.PaginaResultado<FacturaResumen>> EjecutarAsync(Guid empresaId, FiltroFacturas filtro, Nucleo.Consultas.Paginacion paginacion, CancellationToken ct = default) =>
+        _consulta.BuscarAsync(empresaId, filtro, paginacion, ct);
+}
+
 /// <summary>Caso de uso: obtener una factura por su identificador.</summary>
 public sealed class ObtenerFactura
 {

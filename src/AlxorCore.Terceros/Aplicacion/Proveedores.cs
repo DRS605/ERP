@@ -1,4 +1,5 @@
 using AlxorCore.Nucleo.Comun;
+using AlxorCore.Nucleo.Consultas;
 using AlxorCore.Nucleo.Resultados;
 using AlxorCore.Nucleo.Tiempo;
 using AlxorCore.Terceros.Dominio;
@@ -31,6 +32,9 @@ public interface IConsultaProveedores
     Task<ProveedorDto?> ObtenerAsync(Guid proveedorId, CancellationToken ct = default);
 
     Task<IReadOnlyList<ProveedorDto>> ListarAsync(Guid empresaId, bool incluirInactivos = false, CancellationToken ct = default);
+
+    /// <summary>Búsqueda paginada y filtrada de proveedores (el filtrado ocurre en la base de datos).</summary>
+    Task<PaginaResultado<ProveedorDto>> BuscarAsync(Guid empresaId, FiltroTerceros filtro, Paginacion paginacion, CancellationToken ct = default);
 }
 
 /// <summary>Datos de un proveedor para crear o actualizar.</summary>
@@ -135,6 +139,17 @@ public sealed class ListarProveedores
 
     public Task<IReadOnlyList<ProveedorDto>> EjecutarAsync(Guid empresaId, CancellationToken ct = default) =>
         _consulta.ListarAsync(empresaId, incluirInactivos: false, ct);
+}
+
+/// <summary>Caso de uso: buscar proveedores con filtros y paginación (en servidor).</summary>
+public sealed class BuscarProveedores
+{
+    private readonly IConsultaProveedores _consulta;
+
+    public BuscarProveedores(IConsultaProveedores consulta) => _consulta = consulta;
+
+    public Task<PaginaResultado<ProveedorDto>> EjecutarAsync(Guid empresaId, FiltroTerceros filtro, Paginacion paginacion, CancellationToken ct = default) =>
+        _consulta.BuscarAsync(empresaId, filtro, paginacion, ct);
 }
 
 /// <summary>Caso de uso: obtener un proveedor por su identificador.</summary>

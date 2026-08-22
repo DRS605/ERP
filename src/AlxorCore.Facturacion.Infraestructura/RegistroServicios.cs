@@ -42,6 +42,7 @@ public static class RegistroServicios
         servicios.AddScoped<EmitirRectificativa>();
         servicios.AddScoped<AnularFactura>();
         servicios.AddScoped<ListarFacturas>();
+        servicios.AddScoped<BuscarFacturas>();
         servicios.AddScoped<ObtenerFactura>();
 
         // Facturación automática periódica.

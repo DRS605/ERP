@@ -15,6 +15,7 @@ Cálculo: `cuota = redondeo(base × IVA%)`, `retención = redondeo(base × IRPF%
 | Método | Ruta | Auth | Descripción |
 |---|---|---|---|
 | `GET` | `/gastos` | permiso `gasto.leer` | Lista de gastos. |
+| `GET` | `/gastos/buscar` | permiso `gasto.leer` | Búsqueda paginada: `texto` (concepto/proveedor), `estado`, `desde`/`hasta`, `importeMin`/`importeMax`, `proveedorId`, `pagina`, `tamanoPagina`. |
 | `GET` | `/gastos/{id}` | permiso `gasto.leer` | Obtiene un gasto. |
 | `POST` | `/gastos` | permiso `gasto.gestionar` | Registra un gasto. **201** |
 

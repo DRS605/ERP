@@ -35,6 +35,7 @@ public static class RegistroServicios
         servicios.AddScoped<ImportarClientes>();
         servicios.AddScoped<ActualizarCliente>();
         servicios.AddScoped<ListarClientes>();
+        servicios.AddScoped<BuscarClientes>();
         servicios.AddScoped<ObtenerCliente>();
 
         servicios.AddScoped<RepositorioProveedores>();
@@ -43,6 +44,7 @@ public static class RegistroServicios
         servicios.AddScoped<CrearProveedor>();
         servicios.AddScoped<ActualizarProveedor>();
         servicios.AddScoped<ListarProveedores>();
+        servicios.AddScoped<BuscarProveedores>();
         servicios.AddScoped<ObtenerProveedor>();
 
         return servicios;
