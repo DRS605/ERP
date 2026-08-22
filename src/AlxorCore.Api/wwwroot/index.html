@@ -1791,14 +1791,44 @@
         :vacio("ajustes","Aún no hay series propias","La serie <b>FA</b> se crea sola al emitir tu primera factura. Crea más series (p. ej. <b>R</b> para rectificativas o <b>T</b> para tickets) cuando las necesites.",`<button class="btn small" onclick="modalSerie()">+ Nueva serie</button>`);
       const intro=`<p class="muted" style="margin:0 0 16px">Cada serie numera sus facturas de forma <strong>correlativa y sin huecos</strong>, y reinicia el contador cada ejercicio. Al emitir una factura podrás elegir en qué serie va.</p>`;
       const panelSeries=panel("Series de facturación",intro+cuerpo,`<button class="btn small" onclick="modalSerie()">+ Nueva serie</button>`);
+      let panelAsig="";
+      try{ panelAsig=await panelAsignacionesHtml(); }catch(e){ panelAsig=""; }
       let panelUsuarios="";
       try{ panelUsuarios=await panelUsuariosHtml(); }catch(e){ panelUsuarios=""; }
       let panelAudit="";
       try{ panelAudit=await panelAuditoriaHtml(); }catch(e){ panelAudit=""; }
       let panelValoracion="";
       try{ panelValoracion=await panelValoracionHtml(); }catch(e){ panelValoracion=""; }
-      view(panelSeries+panelValoracion+panelCobroHtml()+panelUsuarios+panelDatosHtml()+panelAudit);
+      view(panelSeries+panelAsig+panelValoracion+panelCobroHtml()+panelUsuarios+panelDatosHtml()+panelAudit);
     }
+    const DOCS_SERIE=[["Factura","Facturas"],["Ticket","Tickets / TPV"],["Rectificativa","Rectificativas"],["Presupuesto","Presupuestos"],["PedidoCompra","Pedidos de compra"],["AlbaranCompra","Albaranes de compra"]];
+    async function panelAsignacionesHtml(){
+      const [asig,clientes,proveedores]=await Promise.all([api("/series/asignaciones").catch(()=>[]),api("/clientes").catch(()=>[]),api("/proveedores").catch(()=>[])]);
+      _cacheAsigTerceros={clientes,proveedores};
+      const doc=d=>(DOCS_SERIE.find(x=>x[0]===d)||[d,d])[1];
+      const ambito=a=>({Empresa:"Empresa (por defecto)",Cliente:"Cliente",Proveedor:"Proveedor"}[a]||a);
+      const nombreTercero=(a,id)=>{ if(a==="Empresa"||!id)return"—"; const arr=a==="Cliente"?clientes:proveedores; const t=arr.find(x=>x.id===id); return t?t.nombre:id.slice(0,8); };
+      const filas=asig.map(a=>`<tr><td><strong class="mono">${a.prefijo}</strong></td><td class="muted">${doc(a.tipoDocumento)}</td><td>${ambito(a.ambito)}</td><td class="muted">${nombreTercero(a.ambito,a.terceroId)}</td><td class="right"><button class="btn small ghost" onclick="eliminarAsignacion('${a.id}')" title="Eliminar">✕</button></td></tr>`).join("");
+      const cuerpo=asig.length
+        ? `<table><thead><tr><th>Serie</th><th>Documento</th><th>Ámbito</th><th>Tercero</th><th></th></tr></thead><tbody>${filas}</tbody></table>`
+        : vacio("ajustes","Sin series asignadas","Asigna una serie por defecto a la empresa o una serie específica a un cliente o proveedor: al emitir el documento se usará automáticamente.",`<button class="btn small" onclick="modalAsignacion()">+ Asignar serie</button>`);
+      const intro=`<p class="muted" style="margin:0 0 16px">Elige qué serie usa cada tipo de documento. Puedes fijar una serie <strong>por defecto de la empresa</strong> y, además, series específicas para un <strong>cliente</strong> o <strong>proveedor</strong>: la del tercero tiene prioridad.</p>`;
+      return panel("Asignación de series",intro+cuerpo,`<button class="btn small" onclick="modalAsignacion()">+ Asignar serie</button>`);
+    }
+    let _cacheAsigTerceros={clientes:[],proveedores:[]};
+    function modalAsignacion(){
+      const docOpts=DOCS_SERIE.map(d=>`<option value="${d[0]}">${d[1]}</option>`).join("");
+      abrir("Asignar serie",`<div class="grid2"><div><label>Documento</label><select id="as_doc">${docOpts}</select></div><div><label>Prefijo de la serie</label><input id="as_pref" maxlength="10" placeholder="Ej. FA, CLI…" style="text-transform:uppercase"/></div></div>
+        <label>Ámbito</label><select id="as_ambito" onchange="asignAmbitoCambio()"><option value="Empresa">Empresa (serie por defecto)</option><option value="Cliente">Un cliente concreto</option><option value="Proveedor">Un proveedor concreto</option></select>
+        <div id="as_tercero_box" style="display:none;margin-top:12px"><label>Tercero</label><select id="as_tercero"></select></div>`,
+        async()=>{ const ambito=val("as_ambito"); const b=JSON.stringify({tipoDocumento:val("as_doc"),ambito,terceroId:ambito==="Empresa"?null:(val("as_tercero")||null),prefijo:val("as_pref")}); await api("/series/asignaciones",{method:"POST",body:b}); toast("Serie asignada.","ok"); vAjustes(); });
+    }
+    function asignAmbitoCambio(){ const a=val("as_ambito"); const box=document.getElementById("as_tercero_box"); const sel=document.getElementById("as_tercero");
+      if(a==="Empresa"){ box.style.display="none"; return; }
+      const arr=a==="Cliente"?_cacheAsigTerceros.clientes:_cacheAsigTerceros.proveedores;
+      sel.innerHTML=arr.map(t=>`<option value="${t.id}">${t.nombre}${t.nifFiscal?" · "+t.nifFiscal:""}</option>`).join("")||'<option value="">(no hay)</option>';
+      box.style.display=""; }
+    async function eliminarAsignacion(id){ if(!confirm("¿Eliminar la asignación de serie?"))return; try{ await api("/series/asignaciones/"+id,{method:"DELETE"}); toast("Asignación eliminada.","ok"); vAjustes(); }catch(e){ toast(e.message,"err"); } }
     async function panelValoracionHtml(){
       const emp=await api("/empresas/actual").catch(()=>null); const actual=emp?.metodoValoracion||"Estandar";
       const opts=[["Estandar","Precio estándar (ficha del artículo)"],["UltimaCompra","Precio de última compra"],["Pmp","Precio medio ponderado (PMP)"],["Fifo","FIFO (primeras entradas, primeras salidas)"]]

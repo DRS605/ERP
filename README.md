@@ -157,6 +157,8 @@ dotnet ef migrations add <Nombre> \
 | **Compras** (solicitud → pedido → albarán → factura) | ✅ Terminado |
 | **Inventario** (multi-almacén, ubicaciones, movimientos, ubicación por defecto, lotes/series, montaje) | ✅ Terminado |
 | **Producción** (órdenes de fabricación sobre la lista de materiales: consumen componentes y producen el artículo) | ✅ Terminado |
+| **Modelos AEAT** (303, 130, 390, 347, 111, 190, 349; ficheros oficiales de los informativos 190/347/349) | ✅ Terminado |
+| **Numeración avanzada** (series asignables a empresa/cliente/proveedor por documento) | ✅ Terminado |
 | **Personal** (personas con tarifa/hora para imputar mano de obra a proyectos y producción) | ✅ Terminado |
 | **Proyectos** (imputar mano de obra, materiales valorados y gastos; presupuesto vs. real) | ✅ Terminado |
 | **Tesorería** (cobros y pagos) | ✅ Terminado |

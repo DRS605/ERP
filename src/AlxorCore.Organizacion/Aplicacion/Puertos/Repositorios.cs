@@ -32,3 +32,27 @@ public interface IRepositorioSeries
 
     Task<bool> ExisteAsync(Guid empresaId, TipoDocumento tipo, int ejercicio, string prefijo, CancellationToken ct = default);
 }
+
+/// <summary>Repositorio de asignaciones de serie (empresa/cliente/proveedor por tipo de documento).</summary>
+public interface IRepositorioAsignacionesSerie
+{
+    void Agregar(AsignacionSerie asignacion);
+
+    Task<AsignacionSerie?> ObtenerAsync(Guid id, CancellationToken ct = default);
+
+    void Eliminar(AsignacionSerie asignacion);
+
+    Task<IReadOnlyList<AsignacionSerie>> ListarAsync(Guid empresaId, CancellationToken ct = default);
+
+    Task<bool> ExisteAsync(Guid empresaId, TipoDocumento tipo, AmbitoSerie ambito, Guid terceroId, CancellationToken ct = default);
+}
+
+/// <summary>
+/// Resuelve qué serie (prefijo) usar al emitir un documento: la del tercero si tiene una asignada,
+/// si no la serie por defecto de la empresa; null si no hay ninguna asignación. La consumen otros
+/// módulos (Facturación, Compras) al numerar.
+/// </summary>
+public interface IResolverSerie
+{
+    Task<string?> ResolverPrefijoAsync(Guid empresaId, TipoDocumento tipoDocumento, Guid? terceroId, CancellationToken ct = default);
+}

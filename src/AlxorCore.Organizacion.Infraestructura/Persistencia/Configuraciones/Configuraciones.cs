@@ -85,3 +85,24 @@ internal sealed class ConfiguracionSerie : IEntityTypeConfiguration<SerieNumerac
         builder.Ignore(s => s.EventosDominio);
     }
 }
+
+internal sealed class ConfiguracionAsignacionSerie : IEntityTypeConfiguration<AsignacionSerie>
+{
+    public void Configure(EntityTypeBuilder<AsignacionSerie> builder)
+    {
+        builder.ToTable("asignacion_serie");
+        builder.HasKey(a => a.Id);
+        builder.Property(a => a.Id).HasColumnName("id");
+        builder.Property(a => a.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        builder.Property(a => a.TipoDocumento).HasColumnName("tipo_documento").HasMaxLength(20).HasConversion<string>().IsRequired();
+        builder.Property(a => a.Ambito).HasColumnName("ambito").HasMaxLength(20).HasConversion<string>().IsRequired();
+        builder.Property(a => a.TerceroId).HasColumnName("tercero_id").IsRequired();
+        builder.Property(a => a.Prefijo).HasColumnName("prefijo").HasMaxLength(SerieNumeracion.LongitudMaximaPrefijo).IsRequired();
+        builder.Property(a => a.CreadoEn).HasColumnName("creado_en").IsRequired();
+
+        builder.HasIndex(a => new { a.EmpresaId, a.TipoDocumento, a.Ambito, a.TerceroId })
+            .IsUnique()
+            .HasDatabaseName("ux_asignacion_serie");
+        builder.Ignore(a => a.EventosDominio);
+    }
+}

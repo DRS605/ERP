@@ -51,7 +51,41 @@ public static class EndpointsOrganizacion
             .WithSummary("Crea una serie de numeración.")
             .RequierePermiso(Permisos.EmpresaAjustes);
 
+        series.MapGet("/asignaciones", ListarAsignacionesAsync)
+            .WithSummary("Lista las asignaciones de serie (empresa/cliente/proveedor por documento).")
+            .RequireAuthorization();
+
+        series.MapPost("/asignaciones", AsignarSerieAsync)
+            .WithSummary("Asigna una serie a un tipo de documento (empresa, cliente o proveedor).")
+            .RequierePermiso(Permisos.EmpresaAjustes);
+
+        series.MapDelete("/asignaciones/{id:guid}", EliminarAsignacionAsync)
+            .WithSummary("Elimina una asignación de serie.")
+            .RequierePermiso(Permisos.EmpresaAjustes);
+
         return rutas;
+    }
+
+    private static async Task<IResult> ListarAsignacionesAsync(IContextoEmpresa contexto, ListarAsignacionesSerie caso, CancellationToken ct)
+        => contexto.EmpresaId is null
+            ? ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."))
+            : Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, ct).ConfigureAwait(false));
+
+    private static async Task<IResult> AsignarSerieAsync(AsignarSerieComando comando, IContextoEmpresa contexto, AsignarSerie caso, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        var r = await caso.EjecutarAsync(contexto.EmpresaId.Value, comando, ct).ConfigureAwait(false);
+        return r.EsCorrecto ? r.ACreado("/series/asignaciones") : ResultadosHttp.AProblema(r.Error);
+    }
+
+    private static async Task<IResult> EliminarAsignacionAsync(Guid id, EliminarAsignacionSerie caso, CancellationToken ct)
+    {
+        var r = await caso.EjecutarAsync(id, ct).ConfigureAwait(false);
+        return r.EsCorrecto ? Results.NoContent() : ResultadosHttp.AProblema(r.Error);
     }
 
     private static async Task<IResult> CrearAsync(CrearEmpresaPeticion peticion, ClaimsPrincipal usuario, CrearEmpresa caso, CancellationToken ct)

@@ -40,6 +40,7 @@ public sealed class EmitirFactura
     private readonly IConsultaClientes _clientes;
     private readonly IConsultaProductos _productos;
     private readonly IServicioNumeracion _numeracion;
+    private readonly IResolverSerie _resolverSerie;
     private readonly IRepositorioFacturas _facturas;
     private readonly IConsultaEmpresas _empresas;
     private readonly IUnidadDeTrabajoFacturacion _unidadDeTrabajo;
@@ -50,6 +51,7 @@ public sealed class EmitirFactura
         IConsultaClientes clientes,
         IConsultaProductos productos,
         IServicioNumeracion numeracion,
+        IResolverSerie resolverSerie,
         IRepositorioFacturas facturas,
         IConsultaEmpresas empresas,
         IUnidadDeTrabajoFacturacion unidadDeTrabajo,
@@ -59,6 +61,7 @@ public sealed class EmitirFactura
         _clientes = clientes;
         _productos = productos;
         _numeracion = numeracion;
+        _resolverSerie = resolverSerie;
         _facturas = facturas;
         _empresas = empresas;
         _unidadDeTrabajo = unidadDeTrabajo;
@@ -98,8 +101,15 @@ public sealed class EmitirFactura
             cliente.Id, cliente.Nombre, cliente.NifFiscal,
             cliente.Calle, cliente.CodigoPostal, cliente.Poblacion, cliente.Provincia, cliente.Pais);
 
+        // Serie: si no se indica una explícita, se resuelve la asignada al cliente (o la de la empresa).
+        var serie = comando.Serie;
+        if (string.IsNullOrWhiteSpace(serie))
+        {
+            serie = await _resolverSerie.ResolverPrefijoAsync(empresaId, TipoDocumento.Factura, cliente.Id, ct).ConfigureAwait(false);
+        }
+
         // La numeración es lo último antes de crear y guardar (minimiza huecos).
-        var numero = await _numeracion.SiguienteAsync(empresaId, TipoDocumento.Factura, fechaEmision.Year, comando.Serie, ct).ConfigureAwait(false);
+        var numero = await _numeracion.SiguienteAsync(empresaId, TipoDocumento.Factura, fechaEmision.Year, serie, ct).ConfigureAwait(false);
         if (numero.EsFallo)
         {
             return Resultado.Fallo<FacturaDto>(numero.Error);

@@ -62,6 +62,49 @@ internal sealed class RepositorioSeries : IRepositorioSeries
             ct);
 }
 
+internal sealed class RepositorioAsignacionesSerie : IRepositorioAsignacionesSerie, IResolverSerie
+{
+    private readonly OrganizacionDbContext _contexto;
+
+    public RepositorioAsignacionesSerie(OrganizacionDbContext contexto) => _contexto = contexto;
+
+    public void Agregar(AsignacionSerie asignacion) => _contexto.AsignacionesSerie.Add(asignacion);
+
+    public Task<AsignacionSerie?> ObtenerAsync(Guid id, CancellationToken ct = default) =>
+        _contexto.AsignacionesSerie.SingleOrDefaultAsync(a => a.Id == id, ct);
+
+    public void Eliminar(AsignacionSerie asignacion) => _contexto.AsignacionesSerie.Remove(asignacion);
+
+    public async Task<IReadOnlyList<AsignacionSerie>> ListarAsync(Guid empresaId, CancellationToken ct = default) =>
+        await _contexto.AsignacionesSerie.Where(a => a.EmpresaId == empresaId)
+            .OrderBy(a => a.TipoDocumento).ThenBy(a => a.Ambito).ToListAsync(ct).ConfigureAwait(false);
+
+    public Task<bool> ExisteAsync(Guid empresaId, TipoDocumento tipo, AmbitoSerie ambito, Guid terceroId, CancellationToken ct = default) =>
+        _contexto.AsignacionesSerie.AnyAsync(
+            a => a.EmpresaId == empresaId && a.TipoDocumento == tipo && a.Ambito == ambito && a.TerceroId == terceroId, ct);
+
+    public async Task<string?> ResolverPrefijoAsync(Guid empresaId, TipoDocumento tipoDocumento, Guid? terceroId, CancellationToken ct = default)
+    {
+        // La serie del tercero (si tiene una asignada) tiene prioridad sobre la de la empresa.
+        if (terceroId is { } id && id != Guid.Empty)
+        {
+            var especifica = await _contexto.AsignacionesSerie.AsNoTracking()
+                .Where(a => a.EmpresaId == empresaId && a.TipoDocumento == tipoDocumento && a.TerceroId == id)
+                .Select(a => a.Prefijo)
+                .FirstOrDefaultAsync(ct).ConfigureAwait(false);
+            if (especifica is not null)
+            {
+                return especifica;
+            }
+        }
+
+        return await _contexto.AsignacionesSerie.AsNoTracking()
+            .Where(a => a.EmpresaId == empresaId && a.TipoDocumento == tipoDocumento && a.Ambito == AmbitoSerie.Empresa)
+            .Select(a => a.Prefijo)
+            .FirstOrDefaultAsync(ct).ConfigureAwait(false);
+    }
+}
+
 /// <summary>Consultas de lectura del módulo Organización (join membresía-empresa).</summary>
 internal sealed class ConsultasOrganizacion : IConsultasOrganizacion
 {

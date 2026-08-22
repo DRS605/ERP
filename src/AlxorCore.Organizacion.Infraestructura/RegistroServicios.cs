@@ -36,6 +36,9 @@ public static class RegistroServicios
         servicios.AddScoped<IConsultaEmpresas>(sp => sp.GetRequiredService<RepositorioEmpresas>());
         servicios.AddScoped<IRepositorioMembresias, RepositorioMembresias>();
         servicios.AddScoped<IRepositorioSeries, RepositorioSeries>();
+        servicios.AddScoped<RepositorioAsignacionesSerie>();
+        servicios.AddScoped<IRepositorioAsignacionesSerie>(sp => sp.GetRequiredService<RepositorioAsignacionesSerie>());
+        servicios.AddScoped<IResolverSerie>(sp => sp.GetRequiredService<RepositorioAsignacionesSerie>());
         servicios.AddScoped<IConsultasOrganizacion, ConsultasOrganizacion>();
         servicios.AddScoped<IServicioNumeracion, ServicioNumeracion>();
         servicios.AddScoped<AlxorCore.Nucleo.Aplicacion.IConfiguracionEmpresa, ConfiguracionEmpresaOrganizacion>();
@@ -48,6 +51,9 @@ public static class RegistroServicios
         servicios.AddScoped<SeleccionarEmpresa>();
         servicios.AddScoped<CrearSerie>();
         servicios.AddScoped<ListarSeries>();
+        servicios.AddScoped<AsignarSerie>();
+        servicios.AddScoped<EliminarAsignacionSerie>();
+        servicios.AddScoped<ListarAsignacionesSerie>();
         servicios.AddScoped<ListarMembresias>();
         servicios.AddScoped<AgregarMembresia>();
         servicios.AddScoped<CambiarRolMembresia>();

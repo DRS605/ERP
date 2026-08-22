@@ -20,6 +20,13 @@ public sealed record SerieDto(Guid Id, TipoDocumento TipoDocumento, int Ejercici
         new(serie.Id, serie.TipoDocumento, serie.Ejercicio, serie.Prefijo, serie.SiguienteNumero);
 }
 
+/// <summary>Vista de una asignación de serie (empresa/cliente/proveedor por tipo de documento).</summary>
+public sealed record AsignacionSerieDto(Guid Id, TipoDocumento TipoDocumento, AmbitoSerie Ambito, Guid? TerceroId, string Prefijo)
+{
+    public static AsignacionSerieDto Desde(AsignacionSerie a) =>
+        new(a.Id, a.TipoDocumento, a.Ambito, a.TerceroId == Guid.Empty ? null : a.TerceroId, a.Prefijo);
+}
+
 /// <summary>Resultado de seleccionar una empresa: un token con el alcance de esa empresa.</summary>
 public sealed record ResultadoSeleccionEmpresa(
     string Token,
