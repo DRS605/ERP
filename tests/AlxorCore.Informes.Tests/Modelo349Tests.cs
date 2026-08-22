@@ -48,19 +48,19 @@ public class Modelo349Tests
     }
 
     private static FacturaResumen Factura(DateOnly fecha, string clienteNif, decimal baseImp) =>
-        new(Guid.NewGuid(), "FA2026/0001", fecha, fecha, "Kunde GmbH", clienteNif, baseImp, 0m, 0m, baseImp, "Emitida", "Ordinaria");
+        new(Guid.NewGuid(), "FA2026/0001", fecha, fecha, "Kunde GmbH", clienteNif, baseImp, 0m, 0m, baseImp, "Emitida", "Ordinaria", Guid.NewGuid());
 
     private static GastoDto Gasto(Guid provId, DateOnly fecha, decimal baseImp) =>
         new(Guid.NewGuid(), provId, "Fornitore", "Compra UE", fecha, baseImp, "IVA0", 0m, 0m, 0m, 0m, baseImp, "Registrado");
 
     private static ClienteDto ClienteIntra() =>
-        new(Guid.NewGuid(), "Kunde GmbH", "DE-FISCAL", null, "", "", "", "", "DE", 0m, true, false, null, null, null, "DE123456789", null, null);
+        new(Guid.NewGuid(), "Kunde GmbH", "DE-FISCAL", null, "", "", "", "", "DE", 0m, true, false, null, null, null, "DE123456789", null, null, null);
 
     private static ProveedorDto ProveedorIntra() =>
-        new(ProvIntra, "Fornitore SRL", "IT-FISCAL", null, "", "", "", "", "IT", 0m, true, default, "IT99999999999", null, null);
+        new(ProvIntra, "Fornitore SRL", "IT-FISCAL", null, "", "", "", "", "IT", 0m, true, default, "IT99999999999", null, null, null);
 
     private static EmpresaDto EmpresaDeclarante() =>
-        new(Empresa, "B12345674", "Mi Empresa SL", default(RegimenIva), "EUR", "ES", null, null, MetodoValoracion.Estandar);
+        new(Empresa, "B12345674", "Mi Empresa SL", default(RegimenIva), "EUR", "ES", null, null, MetodoValoracion.Estandar, ControlRiesgo.Aviso);
 
     private static GenerarModelo349 Caso() => new(
         new FakeFacturas([Factura(new DateOnly(2026, 2, 1), "DE-FISCAL", 1000m)]),

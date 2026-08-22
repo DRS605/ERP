@@ -9,12 +9,12 @@ namespace AlxorCore.Terceros.Aplicacion;
 public sealed record ProveedorDto(
     Guid Id, string Nombre, string? NifFiscal, string? Email,
     string Calle, string CodigoPostal, string Poblacion, string Provincia, string Pais,
-    decimal PorcentajeIrpfDefecto, bool Activo, FormaPago FormaPago, string? NifIva, string? Tipo, Guid? FormaPagoDefectoId)
+    decimal PorcentajeIrpfDefecto, bool Activo, FormaPago FormaPago, string? NifIva, string? Tipo, Guid? FormaPagoDefectoId, decimal? LimiteRiesgo)
 {
     public static ProveedorDto Desde(Proveedor p) => new(
         p.Id, p.Nombre, p.NifFiscal, p.Email,
         p.Direccion.Calle, p.Direccion.CodigoPostal, p.Direccion.Poblacion, p.Direccion.Provincia, p.Direccion.Pais,
-        p.PorcentajeIrpfDefecto, p.Activo, p.FormaPago, p.NifIva, p.Tipo, p.FormaPagoDefectoId);
+        p.PorcentajeIrpfDefecto, p.Activo, p.FormaPago, p.NifIva, p.Tipo, p.FormaPagoDefectoId, p.LimiteRiesgo);
 }
 
 /// <summary>Repositorio de proveedores (escritura).</summary>
@@ -47,7 +47,8 @@ public sealed record DatosProveedor(
     FormaPago FormaPago = FormaPago.NoIndicada,
     string? NifIva = null,
     string? Tipo = null,
-    Guid? FormaPagoDefectoId = null);
+    Guid? FormaPagoDefectoId = null,
+    decimal? LimiteRiesgo = null);
 
 /// <summary>Caso de uso: crear un proveedor.</summary>
 public sealed class CrearProveedor
@@ -76,6 +77,7 @@ public sealed class CrearProveedor
 
         proveedor.Valor.EstablecerTipo(datos.Tipo);
         proveedor.Valor.EstablecerFormaPagoDefecto(datos.FormaPagoDefectoId);
+        proveedor.Valor.EstablecerLimiteRiesgo(datos.LimiteRiesgo);
         _proveedores.Agregar(proveedor.Valor);
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return Resultado.Ok(ProveedorDto.Desde(proveedor.Valor));
@@ -115,6 +117,7 @@ public sealed class ActualizarProveedor
 
         proveedor.EstablecerTipo(datos.Tipo);
         proveedor.EstablecerFormaPagoDefecto(datos.FormaPagoDefectoId);
+        proveedor.EstablecerLimiteRiesgo(datos.LimiteRiesgo);
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return Resultado.Ok(ProveedorDto.Desde(proveedor));
     }

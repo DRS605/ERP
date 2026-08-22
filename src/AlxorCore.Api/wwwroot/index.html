@@ -1890,13 +1890,30 @@
       try{ panelAsig=await panelAsignacionesHtml(); }catch(e){ panelAsig=""; }
       let panelFormas="";
       try{ panelFormas=await panelFormasPagoHtml(); }catch(e){ panelFormas=""; }
+      let panelRiesgo="";
+      try{ panelRiesgo=await panelRiesgoHtml(); }catch(e){ panelRiesgo=""; }
       let panelUsuarios="";
       try{ panelUsuarios=await panelUsuariosHtml(); }catch(e){ panelUsuarios=""; }
       let panelAudit="";
       try{ panelAudit=await panelAuditoriaHtml(); }catch(e){ panelAudit=""; }
       let panelValoracion="";
       try{ panelValoracion=await panelValoracionHtml(); }catch(e){ panelValoracion=""; }
-      view(panelSeries+panelAsig+panelFormas+panelValoracion+panelCobroHtml()+panelUsuarios+panelDatosHtml()+panelAudit);
+      view(panelSeries+panelAsig+panelFormas+panelRiesgo+panelValoracion+panelCobroHtml()+panelUsuarios+panelDatosHtml()+panelAudit);
+    }
+    async function panelRiesgoHtml(){
+      const emp=await api("/empresas/actual");
+      const modo=emp.controlRiesgo||"Aviso";
+      const cuerpo=`<p class="muted" style="margin:0 0 12px">Cuando un cliente o proveedor supera su <strong>límite de riesgo</strong> (editable en su ficha) al emitir un documento, el programa puede solo <strong>avisar</strong> o <strong>bloquear</strong> la operación.</p>
+        <label>Control de riesgo</label>
+        <select style="max-width:260px" onchange="cambiarControlRiesgo(this.value)">
+          <option value="Aviso"${modo==="Aviso"?" selected":""}>Avisar (no bloquea)</option>
+          <option value="Bloqueo"${modo==="Bloqueo"?" selected":""}>Bloquear al superar el límite</option>
+        </select>`;
+      return panel("Control de riesgo",cuerpo);
+    }
+    async function cambiarControlRiesgo(modo){
+      try{ await api("/empresas/actual/control-riesgo",{method:"PUT",body:JSON.stringify({controlRiesgo:modo})}); toast("Control de riesgo: "+(modo==="Bloqueo"?"bloquear":"avisar"),"ok"); }
+      catch(e){ toast(e.message,"err"); vAjustes(); }
     }
     let _cacheFormasPago=[];
     async function panelFormasPagoHtml(){
@@ -2087,9 +2104,10 @@
       <input id="c_iva" placeholder="Ej. DE123456789"/>
       <label style="margin-top:14px">Tipo (opcional, para reglas de contabilización)</label>
       <input id="c_tipo" placeholder="Ej. Nacional, Intracomunitario, Minorista"/>
-      <label style="margin-top:14px">Forma de pago habitual (opcional)</label>${formaPagoSel("c_forma",c&&c.formaPagoDefectoId)}`,
-      async()=>{ const b=JSON.stringify({nombre:val("c_nombre"),nifFiscal:val("c_nif")||null,email:val("c_email")||null,porcentajeIrpfDefecto:Number(val("c_irpf")),recargoEquivalencia:document.getElementById("c_recargo").checked,iban:val("c_iban")||null,mandatoReferencia:val("c_mref")||null,mandatoFecha:val("c_mfecha")||null,nifIva:val("c_iva")||null,tipo:val("c_tipo")||null,formaPagoDefectoId:val("c_forma")||null}); await api("/clientes"+(c?"/"+c.id:""),{method:c?"PUT":"POST",body:b}); vClientes(); });
-      if(c){ rellenar({c_nombre:c.nombre,c_nif:c.nifFiscal,c_email:c.email,c_irpf:c.porcentajeIrpfDefecto,c_iban:c.iban,c_mref:c.mandatoReferencia,c_mfecha:c.mandatoFecha,c_iva:c.nifIva,c_tipo:c.tipo}); document.getElementById("c_recargo").checked=!!c.recargoEquivalencia; } }
+      <label style="margin-top:14px">Forma de pago habitual (opcional)</label>${formaPagoSel("c_forma",c&&c.formaPagoDefectoId)}
+      <label style="margin-top:14px">Límite de riesgo (€, opcional)</label><input id="c_riesgo" type="number" step="0.01" placeholder="Sin límite"/>`,
+      async()=>{ const r=val("c_riesgo"); const b=JSON.stringify({nombre:val("c_nombre"),nifFiscal:val("c_nif")||null,email:val("c_email")||null,porcentajeIrpfDefecto:Number(val("c_irpf")),recargoEquivalencia:document.getElementById("c_recargo").checked,iban:val("c_iban")||null,mandatoReferencia:val("c_mref")||null,mandatoFecha:val("c_mfecha")||null,nifIva:val("c_iva")||null,tipo:val("c_tipo")||null,formaPagoDefectoId:val("c_forma")||null,limiteRiesgo:r?Number(r):null}); await api("/clientes"+(c?"/"+c.id:""),{method:c?"PUT":"POST",body:b}); vClientes(); });
+      if(c){ rellenar({c_nombre:c.nombre,c_nif:c.nifFiscal,c_email:c.email,c_irpf:c.porcentajeIrpfDefecto,c_iban:c.iban,c_mref:c.mandatoReferencia,c_mfecha:c.mandatoFecha,c_iva:c.nifIva,c_tipo:c.tipo,c_riesgo:c.limiteRiesgo}); document.getElementById("c_recargo").checked=!!c.recargoEquivalencia; } }
     async function modalProveedor(pr){ _cacheFormasPago=await api("/formas-pago").catch(()=>[]); const fp=[["NoIndicada","Sin especificar"],["Transferencia","Transferencia"],["Domiciliacion","Domiciliación"],["Efectivo","Efectivo"],["Tarjeta","Tarjeta"],["Pagare","Pagaré"],["Confirming","Confirming"],["Otro","Otro"]].map(o=>`<option value="${o[0]}">${o[1]}</option>`).join("");
       abrir(pr?"Editar proveedor":"Nuevo proveedor",`<label>Nombre</label><input id="pr_nombre" placeholder="Nombre o razón social"/><div class="grid2"><div><label>NIF (opcional)</label><input id="pr_nif"/></div><div><label>IRPF (opcional)</label><input id="pr_irpf" type="number" value="0"/></div></div>
       <div class="grid2"><div><label>Forma de pago</label><select id="pr_pago">${fp}</select></div><div><label>Email (opcional)</label><input id="pr_email"/></div></div>
@@ -2097,9 +2115,10 @@
       <input id="pr_iva" placeholder="Ej. IT12345678901"/>
       <label style="margin-top:14px">Tipo (opcional, para reglas de contabilización)</label>
       <input id="pr_tipo" placeholder="Ej. Servicios, Suministros, Profesional"/>
-      <label style="margin-top:14px">Forma de pago habitual (opcional)</label>${formaPagoSel("pr_forma",pr&&pr.formaPagoDefectoId)}`,
-      async()=>{ const b=JSON.stringify({nombre:val("pr_nombre"),nifFiscal:val("pr_nif")||null,email:val("pr_email")||null,porcentajeIrpfDefecto:Number(val("pr_irpf")),formaPago:val("pr_pago"),nifIva:val("pr_iva")||null,tipo:val("pr_tipo")||null,formaPagoDefectoId:val("pr_forma")||null}); await api("/proveedores"+(pr?"/"+pr.id:""),{method:pr?"PUT":"POST",body:b}); vProveedores(); });
-      if(pr) rellenar({pr_nombre:pr.nombre,pr_nif:pr.nifFiscal,pr_email:pr.email,pr_irpf:pr.porcentajeIrpfDefecto,pr_pago:pr.formaPago,pr_iva:pr.nifIva,pr_tipo:pr.tipo}); }
+      <label style="margin-top:14px">Forma de pago habitual (opcional)</label>${formaPagoSel("pr_forma",pr&&pr.formaPagoDefectoId)}
+      <label style="margin-top:14px">Límite de riesgo (€, opcional)</label><input id="pr_riesgo" type="number" step="0.01" placeholder="Sin límite"/>`,
+      async()=>{ const r=val("pr_riesgo"); const b=JSON.stringify({nombre:val("pr_nombre"),nifFiscal:val("pr_nif")||null,email:val("pr_email")||null,porcentajeIrpfDefecto:Number(val("pr_irpf")),formaPago:val("pr_pago"),nifIva:val("pr_iva")||null,tipo:val("pr_tipo")||null,formaPagoDefectoId:val("pr_forma")||null,limiteRiesgo:r?Number(r):null}); await api("/proveedores"+(pr?"/"+pr.id:""),{method:pr?"PUT":"POST",body:b}); vProveedores(); });
+      if(pr) rellenar({pr_nombre:pr.nombre,pr_nif:pr.nifFiscal,pr_email:pr.email,pr_irpf:pr.porcentajeIrpfDefecto,pr_pago:pr.formaPago,pr_iva:pr.nifIva,pr_tipo:pr.tipo,pr_riesgo:pr.limiteRiesgo}); }
     async function modalProducto(p){ const [provs,prods]=await Promise.all([api("/proveedores").catch(()=>[]),api("/productos").catch(()=>[])]);
       const provOpts=`<option value="">— Sin asignar —</option>`+provs.map(x=>`<option value="${x.id}">${x.nombre}</option>`).join("");
       const editar=p&&p.id;
@@ -2194,7 +2213,7 @@
       abrir("Nuevo gasto",`<label>Concepto</label><input id="g_conc" placeholder="Ej. Alquiler, suministros…"/>
         <div class="grid2"><div><label>Proveedor</label><select id="g_prov">${opts}</select></div><div><label>Base (€)</label><input id="g_base" type="number" value="0"/></div></div>
         <div class="grid2"><div><label>IVA</label>${ivaSel("g_iva")}</div><div><label>Forma de pago</label>${formaPagoSel("g_forma")}</div></div>`,
-        async()=>{ await api("/gastos",{method:"POST",body:JSON.stringify({concepto:val("g_conc"),proveedorId:val("g_prov")||null,baseImponible:Number(val("g_base")),codigoIva:val("g_iva"),formaPagoId:val("g_forma")||null})}); vGastos(); }); }
+        async()=>{ const _g=await api("/gastos",{method:"POST",body:JSON.stringify({concepto:val("g_conc"),proveedorId:val("g_prov")||null,baseImponible:Number(val("g_base")),codigoIva:val("g_iva"),formaPagoId:val("g_forma")||null})}); if(_g&&_g.avisoRiesgo) toast(_g.avisoRiesgo,"err"); vGastos(); }); }
     async function modalFactura(src){ const [cs,series,formas]=await Promise.all([api("/clientes"),api("/series").catch(()=>[]),api("/formas-pago").catch(()=>[])]); _cacheCli=cs; _cacheFormasPago=formas;
       const opts=cs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join("");
       const prefijos=[...new Set(["FA",...series.map(s=>s.prefijo)])];
@@ -2214,7 +2233,7 @@
         async()=>{ const serie=document.getElementById("f_serie")?document.getElementById("f_serie").value:null;
           const lineas=_facLineas.filter(l=>l.descripcion.trim()&&l.cantidad>0).map(l=>({descripcion:l.descripcion,cantidad:l.cantidad,precioUnitario:l.precio,codigoIva:l.iva,porcentajeDescuento:l.dto||0}));
           if(!lineas.length) throw new Error("Añade al menos una línea con descripción y cantidad.");
-          await api("/facturas",{method:"POST",body:JSON.stringify({clienteId:val("f_cli"),serie,diasVencimiento:Number(val("f_venc")),formaPagoId:val("f_forma")||null,recargoEquivalencia:document.getElementById("f_recargo").checked,lineas})}); vFacturas(); });
+          const _f=await api("/facturas",{method:"POST",body:JSON.stringify({clienteId:val("f_cli"),serie,diasVencimiento:Number(val("f_venc")),formaPagoId:val("f_forma")||null,recargoEquivalencia:document.getElementById("f_recargo").checked,lineas})}); if(_f&&_f.avisoRiesgo) toast(_f.avisoRiesgo,"err"); vFacturas(); });
       if(src&&src.clienteId){ const sel=document.getElementById("f_cli"); if([...sel.options].some(o=>o.value===src.clienteId)) sel.value=src.clienteId; }
       ajustarRecargoCliente(); facTotal(); }
     let _facLineas=[];

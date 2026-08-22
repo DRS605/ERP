@@ -51,6 +51,7 @@ public sealed class EmitirFactura
     private readonly IColaContabilizacion _cola;
     private readonly IConsultaFormasPago _formasPago;
     private readonly IPagosAutomaticos _pagos;
+    private readonly IConsultaRiesgo _riesgo;
     private readonly IReloj _reloj;
 
     public EmitirFactura(
@@ -65,6 +66,7 @@ public sealed class EmitirFactura
         IColaContabilizacion cola,
         IConsultaFormasPago formasPago,
         IPagosAutomaticos pagos,
+        IConsultaRiesgo riesgo,
         IReloj reloj)
     {
         _clientes = clientes;
@@ -78,6 +80,7 @@ public sealed class EmitirFactura
         _cola = cola;
         _formasPago = formasPago;
         _pagos = pagos;
+        _riesgo = riesgo;
         _reloj = reloj;
     }
 
@@ -128,6 +131,33 @@ public sealed class EmitirFactura
         if (string.IsNullOrWhiteSpace(serie))
         {
             serie = await _resolverSerie.ResolverPrefijoAsync(empresaId, TipoDocumento.Factura, cliente.Id, ct).ConfigureAwait(false);
+        }
+
+        // Control de riesgo del cliente: se comprueba ANTES de numerar (para no consumir número si se
+        // bloquea). El total proyectado se calcula con una factura provisional (número 0) que se descarta.
+        string? avisoRiesgo = null;
+        if (cliente.LimiteRiesgo is { } limiteRiesgo)
+        {
+            var prefijoProvisional = string.IsNullOrWhiteSpace(serie) ? "FA" : serie!;
+            var provisional = Factura.Emitir(empresaId, new NumeroFactura(prefijoProvisional, fechaEmision.Year, 0), fechaEmision, fechaOperacion, clienteFacturado, lineas, porcentajeIrpf, _reloj, fechaVencimiento);
+            if (provisional.EsFallo)
+            {
+                return Resultado.Fallo<FacturaDto>(provisional.Error);
+            }
+
+            var totalProyectado = provisional.Valor.Total;
+            var riesgoVivo = await _riesgo.RiesgoVivoClienteAsync(empresaId, cliente.Id, ct).ConfigureAwait(false);
+            if (riesgoVivo + totalProyectado > limiteRiesgo)
+            {
+                var emp = await _empresas.ObtenerAsync(empresaId, ct).ConfigureAwait(false);
+                if ((emp?.ControlRiesgo ?? ControlRiesgo.Aviso) == ControlRiesgo.Bloqueo)
+                {
+                    return Resultado.Fallo<FacturaDto>(Error.Conflicto("riesgo.superado",
+                        $"El cliente supera su límite de riesgo ({limiteRiesgo:F2} €): riesgo vivo {riesgoVivo:F2} € + esta factura {totalProyectado:F2} €."));
+                }
+
+                avisoRiesgo = $"El cliente supera su límite de riesgo ({limiteRiesgo:F2} €). Riesgo tras esta factura: {riesgoVivo + totalProyectado:F2} €.";
+            }
         }
 
         // La numeración es lo último antes de crear y guardar (minimiza huecos).
@@ -182,7 +212,7 @@ public sealed class EmitirFactura
             await _pagos.RegistrarCobroTotalAsync(empresaId, f.Id, f.Total, f.FechaEmision, ct).ConfigureAwait(false);
         }
 
-        return Resultado.Ok(FacturaDto.Desde(f));
+        return Resultado.Ok(FacturaDto.Desde(f) with { AvisoRiesgo = avisoRiesgo });
     }
 }
 

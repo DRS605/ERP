@@ -11,7 +11,7 @@ public class ResumenesFiscalesTests
     private static readonly Guid Empresa = Guid.NewGuid();
 
     private static FacturaResumen Factura(DateOnly fecha, decimal baseImp, decimal cuota, decimal retencion = 0m, string estado = "Emitida") =>
-        new(Guid.NewGuid(), "FA2026/0001", fecha, fecha, "Cliente", "B12345674", baseImp, cuota, retencion, baseImp + cuota - retencion, estado, "Ordinaria");
+        new(Guid.NewGuid(), "FA2026/0001", fecha, fecha, "Cliente", "B12345674", baseImp, cuota, retencion, baseImp + cuota - retencion, estado, "Ordinaria", Guid.NewGuid());
 
     private static GastoDto Gasto(DateOnly fecha, decimal baseImp, decimal cuota) =>
         new(Guid.NewGuid(), null, "Proveedor", "Concepto", fecha, baseImp, "IVA21", 21m, cuota, 0m, 0m, baseImp + cuota, "Registrado");

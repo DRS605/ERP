@@ -22,7 +22,8 @@ public sealed record DatosCliente(
     DateOnly? MandatoFecha = null,
     string? NifIva = null,
     string? Tipo = null,
-    Guid? FormaPagoDefectoId = null);
+    Guid? FormaPagoDefectoId = null,
+    decimal? LimiteRiesgo = null);
 
 /// <summary>Caso de uso: crear un cliente en la empresa activa.</summary>
 public sealed class CrearCliente
@@ -51,6 +52,7 @@ public sealed class CrearCliente
 
         cliente.Valor.EstablecerTipo(datos.Tipo);
         cliente.Valor.EstablecerFormaPagoDefecto(datos.FormaPagoDefectoId);
+        cliente.Valor.EstablecerLimiteRiesgo(datos.LimiteRiesgo);
         _clientes.Agregar(cliente.Valor);
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return Resultado.Ok(ClienteDto.Desde(cliente.Valor));
@@ -90,6 +92,7 @@ public sealed class ActualizarCliente
 
         cliente.EstablecerTipo(datos.Tipo);
         cliente.EstablecerFormaPagoDefecto(datos.FormaPagoDefectoId);
+        cliente.EstablecerLimiteRiesgo(datos.LimiteRiesgo);
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return Resultado.Ok(ClienteDto.Desde(cliente));
     }

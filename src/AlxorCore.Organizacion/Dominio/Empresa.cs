@@ -59,6 +59,9 @@ public sealed class Empresa : RaizAgregado<Guid>
     /// <summary>Método de valoración de existencias/consumos elegido en la implantación. Por defecto, estándar.</summary>
     public MetodoValoracion MetodoValoracion { get; private set; } = MetodoValoracion.Estandar;
 
+    /// <summary>Cómo actúa ante el exceso de límite de riesgo de un tercero (avisar o bloquear).</summary>
+    public ControlRiesgo ControlRiesgo { get; private set; } = ControlRiesgo.Aviso;
+
     public DateTimeOffset CreadoEn { get; private set; }
 
     public DateTimeOffset ActualizadoEn { get; private set; }
@@ -116,6 +119,14 @@ public sealed class Empresa : RaizAgregado<Guid>
     {
         ArgumentNullException.ThrowIfNull(reloj);
         MetodoValoracion = metodo;
+        ActualizadoEn = reloj.AhoraUtc;
+    }
+
+    /// <summary>Fija el control de riesgo de la empresa (avisar o bloquear al superar el límite).</summary>
+    public void EstablecerControlRiesgo(ControlRiesgo control, IReloj reloj)
+    {
+        ArgumentNullException.ThrowIfNull(reloj);
+        ControlRiesgo = control;
         ActualizadoEn = reloj.AhoraUtc;
     }
 }

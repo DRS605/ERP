@@ -1,5 +1,6 @@
 using AlxorCore.Gastos.Dominio;
 using AlxorCore.Nucleo.Aplicacion;
+using AlxorCore.Nucleo.Comun;
 using AlxorCore.Nucleo.Resultados;
 using AlxorCore.Nucleo.Tiempo;
 using AlxorCore.Organizacion.Aplicacion.Modelos;
@@ -12,7 +13,7 @@ namespace AlxorCore.Gastos.Aplicacion;
 public sealed record GastoDto(
     Guid Id, Guid? ProveedorId, string? ProveedorTexto, string Concepto, DateOnly Fecha,
     decimal BaseImponible, string CodigoIva, decimal PorcentajeIva, decimal CuotaIva,
-    decimal PorcentajeIrpf, decimal RetencionIrpf, decimal Total, string Estado)
+    decimal PorcentajeIrpf, decimal RetencionIrpf, decimal Total, string Estado, string? AvisoRiesgo = null)
 {
     public static GastoDto Desde(Gasto g) => new(
         g.Id, g.ProveedorId, g.ProveedorTexto, g.Concepto, g.Fecha, g.BaseImponible, g.CodigoIva, g.PorcentajeIva, g.CuotaIva,
@@ -58,6 +59,8 @@ public sealed class RegistrarGasto
     private readonly IColaContabilizacion _cola;
     private readonly IConsultaFormasPago _formasPago;
     private readonly IPagosAutomaticos _pagos;
+    private readonly IConsultaRiesgo _riesgo;
+    private readonly IConsultaEmpresas _empresas;
     private readonly IReloj _reloj;
 
     public RegistrarGasto(
@@ -67,6 +70,8 @@ public sealed class RegistrarGasto
         IColaContabilizacion cola,
         IConsultaFormasPago formasPago,
         IPagosAutomaticos pagos,
+        IConsultaRiesgo riesgo,
+        IConsultaEmpresas empresas,
         IReloj reloj)
     {
         _gastos = gastos;
@@ -75,6 +80,8 @@ public sealed class RegistrarGasto
         _cola = cola;
         _formasPago = formasPago;
         _pagos = pagos;
+        _riesgo = riesgo;
+        _empresas = empresas;
         _reloj = reloj;
     }
 
@@ -85,6 +92,8 @@ public sealed class RegistrarGasto
         var proveedorTexto = comando.ProveedorTexto;
         string? tipoTercero = null;
         Guid? formaPagoDefectoId = null;
+        decimal? limiteRiesgo = null;
+        Guid? proveedorRiesgoId = null;
         if (comando.ProveedorId is { } provId)
         {
             var proveedor = await _proveedores.ObtenerAsync(provId, ct).ConfigureAwait(false);
@@ -96,6 +105,8 @@ public sealed class RegistrarGasto
             proveedorTexto = proveedor.Nombre;
             tipoTercero = proveedor.Tipo;
             formaPagoDefectoId = proveedor.FormaPagoDefectoId;
+            limiteRiesgo = proveedor.LimiteRiesgo;
+            proveedorRiesgoId = provId;
         }
 
         var formaPagoId = comando.FormaPagoId ?? formaPagoDefectoId;
@@ -108,6 +119,25 @@ public sealed class RegistrarGasto
         if (gasto.EsFallo)
         {
             return Resultado.Fallo<GastoDto>(gasto.Error);
+        }
+
+        // Control de riesgo del proveedor (antes de guardar). Configurable por empresa: avisar o bloquear.
+        string? avisoRiesgo = null;
+        if (limiteRiesgo is { } limite && proveedorRiesgoId is { } provRiesgoId)
+        {
+            var riesgoVivo = await _riesgo.RiesgoVivoProveedorAsync(empresaId, provRiesgoId, ct).ConfigureAwait(false);
+            var total = gasto.Valor.Total;
+            if (riesgoVivo + total > limite)
+            {
+                var emp = await _empresas.ObtenerAsync(empresaId, ct).ConfigureAwait(false);
+                if ((emp?.ControlRiesgo ?? ControlRiesgo.Aviso) == ControlRiesgo.Bloqueo)
+                {
+                    return Resultado.Fallo<GastoDto>(Error.Conflicto("riesgo.superado",
+                        $"El proveedor supera su límite de riesgo ({limite:F2} €): riesgo vivo {riesgoVivo:F2} € + este gasto {total:F2} €."));
+                }
+
+                avisoRiesgo = $"El proveedor supera su límite de riesgo ({limite:F2} €). Riesgo tras este gasto: {riesgoVivo + total:F2} €.";
+            }
         }
 
         _gastos.Agregar(gasto.Valor);
@@ -125,7 +155,7 @@ public sealed class RegistrarGasto
             await _pagos.RegistrarPagoTotalAsync(empresaId, g.Id, g.Total, g.Fecha, ct).ConfigureAwait(false);
         }
 
-        return Resultado.Ok(GastoDto.Desde(g));
+        return Resultado.Ok(GastoDto.Desde(g) with { AvisoRiesgo = avisoRiesgo });
     }
 }
 

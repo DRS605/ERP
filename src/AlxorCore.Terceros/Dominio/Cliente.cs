@@ -85,6 +85,9 @@ public sealed class Cliente : RaizAgregadoEmpresa<Guid>
     /// <summary>Forma de pago habitual del cliente (referencia opcional al catálogo de Organización).</summary>
     public Guid? FormaPagoDefectoId { get; private set; }
 
+    /// <summary>Límite de riesgo (crédito) concedido al cliente. Null = sin límite. Editable.</summary>
+    public decimal? LimiteRiesgo { get; private set; }
+
     public bool Activo { get; private set; }
 
     public DateTimeOffset CreadoEn { get; private set; }
@@ -105,6 +108,9 @@ public sealed class Cliente : RaizAgregadoEmpresa<Guid>
 
     /// <summary>Fija la forma de pago habitual del cliente (null = sin defecto).</summary>
     public void EstablecerFormaPagoDefecto(Guid? formaPagoId) => FormaPagoDefectoId = formaPagoId;
+
+    /// <summary>Fija el límite de riesgo del cliente (null o negativo = sin límite).</summary>
+    public void EstablecerLimiteRiesgo(decimal? limite) => LimiteRiesgo = limite is > 0m ? limite : null;
 
     public static Resultado<Cliente> Crear(
         Guid empresaId,

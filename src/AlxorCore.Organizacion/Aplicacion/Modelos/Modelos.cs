@@ -11,10 +11,10 @@ public sealed record FormaPagoDto(Guid Id, string Nombre, bool GeneraVencimiento
         new(f.Id, f.Nombre, f.GeneraVencimiento, f.DiasVencimiento, f.RegistrarPagoAutomatico, f.Activo);
 }
 
-public sealed record EmpresaDto(Guid Id, string Nif, string RazonSocial, RegimenIva RegimenIva, string Moneda, string Pais, string? Iban, string? IdentificadorAcreedor, MetodoValoracion MetodoValoracion)
+public sealed record EmpresaDto(Guid Id, string Nif, string RazonSocial, RegimenIva RegimenIva, string Moneda, string Pais, string? Iban, string? IdentificadorAcreedor, MetodoValoracion MetodoValoracion, ControlRiesgo ControlRiesgo)
 {
     public static EmpresaDto Desde(Empresa empresa) =>
-        new(empresa.Id, empresa.Nif.Valor, empresa.RazonSocial, empresa.RegimenIva, empresa.Moneda, empresa.Pais, empresa.Iban, empresa.IdentificadorAcreedor, empresa.MetodoValoracion);
+        new(empresa.Id, empresa.Nif.Valor, empresa.RazonSocial, empresa.RegimenIva, empresa.Moneda, empresa.Pais, empresa.Iban, empresa.IdentificadorAcreedor, empresa.MetodoValoracion, empresa.ControlRiesgo);
 }
 
 /// <summary>Resumen de una empresa a la que pertenece un usuario, con su rol.</summary>

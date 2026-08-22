@@ -42,6 +42,10 @@ public static class EndpointsOrganizacion
             .WithSummary("Fija el método de valoración de existencias/consumos de la empresa (parámetro de implantación).")
             .RequierePermiso(Permisos.EmpresaAjustes);
 
+        empresas.MapPut("/actual/control-riesgo", ControlRiesgoAsync)
+            .WithSummary("Fija el control de riesgo de la empresa (avisar o bloquear al superar el límite).")
+            .RequierePermiso(Permisos.EmpresaAjustes);
+
         var series = rutas.MapGroup("/series").WithTags("Series");
 
         series.MapGet("", ListarSeriesAsync)
@@ -208,6 +212,16 @@ public static class EndpointsOrganizacion
     }
 
     private static async Task<IResult> MetodoValoracionAsync(MetodoValoracionComando comando, IContextoEmpresa contexto, ActualizarMetodoValoracion caso, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        return (await caso.EjecutarAsync(contexto.EmpresaId.Value, comando, ct).ConfigureAwait(false)).AOk();
+    }
+
+    private static async Task<IResult> ControlRiesgoAsync(ControlRiesgoComando comando, IContextoEmpresa contexto, ActualizarControlRiesgo caso, CancellationToken ct)
     {
         if (contexto.EmpresaId is null)
         {

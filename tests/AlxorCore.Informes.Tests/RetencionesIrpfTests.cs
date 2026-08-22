@@ -22,7 +22,7 @@ public class RetencionesIrpfTests
         new(Guid.NewGuid(), proveedorId, texto, "Servicios profesionales", fecha, baseImp, "IVA21", 21m, baseImp * 0.21m, 15m, retencion, baseImp, estado);
 
     private static ProveedorDto Prov(Guid id, string nombre, string? nif, string provincia = "Madrid") =>
-        new(id, nombre, nif, null, "C/ Mayor 1", "28001", "Madrid", provincia, "ES", 15m, true, default, null, null, null);
+        new(id, nombre, nif, null, "C/ Mayor 1", "28001", "Madrid", provincia, "ES", 15m, true, default, null, null, null, null);
 
     private sealed class FakeGastos(IReadOnlyList<GastoDto> lista) : IConsultaGastos
     {
@@ -45,7 +45,7 @@ public class RetencionesIrpfTests
         new(new FakeGastos(gastos), new FakeProveedores(proveedores), new FakeEmpresas(empresa));
 
     private static EmpresaDto EmpresaDeclarante() =>
-        new(Empresa, "B12345674", "Mi Empresa SL", default(RegimenIva), "EUR", "ES", null, null, MetodoValoracion.Estandar);
+        new(Empresa, "B12345674", "Mi Empresa SL", default(RegimenIva), "EUR", "ES", null, null, MetodoValoracion.Estandar, ControlRiesgo.Aviso);
 
     [Fact]
     public async Task El_111_suma_las_retenciones_del_trimestre_y_cuenta_perceptores()
