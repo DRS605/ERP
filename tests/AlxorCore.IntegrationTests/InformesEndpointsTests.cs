@@ -34,6 +34,27 @@ public sealed class InformesEndpointsTests : IClassFixture<FabricaApiPruebas>
     }
 
     [Fact]
+    public async Task Fichero_347_del_ejercicio_tiene_registros_de_500_posiciones()
+    {
+        var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+        var clienteId = (await (await cliente.PostAsJsonAsync("/clientes", new { Nombre = "Gran Cliente SL", NifFiscal = "A11111111" })).Content.ReadFromJsonAsync<ClienteResp>())!.Id;
+        // Factura por encima del umbral de 3.005,06 € (IVA incluido).
+        var comando = new { ClienteId = clienteId, Lineas = new[] { new { Cantidad = 1m, Descripcion = "Proyecto", PrecioUnitario = 5000m, CodigoIva = "IVA21" } } };
+        await cliente.PostAsJsonAsync("/facturas", comando);
+
+        var anio = DateTime.UtcNow.Year;
+        var fichero = await cliente.GetAsync($"/informes/modelo-347/fichero?anio={anio}");
+        fichero.StatusCode.Should().Be(HttpStatusCode.OK);
+        var lineas = (await fichero.Content.ReadAsStringAsync()).Split("\r\n");
+        lineas.Should().HaveCount(2); // declarante + 1 declarado
+        lineas[0].Length.Should().Be(500);
+        lineas[1].Length.Should().Be(500);
+        lineas[0][..4].Should().Be("1347");
+        lineas[1][..4].Should().Be("2347");
+        lineas[1].Substring(17, 9).Should().Be("A11111111"); // NIF del declarado
+    }
+
+    [Fact]
     public async Task Dashboard_refleja_facturado_gastado_y_pendientes()
     {
         var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);

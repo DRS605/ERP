@@ -36,6 +36,10 @@ public static class EndpointsInformes
             .WithSummary("Declaraciones anuales: modelo 390 (resumen IVA) y modelo 347 (operaciones con terceros).")
             .RequierePermiso(Permisos.InformeLeer);
 
+        informes.MapGet("/modelo-347/fichero", Modelo347FicheroAsync)
+            .WithSummary("Genera el fichero telemático (diseño AEAT) del modelo 347.")
+            .RequierePermiso(Permisos.DatosExportar);
+
         informes.MapGet("/modelo-111", Modelo111Async)
             .WithSummary("Modelo 111 (retenciones de IRPF del trimestre) a partir de los gastos con retención.")
             .RequierePermiso(Permisos.InformeLeer);
@@ -126,6 +130,24 @@ public static class EndpointsInformes
 
         var ejercicio = anio ?? DateTime.UtcNow.Year;
         return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, ejercicio, ct).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> Modelo347FicheroAsync(
+        IContextoEmpresa contexto, GenerarDeclaracionAnual caso, CancellationToken ct, int? anio = null)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        var ejercicio = anio ?? DateTime.UtcNow.Year;
+        var bytes = await caso.FicheroModelo347Async(contexto.EmpresaId.Value, ejercicio, ct).ConfigureAwait(false);
+        if (bytes is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("modelo347.sin_datos", "No hay terceros con NIF que superen el umbral del modelo 347 en ese ejercicio."));
+        }
+
+        return Results.File(bytes, "text/plain", $"modelo-347-{ejercicio}.txt");
     }
 
     private static async Task<IResult> Modelo111Async(

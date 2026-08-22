@@ -1,6 +1,7 @@
 using AlxorCore.Facturacion.Aplicacion;
 using AlxorCore.Gastos.Aplicacion;
 using AlxorCore.Nucleo.Comun;
+using AlxorCore.Organizacion.Aplicacion.Puertos;
 using AlxorCore.Terceros.Aplicacion;
 
 namespace AlxorCore.Informes.Aplicacion;
@@ -16,8 +17,14 @@ public sealed record Modelo390Dto(
     decimal IvaDeducibleBase, decimal IvaDeducibleCuota,
     decimal Resultado);
 
-/// <summary>Un tercero (cliente o proveedor) con su volumen anual de operaciones para el modelo 347.</summary>
-public sealed record Modelo347LineaDto(string Clave, string Nombre, string? Nif, string Sentido, decimal ImporteAnual);
+/// <summary>
+/// Un tercero (cliente o proveedor) con su volumen de operaciones del año para el modelo 347.
+/// <paramref name="ClaveOperacion"/> es la clave AEAT (B = ventas/entregas del declarante;
+/// A = compras/adquisiciones) y T1–T4 el desglose por trimestre (IVA incluido).
+/// </summary>
+public sealed record Modelo347LineaDto(
+    string Clave, string Nombre, string? Nif, string Sentido, string ClaveOperacion,
+    decimal ImporteAnual, decimal T1, decimal T2, decimal T3, decimal T4);
 
 /// <summary>
 /// Resumen del <b>modelo 347</b> (declaración anual de operaciones con terceros): relación de
@@ -45,12 +52,39 @@ public sealed class GenerarDeclaracionAnual
     private readonly IConsultaFacturas _facturas;
     private readonly IConsultaGastos _gastos;
     private readonly IConsultaProveedores _proveedores;
+    private readonly IConsultaEmpresas _empresas;
 
-    public GenerarDeclaracionAnual(IConsultaFacturas facturas, IConsultaGastos gastos, IConsultaProveedores proveedores)
+    public GenerarDeclaracionAnual(IConsultaFacturas facturas, IConsultaGastos gastos, IConsultaProveedores proveedores, IConsultaEmpresas empresas)
     {
         _facturas = facturas;
         _gastos = gastos;
         _proveedores = proveedores;
+        _empresas = empresas;
+    }
+
+    /// <summary>
+    /// Genera el fichero telemático oficial del modelo 347 del ejercicio (bytes ISO-8859-1). Solo
+    /// incluye los terceros con NIF que superan el umbral. Devuelve null si no hay empresa ni nada
+    /// que declarar.
+    /// </summary>
+    public async Task<byte[]?> FicheroModelo347Async(Guid empresaId, int anio, CancellationToken ct = default)
+    {
+        var empresa = await _empresas.ObtenerAsync(empresaId, ct).ConfigureAwait(false);
+        if (empresa is null)
+        {
+            return null;
+        }
+
+        var decl = await EjecutarAsync(empresaId, anio, ct).ConfigureAwait(false);
+        var lineas = decl.Modelo347.Clientes.Concat(decl.Modelo347.Proveedores)
+            .Where(l => l.Nif is { Length: > 0 })
+            .ToList();
+        if (lineas.Count == 0)
+        {
+            return null;
+        }
+
+        return FicheroModelo347.Generar(new DeclaranteAeat(empresa.Nif, empresa.RazonSocial), anio, lineas);
     }
 
     public async Task<DeclaracionAnualDto> EjecutarAsync(Guid empresaId, int anio, CancellationToken ct = default)
@@ -92,7 +126,9 @@ public sealed class GenerarDeclaracionAnual
             .Select(g =>
             {
                 var primera = g.First();
-                return new Modelo347LineaDto(g.Key, primera.ClienteNombre, primera.ClienteNif, "Cliente", Redondeo.Dos(g.Sum(f => f.Total)));
+                var (t1, t2, t3, t4) = PorTrimestre(g.Select(f => (f.FechaEmision, f.Total)));
+                return new Modelo347LineaDto(g.Key, primera.ClienteNombre, primera.ClienteNif, "Cliente", "B",
+                    Redondeo.Dos(g.Sum(f => f.Total)), t1, t2, t3, t4);
             })
             .Where(l => l.ImporteAnual > Umbral347)
             .OrderByDescending(l => l.ImporteAnual)
@@ -119,12 +155,31 @@ public sealed class GenerarDeclaracionAnual
                     nif = null;
                 }
 
-                return new Modelo347LineaDto(g.Key, nombre, nif, "Proveedor", Redondeo.Dos(g.Sum(x => x.Total)));
+                var (t1, t2, t3, t4) = PorTrimestre(g.Select(x => (x.Fecha, x.Total)));
+                return new Modelo347LineaDto(g.Key, nombre, nif, "Proveedor", "A", Redondeo.Dos(g.Sum(x => x.Total)), t1, t2, t3, t4);
             })
             .Where(l => l.ImporteAnual > Umbral347)
             .OrderByDescending(l => l.ImporteAnual)
             .ToList();
 
         return new Modelo347Dto(anio, Umbral347, clientes, proveedoresLinea);
+    }
+
+    /// <summary>Reparte importes por trimestre según su fecha.</summary>
+    private static (decimal T1, decimal T2, decimal T3, decimal T4) PorTrimestre(IEnumerable<(DateOnly Fecha, decimal Importe)> ops)
+    {
+        decimal t1 = 0m, t2 = 0m, t3 = 0m, t4 = 0m;
+        foreach (var (fecha, importe) in ops)
+        {
+            switch ((fecha.Month - 1) / 3)
+            {
+                case 0: t1 += importe; break;
+                case 1: t2 += importe; break;
+                case 2: t3 += importe; break;
+                default: t4 += importe; break;
+            }
+        }
+
+        return (Redondeo.Dos(t1), Redondeo.Dos(t2), Redondeo.Dos(t3), Redondeo.Dos(t4));
     }
 }

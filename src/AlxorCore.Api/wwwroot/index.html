@@ -1690,9 +1690,16 @@
         <div><h4 style="margin:0 0 8px">Modelo 347 · Operaciones &gt; ${eur(m7.umbral)}</h4>
           <div style="display:grid;gap:14px">${bloque347('Clientes',m7.clientes)}${bloque347('Proveedores',m7.proveedores)}</div>
         </div></div>
-        <p class="muted" style="font-size:12px;margin:14px 0 0">El 390 es el resumen anual del IVA (suma de los cuatro 303). El 347 lista los terceros con los que has superado ${eur(m7.umbral)} en el año (IVA incluido). Ayuda informativa para la gestoría; no es un envío oficial a la AEAT.</p>`;
-      return panel(`Declaración anual · ${anio}`,cuerpo);
+        <p class="muted" style="font-size:12px;margin:14px 0 0">El 390 es el resumen anual del IVA (suma de los cuatro 303). El 347 lista los terceros con los que has superado ${eur(m7.umbral)} en el año (IVA incluido). El fichero del 347 sigue el diseño de la AEAT; <strong>valídalo con el servicio de predeclaración de la AEAT</strong> antes de presentarlo. Ayuda informativa; no es un envío oficial.</p>`;
+      const tieneDatos=m7.clientes.length||m7.proveedores.length;
+      const acc=tieneDatos?`<button class="btn small ghost" onclick="descargarModelo347(${anio})">↓ Fichero oficial 347</button>`:"";
+      return panel(`Declaración anual · ${anio}`,cuerpo,acc);
     }
+    async function descargarModelo347(anio){
+      try{ const r=await fetch(`/informes/modelo-347/fichero?anio=${anio}`,{headers:{Authorization:"Bearer "+token}});
+        if(!r.ok){ toast("No hay terceros con NIF que superen el umbral del 347.","err"); return; }
+        const b=await r.blob(); const u=URL.createObjectURL(b); const a=document.createElement("a"); a.href=u; a.download=`modelo-347-${anio}.txt`; a.click(); URL.revokeObjectURL(u);
+      }catch(e){ toast(e.message,"err"); } }
     function panelRanking(b,anio){
       const pct=p=>p.ingresos>0?(p.margen/p.ingresos*100):0;
       const top=(arr,fn,dir)=>[...arr].sort((x,y)=>dir*(fn(y)-fn(x))).slice(0,5);
