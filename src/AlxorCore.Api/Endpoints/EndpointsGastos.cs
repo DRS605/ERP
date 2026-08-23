@@ -61,11 +61,20 @@ public static class EndpointsGastos
     private static async Task<IResult> ObtenerAsync(Guid id, ObtenerGasto caso, CancellationToken ct) =>
         (await caso.EjecutarAsync(id, ct).ConfigureAwait(false)).AOk();
 
-    private static async Task<IResult> RegistrarAsync(RegistrarGastoComando comando, IContextoEmpresa contexto, RegistrarGasto caso, CancellationToken ct)
+    private static async Task<IResult> RegistrarAsync(RegistrarGastoComando comando, IContextoEmpresa contexto, System.Security.Claims.ClaimsPrincipal usuario,
+        AlxorCore.Organizacion.Aplicacion.CasosDeUso.IConsultaVisibilidad visibilidad, RegistrarGasto caso, CancellationToken ct)
     {
+        ArgumentNullException.ThrowIfNull(comando);
         if (contexto.EmpresaId is null)
         {
             return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        // Si se elige explícitamente una actividad, el usuario debe tener acceso a ella (área Compras).
+        var acceso = await AccesoActividad.ValidarAsync(usuario, visibilidad, AlxorCore.Organizacion.Dominio.AreaVisibilidad.Compras, comando.ActividadNegocioId, ct).ConfigureAwait(false);
+        if (acceso is not null)
+        {
+            return ResultadosHttp.AProblema(acceso);
         }
 
         var resultado = await caso.EjecutarAsync(contexto.EmpresaId.Value, comando, ct).ConfigureAwait(false);

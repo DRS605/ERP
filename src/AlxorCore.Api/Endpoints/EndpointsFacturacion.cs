@@ -225,11 +225,20 @@ public static class EndpointsFacturacion
         return (await caso.EjecutarAsync(contexto.EmpresaId.Value, ct).ConfigureAwait(false)).AOk();
     }
 
-    private static async Task<IResult> EmitirAsync(EmitirFacturaComando comando, IContextoEmpresa contexto, EmitirFactura caso, CancellationToken ct)
+    private static async Task<IResult> EmitirAsync(EmitirFacturaComando comando, IContextoEmpresa contexto, System.Security.Claims.ClaimsPrincipal usuario,
+        AlxorCore.Organizacion.Aplicacion.CasosDeUso.IConsultaVisibilidad visibilidad, EmitirFactura caso, CancellationToken ct)
     {
+        ArgumentNullException.ThrowIfNull(comando);
         if (contexto.EmpresaId is null)
         {
             return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        // Si se elige explícitamente una actividad, el usuario debe tener acceso a ella (área Ventas).
+        var acceso = await AccesoActividad.ValidarAsync(usuario, visibilidad, AlxorCore.Organizacion.Dominio.AreaVisibilidad.Ventas, comando.ActividadNegocioId, ct).ConfigureAwait(false);
+        if (acceso is not null)
+        {
+            return ResultadosHttp.AProblema(acceso);
         }
 
         var resultado = await caso.EjecutarAsync(contexto.EmpresaId.Value, comando, ct).ConfigureAwait(false);

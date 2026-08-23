@@ -113,14 +113,18 @@ sustituyen por RLS por grupo en el catálogo; `existencia_simple` estrena RLS po
   `VisibilidadActividad`; `ExistenciaSimple` (entradas/salidas/ajuste, cantidad no negativa).
 - **Integración**: maestros de Terceros compartidos por grupo y aislados entre grupos; CRUD de
   actividades y visibilidad por área; **catálogo compartido** por grupo con **stock por empresa**
-  (un movimiento en una empresa no afecta a otra) y visibilidad de artículos por actividad; e informe
-  por actividad (ver abajo). Toda la batería de integración (245) sigue verde.
+  (un movimiento en una empresa no afecta a otra) y visibilidad de artículos por actividad; informe
+  por actividad; y elección de actividad al emitir/registrar restringida al acceso del usuario (403 si
+  no tiene acceso). Toda la batería de integración (248) sigue verde.
 
 ## Actividad en documentos e informes
 
 Las **facturas** (emitidas, tickets y rectificativas) y los **gastos** guardan la actividad de
 negocio del tercero en el momento de emitir/registrar (snapshot `actividad_negocio_id`, derivado del
-cliente/proveedor). Con ello, el informe **`GET /informes/por-actividad`** (permiso `informe.leer`)
+cliente/proveedor). Al emitir una factura o registrar un gasto se puede **elegir** explícitamente la
+actividad (en vez de heredarla): el comando acepta `ActividadNegocioId` y la API solo la admite si el
+usuario **tiene acceso** a esa actividad según su visibilidad en el área (Ventas para facturas,
+Compras para gastos); en caso contrario responde **403**. «Sin actividad» (null) siempre se admite. Con ello, el informe **`GET /informes/por-actividad`** (permiso `informe.leer`)
 agrega **ventas y compras en base imponible por actividad** en un periodo, con una fila «Sin
 actividad» para los documentos sin clasificar y el resultado (ventas − compras) por actividad y
 total. Los nombres de actividad se resuelven en el grupo.

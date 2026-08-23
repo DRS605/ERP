@@ -31,7 +31,8 @@ public sealed record EmitirFacturaComando(
     string? Serie = null,
     int? DiasVencimiento = null,
     bool RecargoEquivalencia = false,
-    Guid? FormaPagoId = null);
+    Guid? FormaPagoId = null,
+    Guid? ActividadNegocioId = null);
 
 /// <summary>
 /// Caso de uso estrella: emitir una factura. Compone cliente (Terceros), productos/impuestos
@@ -125,9 +126,12 @@ public sealed class EmitirFactura
         var fechaVencimiento = fechaEmision.AddDays(diasVencimiento);
         var porcentajeIrpf = comando.PorcentajeIrpf ?? cliente.PorcentajeIrpfDefecto;
 
+        // La actividad de negocio se hereda del cliente, salvo que se indique una en el comando
+        // (el acceso del usuario a esa actividad lo valida la capa de API antes de llegar aquí).
         var clienteFacturado = new ClienteFacturado(
             cliente.Id, cliente.Nombre, cliente.NifFiscal,
-            cliente.Calle, cliente.CodigoPostal, cliente.Poblacion, cliente.Provincia, cliente.Pais, cliente.ActividadNegocioId);
+            cliente.Calle, cliente.CodigoPostal, cliente.Poblacion, cliente.Provincia, cliente.Pais,
+            comando.ActividadNegocioId ?? cliente.ActividadNegocioId);
 
         // Serie: si no se indica una explícita, se resuelve la asignada al cliente (o la de la empresa).
         var serie = comando.Serie;

@@ -66,7 +66,8 @@ public sealed record RegistrarGastoComando(
     string? CodigoIva = null,
     decimal PorcentajeIrpf = 0m,
     DateOnly? Fecha = null,
-    Guid? FormaPagoId = null);
+    Guid? FormaPagoId = null,
+    Guid? ActividadNegocioId = null);
 
 /// <summary>Caso de uso: registrar un gasto. Si se indica un proveedor, se copia su nombre.</summary>
 public sealed class RegistrarGasto
@@ -144,7 +145,9 @@ public sealed class RegistrarGasto
             return Resultado.Fallo<GastoDto>(gasto.Error);
         }
 
-        gasto.Valor.EstablecerActividad(actividadNegocioId);
+        // La actividad se hereda del proveedor, salvo que se indique una en el comando (el acceso del
+        // usuario a esa actividad lo valida la capa de API antes de llegar aquí).
+        gasto.Valor.EstablecerActividad(comando.ActividadNegocioId ?? actividadNegocioId);
 
         // Control de riesgo del proveedor (antes de guardar). Configurable por empresa: avisar o bloquear.
         string? avisoRiesgo = null;
