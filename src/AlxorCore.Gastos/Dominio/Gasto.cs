@@ -56,6 +56,12 @@ public sealed class Gasto : RaizAgregadoEmpresa<Guid>
     /// <summary>Nombre del proveedor (copia del proveedor asociado, o texto libre).</summary>
     public string? ProveedorTexto { get; private set; }
 
+    /// <summary>
+    /// Actividad de negocio del proveedor en el momento de registrar (snapshot). Permite segmentar
+    /// las compras/gastos por línea/división de negocio en los informes. Null = sin actividad.
+    /// </summary>
+    public Guid? ActividadNegocioId { get; private set; }
+
     public string Concepto { get; private set; }
 
     public DateOnly Fecha { get; private set; }
@@ -117,6 +123,10 @@ public sealed class Gasto : RaizAgregadoEmpresa<Guid>
         gasto.RegistrarEvento(new GastoRegistrado(gasto.Id, empresaId, gasto.Total, reloj.AhoraUtc));
         return Resultado.Ok(gasto);
     }
+
+    /// <summary>Clasifica el gasto en una actividad de negocio (snapshot del proveedor). Null/vacío = sin actividad.</summary>
+    public void EstablecerActividad(Guid? actividadNegocioId) =>
+        ActividadNegocioId = actividadNegocioId is { } a && a != Guid.Empty ? a : null;
 
     public void Anular(IReloj reloj)
     {

@@ -38,7 +38,8 @@ public sealed record ClienteFacturado(
     string CodigoPostal,
     string Poblacion,
     string Provincia,
-    string Pais)
+    string Pais,
+    Guid? ActividadNegocioId = null)
 {
     /// <summary>Destinatario genérico para tickets sin cliente identificado.</summary>
     public static ClienteFacturado Contado { get; } =

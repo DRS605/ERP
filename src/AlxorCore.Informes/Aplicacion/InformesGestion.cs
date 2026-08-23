@@ -220,3 +220,64 @@ public sealed class GenerarComparativaMensual
         return new ComparativaAnualDto(ejercicio, totalVentas, totalGastos, Redondeo.Dos(totalVentas - totalGastos), meses);
     }
 }
+
+/// <summary>Resultado de una actividad de negocio en el periodo (ventas y compras en base imponible).</summary>
+public sealed record ActividadResultadoDto(Guid? ActividadNegocioId, string Actividad, decimal Ventas, decimal Compras, decimal Resultado);
+
+/// <summary>Informe de ventas y compras segmentado por actividad de negocio, con totales.</summary>
+public sealed record InformePorActividadDto(DateOnly Desde, DateOnly Hasta, decimal Ventas, decimal Compras, decimal Resultado, IReadOnlyList<ActividadResultadoDto> Actividades);
+
+/// <summary>
+/// Caso de uso: ventas (facturas emitidas) y compras (gastos) agregadas <b>por actividad de negocio</b>
+/// en un periodo, en base imponible. Los documentos guardan la actividad del tercero al emitir/registrar;
+/// los que no tienen actividad se agrupan como «Sin actividad». Las actividades se resuelven en el grupo.
+/// </summary>
+public sealed class GenerarInformePorActividad
+{
+    private readonly IConsultaFacturas _facturas;
+    private readonly IConsultaGastos _gastos;
+    private readonly AlxorCore.Organizacion.Aplicacion.CasosDeUso.IRepositorioActividades _actividades;
+
+    public GenerarInformePorActividad(IConsultaFacturas facturas, IConsultaGastos gastos, AlxorCore.Organizacion.Aplicacion.CasosDeUso.IRepositorioActividades actividades)
+    {
+        _facturas = facturas;
+        _gastos = gastos;
+        _actividades = actividades;
+    }
+
+    public async Task<InformePorActividadDto> EjecutarAsync(Guid empresaId, Guid grupoId, DateOnly desde, DateOnly hasta, CancellationToken ct = default)
+    {
+        var facturas = (await _facturas.ListarAsync(empresaId, ct).ConfigureAwait(false))
+            .Where(f => f.FechaEmision >= desde && f.FechaEmision <= hasta && EstadosVenta.Cuenta(f.Estado))
+            .ToList();
+        var gastos = (await _gastos.ListarAsync(empresaId, ct).ConfigureAwait(false))
+            .Where(g => g.Fecha >= desde && g.Fecha <= hasta && !string.Equals(g.Estado, "Anulado", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        var nombres = (await _actividades.ListarAsync(grupoId, ct).ConfigureAwait(false)).ToDictionary(a => a.Id, a => a.Nombre);
+
+        // La agrupación usa Guid.Empty como marcador de «sin actividad» (Guid? no vale como clave notnull).
+        static Guid Clave(Guid? id) => id ?? Guid.Empty;
+        var ventasPorActividad = facturas.GroupBy(f => Clave(f.ActividadNegocioId))
+            .ToDictionary(g => g.Key, g => Redondeo.Dos(g.Sum(f => f.BaseImponible)));
+        var comprasPorActividad = gastos.GroupBy(g => Clave(g.ActividadNegocioId))
+            .ToDictionary(g => g.Key, g => Redondeo.Dos(g.Sum(x => x.BaseImponible)));
+
+        var claves = ventasPorActividad.Keys.Union(comprasPorActividad.Keys);
+        var filas = claves
+            .Select(id =>
+            {
+                var ventas = ventasPorActividad.GetValueOrDefault(id);
+                var compras = comprasPorActividad.GetValueOrDefault(id);
+                var nombre = id != Guid.Empty && nombres.TryGetValue(id, out var n) ? n : "Sin actividad";
+                return new ActividadResultadoDto(id == Guid.Empty ? null : id, nombre, ventas, compras, Redondeo.Dos(ventas - compras));
+            })
+            .OrderByDescending(f => f.Ventas)
+            .ThenBy(f => f.Actividad, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var totalVentas = Redondeo.Dos(filas.Sum(f => f.Ventas));
+        var totalCompras = Redondeo.Dos(filas.Sum(f => f.Compras));
+        return new InformePorActividadDto(desde, hasta, totalVentas, totalCompras, Redondeo.Dos(totalVentas - totalCompras), filas);
+    }
+}

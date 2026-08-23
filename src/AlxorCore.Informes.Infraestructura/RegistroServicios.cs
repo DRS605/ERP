@@ -24,6 +24,7 @@ public static class RegistroServicios
         servicios.AddScoped<GenerarComprasPorProveedor>();
         servicios.AddScoped<GenerarRotacionStock>();
         servicios.AddScoped<GenerarComparativaMensual>();
+        servicios.AddScoped<GenerarInformePorActividad>();
         servicios.AddScoped<GenerarExtractoTercero>();
         servicios.AddScoped<GenerarAgingCartera>();
 

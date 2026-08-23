@@ -29,6 +29,20 @@ public class GastoTests
     }
 
     [Fact]
+    public void EstablecerActividad_clasifica_el_gasto()
+    {
+        var gasto = Gasto.Registrar(Empresa, null, "Proveedor SL", "Material", Fecha, 100m, "IVA21", 0m, Reloj).Valor;
+        gasto.ActividadNegocioId.Should().BeNull();
+
+        var actividad = Guid.NewGuid();
+        gasto.EstablecerActividad(actividad);
+        gasto.ActividadNegocioId.Should().Be(actividad);
+
+        gasto.EstablecerActividad(Guid.Empty);
+        gasto.ActividadNegocioId.Should().BeNull();
+    }
+
+    [Fact]
     public void Registrar_aplica_retencion_de_irpf()
     {
         // Servicio profesional: base 1000, IVA 21% = 210, IRPF 15% = 150 -> total 1060

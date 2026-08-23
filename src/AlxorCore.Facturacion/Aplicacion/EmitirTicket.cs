@@ -94,7 +94,7 @@ public sealed class EmitirTicket
             }
 
             cliente = new ClienteFacturado(
-                datos.Id, datos.Nombre, datos.NifFiscal, datos.Calle, datos.CodigoPostal, datos.Poblacion, datos.Provincia, datos.Pais);
+                datos.Id, datos.Nombre, datos.NifFiscal, datos.Calle, datos.CodigoPostal, datos.Poblacion, datos.Provincia, datos.Pais, datos.ActividadNegocioId);
             tipoTercero = datos.Tipo;
             formaPagoDefectoId = datos.FormaPagoDefectoId;
         }

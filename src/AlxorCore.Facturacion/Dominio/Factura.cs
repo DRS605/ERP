@@ -56,6 +56,7 @@ public sealed class Factura : RaizAgregadoEmpresa<Guid>
         ClientePoblacion = cliente.Poblacion;
         ClienteProvincia = cliente.Provincia;
         Pais = cliente.Pais;
+        ActividadNegocioId = cliente.ActividadNegocioId;
         PorcentajeIrpf = porcentajeIrpf;
         Estado = EstadoFactura.Emitida;
         TipoFactura = TipoFactura.Ordinaria;
@@ -84,6 +85,12 @@ public sealed class Factura : RaizAgregadoEmpresa<Guid>
     public string ClientePoblacion { get; private set; } = string.Empty;
     public string ClienteProvincia { get; private set; } = string.Empty;
     public string Pais { get; private set; }
+
+    /// <summary>
+    /// Actividad de negocio del cliente en el momento de emitir (snapshot). Permite segmentar las
+    /// ventas por línea/división de negocio en los informes. Null = sin actividad.
+    /// </summary>
+    public Guid? ActividadNegocioId { get; private set; }
 
     // --- Importes ---
     public decimal BaseImponible { get; private set; }

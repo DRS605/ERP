@@ -14,11 +14,12 @@ namespace AlxorCore.Gastos.Aplicacion;
 public sealed record GastoDto(
     Guid Id, Guid? ProveedorId, string? ProveedorTexto, string Concepto, DateOnly Fecha,
     decimal BaseImponible, string CodigoIva, decimal PorcentajeIva, decimal CuotaIva,
-    decimal PorcentajeIrpf, decimal RetencionIrpf, decimal Total, string Estado, string? AvisoRiesgo = null)
+    decimal PorcentajeIrpf, decimal RetencionIrpf, decimal Total, string Estado, string? AvisoRiesgo = null,
+    Guid? ActividadNegocioId = null)
 {
     public static GastoDto Desde(Gasto g) => new(
         g.Id, g.ProveedorId, g.ProveedorTexto, g.Concepto, g.Fecha, g.BaseImponible, g.CodigoIva, g.PorcentajeIva, g.CuotaIva,
-        g.PorcentajeIrpf, g.RetencionIrpf, g.Total, g.Estado.ToString());
+        g.PorcentajeIrpf, g.RetencionIrpf, g.Total, g.Estado.ToString(), ActividadNegocioId: g.ActividadNegocioId);
 }
 
 /// <summary>Repositorio de gastos (escritura).</summary>
@@ -114,6 +115,7 @@ public sealed class RegistrarGasto
         Guid? formaPagoDefectoId = null;
         decimal? limiteRiesgo = null;
         Guid? proveedorRiesgoId = null;
+        Guid? actividadNegocioId = null;
         if (comando.ProveedorId is { } provId)
         {
             var proveedor = await _proveedores.ObtenerAsync(provId, ct).ConfigureAwait(false);
@@ -127,6 +129,7 @@ public sealed class RegistrarGasto
             formaPagoDefectoId = proveedor.FormaPagoDefectoId;
             limiteRiesgo = proveedor.LimiteRiesgo;
             proveedorRiesgoId = provId;
+            actividadNegocioId = proveedor.ActividadNegocioId;
         }
 
         var formaPagoId = comando.FormaPagoId ?? formaPagoDefectoId;
@@ -140,6 +143,8 @@ public sealed class RegistrarGasto
         {
             return Resultado.Fallo<GastoDto>(gasto.Error);
         }
+
+        gasto.Valor.EstablecerActividad(actividadNegocioId);
 
         // Control de riesgo del proveedor (antes de guardar). Configurable por empresa: avisar o bloquear.
         string? avisoRiesgo = null;

@@ -100,6 +100,10 @@ public static class EndpointsInformes
             .WithSummary("Comparativa mes a mes del ejercicio: ventas, gastos y resultado.")
             .RequierePermiso(Permisos.InformeLeer);
 
+        informes.MapGet("/por-actividad", PorActividadAsync)
+            .WithSummary("Ventas y compras (base imponible) segmentadas por actividad de negocio en un periodo.")
+            .RequierePermiso(Permisos.InformeLeer);
+
         informes.MapGet("/extracto-tercero", ExtractoTerceroAsync)
             .WithSummary("Extracto de cuenta de un cliente (facturas/cobros) o proveedor (gastos/pagos).")
             .RequierePermiso(Permisos.InformeLeer);
@@ -419,6 +423,13 @@ public static class EndpointsInformes
         if (contexto.EmpresaId is null) return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
         var ejercicio = anio ?? DateTime.UtcNow.Year;
         return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, ejercicio, ct).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> PorActividadAsync(IContextoEmpresa contexto, GenerarInformePorActividad caso, DateOnly? desde, DateOnly? hasta, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null || contexto.GrupoId is null) return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        var (d, h) = RangoPorDefecto(desde, hasta);
+        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, contexto.GrupoId.Value, d, h, ct).ConfigureAwait(false));
     }
 
     private static async Task<IResult> ExtractoTerceroAsync(IContextoEmpresa contexto, GenerarExtractoTercero caso, string tipo, Guid terceroId, DateOnly? desde, DateOnly? hasta, CancellationToken ct)

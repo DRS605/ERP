@@ -127,7 +127,7 @@ public sealed class EmitirFactura
 
         var clienteFacturado = new ClienteFacturado(
             cliente.Id, cliente.Nombre, cliente.NifFiscal,
-            cliente.Calle, cliente.CodigoPostal, cliente.Poblacion, cliente.Provincia, cliente.Pais);
+            cliente.Calle, cliente.CodigoPostal, cliente.Poblacion, cliente.Provincia, cliente.Pais, cliente.ActividadNegocioId);
 
         // Serie: si no se indica una explícita, se resuelve la asignada al cliente (o la de la empresa).
         var serie = comando.Serie;

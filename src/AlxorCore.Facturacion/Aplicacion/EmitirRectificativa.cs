@@ -81,7 +81,7 @@ public sealed class EmitirRectificativa
 
         var cliente = new ClienteFacturado(
             original.ClienteId, original.ClienteNombre, original.ClienteNif,
-            original.ClienteCalle, original.ClienteCodigoPostal, original.ClientePoblacion, original.ClienteProvincia, original.Pais);
+            original.ClienteCalle, original.ClienteCodigoPostal, original.ClientePoblacion, original.ClienteProvincia, original.Pais, original.ActividadNegocioId);
 
         var hoy = DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
         var fecha = comando.FechaEmision ?? hoy;

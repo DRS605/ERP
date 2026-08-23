@@ -70,6 +70,7 @@ internal sealed class ConfiguracionFactura : IEntityTypeConfiguration<Factura>
         builder.Property(f => f.ClientePoblacion).HasColumnName("cliente_poblacion").HasMaxLength(120);
         builder.Property(f => f.ClienteProvincia).HasColumnName("cliente_provincia").HasMaxLength(120);
         builder.Property(f => f.Pais).HasColumnName("pais").HasMaxLength(2).IsRequired();
+        builder.Property(f => f.ActividadNegocioId).HasColumnName("actividad_negocio_id");
 
         builder.Property(f => f.BaseImponible).HasColumnName("base_imponible").HasColumnType("numeric(14,2)").IsRequired();
         builder.Property(f => f.CuotaIva).HasColumnName("cuota_iva").HasColumnType("numeric(14,2)").IsRequired();
@@ -281,7 +282,7 @@ internal sealed class RepositorioFacturas : IRepositorioFacturas, IConsultaFactu
 
         return facturas
             .Select(f => new FacturaResumen(
-                f.Id, f.NumeroCompleto, f.FechaEmision, f.FechaVencimiento, f.ClienteNombre, f.ClienteNif, f.BaseImponible, f.CuotaIva, f.RetencionIrpf, f.Total, f.Estado.ToString(), f.TipoFactura.ToString(), f.ClienteId))
+                f.Id, f.NumeroCompleto, f.FechaEmision, f.FechaVencimiento, f.ClienteNombre, f.ClienteNif, f.BaseImponible, f.CuotaIva, f.RetencionIrpf, f.Total, f.Estado.ToString(), f.TipoFactura.ToString(), f.ClienteId, f.ActividadNegocioId))
             .ToList();
     }
 
@@ -339,7 +340,7 @@ internal sealed class RepositorioFacturas : IRepositorioFacturas, IConsultaFactu
 
         var elementos = facturas
             .Select(f => new FacturaResumen(
-                f.Id, f.NumeroCompleto, f.FechaEmision, f.FechaVencimiento, f.ClienteNombre, f.ClienteNif, f.BaseImponible, f.CuotaIva, f.RetencionIrpf, f.Total, f.Estado.ToString(), f.TipoFactura.ToString(), f.ClienteId))
+                f.Id, f.NumeroCompleto, f.FechaEmision, f.FechaVencimiento, f.ClienteNombre, f.ClienteNif, f.BaseImponible, f.CuotaIva, f.RetencionIrpf, f.Total, f.Estado.ToString(), f.TipoFactura.ToString(), f.ClienteId, f.ActividadNegocioId))
             .ToList();
         return PaginaResultado<FacturaResumen>.Crear(elementos, total, paginacion);
     }

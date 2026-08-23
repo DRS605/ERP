@@ -61,7 +61,7 @@ public sealed record FacturaDto(
 public sealed record FacturaResumen(
     Guid Id, string NumeroCompleto, DateOnly FechaEmision, DateOnly FechaVencimiento, string ClienteNombre,
     string? ClienteNif, decimal BaseImponible, decimal CuotaIva, decimal RetencionIrpf, decimal Total, string Estado, string Tipo,
-    Guid? ClienteId);
+    Guid? ClienteId, Guid? ActividadNegocioId = null);
 
 /// <summary>
 /// Filtros de búsqueda de facturas en servidor. Todos son opcionales (null = no filtra por ese
