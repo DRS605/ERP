@@ -37,6 +37,12 @@ public static class RegistroServicios
         servicios.AddScoped<IRepositorioMovimientosStock>(sp => sp.GetRequiredService<RepositorioMovimientosStock>());
         servicios.AddScoped<IConsultaMovimientosStock>(sp => sp.GetRequiredService<RepositorioMovimientosStock>());
         servicios.AddScoped<IRepositorioExistenciasSimples, RepositorioExistenciasSimples>();
+        servicios.AddScoped<RepositorioTiposIva>();
+        servicios.AddScoped<IRepositorioTiposIva>(sp => sp.GetRequiredService<RepositorioTiposIva>());
+        servicios.AddScoped<IResolverIvaEmpresa>(sp => sp.GetRequiredService<RepositorioTiposIva>());
+        servicios.AddScoped<ListarTiposIva>();
+        servicios.AddScoped<CrearTipoIva>();
+        servicios.AddScoped<ActualizarTipoIva>();
         servicios.AddScoped<RepositorioFamilias>();
         servicios.AddScoped<IRepositorioFamilias>(sp => sp.GetRequiredService<RepositorioFamilias>());
         servicios.AddScoped<IConsultaFamilias>(sp => sp.GetRequiredService<RepositorioFamilias>());

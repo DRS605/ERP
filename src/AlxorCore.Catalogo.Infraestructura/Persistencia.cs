@@ -31,6 +31,8 @@ public sealed class CatalogoDbContext : DbContextEmpresaBase, IUnidadDeTrabajoCa
 
     public DbSet<ExistenciaSimple> Existencias => Set<ExistenciaSimple>();
 
+    public DbSet<TipoIva> TiposIva => Set<TipoIva>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Esquema);
@@ -158,6 +160,65 @@ internal sealed class ConfiguracionMovimientoStock : IEntityTypeConfiguration<Mo
 
         builder.HasIndex(m => new { m.EmpresaId, m.ProductoId, m.CreadoEn }).HasDatabaseName("ix_movimiento_stock_producto");
         builder.Ignore(m => m.EventosDominio);
+    }
+}
+
+internal sealed class ConfiguracionTipoIva : IEntityTypeConfiguration<TipoIva>
+{
+    public void Configure(EntityTypeBuilder<TipoIva> builder)
+    {
+        builder.ToTable("tipo_iva");
+        builder.HasKey(t => t.Id);
+        builder.Property(t => t.Id).HasColumnName("id");
+        builder.Property(t => t.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        builder.Property(t => t.Codigo).HasColumnName("codigo").HasMaxLength(TipoIva.LongitudMaximaCodigo).IsRequired();
+        builder.Property(t => t.Nombre).HasColumnName("nombre").HasMaxLength(TipoIva.LongitudMaximaNombre).IsRequired();
+        builder.Property(t => t.Porcentaje).HasColumnName("porcentaje").HasColumnType("numeric(5,2)").IsRequired();
+        builder.Property(t => t.RecargoEquivalencia).HasColumnName("recargo_equivalencia").HasColumnType("numeric(5,2)").IsRequired();
+        builder.Property(t => t.Clase).HasColumnName("clase").HasMaxLength(30).HasConversion<string>().IsRequired();
+        builder.Property(t => t.MencionFactura).HasColumnName("mencion_factura").HasMaxLength(TipoIva.LongitudMaximaMencion);
+        builder.Property(t => t.Activo).HasColumnName("activo").IsRequired();
+        builder.Property(t => t.CreadoEn).HasColumnName("creado_en").IsRequired();
+        builder.Property(t => t.ActualizadoEn).HasColumnName("actualizado_en").IsRequired();
+
+        builder.HasIndex(t => new { t.EmpresaId, t.Codigo }).IsUnique().HasDatabaseName("ux_tipo_iva_empresa_codigo");
+        builder.Ignore(t => t.EventosDominio);
+        builder.Ignore(t => t.PorcentajeRepercutido);
+    }
+}
+
+internal sealed class RepositorioTiposIva : IRepositorioTiposIva, IResolverIvaEmpresa
+{
+    private readonly CatalogoDbContext _contexto;
+
+    public RepositorioTiposIva(CatalogoDbContext contexto) => _contexto = contexto;
+
+    public void Agregar(TipoIva tipo) => _contexto.TiposIva.Add(tipo);
+
+    public Task<TipoIva?> ObtenerPorIdAsync(Guid id, CancellationToken ct = default) =>
+        _contexto.TiposIva.SingleOrDefaultAsync(t => t.Id == id, ct);
+
+    public Task<TipoIva?> ObtenerPorCodigoAsync(Guid empresaId, string codigo, CancellationToken ct = default)
+    {
+        var c = codigo.Trim().ToUpperInvariant();
+        return _contexto.TiposIva.SingleOrDefaultAsync(t => t.EmpresaId == empresaId && t.Codigo == c, ct);
+    }
+
+    public async Task<IReadOnlyList<TipoIva>> ListarAsync(Guid empresaId, CancellationToken ct = default) =>
+        await _contexto.TiposIva.Where(t => t.EmpresaId == empresaId).OrderBy(t => t.Codigo).ToListAsync(ct).ConfigureAwait(false);
+
+    public Task<bool> ExisteCodigoAsync(Guid empresaId, string codigo, CancellationToken ct = default)
+    {
+        var c = codigo.Trim().ToUpperInvariant();
+        return _contexto.TiposIva.AnyAsync(t => t.EmpresaId == empresaId && t.Codigo == c, ct);
+    }
+
+    public async Task<IvaResuelto?> ResolverAsync(Guid empresaId, string codigo, CancellationToken ct = default)
+    {
+        var t = await ObtenerPorCodigoAsync(empresaId, codigo, ct).ConfigureAwait(false);
+        return t is null
+            ? null
+            : new IvaResuelto(t.Codigo, t.Porcentaje, t.RecargoEquivalencia, t.Clase, t.PorcentajeRepercutido, t.MencionFactura);
     }
 }
 

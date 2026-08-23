@@ -8,6 +8,7 @@ const NAV: { a: string; etiqueta: string }[] = [
   { a: "/actividades", etiqueta: "Actividades" },
   { a: "/facturas", etiqueta: "Facturas" },
   { a: "/cartas-porte", etiqueta: "Cartas de porte" },
+  { a: "/tipos-iva", etiqueta: "Tipos de IVA" },
 ];
 
 function alternarTema() {

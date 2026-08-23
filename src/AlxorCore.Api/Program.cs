@@ -230,6 +230,7 @@ app.MapearUsuarios();
 app.MapearTerceros();
 app.MapearActividades();
 app.MapearCatalogo();
+app.MapearTiposIva();
 app.MapearFacturacion();
 app.MapearVentas();
 app.MapearCartasPorte();

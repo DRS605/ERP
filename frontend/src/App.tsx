@@ -7,6 +7,7 @@ import { Clientes } from "./pages/Clientes";
 import { Actividades } from "./pages/Actividades";
 import { Facturas } from "./pages/Facturas";
 import { CartasPorte } from "./pages/CartasPorte";
+import { TiposIva } from "./pages/TiposIva";
 
 export function App() {
   const { autenticado } = useAuth();
@@ -20,6 +21,7 @@ export function App() {
         <Route path="/actividades" element={<Actividades />} />
         <Route path="/facturas" element={<Facturas />} />
         <Route path="/cartas-porte" element={<CartasPorte />} />
+        <Route path="/tipos-iva" element={<TiposIva />} />
       </Route>
       <Route path="*" element={<Navigate to={autenticado ? "/inicio" : "/login"} replace />} />
     </Routes>
