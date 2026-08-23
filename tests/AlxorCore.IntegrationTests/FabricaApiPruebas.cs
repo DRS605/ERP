@@ -2,6 +2,7 @@ using AlxorCore.Identidad.Infraestructura.Persistencia;
 using AlxorCore.Organizacion.Infraestructura.Persistencia;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -46,7 +47,15 @@ public sealed class FabricaApiPruebas : WebApplicationFactory<Program>, IAsyncLi
                 ["Jwt:MinutosExpiracion"] = "60",
                 // El proceso automático se prueba de forma determinista con /procesar; se apaga aquí.
                 ["FacturacionRecurrente:Activo"] = "false",
+                // La entrega de webhooks se dispara a mano en las pruebas (/integraciones/webhooks/procesar).
+                ["Webhooks:Activo"] = "false",
             });
+        });
+
+        // Sustituye el cliente HTTP de webhooks por uno falso: las pruebas no salen a la red.
+        builder.ConfigureTestServices(servicios =>
+        {
+            servicios.AddSingleton<AlxorCore.Integraciones.Aplicacion.IClienteHttpWebhook, ClienteHttpWebhookFalso>();
         });
     }
 
@@ -72,6 +81,7 @@ public sealed class FabricaApiPruebas : WebApplicationFactory<Program>, IAsyncLi
         var auditoria = ambito.ServiceProvider.GetRequiredService<AlxorCore.Auditoria.Infraestructura.AuditoriaDbContext>();
         var divisas = ambito.ServiceProvider.GetRequiredService<AlxorCore.Divisas.Infraestructura.DivisasDbContext>();
         var aprobaciones = ambito.ServiceProvider.GetRequiredService<AlxorCore.Aprobaciones.Infraestructura.AprobacionesDbContext>();
+        var integraciones = ambito.ServiceProvider.GetRequiredService<AlxorCore.Integraciones.Infraestructura.IntegracionesDbContext>();
 
         await identidad.Database.MigrateAsync().ConfigureAwait(false);
         await organizacion.Database.MigrateAsync().ConfigureAwait(false);
@@ -90,6 +100,7 @@ public sealed class FabricaApiPruebas : WebApplicationFactory<Program>, IAsyncLi
         await auditoria.Database.MigrateAsync().ConfigureAwait(false);
         await divisas.Database.MigrateAsync().ConfigureAwait(false);
         await aprobaciones.Database.MigrateAsync().ConfigureAwait(false);
+        await integraciones.Database.MigrateAsync().ConfigureAwait(false);
 
         await LimpiarBaseDatosAsync(identidad).ConfigureAwait(false);
     }

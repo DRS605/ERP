@@ -38,6 +38,8 @@
     <ProjectReference Include="..\AlxorCore.Divisas.Infraestructura\AlxorCore.Divisas.Infraestructura.csproj" />
     <ProjectReference Include="..\AlxorCore.Aprobaciones\AlxorCore.Aprobaciones.csproj" />
     <ProjectReference Include="..\AlxorCore.Aprobaciones.Infraestructura\AlxorCore.Aprobaciones.Infraestructura.csproj" />
+    <ProjectReference Include="..\AlxorCore.Integraciones\AlxorCore.Integraciones.csproj" />
+    <ProjectReference Include="..\AlxorCore.Integraciones.Infraestructura\AlxorCore.Integraciones.Infraestructura.csproj" />
   </ItemGroup>
 
   <ItemGroup>

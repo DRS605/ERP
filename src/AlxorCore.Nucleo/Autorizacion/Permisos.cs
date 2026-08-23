@@ -62,6 +62,9 @@ public static class Permisos
     public const string AprobacionConfigurar = "aprobacion.configurar";
     public const string AprobacionAprobar = "aprobacion.aprobar";
 
+    // Integraciones (API pública y webhooks)
+    public const string IntegracionGestionar = "integracion.gestionar";
+
     // Administración de la empresa
     public const string EmpresaAjustes = "empresa.ajustes";
     public const string UsuarioGestionar = "usuario.gestionar";
@@ -82,6 +85,7 @@ public static class Permisos
         ClienteGestionar, ProductoGestionar,
         InformeLeer, DatosExportar,
         AprobacionConfigurar, AprobacionAprobar,
+        IntegracionGestionar,
         EmpresaAjustes, UsuarioGestionar,
     };
 }

@@ -24,6 +24,7 @@ using AlxorCore.Informes.Infraestructura;
 using AlxorCore.Auditoria.Infraestructura;
 using AlxorCore.Divisas.Infraestructura;
 using AlxorCore.Aprobaciones.Infraestructura;
+using AlxorCore.Integraciones.Infraestructura;
 using AlxorCore.Organizacion.Infraestructura.Persistencia;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -59,6 +60,16 @@ builder.Services.AgregarModuloInformes();
 builder.Services.AgregarModuloAuditoria(builder.Configuration);
 builder.Services.AgregarModuloDivisas(builder.Configuration);
 builder.Services.AgregarModuloAprobaciones(builder.Configuration);
+builder.Services.AgregarModuloIntegraciones(builder.Configuration);
+
+// El publicador de eventos que alimenta las integraciones (API/webhooks) reemplaza al provisional
+// que solo registraba en el log; debe registrarse tras los módulos para ser el resuelto.
+builder.Services.AddScoped<AlxorCore.Nucleo.Aplicacion.IPublicadorEventos, AlxorCore.Api.Comun.PublicadorEventosIntegraciones>();
+
+// --- Entrega de webhooks (proceso en segundo plano) ---
+builder.Services.Configure<AlxorCore.Api.Servicios.OpcionesWebhooks>(
+    builder.Configuration.GetSection(AlxorCore.Api.Servicios.OpcionesWebhooks.Seccion));
+builder.Services.AddHostedService<AlxorCore.Api.Servicios.ServicioWebhooks>();
 
 // --- Facturación automática periódica (proceso en segundo plano) ---
 builder.Services.Configure<AlxorCore.Api.Servicios.OpcionesFacturacionRecurrente>(
@@ -144,6 +155,7 @@ if (app.Environment.IsDevelopment())
     await ambito.ServiceProvider.GetRequiredService<AlxorCore.Auditoria.Infraestructura.AuditoriaDbContext>().Database.MigrateAsync().ConfigureAwait(false);
     await ambito.ServiceProvider.GetRequiredService<AlxorCore.Divisas.Infraestructura.DivisasDbContext>().Database.MigrateAsync().ConfigureAwait(false);
     await ambito.ServiceProvider.GetRequiredService<AlxorCore.Aprobaciones.Infraestructura.AprobacionesDbContext>().Database.MigrateAsync().ConfigureAwait(false);
+    await ambito.ServiceProvider.GetRequiredService<AlxorCore.Integraciones.Infraestructura.IntegracionesDbContext>().Database.MigrateAsync().ConfigureAwait(false);
 
     app.UseSwagger();
     app.UseSwaggerUI();
@@ -186,6 +198,7 @@ app.MapearInformes();
 app.MapearAuditoria();
 app.MapearDivisas();
 app.MapearAprobaciones();
+app.MapearIntegraciones();
 app.MapearCuenta();
 app.MapearImportacion();
 
