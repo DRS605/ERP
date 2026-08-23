@@ -27,6 +27,7 @@ public sealed class TipoIvaTests
     [InlineData(ClaseIva.BienesUsados)]
     [InlineData(ClaseIva.AgenciasViajes)]
     [InlineData(ClaseIva.OroInversion)]
+    [InlineData(ClaseIva.Exportacion)]
     public void Las_clases_sin_repercusion_no_llevan_porcentaje(ClaseIva clase)
     {
         // Con porcentaje > 0 falla…
@@ -62,14 +63,25 @@ public sealed class TipoIvaTests
         t.PorcentajeRepercutido.Should().Be(21m);
     }
 
+    [Theory]
+    [InlineData(ClaseIva.AgriculturaCompensacion, 12)]
+    [InlineData(ClaseIva.VentanillaUnicaOSS, 20)]
+    public void La_compensacion_reagp_y_el_iva_de_destino_oss_se_repercuten(ClaseIva clase, int porcentaje)
+    {
+        // REAGP: la compensación a tanto alzado se añade al importe; OSS: IVA del país de destino.
+        var t = TipoIva.Crear(Empresa, "X", "X", porcentaje, 0m, clase, "mención", Reloj).Valor;
+        t.Clase.Repercute().Should().BeTrue();
+        t.PorcentajeRepercutido.Should().Be(porcentaje);
+    }
+
     [Fact]
     public void El_conjunto_predeterminado_incluye_las_casuisticas_y_regimenes_especiales()
     {
         var codigos = TipoIva.Predeterminados.Select(p => p.Codigo).ToList();
         codigos.Should().Contain(new[] { "IVA21", "IVA10", "IVA4", "IVA0", "NOSUJETO", "ISP", "INTRA", "IMPORT21" });
 
-        // Regímenes especiales: viajeros, bienes usados (REBU), agencias, oro de inversión y criterio de caja.
-        codigos.Should().Contain(new[] { "VIAJEROS", "REBU", "AGENCIAS", "ORO", "CAJA21" });
+        // Regímenes especiales: exportación, viajeros, REBU, agencias, oro, criterio de caja y REAGP.
+        codigos.Should().Contain(new[] { "EXPORT", "VIAJEROS", "REBU", "AGENCIAS", "ORO", "CAJA21", "REAGP12", "REAGP105" });
 
         // Todos los predeterminados sin repercusión llevan mención legal.
         foreach (var p in TipoIva.Predeterminados.Where(p => !p.Clase.Repercute()))

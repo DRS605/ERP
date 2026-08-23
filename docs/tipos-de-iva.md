@@ -23,11 +23,18 @@ con **inversión del sujeto pasivo (ISP)**, de **importación** y **intracomunit
   | `InversionSujetoPasivo` | No | ISP (art. 84.Uno.2º LIVA) |
   | `Importacion` | Sí | IVA de la importación |
   | `Intracomunitario` | No | Entregas/adquisiciones intracomunitarias (art. 25) |
+  | `Exportacion` | No | Exportación de bienes fuera de la UE (art. 21) |
   | `Viajeros` | No | Régimen especial de viajeros (art. 21.2º) |
   | `BienesUsados` | No | REBU — bienes usados/arte/antigüedades (art. 135) |
   | `AgenciasViajes` | No | Régimen especial de agencias de viajes (art. 141) |
   | `OroInversion` | No | Oro de inversión exento (art. 140 bis) |
   | `CriterioCaja` | Sí | RECC — devengo al cobro (art. 163 decies) |
+  | `AgriculturaCompensacion` | Sí* | REAGP — compensación a tanto alzado (art. 130) |
+  | `VentanillaUnicaOSS` | Sí | OSS — IVA del país de destino en ventas B2C UE (art. 163 unvicies) |
+
+  \* En el REAGP no se repercute IVA en sentido estricto: se añade una **compensación a tanto
+  alzado** (12 % agrícola/forestal, 10,5 % ganadera/pesquera) que el modelo trata como porcentaje
+  repercutido por producir el mismo efecto sobre el importe.
 
 ### Regímenes especiales (alcance actual)
 
@@ -41,6 +48,27 @@ el bloque fiscal:
   con su mención; el **cálculo sobre el margen** llega con el bloque fiscal.
 - **Criterio de caja (RECC)**: repercute IVA al tipo ordinario con su mención; el **diferimiento del
   devengo al cobro** (libros y modelo 303) se tratará en el bloque fiscal.
+- **Agricultura, ganadería y pesca (REAGP)**: la **compensación a tanto alzado** (12 % / 10,5 %) se
+  añade al importe y se estampa la mención; su tratamiento diferenciado en libros y modelo 303 llega
+  con el bloque fiscal.
+- **Ventanilla única (OSS)**: repercute el **IVA del país de destino** con su mención; el modelo 369
+  y la selección automática del tipo por país llegan con el bloque fiscal.
+
+### Regímenes del contribuyente (no son clases de línea)
+
+Algunos "regímenes" del IVA **no se modelan como tipo de línea** porque no cambian el cálculo de
+una operación concreta, sino el régimen del sujeto pasivo. Se documentan aquí para dejar claro por
+qué no aparecen en el catálogo de tipos:
+
+- **Régimen simplificado (módulos)**: el sujeto repercute IVA ordinario en sus ventas; la
+  especialidad está en el cálculo de su liquidación (modelo 303 simplificado), no en la factura.
+- **Recargo de equivalencia**: se aplica como **campo aparte** en cada tipo (`RecargoEquivalencia`)
+  y en la emisión (bandera `RecargoEquivalencia`), no como una clase.
+- **Grupo de entidades** y **régimen de depósito distinto del aduanero**: afectan a la
+  consolidación/liquidación, no a la línea de factura.
+
+Cuando llegue el bloque fiscal, estos regímenes se reflejarán como **parámetros de empresa** que
+condicionan los modelos, no como tipos de IVA.
 
 - **Invariante**: una clase que no repercute (`Exento`, `NoSujeto`, `InversionSujetoPasivo`,
   `Intracomunitario`) **no admite porcentaje > 0**; su `PorcentajeRepercutido` es siempre 0.
@@ -50,9 +78,10 @@ el bloque fiscal:
 
 La primera consulta del catálogo de una empresa (`GET /tipos-iva`) **siembra** el conjunto
 predeterminado si está vacío: `IVA21`, `IVA10`, `IVA4`, `IVA0` (Exento), `NOSUJETO`, `ISP`,
-`INTRA`, `IMPORT21` y los regímenes especiales `VIAJEROS`, `REBU`, `AGENCIAS`, `ORO` y `CAJA21`.
-A partir de ahí la empresa puede editar, desactivar o añadir tipos propios. No se duplica en
-consultas posteriores.
+`INTRA`, `IMPORT21` y los regímenes especiales `EXPORT`, `VIAJEROS`, `REBU`, `AGENCIAS`, `ORO`,
+`CAJA21`, `REAGP12` y `REAGP105`. A partir de ahí la empresa puede editar, desactivar o añadir tipos
+propios (por ejemplo un tipo `OSS` de clase `VentanillaUnicaOSS` con el porcentaje del país de
+destino). No se duplica en consultas posteriores.
 
 ## API
 

@@ -20,7 +20,7 @@ public sealed class TiposIvaEndpointsTests : IClassFixture<FabricaApiPruebas>
         var (cli, _) = await Ayudas.ConEmpresaAsync(_fabrica);
 
         var tipos = await cli.GetFromJsonAsync<List<TipoIvaResp>>("/tipos-iva");
-        tipos!.Select(t => t.Codigo).Should().Contain(new[] { "IVA21", "IVA10", "IVA4", "IVA0", "NOSUJETO", "ISP", "INTRA", "IMPORT21", "VIAJEROS", "REBU", "AGENCIAS", "ORO", "CAJA21" });
+        tipos!.Select(t => t.Codigo).Should().Contain(new[] { "IVA21", "IVA10", "IVA4", "IVA0", "NOSUJETO", "ISP", "INTRA", "IMPORT21", "EXPORT", "VIAJEROS", "REBU", "AGENCIAS", "ORO", "CAJA21", "REAGP12", "REAGP105" });
 
         // La segunda consulta no duplica.
         var otra = await cli.GetFromJsonAsync<List<TipoIvaResp>>("/tipos-iva");

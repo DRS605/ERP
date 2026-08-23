@@ -66,14 +66,47 @@ public enum ClaseIva
     /// el bloque fiscal; aquí se modela la repercusión normal y su mención en factura.
     /// </remarks>
     CriterioCaja = 11,
+
+    /// <summary>
+    /// Régimen especial de la agricultura, ganadería y pesca (REAGP, art. 124-134 bis LIVA). El
+    /// titular no repercute IVA: el destinatario satisface una <b>compensación a tanto alzado</b>
+    /// (12 % agrícola/forestal, 10,5 % ganadera/pesquera) que sí se añade al importe. Requiere mención.
+    /// </summary>
+    /// <remarks>
+    /// La compensación se modela como un porcentaje repercutido (funciona como importe añadido a la
+    /// base); su tratamiento diferenciado en libros y modelo 303 llega con el bloque fiscal.
+    /// </remarks>
+    AgriculturaCompensacion = 12,
+
+    /// <summary>
+    /// Exportación de bienes fuera de la UE, exenta (art. 21 LIVA). No repercute cuota; requiere
+    /// mención. (El régimen de viajeros es un subcaso con devolución al viajero; esta clase es la
+    /// exportación general.)
+    /// </summary>
+    Exportacion = 13,
+
+    /// <summary>
+    /// Ventanilla única — régimen de la Unión/OSS (art. 163 unvicies y ss. LIVA): en ventas B2C
+    /// intracomunitarias a distancia se <b>repercute el IVA del país de destino</b>. El porcentaje se
+    /// configura según el país; requiere mención.
+    /// </summary>
+    /// <remarks>
+    /// La declaración por ventanilla única (modelo 369) y la selección automática del tipo por país
+    /// llegan con el bloque fiscal; aquí se modela la repercusión del tipo indicado y su mención.
+    /// </remarks>
+    VentanillaUnicaOSS = 14,
 }
 
 /// <summary>Utilidades de la clase de IVA.</summary>
 public static class ClaseIvaExtensiones
 {
-    /// <summary>¿La clase repercute cuota de IVA (aplica el porcentaje) en la factura emitida?</summary>
+    /// <summary>
+    /// ¿La clase repercute un porcentaje en la factura emitida (IVA ordinario, IVA de destino OSS, o
+    /// compensación a tanto alzado del REAGP)? Las clases exentas/no sujetas devuelven <c>false</c>.
+    /// </summary>
     public static bool Repercute(this ClaseIva clase) =>
-        clase is ClaseIva.Ordinario or ClaseIva.Importacion or ClaseIva.CriterioCaja;
+        clase is ClaseIva.Ordinario or ClaseIva.Importacion or ClaseIva.CriterioCaja
+            or ClaseIva.AgriculturaCompensacion or ClaseIva.VentanillaUnicaOSS;
 }
 
 /// <summary>
@@ -197,7 +230,7 @@ public sealed class TipoIva : RaizAgregadoEmpresa<Guid>
         // En las clases sin repercusión el porcentaje debe ser 0 (no se factura cuota desglosada).
         if (!clase.Repercute() && porcentaje != 0m)
         {
-            return Error.Validacion("tipoiva.clase_sin_porcentaje", "Las operaciones exentas, no sujetas, con inversión del sujeto pasivo, intracomunitarias, de viajeros, bienes usados, agencias de viajes u oro de inversión no llevan porcentaje de IVA desglosado.");
+            return Error.Validacion("tipoiva.clase_sin_porcentaje", "Las operaciones exentas, no sujetas, con inversión del sujeto pasivo, intracomunitarias, de exportación, de viajeros, bienes usados, agencias de viajes u oro de inversión no llevan porcentaje de IVA desglosado.");
         }
 
         return null;
@@ -225,10 +258,13 @@ public sealed class TipoIva : RaizAgregadoEmpresa<Guid>
         ("ISP", "Inversión del sujeto pasivo", 0m, 0m, ClaseIva.InversionSujetoPasivo, "Inversión del sujeto pasivo (art. 84.Uno.2º Ley 37/1992)."),
         ("INTRA", "Entrega intracomunitaria exenta", 0m, 0m, ClaseIva.Intracomunitario, "Entrega intracomunitaria exenta (art. 25 Ley 37/1992)."),
         ("IMPORT21", "IVA importación (21%)", 21m, 0m, ClaseIva.Importacion, null),
+        ("EXPORT", "Exportación exenta", 0m, 0m, ClaseIva.Exportacion, "Operación exenta. Exportación de bienes (art. 21 Ley 37/1992)."),
         ("VIAJEROS", "Régimen especial de viajeros", 0m, 0m, ClaseIva.Viajeros, "Exención en exportación en régimen de viajeros (art. 21.2º Ley 37/1992)."),
         ("REBU", "Bienes usados (margen)", 0m, 0m, ClaseIva.BienesUsados, "Régimen especial de los bienes usados, objetos de arte, antigüedades y objetos de colección (art. 135 Ley 37/1992)."),
         ("AGENCIAS", "Agencias de viajes (margen)", 0m, 0m, ClaseIva.AgenciasViajes, "Régimen especial de las agencias de viajes (art. 141 Ley 37/1992)."),
         ("ORO", "Oro de inversión exento", 0m, 0m, ClaseIva.OroInversion, "Operación exenta. Oro de inversión (art. 140 bis Ley 37/1992)."),
         ("CAJA21", "Criterio de caja (21%)", 21m, 5.2m, ClaseIva.CriterioCaja, "Régimen especial del criterio de caja (art. 163 decies y siguientes Ley 37/1992)."),
+        ("REAGP12", "REAGP agrícola/forestal (comp. 12%)", 12m, 0m, ClaseIva.AgriculturaCompensacion, "Compensación a tanto alzado del régimen especial de la agricultura, ganadería y pesca (art. 130 Ley 37/1992)."),
+        ("REAGP105", "REAGP ganadera/pesquera (comp. 10,5%)", 10.5m, 0m, ClaseIva.AgriculturaCompensacion, "Compensación a tanto alzado del régimen especial de la agricultura, ganadería y pesca (art. 130 Ley 37/1992)."),
     };
 }
