@@ -25,6 +25,7 @@ interface FacturaDetalle extends FacturaResumen {
   porcentajeIrpf: number;
   recargoTotal: number;
   lineas: LineaDetalle[];
+  mencionFiscal?: string | null;
 }
 
 function estadoPill(estado: string) {
@@ -157,6 +158,12 @@ export function Facturas() {
             {detalle.retencionIrpf > 0 && <Tot etiqueta={`Retención IRPF (${detalle.porcentajeIrpf}%)`} valor={`−${eur(detalle.retencionIrpf)}`} />}
             <Tot etiqueta="Total" valor={eur(detalle.total)} fuerte />
           </div>
+
+          {detalle.mencionFiscal && (
+            <div className="muted" style={{ marginTop: 12, fontStyle: "italic", fontSize: 13 }}>
+              {detalle.mencionFiscal}
+            </div>
+          )}
 
           <div style={{ display: "flex", gap: 8, marginTop: 18, flexWrap: "wrap" }}>
             <a className="btn small ghost" href={`/facturas/${detalle.id}/pdf`} target="_blank" rel="noreferrer">Ver PDF</a>

@@ -44,7 +44,8 @@ public sealed record FacturaDto(
     string? MotivoRectificacion,
     string? MotivoAnulacion,
     IReadOnlyList<LineaFacturaDto> Lineas,
-    string? AvisoRiesgo = null)
+    string? AvisoRiesgo = null,
+    string? MencionFiscal = null)
 {
     public static FacturaDto Desde(Factura f) => new(
         f.Id, f.NumeroCompleto, f.FechaEmision, f.FechaOperacion, f.FechaVencimiento, f.ClienteId, f.ClienteNombre, f.ClienteNif,
@@ -54,7 +55,8 @@ public sealed record FacturaDto(
         f.RectificaFacturaId, f.MotivoRectificacion, f.MotivoAnulacion,
         f.Lineas.Select(l => new LineaFacturaDto(
             l.Descripcion, l.Cantidad, l.PrecioUnitario, l.PorcentajeDescuento, l.CodigoIva, l.PorcentajeIva, l.Base, l.CuotaIva,
-            l.CosteUnitario, l.Margen, l.PorcentajeRecargo, l.CuotaRecargo)).ToList());
+            l.CosteUnitario, l.Margen, l.PorcentajeRecargo, l.CuotaRecargo)).ToList(),
+        MencionFiscal: f.MencionFiscal);
 }
 
 /// <summary>Resumen de factura para listados y libros de IVA.</summary>

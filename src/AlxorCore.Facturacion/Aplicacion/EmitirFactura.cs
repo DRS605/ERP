@@ -54,6 +54,7 @@ public sealed class EmitirFactura
     private readonly IConsultaFormasPago _formasPago;
     private readonly IPagosAutomaticos _pagos;
     private readonly IConsultaRiesgo _riesgo;
+    private readonly IResolverIvaEmpresa _resolverIva;
     private readonly IReloj _reloj;
 
     public EmitirFactura(
@@ -70,8 +71,10 @@ public sealed class EmitirFactura
         IConsultaFormasPago formasPago,
         IPagosAutomaticos pagos,
         IConsultaRiesgo riesgo,
+        IResolverIvaEmpresa resolverIva,
         IReloj reloj)
     {
+        _resolverIva = resolverIva;
         _clientes = clientes;
         _productos = productos;
         _numeracion = numeracion;
@@ -103,13 +106,14 @@ public sealed class EmitirFactura
             return Resultado.Fallo<FacturaDto>(Error.NoEncontrado("cliente.no_encontrado", "El cliente no existe."));
         }
 
-        var resolucion = await ResolucionLineasFactura.ResolverAsync(comando.Lineas, _productos, ct, comando.RecargoEquivalencia).ConfigureAwait(false);
+        var resolucion = await ResolucionLineasFactura.ResolverAsync(comando.Lineas, _productos, ct, comando.RecargoEquivalencia, empresaId, _resolverIva).ConfigureAwait(false);
         if (resolucion.EsFallo)
         {
             return Resultado.Fallo<FacturaDto>(resolucion.Error);
         }
 
         var lineas = resolucion.Valor;
+        var mencionFiscal = await ResolucionLineasFactura.MencionFiscalAsync(empresaId, lineas, _resolverIva, ct).ConfigureAwait(false);
         var hoy = DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
         var fechaEmision = comando.FechaEmision ?? hoy;
         var fechaOperacion = comando.FechaOperacion ?? fechaEmision;
@@ -181,6 +185,7 @@ public sealed class EmitirFactura
             return Resultado.Fallo<FacturaDto>(factura.Error);
         }
 
+        factura.Valor.EstablecerMencionFiscal(mencionFiscal);
         await RegistroVerifactu.AplicarAsync(empresaId, factura.Valor, _empresas, _facturas, _reloj, ct).ConfigureAwait(false);
         _facturas.Agregar(factura.Valor);
 
@@ -259,7 +264,8 @@ internal static class RegistroVerifactu
 internal static class ResolucionLineasFactura
 {
     public static async Task<Resultado<List<NuevaLinea>>> ResolverAsync(
-        IReadOnlyList<LineaComando> lineas, IConsultaProductos productos, CancellationToken ct, bool recargoEquivalencia = false)
+        IReadOnlyList<LineaComando> lineas, IConsultaProductos productos, CancellationToken ct, bool recargoEquivalencia = false,
+        Guid? empresaId = null, IResolverIvaEmpresa? resolverIva = null)
     {
         var resueltas = new List<NuevaLinea>(lineas.Count);
         foreach (var linea in lineas)
@@ -293,18 +299,57 @@ internal static class ResolucionLineasFactura
                 return Resultado.Fallo<List<NuevaLinea>>(Error.Validacion("factura.linea_sin_precio", "Cada línea necesita un precio."));
             }
 
-            var impuesto = Impuesto.PorCodigoImpuesto(codigoIva ?? Impuesto.IvaGeneral.Codigo);
-            if (impuesto.EsFallo)
+            // Preferimos el catálogo de IVA de la empresa (con todas las casuísticas: exención, ISP, no
+            // sujeto, importación, intracomunitario). Si no está configurado, se usa el catálogo estatal.
+            var codigo = codigoIva ?? Impuesto.IvaGeneral.Codigo;
+            string codigoResuelto;
+            decimal porcentaje;
+            decimal porcentajeRecargo;
+            if (empresaId is { } emp && resolverIva is not null &&
+                await resolverIva.ResolverAsync(emp, codigo, ct).ConfigureAwait(false) is { } iva)
             {
-                return Resultado.Fallo<List<NuevaLinea>>(impuesto.Error);
+                codigoResuelto = iva.Codigo;
+                porcentaje = iva.PorcentajeRepercutido; // 0 en clases sin repercusión (exento, ISP, no sujeto…)
+                porcentajeRecargo = recargoEquivalencia ? iva.RecargoEquivalencia : 0m;
+            }
+            else
+            {
+                var impuesto = Impuesto.PorCodigoImpuesto(codigo);
+                if (impuesto.EsFallo)
+                {
+                    return Resultado.Fallo<List<NuevaLinea>>(impuesto.Error);
+                }
+
+                codigoResuelto = impuesto.Valor.Codigo;
+                porcentaje = impuesto.Valor.Porcentaje;
+                porcentajeRecargo = recargoEquivalencia ? Impuesto.RecargoEquivalencia(impuesto.Valor.Porcentaje) : 0m;
             }
 
-            var porcentajeRecargo = recargoEquivalencia ? Impuesto.RecargoEquivalencia(impuesto.Valor.Porcentaje) : 0m;
             resueltas.Add(new NuevaLinea(
-                descripcion, linea.Cantidad, precio.Value, impuesto.Valor.Codigo, impuesto.Valor.Porcentaje, linea.PorcentajeDescuento, linea.ProductoId, coste ?? 0m, porcentajeRecargo));
+                descripcion, linea.Cantidad, precio.Value, codigoResuelto, porcentaje, linea.PorcentajeDescuento, linea.ProductoId, coste ?? 0m, porcentajeRecargo));
         }
 
         return Resultado.Ok(resueltas);
+    }
+
+    /// <summary>
+    /// Reúne las menciones legales de los tipos de IVA usados en las líneas (exención, ISP, no sujeto,
+    /// intracomunitario…) para estamparlas en la factura. Devuelve null si ninguna línea las requiere.
+    /// </summary>
+    public static async Task<string?> MencionFiscalAsync(
+        Guid empresaId, IEnumerable<NuevaLinea> lineas, IResolverIvaEmpresa resolverIva, CancellationToken ct)
+    {
+        var menciones = new List<string>();
+        foreach (var codigo in lineas.Select(l => l.CodigoIva).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            var iva = await resolverIva.ResolverAsync(empresaId, codigo, ct).ConfigureAwait(false);
+            if (iva?.MencionFactura is { Length: > 0 } m && !menciones.Contains(m, StringComparer.Ordinal))
+            {
+                menciones.Add(m);
+            }
+        }
+
+        return menciones.Count == 0 ? null : string.Join(" · ", menciones);
     }
 }
 

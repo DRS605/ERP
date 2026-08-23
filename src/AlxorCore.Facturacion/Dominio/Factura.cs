@@ -92,6 +92,16 @@ public sealed class Factura : RaizAgregadoEmpresa<Guid>
     /// </summary>
     public Guid? ActividadNegocioId { get; private set; }
 
+    /// <summary>
+    /// Mención(es) legal(es) que deben figurar en la factura por la naturaleza del IVA de sus líneas
+    /// (exención, no sujeción, inversión del sujeto pasivo, operación intracomunitaria…). Null = ninguna.
+    /// </summary>
+    public string? MencionFiscal { get; private set; }
+
+    /// <summary>Fija la mención fiscal de la factura (se establece al emitir a partir de los tipos de IVA).</summary>
+    public void EstablecerMencionFiscal(string? mencion) =>
+        MencionFiscal = string.IsNullOrWhiteSpace(mencion) ? null : mencion.Trim();
+
     // --- Importes ---
     public decimal BaseImponible { get; private set; }
     public decimal CuotaIva { get; private set; }

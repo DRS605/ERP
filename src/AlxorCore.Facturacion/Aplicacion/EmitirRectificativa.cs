@@ -31,6 +31,7 @@ public sealed class EmitirRectificativa
     private readonly IRepositorioFacturas _facturas;
     private readonly IConsultaEmpresas _empresas;
     private readonly IUnidadDeTrabajoFacturacion _unidadDeTrabajo;
+    private readonly IResolverIvaEmpresa _resolverIva;
     private readonly IReloj _reloj;
 
     public EmitirRectificativa(
@@ -40,6 +41,7 @@ public sealed class EmitirRectificativa
         IRepositorioFacturas facturas,
         IConsultaEmpresas empresas,
         IUnidadDeTrabajoFacturacion unidadDeTrabajo,
+        IResolverIvaEmpresa resolverIva,
         IReloj reloj)
     {
         _productos = productos;
@@ -48,6 +50,7 @@ public sealed class EmitirRectificativa
         _facturas = facturas;
         _empresas = empresas;
         _unidadDeTrabajo = unidadDeTrabajo;
+        _resolverIva = resolverIva;
         _reloj = reloj;
     }
 
@@ -73,12 +76,13 @@ public sealed class EmitirRectificativa
             return Resultado.Fallo<FacturaDto>(marcado.Error);
         }
 
-        var resolucion = await ResolucionLineasFactura.ResolverAsync(comando.Lineas, _productos, ct).ConfigureAwait(false);
+        var resolucion = await ResolucionLineasFactura.ResolverAsync(comando.Lineas, _productos, ct, false, empresaId, _resolverIva).ConfigureAwait(false);
         if (resolucion.EsFallo)
         {
             return Resultado.Fallo<FacturaDto>(resolucion.Error);
         }
 
+        var mencionFiscal = await ResolucionLineasFactura.MencionFiscalAsync(empresaId, resolucion.Valor, _resolverIva, ct).ConfigureAwait(false);
         var cliente = new ClienteFacturado(
             original.ClienteId, original.ClienteNombre, original.ClienteNif,
             original.ClienteCalle, original.ClienteCodigoPostal, original.ClientePoblacion, original.ClienteProvincia, original.Pais, original.ActividadNegocioId);
@@ -108,6 +112,7 @@ public sealed class EmitirRectificativa
             return Resultado.Fallo<FacturaDto>(rectificativa.Error);
         }
 
+        rectificativa.Valor.EstablecerMencionFiscal(mencionFiscal);
         await RegistroVerifactu.AplicarAsync(empresaId, rectificativa.Valor, _empresas, _facturas, _reloj, ct).ConfigureAwait(false);
         _facturas.Agregar(rectificativa.Valor);
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);

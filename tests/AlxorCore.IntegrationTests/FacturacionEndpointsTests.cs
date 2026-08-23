@@ -14,7 +14,7 @@ public sealed class FacturacionEndpointsTests : IClassFixture<FabricaApiPruebas>
 
     private sealed record ClienteResp(Guid Id);
     private sealed record LineaResp(string Descripcion, decimal Base, decimal CuotaIva);
-    private sealed record FacturaResp(Guid Id, string NumeroCompleto, decimal BaseImponible, decimal CuotaIva, decimal RetencionIrpf, decimal Total, string Estado, List<LineaResp> Lineas);
+    private sealed record FacturaResp(Guid Id, string NumeroCompleto, decimal BaseImponible, decimal CuotaIva, decimal RetencionIrpf, decimal Total, string Estado, List<LineaResp> Lineas, string? MencionFiscal);
     private sealed record FacturaResumen(Guid Id, string NumeroCompleto, decimal Total);
 
     private static async Task<Guid> CrearClienteAsync(HttpClient cliente, decimal irpf = 0m)
@@ -156,6 +156,55 @@ public sealed class FacturacionEndpointsTests : IClassFixture<FabricaApiPruebas>
         factura.BaseImponible.Should().Be(250m);          // 200 + 50
         factura.CuotaIva.Should().Be(47m);                // 42 (21% de 200) + 5 (10% de 50)
         factura.Total.Should().Be(297m);                  // 250 + 47
+    }
+
+    [Fact]
+    public async Task Emitir_con_inversion_del_sujeto_pasivo_no_repercute_iva_y_estampa_la_mencion()
+    {
+        var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+        var clienteId = await CrearClienteAsync(cliente);
+
+        // Sembramos el catálogo de tipos de IVA de la empresa (incluye ISP con su mención legal).
+        await cliente.GetAsync(new Uri("/tipos-iva", UriKind.Relative));
+
+        var comando = new
+        {
+            ClienteId = clienteId,
+            Lineas = new[] { new { Cantidad = 1m, Descripcion = "Ejecución de obra", PrecioUnitario = 1000m, CodigoIva = "ISP" } },
+        };
+
+        var emitir = await cliente.PostAsJsonAsync("/facturas", comando);
+        emitir.StatusCode.Should().Be(HttpStatusCode.Created);
+        var factura = await emitir.Content.ReadFromJsonAsync<FacturaResp>();
+
+        // Clase sin repercusión: base íntegra, cuota 0, total = base.
+        factura!.BaseImponible.Should().Be(1000m);
+        factura.CuotaIva.Should().Be(0m);
+        factura.Total.Should().Be(1000m);
+        factura.Lineas.Single().CuotaIva.Should().Be(0m);
+
+        // La mención legal obligatoria queda estampada en la factura.
+        factura.MencionFiscal.Should().Contain("Inversión del sujeto pasivo");
+    }
+
+    [Fact]
+    public async Task Emitir_con_operacion_exenta_no_repercute_iva()
+    {
+        var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+        var clienteId = await CrearClienteAsync(cliente);
+        await cliente.GetAsync(new Uri("/tipos-iva", UriKind.Relative)); // siembra IVA0 (Exento)
+
+        var comando = new
+        {
+            ClienteId = clienteId,
+            Lineas = new[] { new { Cantidad = 2m, Descripcion = "Formación exenta", PrecioUnitario = 300m, CodigoIva = "IVA0" } },
+        };
+
+        var factura = await (await cliente.PostAsJsonAsync("/facturas", comando)).Content.ReadFromJsonAsync<FacturaResp>();
+
+        factura!.BaseImponible.Should().Be(600m);
+        factura.CuotaIva.Should().Be(0m);
+        factura.Total.Should().Be(600m);
     }
 
     private sealed record FacturaRecargoResp(decimal BaseImponible, decimal CuotaIva, bool RecargoEquivalencia, decimal RecargoTotal, decimal Total);

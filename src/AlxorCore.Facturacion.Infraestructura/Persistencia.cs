@@ -73,6 +73,7 @@ internal sealed class ConfiguracionFactura : IEntityTypeConfiguration<Factura>
         builder.Property(f => f.ClienteProvincia).HasColumnName("cliente_provincia").HasMaxLength(120);
         builder.Property(f => f.Pais).HasColumnName("pais").HasMaxLength(2).IsRequired();
         builder.Property(f => f.ActividadNegocioId).HasColumnName("actividad_negocio_id");
+        builder.Property(f => f.MencionFiscal).HasColumnName("mencion_fiscal").HasMaxLength(500);
 
         builder.Property(f => f.BaseImponible).HasColumnName("base_imponible").HasColumnType("numeric(14,2)").IsRequired();
         builder.Property(f => f.CuotaIva).HasColumnName("cuota_iva").HasColumnType("numeric(14,2)").IsRequired();

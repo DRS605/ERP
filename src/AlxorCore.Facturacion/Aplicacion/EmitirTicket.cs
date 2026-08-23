@@ -40,6 +40,7 @@ public sealed class EmitirTicket
     private readonly DespacharSalida _despacharSalida;
     private readonly IConsultaFormasPago _formasPago;
     private readonly IPagosAutomaticos _pagos;
+    private readonly IResolverIvaEmpresa _resolverIva;
     private readonly IReloj _reloj;
 
     public EmitirTicket(
@@ -55,6 +56,7 @@ public sealed class EmitirTicket
         DespacharSalida despacharSalida,
         IConsultaFormasPago formasPago,
         IPagosAutomaticos pagos,
+        IResolverIvaEmpresa resolverIva,
         IReloj reloj)
     {
         _clientes = clientes;
@@ -69,6 +71,7 @@ public sealed class EmitirTicket
         _despacharSalida = despacharSalida;
         _formasPago = formasPago;
         _pagos = pagos;
+        _resolverIva = resolverIva;
         _reloj = reloj;
     }
 
@@ -104,12 +107,13 @@ public sealed class EmitirTicket
             ? await _formasPago.ObtenerAsync(fpid, ct).ConfigureAwait(false)
             : null;
 
-        var resolucion = await ResolucionLineasFactura.ResolverAsync(comando.Lineas, _productos, ct).ConfigureAwait(false);
+        var resolucion = await ResolucionLineasFactura.ResolverAsync(comando.Lineas, _productos, ct, false, empresaId, _resolverIva).ConfigureAwait(false);
         if (resolucion.EsFallo)
         {
             return Resultado.Fallo<FacturaDto>(resolucion.Error);
         }
 
+        var mencionFiscal = await ResolucionLineasFactura.MencionFiscalAsync(empresaId, resolucion.Valor, _resolverIva, ct).ConfigureAwait(false);
         var hoy = DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
         var fecha = comando.FechaEmision ?? hoy;
         var serie = comando.Serie;
@@ -133,6 +137,7 @@ public sealed class EmitirTicket
             return Resultado.Fallo<FacturaDto>(ticket.Error);
         }
 
+        ticket.Valor.EstablecerMencionFiscal(mencionFiscal);
         await RegistroVerifactu.AplicarAsync(empresaId, ticket.Valor, _empresas, _facturas, _reloj, ct).ConfigureAwait(false);
         _facturas.Agregar(ticket.Valor);
 

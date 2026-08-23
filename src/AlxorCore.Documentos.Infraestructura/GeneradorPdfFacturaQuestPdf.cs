@@ -120,6 +120,14 @@ internal sealed class GeneradorPdfFacturaQuestPdf : IGeneradorPdfFactura
                         totales.Item().Text($"TOTAL: {Redondeo.Formatear(factura.Total)} €").Bold().FontSize(13).FontColor(color);
                     });
 
+                    // Mención fiscal obligatoria (exención, inversión del sujeto pasivo, no sujeto,
+                    // operación intracomunitaria, etc.) cuando alguna línea la requiere.
+                    if (!string.IsNullOrWhiteSpace(factura.MencionFiscal))
+                    {
+                        col.Item().PaddingTop(12).BorderTop(0.75f).BorderColor(Colors.Grey.Lighten1).PaddingTop(6)
+                            .Text(factura.MencionFiscal).FontSize(8).Italic().FontColor(Colors.Grey.Darken2);
+                    }
+
                     var qr = GenerarQr(factura, emisor);
                     if (qr is not null)
                     {
@@ -196,6 +204,11 @@ internal sealed class GeneradorPdfFacturaQuestPdf : IGeneradorPdfFactura
                         f.ConstantItem(80).AlignRight().Text($"{Redondeo.Formatear(factura.Total)} €").Bold().FontSize(11);
                     });
                     col.Item().AlignCenter().PaddingTop(2).Text("IVA incluido").FontColor(Colors.Grey.Darken1);
+
+                    if (!string.IsNullOrWhiteSpace(factura.MencionFiscal))
+                    {
+                        col.Item().PaddingTop(3).AlignCenter().Text(factura.MencionFiscal).FontSize(7).Italic().FontColor(Colors.Grey.Darken1);
+                    }
 
                     var qr = GenerarQr(factura, emisor);
                     if (qr is not null)
