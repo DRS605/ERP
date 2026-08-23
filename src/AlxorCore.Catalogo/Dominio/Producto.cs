@@ -29,7 +29,7 @@ public enum SeguimientoArticulo
 }
 
 /// <summary>Se ha creado un producto.</summary>
-public sealed record ProductoCreado(Guid ProductoId, Guid EmpresaId, DateTimeOffset OcurridoEn) : IEventoDominio;
+public sealed record ProductoCreado(Guid ProductoId, Guid GrupoId, DateTimeOffset OcurridoEn) : IEventoDominio;
 
 /// <summary>
 /// Componente de la lista de materiales de un artículo compuesto: qué artículo entra y en qué
@@ -77,10 +77,13 @@ public sealed class AtributoVariante
 }
 
 /// <summary>
-/// Producto o servicio del catálogo de una empresa. Guarda su precio y el tipo de IVA por defecto,
-/// que se prerrellenan al añadirlo a una factura.
+/// Producto o servicio del catálogo. Pertenece al <b>grupo</b> (holding): un artículo creado una vez
+/// vale para todas las empresas del grupo (definición compartida: nombre, precio, IVA, familia,
+/// unidades, composición, variantes…). Las <b>existencias</b> son por empresa (véase
+/// <see cref="ExistenciaSimple"/> y el módulo de Inventario). Guarda su precio y el tipo de IVA por
+/// defecto, que se prerrellenan al añadirlo a una factura.
 /// </summary>
-public sealed class Producto : RaizAgregadoEmpresa<Guid>
+public sealed class Producto : RaizAgregadoGrupo<Guid>
 {
     public const int LongitudMaximaNombre = 200;
 
@@ -97,8 +100,8 @@ public sealed class Producto : RaizAgregadoEmpresa<Guid>
         FactorVenta = 1m;
     }
 
-    private Producto(Guid id, Guid empresaId, string? referencia, string nombre, TipoProducto tipo, decimal precio, decimal precioCompra, string codigoIva, string unidad, Guid? proveedorHabitualId, bool controlarStock, decimal stockInicial, string? unidadCompra, decimal factorCompra, string? unidadVenta, decimal factorVenta, SeguimientoArticulo seguimiento, DateTimeOffset ahora)
-        : base(id, empresaId)
+    private Producto(Guid id, Guid grupoId, string? referencia, string nombre, TipoProducto tipo, decimal precio, decimal precioCompra, string codigoIva, string unidad, Guid? proveedorHabitualId, bool controlarStock, string? unidadCompra, decimal factorCompra, string? unidadVenta, decimal factorVenta, SeguimientoArticulo seguimiento, DateTimeOffset ahora)
+        : base(id, grupoId)
     {
         Referencia = referencia;
         Nombre = nombre;
@@ -114,7 +117,6 @@ public sealed class Producto : RaizAgregadoEmpresa<Guid>
         Seguimiento = seguimiento;
         ProveedorHabitualId = proveedorHabitualId;
         ControlarStock = controlarStock;
-        Stock = controlarStock ? stockInicial : 0m;
         Activo = true;
         CreadoEn = ahora;
         ActualizadoEn = ahora;
@@ -293,8 +295,11 @@ public sealed class Producto : RaizAgregadoEmpresa<Guid>
     /// <summary>Si se llevan existencias de este artículo (los servicios normalmente no).</summary>
     public bool ControlarStock { get; private set; }
 
-    /// <summary>Existencias actuales. Solo tiene sentido si <see cref="ControlarStock"/> es cierto.</summary>
-    public decimal Stock { get; private set; }
+    /// <summary>
+    /// Actividad de negocio (línea/división del grupo) con la que se clasifica el artículo. Segmenta
+    /// el catálogo y controla qué usuarios lo ven en Artículos. Null = sin actividad (visible a todos).
+    /// </summary>
+    public Guid? ActividadNegocioId { get; private set; }
 
     public bool Activo { get; private set; }
 
@@ -303,7 +308,7 @@ public sealed class Producto : RaizAgregadoEmpresa<Guid>
     public DateTimeOffset ActualizadoEn { get; private set; }
 
     public static Resultado<Producto> Crear(
-        Guid empresaId, string? referencia, string? nombre, TipoProducto tipo, decimal precioUnitario, decimal precioCompra, string? codigoIva, string? unidad, IReloj reloj, Guid? proveedorHabitualId = null, bool controlarStock = false, decimal stockInicial = 0m,
+        Guid grupoId, string? referencia, string? nombre, TipoProducto tipo, decimal precioUnitario, decimal precioCompra, string? codigoIva, string? unidad, IReloj reloj, Guid? proveedorHabitualId = null, bool controlarStock = false,
         string? unidadCompra = null, decimal factorCompra = 1m, string? unidadVenta = null, decimal factorVenta = 1m, SeguimientoArticulo seguimiento = SeguimientoArticulo.Ninguno)
     {
         ArgumentNullException.ThrowIfNull(reloj);
@@ -315,11 +320,15 @@ public sealed class Producto : RaizAgregadoEmpresa<Guid>
         }
 
         var producto = new Producto(
-            Guid.NewGuid(), empresaId, Normalizar(referencia), nombre!.Trim(), tipo, precioUnitario, precioCompra, codigoIva!, NormalizarUnidad(unidad), proveedorHabitualId, controlarStock, stockInicial,
+            Guid.NewGuid(), grupoId, Normalizar(referencia), nombre!.Trim(), tipo, precioUnitario, precioCompra, codigoIva!, NormalizarUnidad(unidad), proveedorHabitualId, controlarStock,
             NormalizarUnidadOpcional(unidadCompra), factorCompra, NormalizarUnidadOpcional(unidadVenta), factorVenta, seguimiento, reloj.AhoraUtc);
-        producto.RegistrarEvento(new ProductoCreado(producto.Id, empresaId, reloj.AhoraUtc));
+        producto.RegistrarEvento(new ProductoCreado(producto.Id, grupoId, reloj.AhoraUtc));
         return Resultado.Ok(producto);
     }
+
+    /// <summary>Clasifica el artículo en una actividad de negocio (null o vacío = sin actividad).</summary>
+    public void EstablecerActividad(Guid? actividadNegocioId) =>
+        ActividadNegocioId = actividadNegocioId is { } a && a != Guid.Empty ? a : null;
 
     public Resultado Actualizar(string? referencia, string? nombre, TipoProducto tipo, decimal precioUnitario, decimal precioCompra, string? codigoIva, string? unidad, IReloj reloj, Guid? proveedorHabitualId = null, bool controlarStock = false,
         string? unidadCompra = null, decimal factorCompra = 1m, string? unidadVenta = null, decimal factorVenta = 1m, SeguimientoArticulo seguimiento = SeguimientoArticulo.Ninguno)
@@ -348,39 +357,6 @@ public sealed class Producto : RaizAgregadoEmpresa<Guid>
         Seguimiento = seguimiento;
         ActualizadoEn = reloj.AhoraUtc;
         return Resultado.Ok();
-    }
-
-    /// <summary>
-    /// Registra un movimiento de existencias y actualiza el stock. Requiere que el artículo tenga
-    /// el control de stock activado. Un <see cref="TipoMovimientoStock.Ajuste"/> fija el stock al
-    /// valor contado; el resto suman o restan la cantidad indicada.
-    /// </summary>
-    public Resultado<MovimientoStock> RegistrarMovimientoStock(TipoMovimientoStock tipo, decimal cantidad, string? motivo, IReloj reloj)
-    {
-        ArgumentNullException.ThrowIfNull(reloj);
-
-        if (!ControlarStock)
-        {
-            return Resultado.Fallo<MovimientoStock>(Error.Conflicto("producto.sin_control_stock", "Este artículo no lleva control de stock."));
-        }
-
-        if (cantidad < 0)
-        {
-            return Resultado.Fallo<MovimientoStock>(Error.Validacion("stock.cantidad_negativa", "La cantidad no puede ser negativa."));
-        }
-
-        var delta = tipo switch
-        {
-            TipoMovimientoStock.Entrada => cantidad,
-            TipoMovimientoStock.Salida => -cantidad,
-            TipoMovimientoStock.Venta => -cantidad,
-            TipoMovimientoStock.Ajuste => cantidad - Stock,
-            _ => 0m,
-        };
-
-        Stock += delta;
-        ActualizadoEn = reloj.AhoraUtc;
-        return Resultado.Ok(MovimientoStock.Registrar(EmpresaId, Id, tipo, delta, Stock, motivo, reloj.AhoraUtc));
     }
 
     public void Desactivar(IReloj reloj)

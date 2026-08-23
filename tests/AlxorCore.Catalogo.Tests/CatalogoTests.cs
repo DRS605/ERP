@@ -204,36 +204,36 @@ public class ProductoTests
     }
 
     [Fact]
-    public void Producto_sin_control_de_stock_no_admite_movimientos()
+    public void Existencias_negativas_no_se_aceptan_como_cantidad()
     {
-        var producto = Producto.Crear(Empresa, null, "Servicio", TipoProducto.Servicio, 10m, 0m, null, null, Reloj).Valor;
-        var mov = producto.RegistrarMovimientoStock(TipoMovimientoStock.Entrada, 5m, null, Reloj);
-        mov.EsFallo.Should().BeTrue();
+        var existencia = ExistenciaSimple.Crear(Empresa, Guid.NewGuid(), Reloj);
+        existencia.Aplicar(TipoMovimientoStock.Entrada, -5m, null, Reloj).EsFallo.Should().BeTrue();
     }
 
     [Fact]
-    public void Entrada_y_salida_de_stock_actualizan_las_existencias()
+    public void Entrada_y_salida_de_stock_actualizan_las_existencias_por_empresa()
     {
-        var producto = Producto.Crear(Empresa, null, "Café 1kg", TipoProducto.Bien, 10m, 6m, null, null, Reloj, controlarStock: true, stockInicial: 20m).Valor;
-        producto.Stock.Should().Be(20m);
+        var existencia = ExistenciaSimple.Crear(Empresa, Guid.NewGuid(), Reloj);
 
-        var entrada = producto.RegistrarMovimientoStock(TipoMovimientoStock.Entrada, 30m, "Compra", Reloj);
+        var entrada = existencia.Aplicar(TipoMovimientoStock.Entrada, 50m, "Compra", Reloj);
         entrada.EsCorrecto.Should().BeTrue();
-        entrada.Valor.Cantidad.Should().Be(30m);
-        producto.Stock.Should().Be(50m);
+        entrada.Valor.Cantidad.Should().Be(50m);
+        existencia.Cantidad.Should().Be(50m);
 
-        var venta = producto.RegistrarMovimientoStock(TipoMovimientoStock.Venta, 12m, null, Reloj);
+        var venta = existencia.Aplicar(TipoMovimientoStock.Venta, 12m, null, Reloj);
         venta.Valor.Cantidad.Should().Be(-12m);
-        producto.Stock.Should().Be(38m);
+        existencia.Cantidad.Should().Be(38m);
     }
 
     [Fact]
-    public void Ajuste_fija_el_stock_al_valor_contado()
+    public void Ajuste_fija_las_existencias_al_valor_contado()
     {
-        var producto = Producto.Crear(Empresa, null, "Harina", TipoProducto.Bien, 2m, 1m, null, null, Reloj, controlarStock: true, stockInicial: 100m).Valor;
-        var ajuste = producto.RegistrarMovimientoStock(TipoMovimientoStock.Ajuste, 90m, "Recuento", Reloj);
+        var existencia = ExistenciaSimple.Crear(Empresa, Guid.NewGuid(), Reloj);
+        existencia.Aplicar(TipoMovimientoStock.Entrada, 100m, null, Reloj);
+
+        var ajuste = existencia.Aplicar(TipoMovimientoStock.Ajuste, 90m, "Recuento", Reloj);
         ajuste.Valor.Cantidad.Should().Be(-10m);       // delta aplicado
         ajuste.Valor.StockResultante.Should().Be(90m);
-        producto.Stock.Should().Be(90m);
+        existencia.Cantidad.Should().Be(90m);
     }
 }

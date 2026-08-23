@@ -151,7 +151,7 @@ public sealed class GenerarRotacionStock
     public async Task<RotacionStockDto> EjecutarAsync(Guid empresaId, DateOnly desde, DateOnly hasta, CancellationToken ct = default)
     {
         var lineas = await _facturas.ListarLineasMargenAsync(empresaId, desde, hasta, ct).ConfigureAwait(false);
-        var productos = await _productos.ListarAsync(empresaId, incluirInactivos: false, ct).ConfigureAwait(false);
+        var productos = await _productos.ListarAsync(empresaId, incluirInactivos: false, ct: ct).ConfigureAwait(false);
 
         var vendidasPorProducto = lineas
             .Where(l => l.ProductoId is not null)

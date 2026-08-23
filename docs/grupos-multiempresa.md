@@ -9,7 +9,8 @@ gastos, contabilidad) siguen siendo **por empresa**, como exige la fiscalidad.
   proveedores).
 - **Fase 2** (hecha): **actividades de negocio** (clasificación transversal) y **visibilidad por
   usuario y pantalla** (ver más abajo).
-- **Fase 3** (pendiente): **artículos (catálogo) compartidos** por grupo, con el mismo patrón.
+- **Fase 3** (hecha): **catálogo (artículos) compartido** por grupo, con **existencias por empresa**
+  y actividad de negocio (área `Articulos`) — ver más abajo.
 
 ## Modelo
 
@@ -81,17 +82,40 @@ El filtrado ocurre en la base de datos: los listados de clientes (área `Ventas`
 Las tablas `actividad_negocio` y `visibilidad_actividad` son del **grupo**: filtro global de EF Core
 por `grupo_id` y **RLS** por `app.grupo_actual` (segunda barrera), igual que el resto de maestros.
 
+## Catálogo compartido por grupo, existencias por empresa (Fase 3)
+
+El **catálogo** (artículo, familia y su histórico de precios) pasa a ser del **grupo**: un artículo
+creado una vez —con su referencia, nombre, precio, IVA, familia, unidades, composición y variantes—
+**vale para todas las empresas del grupo**. Filtro global de EF Core por `grupo_id` y **RLS** por
+`app.grupo_actual`, igual que Terceros.
+
+Las **existencias son por empresa** (cada empresa lleva su stock): se extraen a
+`catalogo.existencia_simple` (una fila por empresa + artículo, aislada por empresa), y los
+`movimiento_stock` siguen siendo por empresa. El control de stock por almacenes/ubicaciones vive,
+como antes, en el módulo de **Inventario** (por empresa). Así, el mismo artículo puede tener stock 0
+en una empresa y 50 en otra del mismo grupo.
+
+Cada **artículo** admite una `actividad_negocio_id` opcional. Los listados/búsquedas de artículos
+aplican la **visibilidad por usuario** en el área `Articulos` (misma regla abierta-por-defecto que
+Ventas/Compras): sin reglas se ven todos; con reglas, solo las actividades concedidas más los
+artículos sin actividad.
+
+### Migración
+
+No disruptiva: el stock simple del artículo se traslada a `existencia_simple` de su empresa antes de
+compartir el artículo; luego `empresa_id` → `grupo_id` en `producto`, `familia` e `historico_precio`
+(rellenando el grupo de cada empresa, uno por empresa por defecto). Las políticas RLS por empresa se
+sustituyen por RLS por grupo en el catálogo; `existencia_simple` estrena RLS por empresa.
+
 ## Tests
 
-- **Unitarios**: `Empresa` y `Grupo` (creación); `Cliente`/`Proveedor` conservan sus invariantes con
-  `GrupoId`; `ActividadNegocio` y `VisibilidadActividad` (creación, renombrado, activar/desactivar).
-- **Integración**: dos empresas del **mismo grupo comparten** los clientes; empresas de **grupos
-  distintos no**; CRUD de actividades; y la visibilidad: un maestro **sin actividad** siempre es
-  visible aunque haya reglas, conceder la actividad lo hace visible, y las reglas de un área no
-  afectan a otra. Toda la batería (242) sigue verde.
+- **Unitarios**: `Empresa`/`Grupo`; `Cliente`/`Proveedor` con `GrupoId`; `ActividadNegocio`/
+  `VisibilidadActividad`; `ExistenciaSimple` (entradas/salidas/ajuste, cantidad no negativa).
+- **Integración**: maestros de Terceros compartidos por grupo y aislados entre grupos; CRUD de
+  actividades y visibilidad por área; **catálogo compartido** por grupo con **stock por empresa**
+  (un movimiento en una empresa no afecta a otra) y visibilidad de artículos por actividad. Toda la
+  batería de integración (244) sigue verde.
 
-## Siguientes fases
+## Siguientes pasos
 
-1. **Artículos (Catálogo) compartidos por grupo**, con el mismo patrón que Terceros y con actividad
-   de negocio (área `Articulos`).
-2. Actividad de negocio en documentos e informes segmentados por actividad.
+1. Actividad de negocio en **documentos** (facturas, gastos) e **informes segmentados** por actividad.

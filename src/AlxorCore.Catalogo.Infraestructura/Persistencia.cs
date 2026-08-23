@@ -29,6 +29,8 @@ public sealed class CatalogoDbContext : DbContextEmpresaBase, IUnidadDeTrabajoCa
 
     public DbSet<MovimientoStock> MovimientosStock => Set<MovimientoStock>();
 
+    public DbSet<ExistenciaSimple> Existencias => Set<ExistenciaSimple>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Esquema);
@@ -44,7 +46,7 @@ internal sealed class ConfiguracionProducto : IEntityTypeConfiguration<Producto>
         builder.ToTable("producto");
         builder.HasKey(p => p.Id);
         builder.Property(p => p.Id).HasColumnName("id");
-        builder.Property(p => p.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        builder.Property(p => p.GrupoId).HasColumnName("grupo_id").IsRequired();
         builder.Property(p => p.Referencia).HasColumnName("referencia").HasMaxLength(60);
         builder.Property(p => p.Nombre).HasColumnName("nombre").HasMaxLength(Producto.LongitudMaximaNombre).IsRequired();
         builder.Property(p => p.Familia).HasColumnName("familia").HasMaxLength(Producto.LongitudMaximaFamilia);
@@ -64,12 +66,12 @@ internal sealed class ConfiguracionProducto : IEntityTypeConfiguration<Producto>
         builder.Property(p => p.EsPlantilla).HasColumnName("es_plantilla").IsRequired();
         builder.Property(p => p.ProveedorHabitualId).HasColumnName("proveedor_habitual_id");
         builder.Property(p => p.ControlarStock).HasColumnName("controlar_stock").IsRequired();
-        builder.Property(p => p.Stock).HasColumnName("stock").HasColumnType("numeric(14,3)").IsRequired();
+        builder.Property(p => p.ActividadNegocioId).HasColumnName("actividad_negocio_id");
         builder.Property(p => p.Activo).HasColumnName("activo").IsRequired();
         builder.Property(p => p.CreadoEn).HasColumnName("creado_en").IsRequired();
         builder.Property(p => p.ActualizadoEn).HasColumnName("actualizado_en").IsRequired();
 
-        builder.HasIndex(p => new { p.EmpresaId, p.Nombre }).HasDatabaseName("ix_producto_empresa_nombre");
+        builder.HasIndex(p => new { p.GrupoId, p.Nombre }).HasDatabaseName("ix_producto_grupo_nombre");
         builder.HasIndex(p => p.FamiliaId).HasDatabaseName("ix_producto_familia");
         builder.Ignore(p => p.EventosDominio);
         // Propiedades calculadas (no se persisten).
@@ -108,7 +110,7 @@ internal sealed class ConfiguracionFamilia : IEntityTypeConfiguration<Familia>
         builder.ToTable("familia");
         builder.HasKey(f => f.Id);
         builder.Property(f => f.Id).HasColumnName("id");
-        builder.Property(f => f.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        builder.Property(f => f.GrupoId).HasColumnName("grupo_id").IsRequired();
         builder.Property(f => f.Nombre).HasColumnName("nombre").HasMaxLength(Familia.LongitudMaximaNombre).IsRequired();
         builder.Property(f => f.Codigo).HasColumnName("codigo").HasMaxLength(Familia.LongitudMaximaCodigo);
         builder.Property(f => f.PadreId).HasColumnName("padre_id");
@@ -116,7 +118,7 @@ internal sealed class ConfiguracionFamilia : IEntityTypeConfiguration<Familia>
         builder.Property(f => f.CreadoEn).HasColumnName("creado_en").IsRequired();
         builder.Property(f => f.ActualizadoEn).HasColumnName("actualizado_en").IsRequired();
 
-        builder.HasIndex(f => new { f.EmpresaId, f.PadreId }).HasDatabaseName("ix_familia_empresa_padre");
+        builder.HasIndex(f => new { f.GrupoId, f.PadreId }).HasDatabaseName("ix_familia_grupo_padre");
         builder.Ignore(f => f.EventosDominio);
     }
 }
@@ -128,13 +130,13 @@ internal sealed class ConfiguracionHistoricoPrecio : IEntityTypeConfiguration<Hi
         builder.ToTable("historico_precio");
         builder.HasKey(h => h.Id);
         builder.Property(h => h.Id).HasColumnName("id");
-        builder.Property(h => h.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        builder.Property(h => h.GrupoId).HasColumnName("grupo_id").IsRequired();
         builder.Property(h => h.ProductoId).HasColumnName("producto_id").IsRequired();
         builder.Property(h => h.PrecioVenta).HasColumnName("precio_venta").HasColumnType("numeric(12,2)").IsRequired();
         builder.Property(h => h.PrecioCompra).HasColumnName("precio_compra").HasColumnType("numeric(12,2)").IsRequired();
         builder.Property(h => h.RegistradoEn).HasColumnName("registrado_en").IsRequired();
 
-        builder.HasIndex(h => new { h.EmpresaId, h.ProductoId, h.RegistradoEn }).HasDatabaseName("ix_historico_precio_producto");
+        builder.HasIndex(h => new { h.GrupoId, h.ProductoId, h.RegistradoEn }).HasDatabaseName("ix_historico_precio_producto");
         builder.Ignore(h => h.EventosDominio);
     }
 }
@@ -157,6 +159,35 @@ internal sealed class ConfiguracionMovimientoStock : IEntityTypeConfiguration<Mo
         builder.HasIndex(m => new { m.EmpresaId, m.ProductoId, m.CreadoEn }).HasDatabaseName("ix_movimiento_stock_producto");
         builder.Ignore(m => m.EventosDominio);
     }
+}
+
+internal sealed class ConfiguracionExistenciaSimple : IEntityTypeConfiguration<ExistenciaSimple>
+{
+    public void Configure(EntityTypeBuilder<ExistenciaSimple> builder)
+    {
+        builder.ToTable("existencia_simple");
+        builder.HasKey(e => e.Id);
+        builder.Property(e => e.Id).HasColumnName("id");
+        builder.Property(e => e.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        builder.Property(e => e.ProductoId).HasColumnName("producto_id").IsRequired();
+        builder.Property(e => e.Cantidad).HasColumnName("cantidad").HasColumnType("numeric(14,3)").IsRequired();
+        builder.Property(e => e.ActualizadoEn).HasColumnName("actualizado_en").IsRequired();
+
+        builder.HasIndex(e => new { e.EmpresaId, e.ProductoId }).IsUnique().HasDatabaseName("ux_existencia_simple_empresa_producto");
+        builder.Ignore(e => e.EventosDominio);
+    }
+}
+
+internal sealed class RepositorioExistenciasSimples : IRepositorioExistenciasSimples
+{
+    private readonly CatalogoDbContext _contexto;
+
+    public RepositorioExistenciasSimples(CatalogoDbContext contexto) => _contexto = contexto;
+
+    public Task<ExistenciaSimple?> ObtenerPorProductoAsync(Guid productoId, CancellationToken ct = default) =>
+        _contexto.Existencias.SingleOrDefaultAsync(e => e.ProductoId == productoId, ct);
+
+    public void Agregar(ExistenciaSimple existencia) => _contexto.Existencias.Add(existencia);
 }
 
 internal sealed class RepositorioMovimientosStock : IRepositorioMovimientosStock, IConsultaMovimientosStock
@@ -209,27 +240,38 @@ internal sealed class RepositorioProductos : IRepositorioProductos, IConsultaPro
     public async Task<ProductoDto?> ObtenerAsync(Guid productoId, CancellationToken ct = default)
     {
         var producto = await _contexto.Productos.SingleOrDefaultAsync(p => p.Id == productoId, ct).ConfigureAwait(false);
-        return producto is null ? null : ProductoDto.Desde(producto);
+        if (producto is null)
+        {
+            return null;
+        }
+
+        var stock = await _contexto.Existencias.Where(e => e.ProductoId == productoId)
+            .Select(e => (decimal?)e.Cantidad).SingleOrDefaultAsync(ct).ConfigureAwait(false) ?? 0m;
+        return ProductoDto.Desde(producto, stock);
     }
 
-    public async Task<IReadOnlyList<ProductoDto>> ListarAsync(Guid empresaId, bool incluirInactivos = false, CancellationToken ct = default)
+    // El catálogo se comparte por grupo (filtro global); las existencias son por empresa (filtro
+    // global de ExistenciaSimple). El tenant que llega es el grupo, pero la RLS/filtro ya lo aplica.
+    public async Task<IReadOnlyList<ProductoDto>> ListarAsync(Guid grupoId, bool incluirInactivos = false, IReadOnlyCollection<Guid>? actividadesPermitidas = null, CancellationToken ct = default)
     {
-        var consulta = _contexto.Productos.Where(p => p.EmpresaId == empresaId);
+        var consulta = _contexto.Productos.AsQueryable();
         if (!incluirInactivos)
         {
             consulta = consulta.Where(p => p.Activo);
         }
 
+        consulta = FiltrarPorActividad(consulta, actividadesPermitidas);
+
         var productos = await consulta.OrderBy(p => p.Nombre).ToListAsync(ct).ConfigureAwait(false);
-        return productos.Select(ProductoDto.Desde).ToList();
+        return await ConDtoAsync(productos, ct).ConfigureAwait(false);
     }
 
-    public async Task<PaginaResultado<ProductoDto>> BuscarAsync(Guid empresaId, FiltroProductos filtro, Paginacion paginacion, CancellationToken ct = default)
+    public async Task<PaginaResultado<ProductoDto>> BuscarAsync(Guid grupoId, FiltroProductos filtro, Paginacion paginacion, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(filtro);
         ArgumentNullException.ThrowIfNull(paginacion);
 
-        var consulta = _contexto.Productos.Where(p => p.EmpresaId == empresaId);
+        var consulta = _contexto.Productos.AsQueryable();
         if (!filtro.IncluirInactivos)
         {
             consulta = consulta.Where(p => p.Activo);
@@ -248,19 +290,48 @@ internal sealed class RepositorioProductos : IRepositorioProductos, IConsultaPro
             consulta = consulta.Where(p => p.FamiliaId == familiaId);
         }
 
+        consulta = FiltrarPorActividad(consulta, filtro.ActividadesPermitidas);
+
         var total = await consulta.CountAsync(ct).ConfigureAwait(false);
         var productos = await consulta
             .OrderBy(p => p.Nombre)
             .Skip(paginacion.Saltar).Take(paginacion.TamanoPagina)
             .ToListAsync(ct).ConfigureAwait(false);
-        return PaginaResultado<ProductoDto>.Crear(productos.Select(ProductoDto.Desde).ToList(), total, paginacion);
+        return PaginaResultado<ProductoDto>.Crear(await ConDtoAsync(productos, ct).ConfigureAwait(false), total, paginacion);
     }
 
     public async Task<IReadOnlyList<ProductoDto>> ListarVariantesAsync(Guid padreId, CancellationToken ct = default)
     {
         var variantes = await _contexto.Productos.Where(p => p.ProductoPadreId == padreId)
             .OrderBy(p => p.Nombre).ToListAsync(ct).ConfigureAwait(false);
-        return variantes.Select(ProductoDto.Desde).ToList();
+        return await ConDtoAsync(variantes, ct).ConfigureAwait(false);
+    }
+
+    // Visibilidad por actividad (área Artículos): null => sin restricción; con conjunto => solo esas
+    // actividades más los artículos sin actividad (visibles siempre).
+    private static IQueryable<Producto> FiltrarPorActividad(IQueryable<Producto> consulta, IReadOnlyCollection<Guid>? actividadesPermitidas)
+    {
+        if (actividadesPermitidas is null)
+        {
+            return consulta;
+        }
+
+        var ids = actividadesPermitidas as IReadOnlyList<Guid> ?? actividadesPermitidas.ToList();
+        return consulta.Where(p => p.ActividadNegocioId == null || ids.Contains(p.ActividadNegocioId.Value));
+    }
+
+    // Completa cada DTO con las existencias de la empresa activa (una consulta para todos los ids).
+    private async Task<IReadOnlyList<ProductoDto>> ConDtoAsync(IReadOnlyList<Producto> productos, CancellationToken ct)
+    {
+        if (productos.Count == 0)
+        {
+            return Array.Empty<ProductoDto>();
+        }
+
+        var ids = productos.Select(p => p.Id).ToList();
+        var stocks = await _contexto.Existencias.Where(e => ids.Contains(e.ProductoId))
+            .ToDictionaryAsync(e => e.ProductoId, e => e.Cantidad, ct).ConfigureAwait(false);
+        return productos.Select(p => ProductoDto.Desde(p, stocks.GetValueOrDefault(p.Id))).ToList();
     }
 }
 
@@ -273,8 +344,8 @@ internal sealed class RepositorioFamilias : IRepositorioFamilias, IConsultaFamil
     public Task<Familia?> ObtenerPorIdAsync(Guid id, CancellationToken ct = default) =>
         _contexto.Familias.SingleOrDefaultAsync(f => f.Id == id, ct);
 
-    public async Task<IReadOnlyList<Familia>> ListarTodasAsync(Guid empresaId, CancellationToken ct = default) =>
-        await _contexto.Familias.Where(f => f.EmpresaId == empresaId).ToListAsync(ct).ConfigureAwait(false);
+    public async Task<IReadOnlyList<Familia>> ListarTodasAsync(Guid grupoId, CancellationToken ct = default) =>
+        await _contexto.Familias.ToListAsync(ct).ConfigureAwait(false);
 
     public void Agregar(Familia familia) => _contexto.Familias.Add(familia);
 
@@ -291,7 +362,7 @@ internal sealed class RepositorioFamilias : IRepositorioFamilias, IConsultaFamil
             return null;
         }
 
-        var todas = await _contexto.Familias.Where(f => f.EmpresaId == familia.EmpresaId).ToListAsync(ct).ConfigureAwait(false);
+        var todas = await _contexto.Familias.ToListAsync(ct).ConfigureAwait(false);
         var porId = todas.ToDictionary(f => f.Id);
         var (ruta, nivel) = ArbolFamilias.RutaYNivel(familia, porId);
         return new FamiliaDto(familia.Id, familia.Nombre, familia.Codigo, familia.PadreId, familia.Activo, ruta, nivel);

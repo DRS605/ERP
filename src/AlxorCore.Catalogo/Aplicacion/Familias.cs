@@ -32,7 +32,7 @@ public interface IRepositorioFamilias
     Task<Familia?> ObtenerPorIdAsync(Guid id, CancellationToken ct = default);
 
     /// <summary>Carga todas las familias de la empresa (para construir el árbol y detectar ciclos).</summary>
-    Task<IReadOnlyList<Familia>> ListarTodasAsync(Guid empresaId, CancellationToken ct = default);
+    Task<IReadOnlyList<Familia>> ListarTodasAsync(Guid grupoId, CancellationToken ct = default);
 
     void Agregar(Familia familia);
 
@@ -128,20 +128,20 @@ public sealed class CrearFamilia
         _reloj = reloj;
     }
 
-    public async Task<Resultado<FamiliaDto>> EjecutarAsync(Guid empresaId, DatosFamilia datos, CancellationToken ct = default)
+    public async Task<Resultado<FamiliaDto>> EjecutarAsync(Guid grupoId, DatosFamilia datos, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(datos);
 
         if (datos.PadreId is Guid padreId)
         {
             var padre = await _familias.ObtenerPorIdAsync(padreId, ct).ConfigureAwait(false);
-            if (padre is null || padre.EmpresaId != empresaId)
+            if (padre is null)
             {
                 return Resultado.Fallo<FamiliaDto>(Error.Validacion("familia.padre_no_encontrado", "La familia padre no existe."));
             }
         }
 
-        var familia = Familia.Crear(empresaId, datos.Nombre, datos.PadreId, datos.Codigo, _reloj);
+        var familia = Familia.Crear(grupoId, datos.Nombre, datos.PadreId, datos.Codigo, _reloj);
         if (familia.EsFallo)
         {
             return Resultado.Fallo<FamiliaDto>(familia.Error);
@@ -149,12 +149,12 @@ public sealed class CrearFamilia
 
         _familias.Agregar(familia.Valor);
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
-        return Resultado.Ok(await ComponerDtoAsync(empresaId, familia.Valor, ct).ConfigureAwait(false));
+        return Resultado.Ok(await ComponerDtoAsync(grupoId, familia.Valor, ct).ConfigureAwait(false));
     }
 
-    private async Task<FamiliaDto> ComponerDtoAsync(Guid empresaId, Familia familia, CancellationToken ct)
+    private async Task<FamiliaDto> ComponerDtoAsync(Guid grupoId, Familia familia, CancellationToken ct)
     {
-        var todas = await _familias.ListarTodasAsync(empresaId, ct).ConfigureAwait(false);
+        var todas = await _familias.ListarTodasAsync(grupoId, ct).ConfigureAwait(false);
         var porId = todas.ToDictionary(f => f.Id);
         var (ruta, nivel) = ArbolFamilias.RutaYNivel(familia, porId);
         return new FamiliaDto(familia.Id, familia.Nombre, familia.Codigo, familia.PadreId, familia.Activo, ruta, nivel);
@@ -185,7 +185,7 @@ public sealed class ActualizarFamilia
             return Resultado.Fallo<FamiliaDto>(Error.NoEncontrado("familia.no_encontrada", "La familia no existe."));
         }
 
-        var todas = await _familias.ListarTodasAsync(familia.EmpresaId, ct).ConfigureAwait(false);
+        var todas = await _familias.ListarTodasAsync(familia.GrupoId, ct).ConfigureAwait(false);
         var porId = todas.ToDictionary(f => f.Id);
 
         // Reubicar bajo un nuevo padre: no puede colgar de sí misma ni de un descendiente (ciclo).
@@ -193,7 +193,7 @@ public sealed class ActualizarFamilia
         {
             if (datos.PadreId is Guid nuevoPadre)
             {
-                if (!porId.TryGetValue(nuevoPadre, out var padre) || padre.EmpresaId != familia.EmpresaId)
+                if (!porId.TryGetValue(nuevoPadre, out _))
                 {
                     return Resultado.Fallo<FamiliaDto>(Error.Validacion("familia.padre_no_encontrado", "La familia padre no existe."));
                 }
@@ -254,7 +254,7 @@ public sealed class EliminarFamilia
             return Resultado.Fallo(Error.NoEncontrado("familia.no_encontrada", "La familia no existe."));
         }
 
-        var todas = await _familias.ListarTodasAsync(familia.EmpresaId, ct).ConfigureAwait(false);
+        var todas = await _familias.ListarTodasAsync(familia.GrupoId, ct).ConfigureAwait(false);
         if (todas.Any(f => f.PadreId == familiaId))
         {
             return Resultado.Fallo(Error.Conflicto("familia.con_subfamilias", "No se puede eliminar: la familia tiene subfamilias. Muévelas o elimínalas primero."));
@@ -278,9 +278,9 @@ public sealed class ListarFamilias
 
     public ListarFamilias(IRepositorioFamilias familias) => _familias = familias;
 
-    public async Task<IReadOnlyList<FamiliaDto>> EjecutarAsync(Guid empresaId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<FamiliaDto>> EjecutarAsync(Guid grupoId, CancellationToken ct = default)
     {
-        var todas = await _familias.ListarTodasAsync(empresaId, ct).ConfigureAwait(false);
+        var todas = await _familias.ListarTodasAsync(grupoId, ct).ConfigureAwait(false);
         var porId = todas.ToDictionary(f => f.Id);
         return todas
             .Select(f =>
@@ -300,9 +300,9 @@ public sealed class ListarArbolFamilias
 
     public ListarArbolFamilias(IRepositorioFamilias familias) => _familias = familias;
 
-    public async Task<IReadOnlyList<FamiliaArbolDto>> EjecutarAsync(Guid empresaId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<FamiliaArbolDto>> EjecutarAsync(Guid grupoId, CancellationToken ct = default)
     {
-        var todas = await _familias.ListarTodasAsync(empresaId, ct).ConfigureAwait(false);
+        var todas = await _familias.ListarTodasAsync(grupoId, ct).ConfigureAwait(false);
         var porPadre = todas.ToLookup(f => f.PadreId);
 
         List<FamiliaArbolDto> Hijos(Guid? padreId) =>

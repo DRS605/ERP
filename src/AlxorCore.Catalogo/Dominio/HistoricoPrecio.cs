@@ -7,15 +7,15 @@ namespace AlxorCore.Catalogo.Dominio;
 /// una fila al crear el producto y cada vez que cambia alguno de sus precios, de modo que se puede
 /// consultar la evolución de precios a lo largo del tiempo. Es inmutable: solo se añaden filas.
 /// </summary>
-public sealed class HistoricoPrecio : RaizAgregadoEmpresa<Guid>
+public sealed class HistoricoPrecio : RaizAgregadoGrupo<Guid>
 {
     private HistoricoPrecio(Guid id)
         : base(id, Guid.Empty)
     {
     }
 
-    private HistoricoPrecio(Guid id, Guid empresaId, Guid productoId, decimal precioVenta, decimal precioCompra, DateTimeOffset registradoEn)
-        : base(id, empresaId)
+    private HistoricoPrecio(Guid id, Guid grupoId, Guid productoId, decimal precioVenta, decimal precioCompra, DateTimeOffset registradoEn)
+        : base(id, grupoId)
     {
         ProductoId = productoId;
         PrecioVenta = precioVenta;
@@ -31,6 +31,6 @@ public sealed class HistoricoPrecio : RaizAgregadoEmpresa<Guid>
 
     public DateTimeOffset RegistradoEn { get; private set; }
 
-    public static HistoricoPrecio Registrar(Guid empresaId, Guid productoId, decimal precioVenta, decimal precioCompra, DateTimeOffset registradoEn) =>
-        new(Guid.NewGuid(), empresaId, productoId, precioVenta, precioCompra, registradoEn);
+    public static HistoricoPrecio Registrar(Guid grupoId, Guid productoId, decimal precioVenta, decimal precioCompra, DateTimeOffset registradoEn) =>
+        new(Guid.NewGuid(), grupoId, productoId, precioVenta, precioCompra, registradoEn);
 }

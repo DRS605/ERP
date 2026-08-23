@@ -1,4 +1,6 @@
 using AlxorCore.Nucleo.Dominio;
+using AlxorCore.Nucleo.Resultados;
+using AlxorCore.Nucleo.Tiempo;
 
 namespace AlxorCore.Catalogo.Dominio;
 
@@ -57,4 +59,67 @@ public sealed class MovimientoStock : RaizAgregadoEmpresa<Guid>
     internal static MovimientoStock Registrar(
         Guid empresaId, Guid productoId, TipoMovimientoStock tipo, decimal cantidad, decimal stockResultante, string? motivo, DateTimeOffset ahora) =>
         new(Guid.NewGuid(), empresaId, productoId, tipo, cantidad, stockResultante, motivo, ahora);
+}
+
+/// <summary>
+/// Existencias «simples» de un artículo <b>en una empresa</b>. Como el catálogo (artículo) se comparte
+/// por grupo pero el stock es propio de cada empresa, esta entidad lleva la cantidad por empresa +
+/// artículo. Es el modo de stock básico; el control por almacenes/ubicaciones vive en el módulo de
+/// Inventario. Una fila por empresa y artículo.
+/// </summary>
+public sealed class ExistenciaSimple : RaizAgregadoEmpresa<Guid>
+{
+    private ExistenciaSimple(Guid id)
+        : base(id, Guid.Empty)
+    {
+    }
+
+    private ExistenciaSimple(Guid id, Guid empresaId, Guid productoId, DateTimeOffset ahora)
+        : base(id, empresaId)
+    {
+        ProductoId = productoId;
+        Cantidad = 0m;
+        ActualizadoEn = ahora;
+    }
+
+    public Guid ProductoId { get; private set; }
+
+    /// <summary>Existencias actuales del artículo en la empresa.</summary>
+    public decimal Cantidad { get; private set; }
+
+    public DateTimeOffset ActualizadoEn { get; private set; }
+
+    public static ExistenciaSimple Crear(Guid empresaId, Guid productoId, IReloj reloj)
+    {
+        ArgumentNullException.ThrowIfNull(reloj);
+        return new ExistenciaSimple(Guid.NewGuid(), empresaId, productoId, reloj.AhoraUtc);
+    }
+
+    /// <summary>
+    /// Aplica un movimiento de existencias y actualiza la cantidad. Un
+    /// <see cref="TipoMovimientoStock.Ajuste"/> fija la cantidad al valor contado; el resto suman o
+    /// restan la cantidad indicada. Devuelve el movimiento inmutable (histórico) resultante.
+    /// </summary>
+    public Resultado<MovimientoStock> Aplicar(TipoMovimientoStock tipo, decimal cantidad, string? motivo, IReloj reloj)
+    {
+        ArgumentNullException.ThrowIfNull(reloj);
+
+        if (cantidad < 0)
+        {
+            return Resultado.Fallo<MovimientoStock>(Error.Validacion("stock.cantidad_negativa", "La cantidad no puede ser negativa."));
+        }
+
+        var delta = tipo switch
+        {
+            TipoMovimientoStock.Entrada => cantidad,
+            TipoMovimientoStock.Salida => -cantidad,
+            TipoMovimientoStock.Venta => -cantidad,
+            TipoMovimientoStock.Ajuste => cantidad - Cantidad,
+            _ => 0m,
+        };
+
+        Cantidad += delta;
+        ActualizadoEn = reloj.AhoraUtc;
+        return Resultado.Ok(MovimientoStock.Registrar(EmpresaId, ProductoId, tipo, delta, Cantidad, motivo, reloj.AhoraUtc));
+    }
 }

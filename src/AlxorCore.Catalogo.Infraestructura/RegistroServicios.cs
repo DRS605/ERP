@@ -36,6 +36,7 @@ public static class RegistroServicios
         servicios.AddScoped<RepositorioMovimientosStock>();
         servicios.AddScoped<IRepositorioMovimientosStock>(sp => sp.GetRequiredService<RepositorioMovimientosStock>());
         servicios.AddScoped<IConsultaMovimientosStock>(sp => sp.GetRequiredService<RepositorioMovimientosStock>());
+        servicios.AddScoped<IRepositorioExistenciasSimples, RepositorioExistenciasSimples>();
         servicios.AddScoped<RepositorioFamilias>();
         servicios.AddScoped<IRepositorioFamilias>(sp => sp.GetRequiredService<RepositorioFamilias>());
         servicios.AddScoped<IConsultaFamilias>(sp => sp.GetRequiredService<RepositorioFamilias>());

@@ -188,7 +188,7 @@ public static class EndpointsImportacion
             return err!;
         }
 
-        var catalogo = await productos.ListarAsync(contexto.EmpresaId.Value, incluirInactivos: true, ct).ConfigureAwait(false);
+        var catalogo = await productos.ListarAsync(contexto.EmpresaId.Value, incluirInactivos: true, ct: ct).ConfigureAwait(false);
         var porReferencia = catalogo.Where(p => !string.IsNullOrWhiteSpace(p.Referencia))
             .GroupBy(p => p.Referencia!.Trim(), StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
@@ -223,7 +223,7 @@ public static class EndpointsImportacion
         var aplicados = 0;
         foreach (var a in ajustes)
         {
-            var r = await caso.EjecutarAsync(a.Id, new DatosMovimientoStock(TipoMovimientoStock.Ajuste, a.Cantidad, "Importación de existencias iniciales"), ct).ConfigureAwait(false);
+            var r = await caso.EjecutarAsync(contexto.EmpresaId.Value, a.Id, new DatosMovimientoStock(TipoMovimientoStock.Ajuste, a.Cantidad, "Importación de existencias iniciales"), ct).ConfigureAwait(false);
             if (r.EsCorrecto)
             {
                 aplicados++;

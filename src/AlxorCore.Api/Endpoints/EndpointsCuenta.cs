@@ -106,8 +106,14 @@ public static class EndpointsCuenta
         var grupo = contexto.GrupoId ?? Guid.Empty;
         await terceros.Clientes.Where(c => c.GrupoId == grupo).ExecuteDeleteAsync(ct).ConfigureAwait(false);
         await terceros.Proveedores.Where(p => p.GrupoId == grupo).ExecuteDeleteAsync(ct).ConfigureAwait(false);
-        await catalogo.HistoricoPrecios.Where(h => h.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
-        await catalogo.Productos.Where(p => p.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+
+        // El catálogo (artículos, familias, histórico de precios) es del grupo; las existencias y sus
+        // movimientos son por empresa.
+        await catalogo.Existencias.Where(e => e.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+        await catalogo.MovimientosStock.Where(m => m.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+        await catalogo.HistoricoPrecios.Where(h => h.GrupoId == grupo).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+        await catalogo.Productos.Where(p => p.GrupoId == grupo).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+        await catalogo.Familias.Where(f => f.GrupoId == grupo).ExecuteDeleteAsync(ct).ConfigureAwait(false);
         await auditoria.Registros.Where(a => a.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
         await organizacion.Series.Where(s => s.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
         await organizacion.Membresias.Where(m => m.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);

@@ -28,7 +28,7 @@ public sealed class ImportarProductos
     }
 
     public async Task<ResultadoImportacion> EjecutarAsync(
-        Guid empresaId, IReadOnlyList<FilaImportacionProducto> filas, bool previsualizar, CancellationToken ct = default)
+        Guid grupoId, IReadOnlyList<FilaImportacionProducto> filas, bool previsualizar, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(filas);
 
@@ -38,7 +38,7 @@ public sealed class ImportarProductos
         foreach (var fila in filas)
         {
             var d = fila.Datos;
-            var producto = Producto.Crear(empresaId, d.Referencia, d.Nombre, d.Tipo, d.PrecioUnitario, d.PrecioCompra, d.CodigoIva, d.Unidad, _reloj);
+            var producto = Producto.Crear(grupoId, d.Referencia, d.Nombre, d.Tipo, d.PrecioUnitario, d.PrecioCompra, d.CodigoIva, d.Unidad, _reloj);
             if (producto.EsFallo)
             {
                 errores.Add(new ErrorFila(fila.Fila, producto.Error.Mensaje));
@@ -54,7 +54,7 @@ public sealed class ImportarProductos
             foreach (var producto in validos)
             {
                 _productos.Agregar(producto);
-                _historico.Agregar(HistoricoPrecio.Registrar(empresaId, producto.Id, producto.PrecioUnitario, producto.PrecioCompra, _reloj.AhoraUtc));
+                _historico.Agregar(HistoricoPrecio.Registrar(grupoId, producto.Id, producto.PrecioUnitario, producto.PrecioCompra, _reloj.AhoraUtc));
             }
 
             await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);

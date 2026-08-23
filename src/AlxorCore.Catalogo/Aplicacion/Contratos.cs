@@ -32,14 +32,20 @@ public sealed record ProductoDto(
     bool EsPlantilla,
     string Variante,
     string? Familia,
-    Guid? FamiliaId)
+    Guid? FamiliaId,
+    Guid? ActividadNegocioId = null)
 {
-    public static ProductoDto Desde(Producto p)
+    /// <summary>
+    /// Construye el DTO. Las existencias (<paramref name="stock"/>) son por empresa (el catálogo se
+    /// comparte por grupo), por lo que se pasan aparte; 0 cuando no procede o no hay existencias.
+    /// </summary>
+    public static ProductoDto Desde(Producto p, decimal stock = 0m)
     {
+        ArgumentNullException.ThrowIfNull(p);
         var porcentaje = Impuesto.PorCodigoImpuesto(p.CodigoIva).Valor.Porcentaje;
-        return new ProductoDto(p.Id, p.Referencia, p.Nombre, p.Tipo, p.PrecioUnitario, p.CodigoIva, porcentaje, p.Unidad, p.Activo, p.PrecioCompra, p.ProveedorHabitualId, p.ControlarStock, p.Stock,
+        return new ProductoDto(p.Id, p.Referencia, p.Nombre, p.Tipo, p.PrecioUnitario, p.CodigoIva, porcentaje, p.Unidad, p.Activo, p.PrecioCompra, p.ProveedorHabitualId, p.ControlarStock, stock,
             p.UnidadCompra, p.FactorCompra, p.UnidadVenta, p.FactorVenta, p.PrecioCompraPorUnidadCompra, p.PrecioVentaPorUnidadVenta, p.Seguimiento, p.EsCompuesto,
-            p.ProductoPadreId, p.EsPlantilla, p.ResumenVariante, p.Familia, p.FamiliaId);
+            p.ProductoPadreId, p.EsPlantilla, p.ResumenVariante, p.Familia, p.FamiliaId, p.ActividadNegocioId);
     }
 }
 
@@ -82,14 +88,15 @@ public interface IRepositorioProductos
 public sealed record FiltroProductos(
     string? Texto = null,
     Guid? FamiliaId = null,
-    bool IncluirInactivos = false);
+    bool IncluirInactivos = false,
+    IReadOnlyCollection<Guid>? ActividadesPermitidas = null);
 
 /// <summary>Consultas de lectura de productos (las usan la API y Facturación).</summary>
 public interface IConsultaProductos
 {
     Task<ProductoDto?> ObtenerAsync(Guid productoId, CancellationToken ct = default);
 
-    Task<IReadOnlyList<ProductoDto>> ListarAsync(Guid empresaId, bool incluirInactivos = false, CancellationToken ct = default);
+    Task<IReadOnlyList<ProductoDto>> ListarAsync(Guid grupoId, bool incluirInactivos = false, IReadOnlyCollection<Guid>? actividadesPermitidas = null, CancellationToken ct = default);
 
     /// <summary>Búsqueda paginada y filtrada de productos (el filtrado ocurre en la base de datos).</summary>
     Task<PaginaResultado<ProductoDto>> BuscarAsync(Guid empresaId, FiltroProductos filtro, Paginacion paginacion, CancellationToken ct = default);
@@ -113,6 +120,17 @@ public interface IConsultaHistoricoPrecios
 public interface IRepositorioMovimientosStock
 {
     void Agregar(MovimientoStock movimiento);
+}
+
+/// <summary>
+/// Repositorio de existencias «simples» por empresa. El aislamiento por empresa lo garantiza el
+/// filtro global (la entidad es por empresa), así que se busca solo por artículo.
+/// </summary>
+public interface IRepositorioExistenciasSimples
+{
+    Task<ExistenciaSimple?> ObtenerPorProductoAsync(Guid productoId, CancellationToken ct = default);
+
+    void Agregar(ExistenciaSimple existencia);
 }
 
 /// <summary>Consulta del histórico de movimientos de stock de un producto.</summary>

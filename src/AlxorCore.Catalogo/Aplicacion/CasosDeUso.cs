@@ -23,31 +23,41 @@ public sealed record DatosProducto(
     decimal FactorVenta = 1m,
     SeguimientoArticulo Seguimiento = SeguimientoArticulo.Ninguno,
     string? Familia = null,
-    Guid? FamiliaId = null);
+    Guid? FamiliaId = null,
+    Guid? ActividadNegocioId = null);
 
 /// <summary>Caso de uso: crear un producto en la empresa activa.</summary>
 public sealed class CrearProducto
 {
     private readonly IRepositorioProductos _productos;
     private readonly IRepositorioHistoricoPrecios _historico;
+    private readonly IRepositorioExistenciasSimples _existencias;
+    private readonly IRepositorioMovimientosStock _movimientos;
     private readonly IConsultaFamilias _familias;
     private readonly IUnidadDeTrabajoCatalogo _unidadDeTrabajo;
     private readonly IReloj _reloj;
 
-    public CrearProducto(IRepositorioProductos productos, IRepositorioHistoricoPrecios historico, IConsultaFamilias familias, IUnidadDeTrabajoCatalogo unidadDeTrabajo, IReloj reloj)
+    public CrearProducto(IRepositorioProductos productos, IRepositorioHistoricoPrecios historico, IRepositorioExistenciasSimples existencias, IRepositorioMovimientosStock movimientos, IConsultaFamilias familias, IUnidadDeTrabajoCatalogo unidadDeTrabajo, IReloj reloj)
     {
         _productos = productos;
         _historico = historico;
+        _existencias = existencias;
+        _movimientos = movimientos;
         _familias = familias;
         _unidadDeTrabajo = unidadDeTrabajo;
         _reloj = reloj;
     }
 
-    public async Task<Resultado<ProductoDto>> EjecutarAsync(Guid empresaId, DatosProducto datos, CancellationToken ct = default)
+    /// <summary>
+    /// Crea el artículo en el grupo (catálogo compartido). Si lleva control de stock y se indica un
+    /// stock inicial, se registra en la <b>empresa</b> activa (<paramref name="empresaId"/>), pues las
+    /// existencias son por empresa.
+    /// </summary>
+    public async Task<Resultado<ProductoDto>> EjecutarAsync(Guid grupoId, Guid empresaId, DatosProducto datos, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(datos);
 
-        var producto = Producto.Crear(empresaId, datos.Referencia, datos.Nombre, datos.Tipo, datos.PrecioUnitario, datos.PrecioCompra, datos.CodigoIva, datos.Unidad, _reloj, datos.ProveedorHabitualId, datos.ControlarStock, datos.StockInicial, datos.UnidadCompra, datos.FactorCompra, datos.UnidadVenta, datos.FactorVenta, datos.Seguimiento);
+        var producto = Producto.Crear(grupoId, datos.Referencia, datos.Nombre, datos.Tipo, datos.PrecioUnitario, datos.PrecioCompra, datos.CodigoIva, datos.Unidad, _reloj, datos.ProveedorHabitualId, datos.ControlarStock, datos.UnidadCompra, datos.FactorCompra, datos.UnidadVenta, datos.FactorVenta, datos.Seguimiento);
         if (producto.EsFallo)
         {
             return Resultado.Fallo<ProductoDto>(producto.Error);
@@ -59,10 +69,25 @@ public sealed class CrearProducto
             return Resultado.Fallo<ProductoDto>(familia.Error);
         }
 
+        producto.Valor.EstablecerActividad(datos.ActividadNegocioId);
         _productos.Agregar(producto.Valor);
-        _historico.Agregar(HistoricoPrecio.Registrar(empresaId, producto.Valor.Id, producto.Valor.PrecioUnitario, producto.Valor.PrecioCompra, _reloj.AhoraUtc));
+        _historico.Agregar(HistoricoPrecio.Registrar(grupoId, producto.Valor.Id, producto.Valor.PrecioUnitario, producto.Valor.PrecioCompra, _reloj.AhoraUtc));
+
+        var stock = 0m;
+        if (datos.ControlarStock && datos.StockInicial != 0m)
+        {
+            var existencia = ExistenciaSimple.Crear(empresaId, producto.Valor.Id, _reloj);
+            var movimiento = existencia.Aplicar(TipoMovimientoStock.Entrada, datos.StockInicial, "Stock inicial", _reloj);
+            if (movimiento.EsCorrecto)
+            {
+                _existencias.Agregar(existencia);
+                _movimientos.Agregar(movimiento.Valor);
+                stock = existencia.Cantidad;
+            }
+        }
+
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
-        return Resultado.Ok(ProductoDto.Desde(producto.Valor));
+        return Resultado.Ok(ProductoDto.Desde(producto.Valor, stock));
     }
 }
 
@@ -109,10 +134,12 @@ public sealed class ActualizarProducto
             return Resultado.Fallo<ProductoDto>(familia.Error);
         }
 
+        producto.EstablecerActividad(datos.ActividadNegocioId);
+
         // Solo dejamos rastro en el histórico si algún precio cambió.
         if (producto.PrecioUnitario != precioVentaAnterior || producto.PrecioCompra != precioCompraAnterior)
         {
-            _historico.Agregar(HistoricoPrecio.Registrar(producto.EmpresaId, producto.Id, producto.PrecioUnitario, producto.PrecioCompra, _reloj.AhoraUtc));
+            _historico.Agregar(HistoricoPrecio.Registrar(producto.GrupoId, producto.Id, producto.PrecioUnitario, producto.PrecioCompra, _reloj.AhoraUtc));
         }
 
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
@@ -138,8 +165,8 @@ public sealed class ListarProductos
 
     public ListarProductos(IConsultaProductos consulta) => _consulta = consulta;
 
-    public Task<IReadOnlyList<ProductoDto>> EjecutarAsync(Guid empresaId, CancellationToken ct = default) =>
-        _consulta.ListarAsync(empresaId, incluirInactivos: false, ct);
+    public Task<IReadOnlyList<ProductoDto>> EjecutarAsync(Guid grupoId, IReadOnlyCollection<Guid>? actividadesPermitidas = null, CancellationToken ct = default) =>
+        _consulta.ListarAsync(grupoId, false, actividadesPermitidas, ct);
 }
 
 /// <summary>Caso de uso: buscar productos con filtros (texto, familia, activos) y paginación en servidor.</summary>
@@ -321,8 +348,8 @@ public sealed class CrearVariante
         var precio = datos.PrecioUnitario ?? padre.PrecioUnitario;
         var precioCompra = datos.PrecioCompra ?? padre.PrecioCompra;
 
-        var variante = Producto.Crear(padre.EmpresaId, datos.Referencia, nombre, padre.Tipo, precio, precioCompra, padre.CodigoIva, padre.Unidad, _reloj,
-            padre.ProveedorHabitualId, padre.ControlarStock, 0m, padre.UnidadCompra, padre.FactorCompra, padre.UnidadVenta, padre.FactorVenta, padre.Seguimiento);
+        var variante = Producto.Crear(padre.GrupoId, datos.Referencia, nombre, padre.Tipo, precio, precioCompra, padre.CodigoIva, padre.Unidad, _reloj,
+            padre.ProveedorHabitualId, padre.ControlarStock, padre.UnidadCompra, padre.FactorCompra, padre.UnidadVenta, padre.FactorVenta, padre.Seguimiento);
         if (variante.EsFallo)
         {
             return Resultado.Fallo<ProductoDto>(variante.Error);
@@ -332,7 +359,7 @@ public sealed class CrearVariante
         padre.MarcarPlantilla(true, _reloj);
 
         _productos.Agregar(variante.Valor);
-        _historico.Agregar(HistoricoPrecio.Registrar(padre.EmpresaId, variante.Valor.Id, precio, precioCompra, _reloj.AhoraUtc));
+        _historico.Agregar(HistoricoPrecio.Registrar(padre.GrupoId, variante.Valor.Id, precio, precioCompra, _reloj.AhoraUtc));
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return Resultado.Ok(ProductoDto.Desde(variante.Valor));
     }
@@ -358,23 +385,25 @@ public static class ListarImpuestos
 /// <summary>Datos de un movimiento de stock manual.</summary>
 public sealed record DatosMovimientoStock(TipoMovimientoStock Tipo, decimal Cantidad, string? Motivo = null);
 
-/// <summary>Caso de uso: registrar un movimiento de stock (entrada, salida o ajuste) de un producto.</summary>
+/// <summary>Caso de uso: registrar un movimiento de stock (entrada, salida o ajuste) de un producto en la empresa activa.</summary>
 public sealed class RegistrarMovimientoStock
 {
     private readonly IRepositorioProductos _productos;
+    private readonly IRepositorioExistenciasSimples _existencias;
     private readonly IRepositorioMovimientosStock _movimientos;
     private readonly IUnidadDeTrabajoCatalogo _unidadDeTrabajo;
     private readonly IReloj _reloj;
 
-    public RegistrarMovimientoStock(IRepositorioProductos productos, IRepositorioMovimientosStock movimientos, IUnidadDeTrabajoCatalogo unidadDeTrabajo, IReloj reloj)
+    public RegistrarMovimientoStock(IRepositorioProductos productos, IRepositorioExistenciasSimples existencias, IRepositorioMovimientosStock movimientos, IUnidadDeTrabajoCatalogo unidadDeTrabajo, IReloj reloj)
     {
         _productos = productos;
+        _existencias = existencias;
         _movimientos = movimientos;
         _unidadDeTrabajo = unidadDeTrabajo;
         _reloj = reloj;
     }
 
-    public async Task<Resultado<ProductoDto>> EjecutarAsync(Guid productoId, DatosMovimientoStock datos, CancellationToken ct = default)
+    public async Task<Resultado<ProductoDto>> EjecutarAsync(Guid empresaId, Guid productoId, DatosMovimientoStock datos, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(datos);
 
@@ -384,15 +413,29 @@ public sealed class RegistrarMovimientoStock
             return Resultado.Fallo<ProductoDto>(Error.NoEncontrado("producto.no_encontrado", "El producto no existe."));
         }
 
-        var movimiento = producto.RegistrarMovimientoStock(datos.Tipo, datos.Cantidad, datos.Motivo, _reloj);
+        if (!producto.ControlarStock)
+        {
+            return Resultado.Fallo<ProductoDto>(Error.Conflicto("producto.sin_control_stock", "Este artículo no lleva control de stock."));
+        }
+
+        var existencia = await _existencias.ObtenerPorProductoAsync(productoId, ct).ConfigureAwait(false);
+        var nueva = existencia is null;
+        existencia ??= ExistenciaSimple.Crear(empresaId, productoId, _reloj);
+
+        var movimiento = existencia.Aplicar(datos.Tipo, datos.Cantidad, datos.Motivo, _reloj);
         if (movimiento.EsFallo)
         {
             return Resultado.Fallo<ProductoDto>(movimiento.Error);
         }
 
+        if (nueva)
+        {
+            _existencias.Agregar(existencia);
+        }
+
         _movimientos.Agregar(movimiento.Valor);
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
-        return Resultado.Ok(ProductoDto.Desde(producto));
+        return Resultado.Ok(ProductoDto.Desde(producto, existencia.Cantidad));
     }
 }
 
@@ -415,13 +458,15 @@ public sealed class ListarMovimientosStock
 public sealed class StockVentas : IStockVentas
 {
     private readonly IRepositorioProductos _productos;
+    private readonly IRepositorioExistenciasSimples _existencias;
     private readonly IRepositorioMovimientosStock _movimientos;
     private readonly IUnidadDeTrabajoCatalogo _unidadDeTrabajo;
     private readonly IReloj _reloj;
 
-    public StockVentas(IRepositorioProductos productos, IRepositorioMovimientosStock movimientos, IUnidadDeTrabajoCatalogo unidadDeTrabajo, IReloj reloj)
+    public StockVentas(IRepositorioProductos productos, IRepositorioExistenciasSimples existencias, IRepositorioMovimientosStock movimientos, IUnidadDeTrabajoCatalogo unidadDeTrabajo, IReloj reloj)
     {
         _productos = productos;
+        _existencias = existencias;
         _movimientos = movimientos;
         _unidadDeTrabajo = unidadDeTrabajo;
         _reloj = reloj;
@@ -440,9 +485,18 @@ public sealed class StockVentas : IStockVentas
                 continue;
             }
 
-            var movimiento = producto.RegistrarMovimientoStock(TipoMovimientoStock.Venta, linea.Cantidad, "Venta", _reloj);
+            var existencia = await _existencias.ObtenerPorProductoAsync(linea.ProductoId, ct).ConfigureAwait(false);
+            var nueva = existencia is null;
+            existencia ??= ExistenciaSimple.Crear(empresaId, linea.ProductoId, _reloj);
+
+            var movimiento = existencia.Aplicar(TipoMovimientoStock.Venta, linea.Cantidad, "Venta", _reloj);
             if (movimiento.EsCorrecto)
             {
+                if (nueva)
+                {
+                    _existencias.Agregar(existencia);
+                }
+
                 _movimientos.Agregar(movimiento.Valor);
                 afectados = true;
             }

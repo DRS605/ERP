@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using AlxorCore.Api.Comun;
 using AlxorCore.Catalogo.Aplicacion;
 using AlxorCore.Catalogo.Dominio;
@@ -5,6 +6,8 @@ using AlxorCore.Nucleo.Autorizacion;
 using AlxorCore.Nucleo.Consultas;
 using AlxorCore.Nucleo.Multiempresa;
 using AlxorCore.Nucleo.Resultados;
+using AlxorCore.Organizacion.Aplicacion.CasosDeUso;
+using AlxorCore.Organizacion.Dominio;
 
 namespace AlxorCore.Api.Endpoints;
 
@@ -104,32 +107,32 @@ public static class EndpointsCatalogo
 
     private static async Task<IResult> ListarFamiliasAsync(IContextoEmpresa contexto, ListarFamilias caso, CancellationToken ct)
     {
-        if (contexto.EmpresaId is null)
+        if (contexto.GrupoId is null)
         {
             return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
         }
 
-        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, ct).ConfigureAwait(false));
+        return Results.Ok(await caso.EjecutarAsync(contexto.GrupoId.Value, ct).ConfigureAwait(false));
     }
 
     private static async Task<IResult> ArbolFamiliasAsync(IContextoEmpresa contexto, ListarArbolFamilias caso, CancellationToken ct)
     {
-        if (contexto.EmpresaId is null)
+        if (contexto.GrupoId is null)
         {
             return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
         }
 
-        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, ct).ConfigureAwait(false));
+        return Results.Ok(await caso.EjecutarAsync(contexto.GrupoId.Value, ct).ConfigureAwait(false));
     }
 
     private static async Task<IResult> CrearFamiliaAsync(PeticionFamilia peticion, IContextoEmpresa contexto, CrearFamilia caso, CancellationToken ct)
     {
-        if (contexto.EmpresaId is null)
+        if (contexto.GrupoId is null)
         {
             return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
         }
 
-        var r = await caso.EjecutarAsync(contexto.EmpresaId.Value, new DatosFamilia(peticion.Nombre, peticion.Codigo, peticion.PadreId), ct).ConfigureAwait(false);
+        var r = await caso.EjecutarAsync(contexto.GrupoId.Value, new DatosFamilia(peticion.Nombre, peticion.Codigo, peticion.PadreId), ct).ConfigureAwait(false);
         return r.EsCorrecto ? r.ACreado($"/familias/{r.Valor.Id}") : ResultadosHttp.AProblema(r.Error);
     }
 
@@ -142,26 +145,35 @@ public static class EndpointsCatalogo
         return r.EsCorrecto ? Results.NoContent() : ResultadosHttp.AProblema(r.Error);
     }
 
-    private static async Task<IResult> ListarAsync(IContextoEmpresa contexto, ListarProductos caso, CancellationToken ct)
+    // Resuelve las actividades que el usuario puede ver en Artículos (null = todas / sin restricción).
+    private static async Task<IReadOnlyCollection<Guid>?> ActividadesArticulosAsync(ClaimsPrincipal usuario, IConsultaVisibilidad visibilidad, CancellationToken ct)
     {
-        if (contexto.EmpresaId is null)
-        {
-            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
-        }
-
-        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, ct).ConfigureAwait(false));
+        var usuarioId = usuario.ObtenerUsuarioId();
+        return usuarioId is null ? null : await visibilidad.ActividadesPermitidasAsync(usuarioId.Value, AreaVisibilidad.Articulos, ct).ConfigureAwait(false);
     }
 
-    private static async Task<IResult> BuscarAsync(IContextoEmpresa contexto, BuscarProductos caso,
-        string? texto, Guid? familiaId, bool? incluirInactivos, int? pagina, int? tamanoPagina, CancellationToken ct)
+    private static async Task<IResult> ListarAsync(IContextoEmpresa contexto, ClaimsPrincipal usuario, IConsultaVisibilidad visibilidad, ListarProductos caso, CancellationToken ct)
     {
-        if (contexto.EmpresaId is null)
+        if (contexto.GrupoId is null)
         {
             return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
         }
 
-        var filtro = new FiltroProductos(texto, familiaId, incluirInactivos ?? false);
-        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, filtro, Paginacion.Normalizar(pagina, tamanoPagina), ct).ConfigureAwait(false));
+        var permitidas = await ActividadesArticulosAsync(usuario, visibilidad, ct).ConfigureAwait(false);
+        return Results.Ok(await caso.EjecutarAsync(contexto.GrupoId.Value, permitidas, ct).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> BuscarAsync(IContextoEmpresa contexto, ClaimsPrincipal usuario, IConsultaVisibilidad visibilidad, BuscarProductos caso,
+        string? texto, Guid? familiaId, bool? incluirInactivos, int? pagina, int? tamanoPagina, CancellationToken ct)
+    {
+        if (contexto.GrupoId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        var permitidas = await ActividadesArticulosAsync(usuario, visibilidad, ct).ConfigureAwait(false);
+        var filtro = new FiltroProductos(texto, familiaId, incluirInactivos ?? false, permitidas);
+        return Results.Ok(await caso.EjecutarAsync(contexto.GrupoId.Value, filtro, Paginacion.Normalizar(pagina, tamanoPagina), ct).ConfigureAwait(false));
     }
 
     private static async Task<IResult> ObtenerAsync(Guid id, ObtenerProducto caso, CancellationToken ct) =>
@@ -173,17 +185,24 @@ public static class EndpointsCatalogo
     private static async Task<IResult> MovimientosStockAsync(Guid id, ListarMovimientosStock caso, CancellationToken ct) =>
         Results.Ok(await caso.EjecutarAsync(id, ct).ConfigureAwait(false));
 
-    private static async Task<IResult> RegistrarStockAsync(Guid id, DatosMovimientoStock datos, RegistrarMovimientoStock caso, CancellationToken ct) =>
-        (await caso.EjecutarAsync(id, datos, ct).ConfigureAwait(false)).AOk();
-
-    private static async Task<IResult> CrearAsync(DatosProducto datos, IContextoEmpresa contexto, CrearProducto caso, CancellationToken ct)
+    private static async Task<IResult> RegistrarStockAsync(Guid id, DatosMovimientoStock datos, IContextoEmpresa contexto, RegistrarMovimientoStock caso, CancellationToken ct)
     {
         if (contexto.EmpresaId is null)
         {
             return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
         }
 
-        var resultado = await caso.EjecutarAsync(contexto.EmpresaId.Value, datos, ct).ConfigureAwait(false);
+        return (await caso.EjecutarAsync(contexto.EmpresaId.Value, id, datos, ct).ConfigureAwait(false)).AOk();
+    }
+
+    private static async Task<IResult> CrearAsync(DatosProducto datos, IContextoEmpresa contexto, CrearProducto caso, CancellationToken ct)
+    {
+        if (contexto.GrupoId is null || contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        var resultado = await caso.EjecutarAsync(contexto.GrupoId.Value, contexto.EmpresaId.Value, datos, ct).ConfigureAwait(false);
         return resultado.EsCorrecto ? resultado.ACreado($"/productos/{resultado.Valor.Id}") : ResultadosHttp.AProblema(resultado.Error);
     }
 
@@ -207,7 +226,7 @@ public static class EndpointsCatalogo
 
     private static async Task<IResult> ImportarAsync(ImportarCsvPeticion peticion, IContextoEmpresa contexto, ImportarProductos caso, CancellationToken ct)
     {
-        if (contexto.EmpresaId is null)
+        if (contexto.GrupoId is null)
         {
             return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
         }
@@ -228,7 +247,7 @@ public static class EndpointsCatalogo
             filas.Add(new FilaImportacionProducto(fila.Numero, datos));
         }
 
-        var resultado = await caso.EjecutarAsync(contexto.EmpresaId.Value, filas, peticion.Previsualizar, ct).ConfigureAwait(false);
+        var resultado = await caso.EjecutarAsync(contexto.GrupoId.Value, filas, peticion.Previsualizar, ct).ConfigureAwait(false);
         return Results.Ok(resultado);
     }
 }

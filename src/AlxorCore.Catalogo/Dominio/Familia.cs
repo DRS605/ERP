@@ -12,7 +12,7 @@ namespace AlxorCore.Catalogo.Dominio;
 /// (evita erratas como «Servicios» vs «servicios») y sigue sirviendo para elegir la cuenta contable
 /// mediante las reglas de contabilización.
 /// </summary>
-public sealed class Familia : RaizAgregadoEmpresa<Guid>
+public sealed class Familia : RaizAgregadoGrupo<Guid>
 {
     public const int LongitudMaximaNombre = 80;
     public const int LongitudMaximaCodigo = 20;
@@ -24,8 +24,8 @@ public sealed class Familia : RaizAgregadoEmpresa<Guid>
         Nombre = null!;
     }
 
-    private Familia(Guid id, Guid empresaId, string nombre, Guid? padreId, string? codigo, DateTimeOffset ahora)
-        : base(id, empresaId)
+    private Familia(Guid id, Guid grupoId, string nombre, Guid? padreId, string? codigo, DateTimeOffset ahora)
+        : base(id, grupoId)
     {
         Nombre = nombre;
         PadreId = padreId;
@@ -50,7 +50,7 @@ public sealed class Familia : RaizAgregadoEmpresa<Guid>
 
     public DateTimeOffset ActualizadoEn { get; private set; }
 
-    public static Resultado<Familia> Crear(Guid empresaId, string? nombre, Guid? padreId, string? codigo, IReloj reloj)
+    public static Resultado<Familia> Crear(Guid grupoId, string? nombre, Guid? padreId, string? codigo, IReloj reloj)
     {
         ArgumentNullException.ThrowIfNull(reloj);
 
@@ -60,7 +60,7 @@ public sealed class Familia : RaizAgregadoEmpresa<Guid>
             return Resultado.Fallo<Familia>(error);
         }
 
-        return Resultado.Ok(new Familia(Guid.NewGuid(), empresaId, nombre!, padreId, codigo, reloj.AhoraUtc));
+        return Resultado.Ok(new Familia(Guid.NewGuid(), grupoId, nombre!, padreId, codigo, reloj.AhoraUtc));
     }
 
     /// <summary>Renombra la familia y/o cambia su código.</summary>

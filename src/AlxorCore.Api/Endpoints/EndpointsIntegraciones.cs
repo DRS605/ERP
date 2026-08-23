@@ -124,7 +124,7 @@ public static class EndpointsIntegraciones
             .WithSummary("Lista los clientes del grupo (API pública).");
 
         api.MapGet("/productos", async (IContextoEmpresa contexto, IConsultaProductos productos, CancellationToken ct) =>
-            Results.Ok(await productos.ListarAsync(contexto.EmpresaRequerida, false, ct).ConfigureAwait(false)))
+            Results.Ok(await productos.ListarAsync(contexto.GrupoRequerido, false, null, ct).ConfigureAwait(false)))
             .WithSummary("Lista los productos de la empresa (API pública).");
     }
 
