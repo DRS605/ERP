@@ -58,6 +58,10 @@ public static class Permisos
     public const string InformeLeer = "informe.leer";
     public const string DatosExportar = "datos.exportar";
 
+    // Aprobaciones (flujo de autorización con segregación de funciones)
+    public const string AprobacionConfigurar = "aprobacion.configurar";
+    public const string AprobacionAprobar = "aprobacion.aprobar";
+
     // Administración de la empresa
     public const string EmpresaAjustes = "empresa.ajustes";
     public const string UsuarioGestionar = "usuario.gestionar";
@@ -77,6 +81,7 @@ public static class Permisos
         ProyectoLeer, ProyectoGestionar,
         ClienteGestionar, ProductoGestionar,
         InformeLeer, DatosExportar,
+        AprobacionConfigurar, AprobacionAprobar,
         EmpresaAjustes, UsuarioGestionar,
     };
 }

@@ -418,6 +418,7 @@
     ICON.prevision = '<svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h16"/><path d="M7 15l4-5 3 3 5-7"/></svg>';
     ICON.personal = '<svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.5 3-5.5 6.5-5.5s6.5 2 6.5 5.5"/><path d="M16 5.5a3 3 0 0 1 0 5.6"/><path d="M18 14.5c2.4.6 4 2.4 4 5"/></svg>';
     ICON.proyectos = '<svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M8 13h8M8 16h5"/></svg>';
+    ICON.aprobaciones = '<svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>';
 
     // Menú agrupado en carpetas: Ventas, Compras y Artículos.
     const NAV = [
@@ -433,9 +434,10 @@
       { t:"item", k:"contabilidad", l:"Contabilidad" },
       { t:"item", k:"inmovilizado", l:"Inmovilizado" },
       { t:"item", k:"divisas", l:"Divisas" },
+      { t:"item", k:"aprobaciones", l:"Aprobaciones" },
       { t:"item", k:"ajustes", l:"Ajustes" },
     ];
-    const TITULOS = { inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", gestion:"Análisis de gestión", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", divisas:"Divisas y tipos de cambio", ajustes:"Ajustes" };
+    const TITULOS = { inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", gestion:"Análisis de gestión", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", divisas:"Divisas y tipos de cambio", aprobaciones:"Aprobaciones y control de firmas", ajustes:"Ajustes" };
     function renderNav() {
       return NAV.map(n => {
         if (n.t === "item") return `<a class="navitem" data-k="${n.k}" onclick="ir('${n.k}')">${ICON[n.k]}<span>${n.l}</span></a>`;
@@ -531,7 +533,7 @@
     function ir(k){ closeMenu(); if(vista==="tpv" && k!=="tpv" && typeof tpvParar==="function") tpvParar(); vista=k;
       document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("active",a.dataset.k===k));
       document.getElementById("viewTitle").textContent=TITULOS[k]||k;
-      ({inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:vPedidosVenta,clientes:vClientes,productos:vProductos,familias:vFamilias,gastos:vGastos,solicitudes:vSolicitudes,pedidos:vPedidos,inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,gestion:vGestion,contabilidad:vContabilidad,inmovilizado:vInmovilizado,divisas:vDivisas,ajustes:vAjustes}[k])();
+      ({inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:vPedidosVenta,clientes:vClientes,productos:vProductos,familias:vFamilias,gastos:vGastos,solicitudes:vSolicitudes,pedidos:vPedidos,inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,gestion:vGestion,contabilidad:vContabilidad,inmovilizado:vInmovilizado,divisas:vDivisas,aprobaciones:vAprobaciones,ajustes:vAjustes}[k])();
     }
     const view = h => { document.getElementById("view").innerHTML=h; try{ mejorarTablas(); }catch(e){} };
 
@@ -2238,6 +2240,61 @@
         res.innerHTML=`<table><thead><tr><th>Referencia</th><th>Divisa</th><th class="num">Tasa valoración</th><th class="num">Diferencia €</th><th>Cuenta</th></tr></thead><tbody>${filas}</tbody></table>
           <p class="muted" style="font-size:12px;margin:10px 0 0">Ingresos (768): <strong>${eur(d.totalIngresos)}</strong> · Gastos (668): <strong>${eur(d.totalGastos)}</strong> · Neto: <strong>${eur(d.totalDiferencia)}</strong></p>`;
       }catch(e){ res.innerHTML=`<span style="color:var(--neg)">${e.message}</span>`; }
+    }
+
+    /* ---------- Aprobaciones y segregación de funciones (SoD) ---------- */
+    const TIPOS_APROB=["Factura","Gasto","Pago","Pedido","Presupuesto"];
+    const _estAprob={Pendiente:"warn",Aprobada:"ok",Rechazada:"err"};
+    async function vAprobaciones(){
+      view('<div class="muted">Cargando…</div>');
+      const [reglas,solis]=await Promise.all([api("/aprobaciones/reglas").catch(()=>[]),api("/aprobaciones/solicitudes").catch(()=>[])]);
+      const filasR=reglas.length?reglas.map(r=>`<tr><td><strong>${r.tipoDocumento}</strong></td><td class="num">${eur(r.umbralImporte)}</td><td>${r.activa?'<span class="pill ok">Activa</span>':'<span class="pill">Inactiva</span>'}</td><td class="num"><button class="btn small ghost" onclick="modalRegla(${JSON.stringify(r).replace(/"/g,'&quot;')})">Editar</button></td></tr>`).join("")
+        :`<tr><td colspan="4" class="muted">Sin reglas. Define un umbral por tipo de documento para exigir una segunda firma a partir de cierto importe.</td></tr>`;
+      const panelR=panel("Reglas por umbral",
+        `<p class="muted" style="margin:0 0 12px">A partir del umbral, la operación de ese tipo requiere aprobación de <strong>otra</strong> persona (segregación de funciones: quien solicita no puede aprobar).</p>
+         <table><thead><tr><th>Tipo de documento</th><th class="num">Umbral</th><th>Estado</th><th></th></tr></thead><tbody>${filasR}</tbody></table>`,
+        `<button class="btn small" onclick="modalRegla()">+ Regla</button>`);
+
+      const pend=solis.filter(s=>s.estado==="Pendiente");
+      const yo=usuario?.id;
+      const filasS=solis.length?solis.map(s=>{
+        const propia=s.solicitanteUsuarioId===yo;
+        const acc=s.estado==="Pendiente"
+          ? (propia
+              ? `<span class="muted" title="No puedes resolver tu propia solicitud (segregación de funciones)">Requiere otra firma</span>`
+              : `<button class="btn small" onclick="aprobarSolicitud('${s.id}')">Aprobar</button> <button class="btn small ghost" onclick="modalRechazo('${s.id}')">Rechazar</button>`)
+          : `<span class="muted">${s.motivo?('“'+s.motivo+'”'):'—'}</span>`;
+        return `<tr><td><strong>${s.referencia}</strong><br><small class="muted">${s.tipoDocumento}${propia?' · <em>tuya</em>':''}</small></td><td class="num">${eur(s.importe)}</td><td><span class="pill ${_estAprob[s.estado]||''}">${s.estado}</span></td><td class="muted">${fdate(s.creadoEn)}</td><td class="num">${acc}</td></tr>`;
+      }).join("")
+        :`<tr><td colspan="5" class="muted">No hay solicitudes de aprobación.</td></tr>`;
+      const panelS=panel(`Solicitudes${pend.length?` · ${pend.length} pendiente(s)`:''}`,
+        `<table><thead><tr><th>Referencia</th><th class="num">Importe</th><th>Estado</th><th>Creada</th><th></th></tr></thead><tbody>${filasS}</tbody></table>`,
+        `<button class="btn small secondary" onclick="modalSolicitud()">+ Solicitud</button>`);
+      view(panelR+panelS);
+    }
+    function modalRegla(r){
+      const opc=TIPOS_APROB.map(t=>`<option value="${t}"${r&&r.tipoDocumento===t?" selected":""}>${t}</option>`).join("");
+      abrir(r?"Editar regla":"Nueva regla",
+        `<label>Tipo de documento</label><select id="rg_tipo"${r?" disabled":""}>${opc}</select>
+         <label style="margin-top:10px">Umbral de importe (€)</label><input id="rg_umbral" type="number" step="0.01" value="${r?r.umbralImporte:1000}"/>
+         <label class="chk" style="margin-top:12px;display:flex;gap:8px;align-items:center"><input id="rg_activa" type="checkbox" ${!r||r.activa?"checked":""}/> Regla activa</label>`,
+        async()=>{ await api("/aprobaciones/reglas",{method:"PUT",body:JSON.stringify({tipoDocumento:val("rg_tipo"),umbralImporte:Number(val("rg_umbral")||0),activa:document.getElementById("rg_activa").checked})}); toast("Regla guardada.","ok"); vAprobaciones(); });
+    }
+    function modalSolicitud(){
+      const opc=TIPOS_APROB.map(t=>`<option value="${t}">${t}</option>`).join("");
+      abrir("Nueva solicitud de aprobación",
+        `<label>Tipo de documento</label><select id="so_tipo">${opc}</select>
+         <label style="margin-top:10px">Referencia</label><input id="so_ref" placeholder="FA2026/0001, pago proveedor…"/>
+         <label style="margin-top:10px">Importe (€)</label><input id="so_imp" type="number" step="0.01" placeholder="0,00"/>`,
+        async()=>{ await api("/aprobaciones/solicitudes",{method:"POST",body:JSON.stringify({tipoDocumento:val("so_tipo"),documentoId:crypto.randomUUID(),referencia:val("so_ref"),importe:Number(val("so_imp")||0)})}); toast("Solicitud abierta.","ok"); vAprobaciones(); });
+    }
+    async function aprobarSolicitud(id){
+      try{ await api(`/aprobaciones/solicitudes/${id}/aprobar`,{method:"POST"}); toast("Solicitud aprobada.","ok"); vAprobaciones(); }
+      catch(e){ toast(e.message,"err"); }
+    }
+    function modalRechazo(id){
+      abrir("Rechazar solicitud",`<label>Motivo</label><input id="rc_motivo" placeholder="Fuera de presupuesto…"/>`,
+        async()=>{ await api(`/aprobaciones/solicitudes/${id}/rechazar`,{method:"POST",body:JSON.stringify({motivo:val("rc_motivo")||null})}); toast("Solicitud rechazada.","ok"); vAprobaciones(); });
     }
 
     const MESES=["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];

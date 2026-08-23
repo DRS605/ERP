@@ -36,6 +36,8 @@
     <ProjectReference Include="..\AlxorCore.Auditoria.Infraestructura\AlxorCore.Auditoria.Infraestructura.csproj" />
     <ProjectReference Include="..\AlxorCore.Divisas\AlxorCore.Divisas.csproj" />
     <ProjectReference Include="..\AlxorCore.Divisas.Infraestructura\AlxorCore.Divisas.Infraestructura.csproj" />
+    <ProjectReference Include="..\AlxorCore.Aprobaciones\AlxorCore.Aprobaciones.csproj" />
+    <ProjectReference Include="..\AlxorCore.Aprobaciones.Infraestructura\AlxorCore.Aprobaciones.Infraestructura.csproj" />
   </ItemGroup>
 
   <ItemGroup>
