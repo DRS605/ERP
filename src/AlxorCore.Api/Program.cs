@@ -202,7 +202,11 @@ app.MapearIntegraciones();
 app.MapearCuenta();
 app.MapearImportacion();
 
-// Cualquier ruta no-API devuelve la SPA (enrutado en el cliente).
+// La nueva interfaz (SPA React) se sirve bajo /app con enrutado en el cliente: cualquier ruta
+// /app/... que no sea un fichero devuelve su index.html. Debe ir antes del fallback general.
+app.MapFallbackToFile("/app/{*rest}", "app/index.html");
+
+// Cualquier otra ruta no-API devuelve la interfaz clásica (enrutado en el cliente).
 app.MapFallbackToFile("index.html");
 
 await app.RunAsync().ConfigureAwait(false);

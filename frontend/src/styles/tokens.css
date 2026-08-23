@@ -1,0 +1,70 @@
+/* Tokens de diseño de ALXOR Core (paleta cian/azul marino), compartidos con la interfaz clásica. */
+:root {
+  --ink: #0f172a;
+  --muted: #64748b;
+  --line: #e6e9ee;
+  --bg: #f4f6f9;
+  --surface: #ffffff;
+  --brand1: #06b6d4;
+  --brand2: #0e7490;
+  --accent: #0891b2;
+  --accent-soft: #e0f7fb;
+  --navy: #0f172a;
+  --pos: #0f9d58;
+  --neg: #e0533d;
+  --warn: #c07d1a;
+  --radius: 16px;
+  --shadow: 0 1px 2px rgba(11, 37, 64, 0.04), 0 6px 20px rgba(11, 37, 64, 0.04);
+  --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+:root[data-tema="oscuro"] {
+  --ink: #e7eaf0;
+  --muted: #94a3b8;
+  --line: #232a36;
+  --bg: #0b0f17;
+  --surface: #131a25;
+  --accent-soft: rgba(34, 211, 238, 0.16);
+  --navy: #e7eaf0;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; text-decoration: none; }
+h1, h2, h3 { letter-spacing: -0.015em; }
+
+/* Controles */
+label { display: block; font-size: 12.5px; color: var(--muted); margin: 14px 0 6px; font-weight: 500; }
+input, select {
+  width: 100%; padding: 11px 13px; border: 1px solid var(--line); border-radius: 11px;
+  background: var(--surface); font-size: 14px; color: var(--ink); outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.btn {
+  appearance: none; border: none; cursor: pointer; font: inherit; font-weight: 650;
+  padding: 11px 16px; border-radius: 11px; color: #fff;
+  background: linear-gradient(120deg, var(--brand1), var(--brand2)); transition: filter 0.15s, transform 0.05s;
+}
+.btn:hover { filter: brightness(1.05); }
+.btn:active { transform: translateY(1px); }
+.btn:disabled { opacity: 0.6; cursor: default; }
+.btn.small { padding: 8px 12px; font-size: 13px; }
+.btn.secondary { background: var(--surface); color: var(--ink); border: 1px solid var(--line); }
+.btn.ghost { background: var(--accent-soft); color: var(--accent); }
+
+.pill { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--bg); color: var(--muted); border: 1px solid var(--line); }
+.pill.ok { background: rgba(15, 157, 88, 0.12); color: var(--pos); border-color: transparent; }
+.pill.warn { background: rgba(192, 125, 26, 0.14); color: var(--warn); border-color: transparent; }
+.pill.err { background: rgba(224, 83, 61, 0.12); color: var(--neg); border-color: transparent; }
+.mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+.muted { color: var(--muted); }
+.num { text-align: right; font-variant-numeric: tabular-nums; }
