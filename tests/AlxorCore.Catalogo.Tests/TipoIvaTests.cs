@@ -23,6 +23,10 @@ public sealed class TipoIvaTests
     [InlineData(ClaseIva.NoSujeto)]
     [InlineData(ClaseIva.InversionSujetoPasivo)]
     [InlineData(ClaseIva.Intracomunitario)]
+    [InlineData(ClaseIva.Viajeros)]
+    [InlineData(ClaseIva.BienesUsados)]
+    [InlineData(ClaseIva.AgenciasViajes)]
+    [InlineData(ClaseIva.OroInversion)]
     public void Las_clases_sin_repercusion_no_llevan_porcentaje(ClaseIva clase)
     {
         // Con porcentaje > 0 falla…
@@ -50,9 +54,27 @@ public sealed class TipoIvaTests
     }
 
     [Fact]
-    public void El_conjunto_predeterminado_incluye_las_casuisticas()
+    public void El_criterio_de_caja_repercute_iva_ordinario()
+    {
+        // El RECC difiere el devengo al cobro, pero repercute IVA al porcentaje normal.
+        var t = TipoIva.Crear(Empresa, "CAJA21", "Criterio de caja", 21m, 5.2m, ClaseIva.CriterioCaja, "mención RECC", Reloj).Valor;
+        t.Clase.Repercute().Should().BeTrue();
+        t.PorcentajeRepercutido.Should().Be(21m);
+    }
+
+    [Fact]
+    public void El_conjunto_predeterminado_incluye_las_casuisticas_y_regimenes_especiales()
     {
         var codigos = TipoIva.Predeterminados.Select(p => p.Codigo).ToList();
         codigos.Should().Contain(new[] { "IVA21", "IVA10", "IVA4", "IVA0", "NOSUJETO", "ISP", "INTRA", "IMPORT21" });
+
+        // Regímenes especiales: viajeros, bienes usados (REBU), agencias, oro de inversión y criterio de caja.
+        codigos.Should().Contain(new[] { "VIAJEROS", "REBU", "AGENCIAS", "ORO", "CAJA21" });
+
+        // Todos los predeterminados sin repercusión llevan mención legal.
+        foreach (var p in TipoIva.Predeterminados.Where(p => !p.Clase.Repercute()))
+        {
+            p.Mencion.Should().NotBeNullOrWhiteSpace($"la clase {p.Clase} debe llevar mención");
+        }
     }
 }

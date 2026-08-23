@@ -19,10 +19,28 @@ con **inversión del sujeto pasivo (ISP)**, de **importación** y **intracomunit
   |---|---|---|
   | `Ordinario` | Sí | 21 %, 10 %, 4 % |
   | `Exento` | No | Operación exenta (art. 20 LIVA, etc.) |
-  | `NoSujeto` | No | Operación no sujeta a IVA |
+  | `NoSujeto` | No | Operación no sujeta a IVA (art. 7) |
   | `InversionSujetoPasivo` | No | ISP (art. 84.Uno.2º LIVA) |
   | `Importacion` | Sí | IVA de la importación |
-  | `Intracomunitario` | No | Entregas/adquisiciones intracomunitarias |
+  | `Intracomunitario` | No | Entregas/adquisiciones intracomunitarias (art. 25) |
+  | `Viajeros` | No | Régimen especial de viajeros (art. 21.2º) |
+  | `BienesUsados` | No | REBU — bienes usados/arte/antigüedades (art. 135) |
+  | `AgenciasViajes` | No | Régimen especial de agencias de viajes (art. 141) |
+  | `OroInversion` | No | Oro de inversión exento (art. 140 bis) |
+  | `CriterioCaja` | Sí | RECC — devengo al cobro (art. 163 decies) |
+
+### Regímenes especiales (alcance actual)
+
+Los regímenes especiales están modelados como **clases con su mención legal**, de forma que la
+factura ya sale correcta a efectos de repercusión y menciones. Su **mecánica completa** llega con
+el bloque fiscal:
+
+- **Viajeros**: se modela la exención y la mención; el documento **DIVA**, la validación de viajero
+  **no residente en la UE** y la **devolución** del IVA se implementarán después.
+- **Bienes usados (REBU)** y **agencias de viajes**: se modelan como operación sin cuota desglosada
+  con su mención; el **cálculo sobre el margen** llega con el bloque fiscal.
+- **Criterio de caja (RECC)**: repercute IVA al tipo ordinario con su mención; el **diferimiento del
+  devengo al cobro** (libros y modelo 303) se tratará en el bloque fiscal.
 
 - **Invariante**: una clase que no repercute (`Exento`, `NoSujeto`, `InversionSujetoPasivo`,
   `Intracomunitario`) **no admite porcentaje > 0**; su `PorcentajeRepercutido` es siempre 0.
@@ -32,8 +50,9 @@ con **inversión del sujeto pasivo (ISP)**, de **importación** y **intracomunit
 
 La primera consulta del catálogo de una empresa (`GET /tipos-iva`) **siembra** el conjunto
 predeterminado si está vacío: `IVA21`, `IVA10`, `IVA4`, `IVA0` (Exento), `NOSUJETO`, `ISP`,
-`INTRA` e `IMPORT21`. A partir de ahí la empresa puede editar, desactivar o añadir tipos
-propios. No se duplica en consultas posteriores.
+`INTRA`, `IMPORT21` y los regímenes especiales `VIAJEROS`, `REBU`, `AGENCIAS`, `ORO` y `CAJA21`.
+A partir de ahí la empresa puede editar, desactivar o añadir tipos propios. No se duplica en
+consultas posteriores.
 
 ## API
 

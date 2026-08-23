@@ -27,13 +27,53 @@ public enum ClaseIva
 
     /// <summary>Entrega/adquisición intracomunitaria exenta (art. 25 LIVA). No repercute; requiere mención.</summary>
     Intracomunitario = 6,
+
+    /// <summary>
+    /// Régimen especial de viajeros: exención en exportación de bienes en el equipaje personal de
+    /// viajeros no residentes en la UE (art. 21.2º LIVA), con devolución vía DIVA. No repercute cuota.
+    /// </summary>
+    /// <remarks>
+    /// La mecánica completa (datos del viajero no residente, documento DIVA y devolución del IVA) se
+    /// implementará con la puesta en marcha fiscal; aquí se modela la exención y su mención en factura.
+    /// </remarks>
+    Viajeros = 7,
+
+    /// <summary>
+    /// Régimen especial de bienes usados, objetos de arte, antigüedades y objetos de colección
+    /// (REBU, art. 135 LIVA): el IVA se calcula sobre el <b>margen</b> y no se desglosa al comprador.
+    /// </summary>
+    /// <remarks>
+    /// El cálculo sobre el margen se incorporará con el bloque fiscal; por ahora se modela como una
+    /// operación sin cuota desglosada y con su mención obligatoria.
+    /// </remarks>
+    BienesUsados = 8,
+
+    /// <summary>
+    /// Régimen especial de las agencias de viajes (art. 141 LIVA): IVA sobre el margen, sin desglose
+    /// al cliente. No repercute cuota desglosada; requiere mención.
+    /// </summary>
+    AgenciasViajes = 9,
+
+    /// <summary>Oro de inversión exento (art. 140 bis LIVA). No repercute cuota; requiere mención.</summary>
+    OroInversion = 10,
+
+    /// <summary>
+    /// Régimen especial del criterio de caja (RECC, art. 163 decies y ss. LIVA): <b>repercute</b> IVA
+    /// al porcentaje ordinario, pero el devengo se difiere al momento del cobro. Requiere mención.
+    /// </summary>
+    /// <remarks>
+    /// El diferimiento del devengo al cobro (a efectos de los libros y del modelo 303) se tratará con
+    /// el bloque fiscal; aquí se modela la repercusión normal y su mención en factura.
+    /// </remarks>
+    CriterioCaja = 11,
 }
 
 /// <summary>Utilidades de la clase de IVA.</summary>
 public static class ClaseIvaExtensiones
 {
     /// <summary>¿La clase repercute cuota de IVA (aplica el porcentaje) en la factura emitida?</summary>
-    public static bool Repercute(this ClaseIva clase) => clase is ClaseIva.Ordinario or ClaseIva.Importacion;
+    public static bool Repercute(this ClaseIva clase) =>
+        clase is ClaseIva.Ordinario or ClaseIva.Importacion or ClaseIva.CriterioCaja;
 }
 
 /// <summary>
@@ -154,10 +194,10 @@ public sealed class TipoIva : RaizAgregadoEmpresa<Guid>
             return Error.Validacion("tipoiva.porcentaje_invalido", "El porcentaje no es válido.");
         }
 
-        // En las clases sin repercusión el porcentaje debe ser 0 (no se factura cuota).
+        // En las clases sin repercusión el porcentaje debe ser 0 (no se factura cuota desglosada).
         if (!clase.Repercute() && porcentaje != 0m)
         {
-            return Error.Validacion("tipoiva.clase_sin_porcentaje", "Las operaciones exentas, no sujetas, con inversión del sujeto pasivo o intracomunitarias no llevan porcentaje de IVA.");
+            return Error.Validacion("tipoiva.clase_sin_porcentaje", "Las operaciones exentas, no sujetas, con inversión del sujeto pasivo, intracomunitarias, de viajeros, bienes usados, agencias de viajes u oro de inversión no llevan porcentaje de IVA desglosado.");
         }
 
         return null;
@@ -185,5 +225,10 @@ public sealed class TipoIva : RaizAgregadoEmpresa<Guid>
         ("ISP", "Inversión del sujeto pasivo", 0m, 0m, ClaseIva.InversionSujetoPasivo, "Inversión del sujeto pasivo (art. 84.Uno.2º Ley 37/1992)."),
         ("INTRA", "Entrega intracomunitaria exenta", 0m, 0m, ClaseIva.Intracomunitario, "Entrega intracomunitaria exenta (art. 25 Ley 37/1992)."),
         ("IMPORT21", "IVA importación (21%)", 21m, 0m, ClaseIva.Importacion, null),
+        ("VIAJEROS", "Régimen especial de viajeros", 0m, 0m, ClaseIva.Viajeros, "Exención en exportación en régimen de viajeros (art. 21.2º Ley 37/1992)."),
+        ("REBU", "Bienes usados (margen)", 0m, 0m, ClaseIva.BienesUsados, "Régimen especial de los bienes usados, objetos de arte, antigüedades y objetos de colección (art. 135 Ley 37/1992)."),
+        ("AGENCIAS", "Agencias de viajes (margen)", 0m, 0m, ClaseIva.AgenciasViajes, "Régimen especial de las agencias de viajes (art. 141 Ley 37/1992)."),
+        ("ORO", "Oro de inversión exento", 0m, 0m, ClaseIva.OroInversion, "Operación exenta. Oro de inversión (art. 140 bis Ley 37/1992)."),
+        ("CAJA21", "Criterio de caja (21%)", 21m, 5.2m, ClaseIva.CriterioCaja, "Régimen especial del criterio de caja (art. 163 decies y siguientes Ley 37/1992)."),
     };
 }
