@@ -137,3 +137,86 @@ internal sealed class RepositorioAlbaranesVenta : IRepositorioAlbaranesVenta
         return (max ?? 0) + 1;
     }
 }
+
+/// <summary>Mapeo EF Core de la carta de porte y sus líneas de mercancía.</summary>
+internal sealed class ConfiguracionCartaPorte : IEntityTypeConfiguration<CartaPorte>
+{
+    public void Configure(EntityTypeBuilder<CartaPorte> builder)
+    {
+        builder.ToTable("carta_porte");
+        builder.HasKey(c => c.Id);
+        builder.Property(c => c.Id).HasColumnName("id").ValueGeneratedNever();
+        builder.Property(c => c.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        builder.Property(c => c.Serie).HasColumnName("serie").HasMaxLength(10);
+        builder.Property(c => c.Ejercicio).HasColumnName("ejercicio").IsRequired();
+        builder.Property(c => c.Numero).HasColumnName("numero").IsRequired();
+        builder.Property(c => c.FechaExpedicion).HasColumnName("fecha_expedicion").IsRequired();
+        builder.Property(c => c.RemitenteNombre).HasColumnName("remitente_nombre").HasMaxLength(CartaPorte.LongitudMaximaTexto).IsRequired();
+        builder.Property(c => c.RemitenteNif).HasColumnName("remitente_nif").HasMaxLength(20);
+        builder.Property(c => c.DestinatarioClienteId).HasColumnName("destinatario_cliente_id");
+        builder.Property(c => c.DestinatarioNombre).HasColumnName("destinatario_nombre").HasMaxLength(CartaPorte.LongitudMaximaTexto).IsRequired();
+        builder.Property(c => c.DestinatarioNif).HasColumnName("destinatario_nif").HasMaxLength(20);
+        builder.Property(c => c.TransportistaNombre).HasColumnName("transportista_nombre").HasMaxLength(CartaPorte.LongitudMaximaTexto);
+        builder.Property(c => c.TransportistaNif).HasColumnName("transportista_nif").HasMaxLength(20);
+        builder.Property(c => c.Matricula).HasColumnName("matricula").HasMaxLength(20);
+        builder.Property(c => c.LugarOrigen).HasColumnName("lugar_origen").HasMaxLength(CartaPorte.LongitudMaximaTexto).IsRequired();
+        builder.Property(c => c.LugarDestino).HasColumnName("lugar_destino").HasMaxLength(CartaPorte.LongitudMaximaTexto).IsRequired();
+        builder.Property(c => c.FechaCarga).HasColumnName("fecha_carga");
+        builder.Property(c => c.Observaciones).HasColumnName("observaciones").HasMaxLength(CartaPorte.LongitudMaximaTexto);
+        builder.Property(c => c.AlbaranId).HasColumnName("albaran_id");
+        builder.Property(c => c.CreadoEn).HasColumnName("creado_en").IsRequired();
+
+        builder.OwnsMany(c => c.Lineas, linea =>
+        {
+            linea.ToTable("linea_carta_porte");
+            linea.WithOwner().HasForeignKey("carta_porte_id");
+            linea.HasKey(l => l.Id);
+            linea.Property(l => l.Id).HasColumnName("id").ValueGeneratedNever();
+            linea.Property(l => l.Descripcion).HasColumnName("descripcion").HasMaxLength(300).IsRequired();
+            linea.Property(l => l.Bultos).HasColumnName("bultos").IsRequired();
+            linea.Property(l => l.PesoKg).HasColumnName("peso_kg").HasColumnType("numeric(14,3)").IsRequired();
+        });
+
+        builder.HasIndex(c => new { c.EmpresaId, c.Serie, c.Ejercicio, c.Numero })
+            .IsUnique().HasDatabaseName("ux_carta_porte_empresa_serie_ejercicio_numero");
+        builder.Ignore(c => c.EventosDominio);
+        builder.Ignore(c => c.TotalBultos);
+        builder.Ignore(c => c.TotalPesoKg);
+    }
+}
+
+internal sealed class RepositorioCartasPorte : IRepositorioCartasPorte, IConsultaCartasPorte
+{
+    private readonly FacturacionDbContext _contexto;
+
+    public RepositorioCartasPorte(FacturacionDbContext contexto) => _contexto = contexto;
+
+    public void Agregar(CartaPorte cartaPorte) => _contexto.CartasPorte.Add(cartaPorte);
+
+    public async Task<int> SiguienteNumeroAsync(Guid empresaId, string? serie, int ejercicio, CancellationToken ct = default)
+    {
+        var s = string.IsNullOrWhiteSpace(serie) ? null : serie.Trim().ToUpperInvariant();
+        var max = await _contexto.CartasPorte
+            .Where(c => c.EmpresaId == empresaId && c.Serie == s && c.Ejercicio == ejercicio)
+            .Select(c => (int?)c.Numero).MaxAsync(ct).ConfigureAwait(false);
+        return (max ?? 0) + 1;
+    }
+
+    public async Task<CartaPorteDto?> ObtenerAsync(Guid id, CancellationToken ct = default)
+    {
+        var carta = await _contexto.CartasPorte.AsNoTracking()
+            .Include(c => c.Lineas).SingleOrDefaultAsync(c => c.Id == id, ct).ConfigureAwait(false);
+        return carta is null ? null : CartaPorteDto.Desde(carta);
+    }
+
+    public async Task<IReadOnlyList<CartaPorteResumen>> ListarAsync(Guid empresaId, CancellationToken ct = default)
+    {
+        var cartas = await _contexto.CartasPorte.AsNoTracking().Include(c => c.Lineas)
+            .Where(c => c.EmpresaId == empresaId)
+            .OrderByDescending(c => c.FechaExpedicion).ThenByDescending(c => c.Numero)
+            .ToListAsync(ct).ConfigureAwait(false);
+        return cartas
+            .Select(c => new CartaPorteResumen(c.Id, c.NumeroCompleto, c.FechaExpedicion, c.DestinatarioNombre, c.LugarDestino, c.TotalBultos, c.TotalPesoKg))
+            .ToList();
+    }
+}

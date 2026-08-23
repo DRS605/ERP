@@ -77,6 +77,14 @@ public static class RegistroServicios
         servicios.AddScoped<ListarAlbaranesVenta>();
         servicios.AddScoped<FacturarPedidoVenta>();
 
+        // Carta de porte (documento de control del transporte).
+        servicios.AddScoped<RepositorioCartasPorte>();
+        servicios.AddScoped<IRepositorioCartasPorte>(sp => sp.GetRequiredService<RepositorioCartasPorte>());
+        servicios.AddScoped<IConsultaCartasPorte>(sp => sp.GetRequiredService<RepositorioCartasPorte>());
+        servicios.AddScoped<CrearCartaPorte>();
+        servicios.AddScoped<ListarCartasPorte>();
+        servicios.AddScoped<ObtenerCartaPorte>();
+
         return servicios;
     }
 }

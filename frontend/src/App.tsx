@@ -6,6 +6,7 @@ import { Inicio } from "./pages/Inicio";
 import { Clientes } from "./pages/Clientes";
 import { Actividades } from "./pages/Actividades";
 import { Facturas } from "./pages/Facturas";
+import { CartasPorte } from "./pages/CartasPorte";
 
 export function App() {
   const { autenticado } = useAuth();
@@ -18,6 +19,7 @@ export function App() {
         <Route path="/clientes" element={<Clientes />} />
         <Route path="/actividades" element={<Actividades />} />
         <Route path="/facturas" element={<Facturas />} />
+        <Route path="/cartas-porte" element={<CartasPorte />} />
       </Route>
       <Route path="*" element={<Navigate to={autenticado ? "/inicio" : "/login"} replace />} />
     </Routes>

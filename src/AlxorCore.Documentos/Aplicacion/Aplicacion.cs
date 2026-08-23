@@ -19,6 +19,13 @@ public interface IGeneradorPdfPresupuesto
     byte[] Generar(PresupuestoDto presupuesto, EmpresaDto emisor);
 }
 
+/// <summary>Puerto de generación del PDF de una carta de porte.</summary>
+public interface IGeneradorPdfCartaPorte
+{
+    /// <summary>Genera el PDF de la carta de porte con los datos del emisor (la empresa/remitente).</summary>
+    byte[] Generar(CartaPorteDto cartaPorte, EmpresaDto emisor);
+}
+
 /// <summary>Mensaje de correo con un adjunto.</summary>
 public sealed record MensajeCorreo(string Para, string Asunto, string Cuerpo, byte[] Adjunto, string NombreAdjunto);
 
@@ -178,5 +185,38 @@ public sealed class EnviarFacturaPorEmail
 
         await _correo.EnviarAsync(mensaje, ct).ConfigureAwait(false);
         return Resultado.Ok();
+    }
+}
+
+/// <summary>Caso de uso: generar el PDF de una carta de porte.</summary>
+public sealed class GenerarPdfCartaPorte
+{
+    private readonly IConsultaCartasPorte _cartas;
+    private readonly IConsultaEmpresas _empresas;
+    private readonly IGeneradorPdfCartaPorte _generador;
+
+    public GenerarPdfCartaPorte(IConsultaCartasPorte cartas, IConsultaEmpresas empresas, IGeneradorPdfCartaPorte generador)
+    {
+        _cartas = cartas;
+        _empresas = empresas;
+        _generador = generador;
+    }
+
+    public async Task<Resultado<DocumentoPdf>> EjecutarAsync(Guid empresaId, Guid cartaPorteId, CancellationToken ct = default)
+    {
+        var carta = await _cartas.ObtenerAsync(cartaPorteId, ct).ConfigureAwait(false);
+        if (carta is null)
+        {
+            return Resultado.Fallo<DocumentoPdf>(Error.NoEncontrado("cartaporte.no_encontrada", "La carta de porte no existe."));
+        }
+
+        var empresa = await _empresas.ObtenerAsync(empresaId, ct).ConfigureAwait(false);
+        if (empresa is null)
+        {
+            return Resultado.Fallo<DocumentoPdf>(Error.NoEncontrado("empresa.no_encontrada", "La empresa no existe."));
+        }
+
+        var bytes = _generador.Generar(carta, empresa);
+        return Resultado.Ok(new DocumentoPdf($"carta-porte-{carta.NumeroCompleto.Replace('/', '-')}.pdf", bytes));
     }
 }

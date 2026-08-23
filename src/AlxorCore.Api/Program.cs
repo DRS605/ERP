@@ -232,6 +232,7 @@ app.MapearActividades();
 app.MapearCatalogo();
 app.MapearFacturacion();
 app.MapearVentas();
+app.MapearCartasPorte();
 app.MapearGastos();
 app.MapearRecepcion();
 app.MapearContabilidad();
