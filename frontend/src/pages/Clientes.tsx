@@ -3,7 +3,7 @@ import { api } from "../lib/cliente";
 import { useToast } from "../lib/toast";
 import { DataTable, type Columna } from "../components/DataTable";
 import { Modal } from "../components/Modal";
-import type { Cliente } from "../lib/tipos";
+import type { Actividad, Cliente } from "../lib/tipos";
 
 interface Formulario {
   nombre: string;
@@ -12,13 +12,15 @@ interface Formulario {
   poblacion: string;
   provincia: string;
   porcentajeIrpfDefecto: number;
+  actividadNegocioId: string;
 }
 
-const vacio: Formulario = { nombre: "", nifFiscal: "", email: "", poblacion: "", provincia: "", porcentajeIrpfDefecto: 0 };
+const vacio: Formulario = { nombre: "", nifFiscal: "", email: "", poblacion: "", provincia: "", porcentajeIrpfDefecto: 0, actividadNegocioId: "" };
 
 export function Clientes() {
   const toast = useToast();
   const [clientes, setClientes] = useState<Cliente[] | null>(null);
+  const [actividades, setActividades] = useState<Actividad[]>([]);
   const [error, setError] = useState("");
   const [editando, setEditando] = useState<Cliente | null>(null);
   const [creando, setCreando] = useState(false);
@@ -29,6 +31,10 @@ export function Clientes() {
   }, []);
 
   useEffect(cargar, [cargar]);
+
+  useEffect(() => {
+    api.get<Actividad[]>("/actividades").then((a) => setActividades(a.filter((x) => x.activa))).catch(() => setActividades([]));
+  }, []);
 
   function abrirNuevo() {
     setForm(vacio);
@@ -44,6 +50,7 @@ export function Clientes() {
       poblacion: c.poblacion,
       provincia: c.provincia,
       porcentajeIrpfDefecto: c.porcentajeIrpfDefecto,
+      actividadNegocioId: c.actividadNegocioId ?? "",
     });
     setEditando(c);
     setCreando(true);
@@ -57,6 +64,7 @@ export function Clientes() {
       poblacion: form.poblacion || null,
       provincia: form.provincia || null,
       porcentajeIrpfDefecto: Number(form.porcentajeIrpfDefecto) || 0,
+      actividadNegocioId: form.actividadNegocioId || null,
     };
     if (editando) await api.put(`/clientes/${editando.id}`, cuerpo);
     else await api.post("/clientes", cuerpo);
@@ -108,6 +116,17 @@ export function Clientes() {
           </div>
           <label htmlFor="c_irpf">IRPF por defecto (%)</label>
           <input id="c_irpf" type="number" value={form.porcentajeIrpfDefecto} onChange={(e) => setForm({ ...form, porcentajeIrpfDefecto: Number(e.target.value) })} />
+          {actividades.length > 0 && (
+            <>
+              <label htmlFor="c_act">Actividad de negocio (opcional)</label>
+              <select id="c_act" value={form.actividadNegocioId} onChange={(e) => setForm({ ...form, actividadNegocioId: e.target.value })}>
+                <option value="">Sin actividad (visible para todos)</option>
+                {actividades.map((a) => (
+                  <option key={a.id} value={a.id}>{a.nombre}</option>
+                ))}
+              </select>
+            </>
+          )}
         </Modal>
       )}
     </div>

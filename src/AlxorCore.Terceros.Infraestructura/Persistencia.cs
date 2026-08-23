@@ -60,6 +60,7 @@ internal sealed class ConfiguracionCliente : IEntityTypeConfiguration<Cliente>
         builder.Property(c => c.NifIva).HasColumnName("nif_iva").HasMaxLength(20);
         builder.Property(c => c.Tipo).HasColumnName("tipo").HasMaxLength(Cliente.LongitudMaximaTipo);
         builder.Property(c => c.FormaPagoDefectoId).HasColumnName("forma_pago_defecto_id");
+        builder.Property(c => c.ActividadNegocioId).HasColumnName("actividad_negocio_id");
         builder.Property(c => c.LimiteRiesgo).HasColumnName("limite_riesgo").HasColumnType("numeric(14,2)");
         builder.Property(c => c.Activo).HasColumnName("activo").IsRequired();
         builder.Property(c => c.CreadoEn).HasColumnName("creado_en").IsRequired();
@@ -92,13 +93,15 @@ internal sealed class RepositorioClientes : IRepositorioClientes, IConsultaClien
         return cliente is null ? null : ClienteDto.Desde(cliente);
     }
 
-    public async Task<IReadOnlyList<ClienteDto>> ListarAsync(Guid grupoId, bool incluirInactivos = false, CancellationToken ct = default)
+    public async Task<IReadOnlyList<ClienteDto>> ListarAsync(Guid grupoId, bool incluirInactivos = false, IReadOnlyCollection<Guid>? actividadesPermitidas = null, CancellationToken ct = default)
     {
         var consulta = _contexto.Clientes.AsQueryable();
         if (!incluirInactivos)
         {
             consulta = consulta.Where(c => c.Activo);
         }
+
+        consulta = FiltrarPorActividad(consulta, actividadesPermitidas);
 
         var clientes = await consulta.OrderBy(c => c.Nombre).ToListAsync(ct).ConfigureAwait(false);
         return clientes.Select(ClienteDto.Desde).ToList();
@@ -124,12 +127,27 @@ internal sealed class RepositorioClientes : IRepositorioClientes, IConsultaClien
                 (c.Email != null && EF.Functions.ILike(c.Email, patron)));
         }
 
+        consulta = FiltrarPorActividad(consulta, filtro.ActividadesPermitidas);
+
         var total = await consulta.CountAsync(ct).ConfigureAwait(false);
         var clientes = await consulta
             .OrderBy(c => c.Nombre)
             .Skip(paginacion.Saltar).Take(paginacion.TamanoPagina)
             .ToListAsync(ct).ConfigureAwait(false);
         return PaginaResultado<ClienteDto>.Crear(clientes.Select(ClienteDto.Desde).ToList(), total, paginacion);
+    }
+
+    // Visibilidad por actividad (área Ventas): null => sin restricción; con conjunto => solo esas
+    // actividades más los clientes sin actividad (visibles siempre).
+    private static IQueryable<Cliente> FiltrarPorActividad(IQueryable<Cliente> consulta, IReadOnlyCollection<Guid>? actividadesPermitidas)
+    {
+        if (actividadesPermitidas is null)
+        {
+            return consulta;
+        }
+
+        var ids = actividadesPermitidas as IReadOnlyList<Guid> ?? actividadesPermitidas.ToList();
+        return consulta.Where(c => c.ActividadNegocioId == null || ids.Contains(c.ActividadNegocioId.Value));
     }
 }
 
@@ -157,6 +175,7 @@ internal sealed class ConfiguracionProveedor : IEntityTypeConfiguration<Proveedo
         builder.Property(p => p.NifIva).HasColumnName("nif_iva").HasMaxLength(20);
         builder.Property(p => p.Tipo).HasColumnName("tipo").HasMaxLength(Proveedor.LongitudMaximaTipo);
         builder.Property(p => p.FormaPagoDefectoId).HasColumnName("forma_pago_defecto_id");
+        builder.Property(p => p.ActividadNegocioId).HasColumnName("actividad_negocio_id");
         builder.Property(p => p.LimiteRiesgo).HasColumnName("limite_riesgo").HasColumnType("numeric(14,2)");
         builder.Property(p => p.Iban).HasColumnName("iban").HasMaxLength(34);
         builder.Property(p => p.Activo).HasColumnName("activo").IsRequired();
@@ -185,13 +204,15 @@ internal sealed class RepositorioProveedores : IRepositorioProveedores, IConsult
         return proveedor is null ? null : ProveedorDto.Desde(proveedor);
     }
 
-    public async Task<IReadOnlyList<ProveedorDto>> ListarAsync(Guid grupoId, bool incluirInactivos = false, CancellationToken ct = default)
+    public async Task<IReadOnlyList<ProveedorDto>> ListarAsync(Guid grupoId, bool incluirInactivos = false, IReadOnlyCollection<Guid>? actividadesPermitidas = null, CancellationToken ct = default)
     {
         var consulta = _contexto.Proveedores.AsQueryable();
         if (!incluirInactivos)
         {
             consulta = consulta.Where(p => p.Activo);
         }
+
+        consulta = FiltrarPorActividad(consulta, actividadesPermitidas);
 
         var proveedores = await consulta.OrderBy(p => p.Nombre).ToListAsync(ct).ConfigureAwait(false);
         return proveedores.Select(ProveedorDto.Desde).ToList();
@@ -217,12 +238,27 @@ internal sealed class RepositorioProveedores : IRepositorioProveedores, IConsult
                 (p.Email != null && EF.Functions.ILike(p.Email, patron)));
         }
 
+        consulta = FiltrarPorActividad(consulta, filtro.ActividadesPermitidas);
+
         var total = await consulta.CountAsync(ct).ConfigureAwait(false);
         var proveedores = await consulta
             .OrderBy(p => p.Nombre)
             .Skip(paginacion.Saltar).Take(paginacion.TamanoPagina)
             .ToListAsync(ct).ConfigureAwait(false);
         return PaginaResultado<ProveedorDto>.Crear(proveedores.Select(ProveedorDto.Desde).ToList(), total, paginacion);
+    }
+
+    // Visibilidad por actividad (área Compras): null => sin restricción; con conjunto => solo esas
+    // actividades más los proveedores sin actividad (visibles siempre).
+    private static IQueryable<Proveedor> FiltrarPorActividad(IQueryable<Proveedor> consulta, IReadOnlyCollection<Guid>? actividadesPermitidas)
+    {
+        if (actividadesPermitidas is null)
+        {
+            return consulta;
+        }
+
+        var ids = actividadesPermitidas as IReadOnlyList<Guid> ?? actividadesPermitidas.ToList();
+        return consulta.Where(p => p.ActividadNegocioId == null || ids.Contains(p.ActividadNegocioId.Value));
     }
 }
 

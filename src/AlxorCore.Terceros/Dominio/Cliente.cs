@@ -86,6 +86,12 @@ public sealed class Cliente : RaizAgregadoGrupo<Guid>
     /// <summary>Forma de pago habitual del cliente (referencia opcional al catálogo de Organización).</summary>
     public Guid? FormaPagoDefectoId { get; private set; }
 
+    /// <summary>
+    /// Actividad de negocio (línea/división del grupo) con la que se clasifica el cliente. Segmenta la
+    /// información y controla qué usuarios lo ven en Ventas. Null = sin actividad (visible para todos).
+    /// </summary>
+    public Guid? ActividadNegocioId { get; private set; }
+
     /// <summary>Límite de riesgo (crédito) concedido al cliente. Null = sin límite. Editable.</summary>
     public decimal? LimiteRiesgo { get; private set; }
 
@@ -131,6 +137,10 @@ public sealed class Cliente : RaizAgregadoGrupo<Guid>
 
     /// <summary>Fija la forma de pago habitual del cliente (null = sin defecto).</summary>
     public void EstablecerFormaPagoDefecto(Guid? formaPagoId) => FormaPagoDefectoId = formaPagoId;
+
+    /// <summary>Clasifica el cliente en una actividad de negocio (null o vacío = sin actividad).</summary>
+    public void EstablecerActividad(Guid? actividadNegocioId) =>
+        ActividadNegocioId = actividadNegocioId is { } a && a != Guid.Empty ? a : null;
 
     /// <summary>Fija el límite de riesgo del cliente (null o negativo = sin límite).</summary>
     public void EstablecerLimiteRiesgo(decimal? limite) => LimiteRiesgo = limite is > 0m ? limite : null;

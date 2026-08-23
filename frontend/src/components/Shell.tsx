@@ -5,6 +5,7 @@ import { useAuth } from "../lib/auth";
 const NAV: { a: string; etiqueta: string }[] = [
   { a: "/inicio", etiqueta: "Inicio" },
   { a: "/clientes", etiqueta: "Clientes" },
+  { a: "/actividades", etiqueta: "Actividades" },
   { a: "/facturas", etiqueta: "Facturas" },
 ];
 

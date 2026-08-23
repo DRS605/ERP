@@ -27,7 +27,8 @@ public sealed record DatosCliente(
     bool EsAdministracionPublica = false,
     string? Dir3OficinaContable = null,
     string? Dir3OrganoGestor = null,
-    string? Dir3UnidadTramitadora = null);
+    string? Dir3UnidadTramitadora = null,
+    Guid? ActividadNegocioId = null);
 
 /// <summary>Caso de uso: crear un cliente en la empresa activa.</summary>
 public sealed class CrearCliente
@@ -58,6 +59,7 @@ public sealed class CrearCliente
         cliente.Valor.EstablecerFormaPagoDefecto(datos.FormaPagoDefectoId);
         cliente.Valor.EstablecerLimiteRiesgo(datos.LimiteRiesgo);
         cliente.Valor.EstablecerCentrosDir3(datos.EsAdministracionPublica, datos.Dir3OficinaContable, datos.Dir3OrganoGestor, datos.Dir3UnidadTramitadora);
+        cliente.Valor.EstablecerActividad(datos.ActividadNegocioId);
         _clientes.Agregar(cliente.Valor);
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return Resultado.Ok(ClienteDto.Desde(cliente.Valor));
@@ -99,6 +101,7 @@ public sealed class ActualizarCliente
         cliente.EstablecerFormaPagoDefecto(datos.FormaPagoDefectoId);
         cliente.EstablecerLimiteRiesgo(datos.LimiteRiesgo);
         cliente.EstablecerCentrosDir3(datos.EsAdministracionPublica, datos.Dir3OficinaContable, datos.Dir3OrganoGestor, datos.Dir3UnidadTramitadora);
+        cliente.EstablecerActividad(datos.ActividadNegocioId);
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return Resultado.Ok(ClienteDto.Desde(cliente));
     }
@@ -111,8 +114,8 @@ public sealed class ListarClientes
 
     public ListarClientes(IConsultaClientes consulta) => _consulta = consulta;
 
-    public Task<IReadOnlyList<ClienteDto>> EjecutarAsync(Guid grupoId, CancellationToken ct = default) =>
-        _consulta.ListarAsync(grupoId, incluirInactivos: false, ct);
+    public Task<IReadOnlyList<ClienteDto>> EjecutarAsync(Guid grupoId, IReadOnlyCollection<Guid>? actividadesPermitidas = null, CancellationToken ct = default) =>
+        _consulta.ListarAsync(grupoId, false, actividadesPermitidas, ct);
 }
 
 /// <summary>Caso de uso: buscar clientes con filtros y paginación (en servidor).</summary>

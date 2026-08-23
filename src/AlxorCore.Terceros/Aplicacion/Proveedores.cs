@@ -10,12 +10,12 @@ namespace AlxorCore.Terceros.Aplicacion;
 public sealed record ProveedorDto(
     Guid Id, string Nombre, string? NifFiscal, string? Email,
     string Calle, string CodigoPostal, string Poblacion, string Provincia, string Pais,
-    decimal PorcentajeIrpfDefecto, bool Activo, FormaPago FormaPago, string? NifIva, string? Tipo, Guid? FormaPagoDefectoId, decimal? LimiteRiesgo, string? Iban)
+    decimal PorcentajeIrpfDefecto, bool Activo, FormaPago FormaPago, string? NifIva, string? Tipo, Guid? FormaPagoDefectoId, decimal? LimiteRiesgo, string? Iban, Guid? ActividadNegocioId = null)
 {
     public static ProveedorDto Desde(Proveedor p) => new(
         p.Id, p.Nombre, p.NifFiscal, p.Email,
         p.Direccion.Calle, p.Direccion.CodigoPostal, p.Direccion.Poblacion, p.Direccion.Provincia, p.Direccion.Pais,
-        p.PorcentajeIrpfDefecto, p.Activo, p.FormaPago, p.NifIva, p.Tipo, p.FormaPagoDefectoId, p.LimiteRiesgo, p.Iban);
+        p.PorcentajeIrpfDefecto, p.Activo, p.FormaPago, p.NifIva, p.Tipo, p.FormaPagoDefectoId, p.LimiteRiesgo, p.Iban, p.ActividadNegocioId);
 }
 
 /// <summary>Repositorio de proveedores (escritura).</summary>
@@ -31,7 +31,7 @@ public interface IConsultaProveedores
 {
     Task<ProveedorDto?> ObtenerAsync(Guid proveedorId, CancellationToken ct = default);
 
-    Task<IReadOnlyList<ProveedorDto>> ListarAsync(Guid grupoId, bool incluirInactivos = false, CancellationToken ct = default);
+    Task<IReadOnlyList<ProveedorDto>> ListarAsync(Guid grupoId, bool incluirInactivos = false, IReadOnlyCollection<Guid>? actividadesPermitidas = null, CancellationToken ct = default);
 
     /// <summary>Búsqueda paginada y filtrada de proveedores (el filtrado ocurre en la base de datos).</summary>
     Task<PaginaResultado<ProveedorDto>> BuscarAsync(Guid grupoId, FiltroTerceros filtro, Paginacion paginacion, CancellationToken ct = default);
@@ -53,7 +53,8 @@ public sealed record DatosProveedor(
     string? Tipo = null,
     Guid? FormaPagoDefectoId = null,
     decimal? LimiteRiesgo = null,
-    string? Iban = null);
+    string? Iban = null,
+    Guid? ActividadNegocioId = null);
 
 /// <summary>Caso de uso: crear un proveedor.</summary>
 public sealed class CrearProveedor
@@ -84,6 +85,7 @@ public sealed class CrearProveedor
         proveedor.Valor.EstablecerFormaPagoDefecto(datos.FormaPagoDefectoId);
         proveedor.Valor.EstablecerLimiteRiesgo(datos.LimiteRiesgo);
         proveedor.Valor.EstablecerIban(datos.Iban);
+        proveedor.Valor.EstablecerActividad(datos.ActividadNegocioId);
         _proveedores.Agregar(proveedor.Valor);
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return Resultado.Ok(ProveedorDto.Desde(proveedor.Valor));
@@ -125,6 +127,7 @@ public sealed class ActualizarProveedor
         proveedor.EstablecerFormaPagoDefecto(datos.FormaPagoDefectoId);
         proveedor.EstablecerLimiteRiesgo(datos.LimiteRiesgo);
         proveedor.EstablecerIban(datos.Iban);
+        proveedor.EstablecerActividad(datos.ActividadNegocioId);
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return Resultado.Ok(ProveedorDto.Desde(proveedor));
     }
@@ -137,8 +140,8 @@ public sealed class ListarProveedores
 
     public ListarProveedores(IConsultaProveedores consulta) => _consulta = consulta;
 
-    public Task<IReadOnlyList<ProveedorDto>> EjecutarAsync(Guid grupoId, CancellationToken ct = default) =>
-        _consulta.ListarAsync(grupoId, incluirInactivos: false, ct);
+    public Task<IReadOnlyList<ProveedorDto>> EjecutarAsync(Guid grupoId, IReadOnlyCollection<Guid>? actividadesPermitidas = null, CancellationToken ct = default) =>
+        _consulta.ListarAsync(grupoId, false, actividadesPermitidas, ct);
 }
 
 /// <summary>Caso de uso: buscar proveedores con filtros y paginación (en servidor).</summary>

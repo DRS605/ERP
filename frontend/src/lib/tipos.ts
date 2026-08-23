@@ -32,6 +32,14 @@ export interface Cliente {
   provincia: string;
   activo: boolean;
   porcentajeIrpfDefecto: number;
+  actividadNegocioId?: string | null;
+}
+
+/** Actividad de negocio (clasificación transversal compartida por el grupo). */
+export interface Actividad {
+  id: string;
+  nombre: string;
+  activa: boolean;
 }
 
 export interface FacturaResumen {

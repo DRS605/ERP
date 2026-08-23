@@ -36,6 +36,10 @@ public static class RegistroServicios
         servicios.AddScoped<IRepositorioEmpresas>(sp => sp.GetRequiredService<RepositorioEmpresas>());
         servicios.AddScoped<IConsultaEmpresas>(sp => sp.GetRequiredService<RepositorioEmpresas>());
         servicios.AddScoped<IRepositorioGrupos, RepositorioGrupos>();
+        servicios.AddScoped<IRepositorioActividades, RepositorioActividades>();
+        servicios.AddScoped<RepositorioVisibilidad>();
+        servicios.AddScoped<IRepositorioVisibilidad>(sp => sp.GetRequiredService<RepositorioVisibilidad>());
+        servicios.AddScoped<IConsultaVisibilidad>(sp => sp.GetRequiredService<RepositorioVisibilidad>());
         servicios.AddScoped<IRepositorioMembresias, RepositorioMembresias>();
         servicios.AddScoped<IRepositorioSeries, RepositorioSeries>();
         servicios.AddScoped<RepositorioAsignacionesSerie>();
@@ -48,6 +52,11 @@ public static class RegistroServicios
         servicios.AddScoped<IServicioNumeracion, ServicioNumeracion>();
         servicios.AddScoped<AlxorCore.Nucleo.Aplicacion.IConfiguracionEmpresa, ConfiguracionEmpresaOrganizacion>();
 
+        servicios.AddScoped<CrearActividad>();
+        servicios.AddScoped<ListarActividades>();
+        servicios.AddScoped<ActualizarActividad>();
+        servicios.AddScoped<FijarVisibilidadUsuario>();
+        servicios.AddScoped<ConsultarVisibilidadUsuario>();
         servicios.AddScoped<CrearEmpresa>();
         servicios.AddScoped<ActualizarDatosCobro>();
         servicios.AddScoped<ActualizarPlantillaDocumento>();

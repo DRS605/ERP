@@ -94,7 +94,7 @@ public sealed class GenerarDeclaracionAnual
 
         var facturas = await _facturas.ListarAsync(empresaId, ct).ConfigureAwait(false);
         var gastos = await _gastos.ListarAsync(empresaId, ct).ConfigureAwait(false);
-        var proveedores = await _proveedores.ListarAsync(empresaId, true, ct).ConfigureAwait(false);
+        var proveedores = await _proveedores.ListarAsync(empresaId, true, ct: ct).ConfigureAwait(false);
 
         // Solo cuentan las facturas realmente emitidas del ejercicio (se excluyen anuladas y ya
         // rectificadas, cuya rectificativa aporta los importes corregidos).

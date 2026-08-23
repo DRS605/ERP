@@ -1,4 +1,5 @@
 using AlxorCore.Nucleo.Comun;
+using AlxorCore.Organizacion.Aplicacion.CasosDeUso;
 using AlxorCore.Organizacion.Aplicacion.Modelos;
 using AlxorCore.Organizacion.Aplicacion.Puertos;
 using AlxorCore.Organizacion.Dominio;
@@ -43,6 +44,55 @@ internal sealed class RepositorioGrupos : IRepositorioGrupos
         _contexto.Grupos.SingleOrDefaultAsync(g => g.Id == id, ct);
 
     public void Agregar(Grupo grupo) => _contexto.Grupos.Add(grupo);
+}
+
+internal sealed class RepositorioActividades : IRepositorioActividades
+{
+    private readonly OrganizacionDbContext _contexto;
+
+    public RepositorioActividades(OrganizacionDbContext contexto) => _contexto = contexto;
+
+    public void Agregar(ActividadNegocio actividad) => _contexto.Actividades.Add(actividad);
+
+    public Task<ActividadNegocio?> ObtenerPorIdAsync(Guid id, CancellationToken ct = default) =>
+        _contexto.Actividades.SingleOrDefaultAsync(a => a.Id == id, ct);
+
+    public async Task<IReadOnlyList<ActividadNegocio>> ListarAsync(Guid grupoId, CancellationToken ct = default) =>
+        await _contexto.Actividades.OrderBy(a => a.Nombre).ToListAsync(ct).ConfigureAwait(false);
+}
+
+/// <summary>
+/// Repositorio de reglas de visibilidad y consulta transversal de actividades permitidas por
+/// usuario y área (usada por los listados de maestros para filtrar por pantalla).
+/// </summary>
+internal sealed class RepositorioVisibilidad : IRepositorioVisibilidad, IConsultaVisibilidad
+{
+    private readonly OrganizacionDbContext _contexto;
+
+    public RepositorioVisibilidad(OrganizacionDbContext contexto) => _contexto = contexto;
+
+    public void Agregar(VisibilidadActividad visibilidad) => _contexto.Visibilidades.Add(visibilidad);
+
+    public void Eliminar(VisibilidadActividad visibilidad) => _contexto.Visibilidades.Remove(visibilidad);
+
+    public async Task<IReadOnlyList<VisibilidadActividad>> ListarPorUsuarioAsync(Guid usuarioId, CancellationToken ct = default) =>
+        await _contexto.Visibilidades.Where(v => v.UsuarioId == usuarioId)
+            .OrderBy(v => v.Area).ToListAsync(ct).ConfigureAwait(false);
+
+    public async Task<IReadOnlyList<VisibilidadActividad>> ListarPorUsuarioYAreaAsync(Guid usuarioId, AreaVisibilidad area, CancellationToken ct = default) =>
+        await _contexto.Visibilidades.Where(v => v.UsuarioId == usuarioId && v.Area == area)
+            .ToListAsync(ct).ConfigureAwait(false);
+
+    public async Task<IReadOnlyCollection<Guid>?> ActividadesPermitidasAsync(Guid usuarioId, AreaVisibilidad area, CancellationToken ct = default)
+    {
+        var permitidas = await _contexto.Visibilidades.AsNoTracking()
+            .Where(v => v.UsuarioId == usuarioId && v.Area == area)
+            .Select(v => v.ActividadNegocioId)
+            .ToListAsync(ct).ConfigureAwait(false);
+
+        // Sin reglas en el área => abierto por defecto (ve todas): null. Con reglas => solo las concedidas.
+        return permitidas.Count == 0 ? null : permitidas;
+    }
 }
 
 internal sealed class RepositorioMembresias : IRepositorioMembresias

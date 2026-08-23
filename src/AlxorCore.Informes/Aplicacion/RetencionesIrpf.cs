@@ -121,7 +121,7 @@ public sealed class GenerarRetencionesIrpf
         Guid empresaId, DateOnly desde, DateOnly hasta, CancellationToken ct)
     {
         var gastos = await _gastos.ListarAsync(empresaId, ct).ConfigureAwait(false);
-        var proveedores = await _proveedores.ListarAsync(empresaId, true, ct).ConfigureAwait(false);
+        var proveedores = await _proveedores.ListarAsync(empresaId, true, ct: ct).ConfigureAwait(false);
         var mapa = proveedores.ToDictionary(p => p.Id);
 
         var conRetencion = gastos

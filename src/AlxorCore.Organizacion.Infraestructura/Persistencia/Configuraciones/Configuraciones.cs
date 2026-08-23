@@ -130,6 +130,44 @@ internal sealed class ConfiguracionAsignacionSerie : IEntityTypeConfiguration<As
     }
 }
 
+internal sealed class ConfiguracionActividadNegocio : IEntityTypeConfiguration<ActividadNegocio>
+{
+    public void Configure(EntityTypeBuilder<ActividadNegocio> builder)
+    {
+        builder.ToTable("actividad_negocio");
+        builder.HasKey(a => a.Id);
+        builder.Property(a => a.Id).HasColumnName("id");
+        builder.Property(a => a.GrupoId).HasColumnName("grupo_id").IsRequired();
+        builder.HasIndex(a => a.GrupoId).HasDatabaseName("ix_actividad_negocio_grupo");
+        builder.Property(a => a.Nombre).HasColumnName("nombre").HasMaxLength(ActividadNegocio.LongitudMaximaNombre).IsRequired();
+        builder.Property(a => a.Activa).HasColumnName("activa").IsRequired();
+        builder.Property(a => a.CreadoEn).HasColumnName("creado_en").IsRequired();
+        builder.Property(a => a.ActualizadoEn).HasColumnName("actualizado_en").IsRequired();
+        builder.Ignore(a => a.EventosDominio);
+    }
+}
+
+internal sealed class ConfiguracionVisibilidadActividad : IEntityTypeConfiguration<VisibilidadActividad>
+{
+    public void Configure(EntityTypeBuilder<VisibilidadActividad> builder)
+    {
+        builder.ToTable("visibilidad_actividad");
+        builder.HasKey(v => v.Id);
+        builder.Property(v => v.Id).HasColumnName("id");
+        builder.Property(v => v.GrupoId).HasColumnName("grupo_id").IsRequired();
+        builder.Property(v => v.UsuarioId).HasColumnName("usuario_id").IsRequired();
+        builder.Property(v => v.Area).HasColumnName("area").HasMaxLength(20).HasConversion<string>().IsRequired();
+        builder.Property(v => v.ActividadNegocioId).HasColumnName("actividad_negocio_id").IsRequired();
+        builder.Property(v => v.CreadoEn).HasColumnName("creado_en").IsRequired();
+
+        builder.HasIndex(v => new { v.GrupoId, v.UsuarioId, v.Area, v.ActividadNegocioId })
+            .IsUnique()
+            .HasDatabaseName("ux_visibilidad_grupo_usuario_area_actividad");
+        builder.HasIndex(v => new { v.UsuarioId, v.Area }).HasDatabaseName("ix_visibilidad_usuario_area");
+        builder.Ignore(v => v.EventosDominio);
+    }
+}
+
 internal sealed class ConfiguracionFormaPago : IEntityTypeConfiguration<FormaPago>
 {
     public void Configure(EntityTypeBuilder<FormaPago> builder)

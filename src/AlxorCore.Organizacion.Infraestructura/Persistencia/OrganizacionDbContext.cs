@@ -35,6 +35,10 @@ public sealed class OrganizacionDbContext : DbContextEmpresaBase, AlxorCore.Orga
 
     public DbSet<FormaPago> FormasPago => Set<FormaPago>();
 
+    public DbSet<ActividadNegocio> Actividades => Set<ActividadNegocio>();
+
+    public DbSet<VisibilidadActividad> Visibilidades => Set<VisibilidadActividad>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Esquema);

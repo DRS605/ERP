@@ -108,7 +108,7 @@ public sealed class GenerarComprasPorProveedor
             .Where(g => g.Fecha >= desde && g.Fecha <= hasta && !string.Equals(g.Estado, "Anulado", StringComparison.OrdinalIgnoreCase))
             .ToList();
 
-        var nombres = (await _proveedores.ListarAsync(empresaId, incluirInactivos: true, ct).ConfigureAwait(false))
+        var nombres = (await _proveedores.ListarAsync(empresaId, incluirInactivos: true, ct: ct).ConfigureAwait(false))
             .ToDictionary(p => p.Id, p => p.Nombre);
 
         var proveedores = gastos

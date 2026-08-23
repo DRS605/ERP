@@ -228,6 +228,7 @@ app.MapearIdentidad();
 app.MapearOrganizacion();
 app.MapearUsuarios();
 app.MapearTerceros();
+app.MapearActividades();
 app.MapearCatalogo();
 app.MapearFacturacion();
 app.MapearVentas();

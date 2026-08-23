@@ -1,8 +1,11 @@
+using System.Security.Claims;
 using AlxorCore.Api.Comun;
 using AlxorCore.Nucleo.Autorizacion;
 using AlxorCore.Nucleo.Consultas;
 using AlxorCore.Nucleo.Multiempresa;
 using AlxorCore.Nucleo.Resultados;
+using AlxorCore.Organizacion.Aplicacion.CasosDeUso;
+using AlxorCore.Organizacion.Dominio;
 using AlxorCore.Terceros.Aplicacion;
 
 namespace AlxorCore.Api.Endpoints;
@@ -65,17 +68,26 @@ public static class EndpointsTerceros
         return rutas;
     }
 
-    private static async Task<IResult> ListarProvAsync(IContextoEmpresa contexto, ListarProveedores caso, CancellationToken ct)
+    // Resuelve las actividades que el usuario puede ver en un área (null = todas / sin restricción).
+    private static async Task<IReadOnlyCollection<Guid>?> ActividadesPermitidasAsync(
+        ClaimsPrincipal usuario, IConsultaVisibilidad visibilidad, AreaVisibilidad area, CancellationToken ct)
+    {
+        var usuarioId = usuario.ObtenerUsuarioId();
+        return usuarioId is null ? null : await visibilidad.ActividadesPermitidasAsync(usuarioId.Value, area, ct).ConfigureAwait(false);
+    }
+
+    private static async Task<IResult> ListarProvAsync(IContextoEmpresa contexto, ClaimsPrincipal usuario, IConsultaVisibilidad visibilidad, ListarProveedores caso, CancellationToken ct)
     {
         if (contexto.GrupoId is null)
         {
             return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
         }
 
-        return Results.Ok(await caso.EjecutarAsync(contexto.GrupoId.Value, ct).ConfigureAwait(false));
+        var permitidas = await ActividadesPermitidasAsync(usuario, visibilidad, AreaVisibilidad.Compras, ct).ConfigureAwait(false);
+        return Results.Ok(await caso.EjecutarAsync(contexto.GrupoId.Value, permitidas, ct).ConfigureAwait(false));
     }
 
-    private static async Task<IResult> BuscarProvAsync(IContextoEmpresa contexto, BuscarProveedores caso,
+    private static async Task<IResult> BuscarProvAsync(IContextoEmpresa contexto, ClaimsPrincipal usuario, IConsultaVisibilidad visibilidad, BuscarProveedores caso,
         string? texto, bool? incluirInactivos, int? pagina, int? tamanoPagina, CancellationToken ct)
     {
         if (contexto.GrupoId is null)
@@ -83,11 +95,12 @@ public static class EndpointsTerceros
             return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
         }
 
-        var filtro = new FiltroTerceros(texto, incluirInactivos ?? false);
+        var permitidas = await ActividadesPermitidasAsync(usuario, visibilidad, AreaVisibilidad.Compras, ct).ConfigureAwait(false);
+        var filtro = new FiltroTerceros(texto, incluirInactivos ?? false, permitidas);
         return Results.Ok(await caso.EjecutarAsync(contexto.GrupoId.Value, filtro, Paginacion.Normalizar(pagina, tamanoPagina), ct).ConfigureAwait(false));
     }
 
-    private static async Task<IResult> BuscarClientesAsync(IContextoEmpresa contexto, BuscarClientes caso,
+    private static async Task<IResult> BuscarClientesAsync(IContextoEmpresa contexto, ClaimsPrincipal usuario, IConsultaVisibilidad visibilidad, BuscarClientes caso,
         string? texto, bool? incluirInactivos, int? pagina, int? tamanoPagina, CancellationToken ct)
     {
         if (contexto.GrupoId is null)
@@ -95,7 +108,8 @@ public static class EndpointsTerceros
             return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
         }
 
-        var filtro = new FiltroTerceros(texto, incluirInactivos ?? false);
+        var permitidas = await ActividadesPermitidasAsync(usuario, visibilidad, AreaVisibilidad.Ventas, ct).ConfigureAwait(false);
+        var filtro = new FiltroTerceros(texto, incluirInactivos ?? false, permitidas);
         return Results.Ok(await caso.EjecutarAsync(contexto.GrupoId.Value, filtro, Paginacion.Normalizar(pagina, tamanoPagina), ct).ConfigureAwait(false));
     }
 
@@ -116,14 +130,15 @@ public static class EndpointsTerceros
     private static async Task<IResult> ActualizarProvAsync(Guid id, DatosProveedor datos, ActualizarProveedor caso, CancellationToken ct) =>
         (await caso.EjecutarAsync(id, datos, ct).ConfigureAwait(false)).AOk();
 
-    private static async Task<IResult> ListarAsync(IContextoEmpresa contexto, ListarClientes caso, CancellationToken ct)
+    private static async Task<IResult> ListarAsync(IContextoEmpresa contexto, ClaimsPrincipal usuario, IConsultaVisibilidad visibilidad, ListarClientes caso, CancellationToken ct)
     {
         if (contexto.GrupoId is null)
         {
             return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
         }
 
-        return Results.Ok(await caso.EjecutarAsync(contexto.GrupoId.Value, ct).ConfigureAwait(false));
+        var permitidas = await ActividadesPermitidasAsync(usuario, visibilidad, AreaVisibilidad.Ventas, ct).ConfigureAwait(false);
+        return Results.Ok(await caso.EjecutarAsync(contexto.GrupoId.Value, permitidas, ct).ConfigureAwait(false));
     }
 
     private static async Task<IResult> ObtenerAsync(Guid id, ObtenerCliente caso, CancellationToken ct) =>

@@ -76,8 +76,8 @@ public sealed class GenerarModelo349
     {
         var facturas = await _facturas.ListarAsync(empresaId, ct).ConfigureAwait(false);
         var gastos = await _gastos.ListarAsync(empresaId, ct).ConfigureAwait(false);
-        var clientes = await _clientes.ListarAsync(empresaId, true, ct).ConfigureAwait(false);
-        var proveedores = await _proveedores.ListarAsync(empresaId, true, ct).ConfigureAwait(false);
+        var clientes = await _clientes.ListarAsync(empresaId, true, ct: ct).ConfigureAwait(false);
+        var proveedores = await _proveedores.ListarAsync(empresaId, true, ct: ct).ConfigureAwait(false);
 
         // Entregas: clientes con NIF-IVA. Se casan las facturas por su NIF fiscal (congelado).
         var clientesIntra = clientes

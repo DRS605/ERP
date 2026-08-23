@@ -65,6 +65,9 @@ public static class Permisos
     // Integraciones (API pública y webhooks)
     public const string IntegracionGestionar = "integracion.gestionar";
 
+    // Actividades de negocio (clasificación transversal + visibilidad por usuario/pantalla)
+    public const string ActividadGestionar = "actividad.gestionar";
+
     // Administración de la empresa
     public const string EmpresaAjustes = "empresa.ajustes";
     public const string UsuarioGestionar = "usuario.gestionar";
@@ -86,6 +89,7 @@ public static class Permisos
         InformeLeer, DatosExportar,
         AprobacionConfigurar, AprobacionAprobar,
         IntegracionGestionar,
+        ActividadGestionar,
         EmpresaAjustes, UsuarioGestionar,
     };
 }

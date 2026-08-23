@@ -67,9 +67,9 @@ public static class EndpointsCuenta
         {
             generadoEn = DateTimeOffset.UtcNow,
             empresa = await empresas.ObtenerAsync(id, ct).ConfigureAwait(false),
-            clientes = await clientes.ListarAsync(id, incluirInactivos: true, ct).ConfigureAwait(false),
-            proveedores = await proveedores.ListarAsync(id, incluirInactivos: true, ct).ConfigureAwait(false),
-            productos = await productos.ListarAsync(id, incluirInactivos: true, ct).ConfigureAwait(false),
+            clientes = await clientes.ListarAsync(id, incluirInactivos: true, ct: ct).ConfigureAwait(false),
+            proveedores = await proveedores.ListarAsync(id, incluirInactivos: true, ct: ct).ConfigureAwait(false),
+            productos = await productos.ListarAsync(id, incluirInactivos: true, ct: ct).ConfigureAwait(false),
             facturas = await facturas.ListarAsync(id, ct).ConfigureAwait(false),
             gastos = await gastos.ListarAsync(id, ct).ConfigureAwait(false),
         };
