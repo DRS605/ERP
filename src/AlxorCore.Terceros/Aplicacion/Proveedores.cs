@@ -31,10 +31,10 @@ public interface IConsultaProveedores
 {
     Task<ProveedorDto?> ObtenerAsync(Guid proveedorId, CancellationToken ct = default);
 
-    Task<IReadOnlyList<ProveedorDto>> ListarAsync(Guid empresaId, bool incluirInactivos = false, CancellationToken ct = default);
+    Task<IReadOnlyList<ProveedorDto>> ListarAsync(Guid grupoId, bool incluirInactivos = false, CancellationToken ct = default);
 
     /// <summary>Búsqueda paginada y filtrada de proveedores (el filtrado ocurre en la base de datos).</summary>
-    Task<PaginaResultado<ProveedorDto>> BuscarAsync(Guid empresaId, FiltroTerceros filtro, Paginacion paginacion, CancellationToken ct = default);
+    Task<PaginaResultado<ProveedorDto>> BuscarAsync(Guid grupoId, FiltroTerceros filtro, Paginacion paginacion, CancellationToken ct = default);
 }
 
 /// <summary>Datos de un proveedor para crear o actualizar.</summary>
@@ -69,12 +69,12 @@ public sealed class CrearProveedor
         _reloj = reloj;
     }
 
-    public async Task<Resultado<ProveedorDto>> EjecutarAsync(Guid empresaId, DatosProveedor datos, CancellationToken ct = default)
+    public async Task<Resultado<ProveedorDto>> EjecutarAsync(Guid grupoId, DatosProveedor datos, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(datos);
 
         var direccion = Direccion.Crear(datos.Calle, datos.CodigoPostal, datos.Poblacion, datos.Provincia, datos.Pais);
-        var proveedor = Proveedor.Crear(empresaId, datos.Nombre, datos.NifFiscal, datos.Email, direccion, datos.PorcentajeIrpfDefecto, datos.FormaPago, _reloj, datos.NifIva);
+        var proveedor = Proveedor.Crear(grupoId, datos.Nombre, datos.NifFiscal, datos.Email, direccion, datos.PorcentajeIrpfDefecto, datos.FormaPago, _reloj, datos.NifIva);
         if (proveedor.EsFallo)
         {
             return Resultado.Fallo<ProveedorDto>(proveedor.Error);
@@ -137,8 +137,8 @@ public sealed class ListarProveedores
 
     public ListarProveedores(IConsultaProveedores consulta) => _consulta = consulta;
 
-    public Task<IReadOnlyList<ProveedorDto>> EjecutarAsync(Guid empresaId, CancellationToken ct = default) =>
-        _consulta.ListarAsync(empresaId, incluirInactivos: false, ct);
+    public Task<IReadOnlyList<ProveedorDto>> EjecutarAsync(Guid grupoId, CancellationToken ct = default) =>
+        _consulta.ListarAsync(grupoId, incluirInactivos: false, ct);
 }
 
 /// <summary>Caso de uso: buscar proveedores con filtros y paginación (en servidor).</summary>
@@ -148,8 +148,8 @@ public sealed class BuscarProveedores
 
     public BuscarProveedores(IConsultaProveedores consulta) => _consulta = consulta;
 
-    public Task<PaginaResultado<ProveedorDto>> EjecutarAsync(Guid empresaId, FiltroTerceros filtro, Paginacion paginacion, CancellationToken ct = default) =>
-        _consulta.BuscarAsync(empresaId, filtro, paginacion, ct);
+    public Task<PaginaResultado<ProveedorDto>> EjecutarAsync(Guid grupoId, FiltroTerceros filtro, Paginacion paginacion, CancellationToken ct = default) =>
+        _consulta.BuscarAsync(grupoId, filtro, paginacion, ct);
 }
 
 /// <summary>Caso de uso: obtener un proveedor por su identificador.</summary>

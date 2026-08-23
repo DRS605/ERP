@@ -120,8 +120,8 @@ public static class EndpointsIntegraciones
             .WithSummary("Lista las facturas de la empresa (API pública).");
 
         api.MapGet("/clientes", async (IContextoEmpresa contexto, IConsultaClientes clientes, CancellationToken ct) =>
-            Results.Ok(await clientes.ListarAsync(contexto.EmpresaRequerida, false, ct).ConfigureAwait(false)))
-            .WithSummary("Lista los clientes de la empresa (API pública).");
+            Results.Ok(await clientes.ListarAsync(contexto.GrupoRequerido, false, ct).ConfigureAwait(false)))
+            .WithSummary("Lista los clientes del grupo (API pública).");
 
         api.MapGet("/productos", async (IContextoEmpresa contexto, IConsultaProductos productos, CancellationToken ct) =>
             Results.Ok(await productos.ListarAsync(contexto.EmpresaRequerida, false, ct).ConfigureAwait(false)))
@@ -161,7 +161,17 @@ public static class EndpointsIntegraciones
                 return NoAutorizado("Clave de API no válida o revocada.");
             }
 
-            http.RequestServices.GetRequiredService<IContextoEmpresaMutable>().Fijar(empresaId.Value);
+            var contexto = http.RequestServices.GetRequiredService<IContextoEmpresaMutable>();
+            contexto.Fijar(empresaId.Value);
+            // Los maestros son del grupo: fijamos también el grupo de la empresa para la API pública.
+            var grupoId = await http.RequestServices
+                .GetRequiredService<AlxorCore.Organizacion.Aplicacion.Puertos.IRepositorioEmpresas>()
+                .ObtenerGrupoIdAsync(empresaId.Value, http.RequestAborted).ConfigureAwait(false);
+            if (grupoId is { } g)
+            {
+                contexto.FijarGrupo(g);
+            }
+
             return await next(context).ConfigureAwait(false);
         }
 

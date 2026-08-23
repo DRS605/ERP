@@ -17,6 +17,9 @@ public abstract class DbContextEmpresaBase : DbContextBase
     private static readonly MethodInfo MetodoFiltro =
         typeof(DbContextEmpresaBase).GetMethod(nameof(ConstruirFiltro), BindingFlags.NonPublic | BindingFlags.Instance)!;
 
+    private static readonly MethodInfo MetodoFiltroGrupo =
+        typeof(DbContextEmpresaBase).GetMethod(nameof(ConstruirFiltroGrupo), BindingFlags.NonPublic | BindingFlags.Instance)!;
+
     private readonly IContextoEmpresa _contextoEmpresa;
 
     protected DbContextEmpresaBase(DbContextOptions opciones, IPublicadorEventos publicadorEventos, IContextoEmpresa contextoEmpresa)
@@ -28,6 +31,9 @@ public abstract class DbContextEmpresaBase : DbContextBase
     /// <summary>Empresa activa; <see cref="Guid.Empty"/> si no hay ninguna (no devolverá filas).</summary>
     public Guid EmpresaActualId => _contextoEmpresa.EmpresaId ?? Guid.Empty;
 
+    /// <summary>Grupo activo; <see cref="Guid.Empty"/> si no hay ninguno (no devolverá filas de maestros compartidos).</summary>
+    public Guid GrupoActualId => _contextoEmpresa.GrupoId ?? Guid.Empty;
+
     /// <summary>
     /// Aplica el filtro multiempresa a todas las entidades <see cref="IEntidadEmpresa"/> del modelo.
     /// Los módulos deben invocarlo al final de su <c>OnModelCreating</c>.
@@ -38,7 +44,13 @@ public abstract class DbContextEmpresaBase : DbContextBase
 
         foreach (var tipo in modelBuilder.Model.GetEntityTypes())
         {
-            if (typeof(IEntidadEmpresa).IsAssignableFrom(tipo.ClrType))
+            if (typeof(IEntidadGrupo).IsAssignableFrom(tipo.ClrType))
+            {
+                // Maestros compartidos: se filtran por grupo (holding), no por empresa.
+                var filtro = (LambdaExpression)MetodoFiltroGrupo.MakeGenericMethod(tipo.ClrType).Invoke(this, null)!;
+                modelBuilder.Entity(tipo.ClrType).HasQueryFilter(filtro);
+            }
+            else if (typeof(IEntidadEmpresa).IsAssignableFrom(tipo.ClrType))
             {
                 var filtro = (LambdaExpression)MetodoFiltro.MakeGenericMethod(tipo.ClrType).Invoke(this, null)!;
                 modelBuilder.Entity(tipo.ClrType).HasQueryFilter(filtro);
@@ -50,5 +62,11 @@ public abstract class DbContextEmpresaBase : DbContextBase
         where T : class, IEntidadEmpresa
     {
         return e => e.EmpresaId == EmpresaActualId;
+    }
+
+    private Expression<Func<T, bool>> ConstruirFiltroGrupo<T>()
+        where T : class, IEntidadGrupo
+    {
+        return e => e.GrupoId == GrupoActualId;
     }
 }

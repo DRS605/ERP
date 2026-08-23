@@ -45,11 +45,16 @@ public sealed class InterceptorEmpresa : DbConnectionInterceptor
     private DbCommand CrearComando(DbConnection connection)
     {
         var comando = connection.CreateCommand();
-        comando.CommandText = "SELECT set_config('app.empresa_actual', @empresa, false)";
+        comando.CommandText =
+            "SELECT set_config('app.empresa_actual', @empresa, false), set_config('app.grupo_actual', @grupo, false)";
         var parametro = comando.CreateParameter();
         parametro.ParameterName = "empresa";
         parametro.Value = _contextoEmpresa.EmpresaId?.ToString() ?? string.Empty;
         comando.Parameters.Add(parametro);
+        var parametroGrupo = comando.CreateParameter();
+        parametroGrupo.ParameterName = "grupo";
+        parametroGrupo.Value = _contextoEmpresa.GrupoId?.ToString() ?? string.Empty;
+        comando.Parameters.Add(parametroGrupo);
         return comando;
     }
 }

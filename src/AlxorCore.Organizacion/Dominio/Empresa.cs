@@ -26,9 +26,10 @@ public sealed class Empresa : RaizAgregado<Guid>
         Direccion = null!;
     }
 
-    private Empresa(Guid id, Nif nif, string razonSocial, Direccion direccion, RegimenIva regimenIva, DateTimeOffset ahora)
+    private Empresa(Guid id, Guid grupoId, Nif nif, string razonSocial, Direccion direccion, RegimenIva regimenIva, DateTimeOffset ahora)
         : base(id)
     {
+        GrupoId = grupoId;
         Nif = nif;
         RazonSocial = razonSocial;
         Direccion = direccion;
@@ -39,6 +40,9 @@ public sealed class Empresa : RaizAgregado<Guid>
         CreadoEn = ahora;
         ActualizadoEn = ahora;
     }
+
+    /// <summary>Grupo (holding) al que pertenece la empresa. Los maestros compartidos se aíslan por este grupo.</summary>
+    public Guid GrupoId { get; private set; }
 
     public Nif Nif { get; private set; }
 
@@ -88,7 +92,7 @@ public sealed class Empresa : RaizAgregado<Guid>
 
     public DateTimeOffset ActualizadoEn { get; private set; }
 
-    public static Resultado<Empresa> Crear(Nif nif, string? razonSocial, Direccion direccion, RegimenIva regimenIva, IReloj reloj)
+    public static Resultado<Empresa> Crear(Guid grupoId, Nif nif, string? razonSocial, Direccion direccion, RegimenIva regimenIva, IReloj reloj)
     {
         ArgumentNullException.ThrowIfNull(nif);
         ArgumentNullException.ThrowIfNull(direccion);
@@ -105,7 +109,7 @@ public sealed class Empresa : RaizAgregado<Guid>
             return Resultado.Fallo<Empresa>(Error.Validacion("empresa.razon_social_larga", "La razón social es demasiado larga."));
         }
 
-        var empresa = new Empresa(Guid.NewGuid(), nif, nombre, direccion, regimenIva, reloj.AhoraUtc);
+        var empresa = new Empresa(Guid.NewGuid(), grupoId, nif, nombre, direccion, regimenIva, reloj.AhoraUtc);
         empresa.RegistrarEvento(new EmpresaCreada(empresa.Id, nif.Valor, reloj.AhoraUtc));
         return Resultado.Ok(empresa);
     }

@@ -24,7 +24,7 @@ public class ClienteTests
         cliente.EsCorrecto.Should().BeTrue();
         cliente.Valor.Activo.Should().BeTrue();
         cliente.Valor.PorcentajeIrpfDefecto.Should().Be(15m);
-        cliente.Valor.EmpresaId.Should().Be(Empresa);
+        cliente.Valor.GrupoId.Should().Be(Empresa);
         cliente.Valor.EventosDominio.Should().ContainSingle(e => e is ClienteCreado);
     }
 

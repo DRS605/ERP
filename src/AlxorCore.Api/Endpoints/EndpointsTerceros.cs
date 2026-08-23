@@ -67,36 +67,36 @@ public static class EndpointsTerceros
 
     private static async Task<IResult> ListarProvAsync(IContextoEmpresa contexto, ListarProveedores caso, CancellationToken ct)
     {
-        if (contexto.EmpresaId is null)
+        if (contexto.GrupoId is null)
         {
             return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
         }
 
-        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, ct).ConfigureAwait(false));
+        return Results.Ok(await caso.EjecutarAsync(contexto.GrupoId.Value, ct).ConfigureAwait(false));
     }
 
     private static async Task<IResult> BuscarProvAsync(IContextoEmpresa contexto, BuscarProveedores caso,
         string? texto, bool? incluirInactivos, int? pagina, int? tamanoPagina, CancellationToken ct)
     {
-        if (contexto.EmpresaId is null)
+        if (contexto.GrupoId is null)
         {
             return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
         }
 
         var filtro = new FiltroTerceros(texto, incluirInactivos ?? false);
-        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, filtro, Paginacion.Normalizar(pagina, tamanoPagina), ct).ConfigureAwait(false));
+        return Results.Ok(await caso.EjecutarAsync(contexto.GrupoId.Value, filtro, Paginacion.Normalizar(pagina, tamanoPagina), ct).ConfigureAwait(false));
     }
 
     private static async Task<IResult> BuscarClientesAsync(IContextoEmpresa contexto, BuscarClientes caso,
         string? texto, bool? incluirInactivos, int? pagina, int? tamanoPagina, CancellationToken ct)
     {
-        if (contexto.EmpresaId is null)
+        if (contexto.GrupoId is null)
         {
             return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
         }
 
         var filtro = new FiltroTerceros(texto, incluirInactivos ?? false);
-        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, filtro, Paginacion.Normalizar(pagina, tamanoPagina), ct).ConfigureAwait(false));
+        return Results.Ok(await caso.EjecutarAsync(contexto.GrupoId.Value, filtro, Paginacion.Normalizar(pagina, tamanoPagina), ct).ConfigureAwait(false));
     }
 
     private static async Task<IResult> ObtenerProvAsync(Guid id, ObtenerProveedor caso, CancellationToken ct) =>
@@ -104,12 +104,12 @@ public static class EndpointsTerceros
 
     private static async Task<IResult> CrearProvAsync(DatosProveedor datos, IContextoEmpresa contexto, CrearProveedor caso, CancellationToken ct)
     {
-        if (contexto.EmpresaId is null)
+        if (contexto.GrupoId is null)
         {
             return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
         }
 
-        var resultado = await caso.EjecutarAsync(contexto.EmpresaId.Value, datos, ct).ConfigureAwait(false);
+        var resultado = await caso.EjecutarAsync(contexto.GrupoId.Value, datos, ct).ConfigureAwait(false);
         return resultado.EsCorrecto ? resultado.ACreado($"/proveedores/{resultado.Valor.Id}") : ResultadosHttp.AProblema(resultado.Error);
     }
 
@@ -118,12 +118,12 @@ public static class EndpointsTerceros
 
     private static async Task<IResult> ListarAsync(IContextoEmpresa contexto, ListarClientes caso, CancellationToken ct)
     {
-        if (contexto.EmpresaId is null)
+        if (contexto.GrupoId is null)
         {
             return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
         }
 
-        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, ct).ConfigureAwait(false));
+        return Results.Ok(await caso.EjecutarAsync(contexto.GrupoId.Value, ct).ConfigureAwait(false));
     }
 
     private static async Task<IResult> ObtenerAsync(Guid id, ObtenerCliente caso, CancellationToken ct) =>
@@ -131,18 +131,18 @@ public static class EndpointsTerceros
 
     private static async Task<IResult> CrearAsync(DatosCliente datos, IContextoEmpresa contexto, CrearCliente caso, CancellationToken ct)
     {
-        if (contexto.EmpresaId is null)
+        if (contexto.GrupoId is null)
         {
             return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
         }
 
-        var resultado = await caso.EjecutarAsync(contexto.EmpresaId.Value, datos, ct).ConfigureAwait(false);
+        var resultado = await caso.EjecutarAsync(contexto.GrupoId.Value, datos, ct).ConfigureAwait(false);
         return resultado.EsCorrecto ? resultado.ACreado($"/clientes/{resultado.Valor.Id}") : ResultadosHttp.AProblema(resultado.Error);
     }
 
     private static async Task<IResult> ImportarClientesAsync(ImportarCsvPeticion peticion, IContextoEmpresa contexto, ImportarClientes caso, CancellationToken ct)
     {
-        if (contexto.EmpresaId is null)
+        if (contexto.GrupoId is null)
         {
             return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
         }
@@ -162,7 +162,7 @@ public static class EndpointsTerceros
             filas.Add(new FilaImportacionCliente(fila.Numero, datos));
         }
 
-        var resultado = await caso.EjecutarAsync(contexto.EmpresaId.Value, filas, peticion.Previsualizar, ct).ConfigureAwait(false);
+        var resultado = await caso.EjecutarAsync(contexto.GrupoId.Value, filas, peticion.Previsualizar, ct).ConfigureAwait(false);
         return Results.Ok(resultado);
     }
 

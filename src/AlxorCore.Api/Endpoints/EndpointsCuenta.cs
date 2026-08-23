@@ -101,8 +101,11 @@ public static class EndpointsCuenta
         await facturacion.FacturasRecurrentes.Where(r => r.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
         await gastos.Gastos.Where(g => g.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
         await tesoreria.Movimientos.Where(m => m.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
-        await terceros.Clientes.Where(c => c.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
-        await terceros.Proveedores.Where(p => p.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+
+        // Los maestros de Terceros son del grupo (compartidos): se borran por grupo.
+        var grupo = contexto.GrupoId ?? Guid.Empty;
+        await terceros.Clientes.Where(c => c.GrupoId == grupo).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+        await terceros.Proveedores.Where(p => p.GrupoId == grupo).ExecuteDeleteAsync(ct).ConfigureAwait(false);
         await catalogo.HistoricoPrecios.Where(h => h.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
         await catalogo.Productos.Where(p => p.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
         await auditoria.Registros.Where(a => a.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);

@@ -35,6 +35,7 @@ public static class RegistroServicios
         servicios.AddScoped<RepositorioEmpresas>();
         servicios.AddScoped<IRepositorioEmpresas>(sp => sp.GetRequiredService<RepositorioEmpresas>());
         servicios.AddScoped<IConsultaEmpresas>(sp => sp.GetRequiredService<RepositorioEmpresas>());
+        servicios.AddScoped<IRepositorioGrupos, RepositorioGrupos>();
         servicios.AddScoped<IRepositorioMembresias, RepositorioMembresias>();
         servicios.AddScoped<IRepositorioSeries, RepositorioSeries>();
         servicios.AddScoped<RepositorioAsignacionesSerie>();

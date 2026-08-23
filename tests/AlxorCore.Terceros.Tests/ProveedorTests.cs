@@ -18,7 +18,7 @@ public class ProveedorTests
 
         p.EsCorrecto.Should().BeTrue();
         p.Valor.Activo.Should().BeTrue();
-        p.Valor.EmpresaId.Should().Be(Empresa);
+        p.Valor.GrupoId.Should().Be(Empresa);
         p.Valor.FormaPago.Should().Be(FormaPago.Transferencia);
         p.Valor.EventosDominio.Should().ContainSingle(e => e is ProveedorCreado);
     }

@@ -13,6 +13,9 @@ internal sealed class ConfiguracionEmpresa : IEntityTypeConfiguration<Empresa>
         builder.HasKey(e => e.Id);
         builder.Property(e => e.Id).HasColumnName("id");
 
+        builder.Property(e => e.GrupoId).HasColumnName("grupo_id").IsRequired();
+        builder.HasIndex(e => e.GrupoId).HasDatabaseName("ix_empresa_grupo");
+
         builder.Property(e => e.Nif)
             .HasColumnName("nif")
             .HasMaxLength(20)
@@ -51,6 +54,19 @@ internal sealed class ConfiguracionEmpresa : IEntityTypeConfiguration<Empresa>
         builder.Property(e => e.ActualizadoEn).HasColumnName("actualizado_en").IsRequired();
 
         builder.Ignore(e => e.EventosDominio);
+    }
+}
+
+internal sealed class ConfiguracionGrupo : IEntityTypeConfiguration<Grupo>
+{
+    public void Configure(EntityTypeBuilder<Grupo> builder)
+    {
+        builder.ToTable("grupo");
+        builder.HasKey(g => g.Id);
+        builder.Property(g => g.Id).HasColumnName("id");
+        builder.Property(g => g.Nombre).HasColumnName("nombre").HasMaxLength(Grupo.LongitudMaximaNombre).IsRequired();
+        builder.Property(g => g.CreadoEn).HasColumnName("creado_en").IsRequired();
+        builder.Ignore(g => g.EventosDominio);
     }
 }
 

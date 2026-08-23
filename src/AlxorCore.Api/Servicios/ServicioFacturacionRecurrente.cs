@@ -89,7 +89,17 @@ public sealed class ServicioFacturacionRecurrente : BackgroundService
             try
             {
                 using var ambito = _ambitos.CreateScope();
-                ambito.ServiceProvider.GetRequiredService<IContextoEmpresaMutable>().Fijar(empresaId);
+                var contexto = ambito.ServiceProvider.GetRequiredService<IContextoEmpresaMutable>();
+                contexto.Fijar(empresaId);
+                // Los maestros (clientes) son del grupo: fijamos también el grupo de la empresa.
+                var grupoId = await ambito.ServiceProvider
+                    .GetRequiredService<AlxorCore.Organizacion.Aplicacion.Puertos.IRepositorioEmpresas>()
+                    .ObtenerGrupoIdAsync(empresaId, ct).ConfigureAwait(false);
+                if (grupoId is { } g)
+                {
+                    contexto.FijarGrupo(g);
+                }
+
                 var caso = ambito.ServiceProvider.GetRequiredService<EmitirFacturasRecurrentesVencidas>();
                 var resultado = await caso.EjecutarAsync(empresaId, ct).ConfigureAwait(false);
                 if (resultado.EsCorrecto)

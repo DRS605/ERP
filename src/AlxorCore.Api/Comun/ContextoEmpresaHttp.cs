@@ -14,6 +14,7 @@ public sealed class ContextoEmpresaHttp : IContextoEmpresaMutable
 {
     private readonly IHttpContextAccessor _accessor;
     private Guid? _fijada;
+    private Guid? _grupoFijado;
 
     public ContextoEmpresaHttp(IHttpContextAccessor accessor) => _accessor = accessor;
 
@@ -31,5 +32,21 @@ public sealed class ContextoEmpresaHttp : IContextoEmpresaMutable
         }
     }
 
+    public Guid? GrupoId
+    {
+        get
+        {
+            if (_grupoFijado is not null)
+            {
+                return _grupoFijado;
+            }
+
+            var valor = _accessor.HttpContext?.User.FindFirstValue(ClaimsAlxor.GrupoId);
+            return Guid.TryParse(valor, out var id) ? id : null;
+        }
+    }
+
     public void Fijar(Guid empresaId) => _fijada = empresaId;
+
+    public void FijarGrupo(Guid grupoId) => _grupoFijado = grupoId;
 }

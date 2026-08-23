@@ -16,7 +16,8 @@ public sealed record CrearEmpresaComando(
     string? CodigoPostal = null,
     string? Poblacion = null,
     string? Provincia = null,
-    RegimenIva RegimenIva = RegimenIva.General);
+    RegimenIva RegimenIva = RegimenIva.General,
+    Guid? GrupoId = null);
 
 /// <summary>
 /// Caso de uso: crear una empresa. El usuario que la crea se convierte en <b>Propietario</b>.
@@ -26,17 +27,20 @@ public sealed record CrearEmpresaComando(
 public sealed class CrearEmpresa
 {
     private readonly IRepositorioEmpresas _empresas;
+    private readonly IRepositorioGrupos _grupos;
     private readonly IRepositorioMembresias _membresias;
     private readonly IUnidadDeTrabajoOrganizacion _unidadDeTrabajo;
     private readonly IReloj _reloj;
 
     public CrearEmpresa(
         IRepositorioEmpresas empresas,
+        IRepositorioGrupos grupos,
         IRepositorioMembresias membresias,
         IUnidadDeTrabajoOrganizacion unidadDeTrabajo,
         IReloj reloj)
     {
         _empresas = empresas;
+        _grupos = grupos;
         _membresias = membresias;
         _unidadDeTrabajo = unidadDeTrabajo;
         _reloj = reloj;
@@ -59,7 +63,32 @@ public sealed class CrearEmpresa
 
         var direccion = Direccion.Crear(comando.Calle, comando.CodigoPostal, comando.Poblacion, comando.Provincia);
 
-        var empresa = Empresa.Crear(nif.Valor, comando.RazonSocial, direccion, comando.RegimenIva, _reloj);
+        // El grupo (holding) es el tenant de los maestros compartidos: se une a uno existente o se
+        // crea uno nuevo para esta empresa (comportamiento por defecto, sin compartir con otras).
+        Guid grupoId;
+        if (comando.GrupoId is { } indicado)
+        {
+            var grupo = await _grupos.ObtenerPorIdAsync(indicado, ct).ConfigureAwait(false);
+            if (grupo is null)
+            {
+                return Resultado.Fallo<EmpresaDto>(Error.NoEncontrado("grupo.no_encontrado", "El grupo indicado no existe."));
+            }
+
+            grupoId = grupo.Id;
+        }
+        else
+        {
+            var grupo = Grupo.Crear(comando.RazonSocial, _reloj);
+            if (grupo.EsFallo)
+            {
+                return Resultado.Fallo<EmpresaDto>(grupo.Error);
+            }
+
+            _grupos.Agregar(grupo.Valor);
+            grupoId = grupo.Valor.Id;
+        }
+
+        var empresa = Empresa.Crear(grupoId, nif.Valor, comando.RazonSocial, direccion, comando.RegimenIva, _reloj);
         if (empresa.EsFallo)
         {
             return Resultado.Fallo<EmpresaDto>(empresa.Error);

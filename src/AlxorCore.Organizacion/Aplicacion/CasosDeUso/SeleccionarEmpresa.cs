@@ -14,11 +14,13 @@ namespace AlxorCore.Organizacion.Aplicacion.CasosDeUso;
 public sealed class SeleccionarEmpresa
 {
     private readonly IRepositorioMembresias _membresias;
+    private readonly IRepositorioEmpresas _empresas;
     private readonly IProveedorTokens _tokens;
 
-    public SeleccionarEmpresa(IRepositorioMembresias membresias, IProveedorTokens tokens)
+    public SeleccionarEmpresa(IRepositorioMembresias membresias, IRepositorioEmpresas empresas, IProveedorTokens tokens)
     {
         _membresias = membresias;
+        _empresas = empresas;
         _tokens = tokens;
     }
 
@@ -42,8 +44,15 @@ public sealed class SeleccionarEmpresa
             return Resultado.Fallo<ResultadoSeleccionEmpresa>(rol.Error);
         }
 
+        var grupoId = await _empresas.ObtenerGrupoIdAsync(empresaId, ct).ConfigureAwait(false);
+        if (grupoId is null)
+        {
+            return Resultado.Fallo<ResultadoSeleccionEmpresa>(
+                Error.NoEncontrado("empresa.sin_grupo", "La empresa no tiene grupo asignado."));
+        }
+
         var permisos = rol.Valor.PermisosConcedidos.ToList();
-        var alcance = new AlcanceEmpresa(empresaId, rol.Valor.Codigo, permisos);
+        var alcance = new AlcanceEmpresa(empresaId, grupoId.Value, rol.Valor.Codigo, permisos);
         var token = _tokens.GenerarToken(usuario, alcance);
 
         return Resultado.Ok(new ResultadoSeleccionEmpresa(

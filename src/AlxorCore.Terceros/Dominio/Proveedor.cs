@@ -6,7 +6,7 @@ using AlxorCore.Nucleo.Tiempo;
 namespace AlxorCore.Terceros.Dominio;
 
 /// <summary>Se ha creado un proveedor.</summary>
-public sealed record ProveedorCreado(Guid ProveedorId, Guid EmpresaId, DateTimeOffset OcurridoEn) : IEventoDominio;
+public sealed record ProveedorCreado(Guid ProveedorId, Guid GrupoId, DateTimeOffset OcurridoEn) : IEventoDominio;
 
 /// <summary>Forma de pago habitual a un proveedor.</summary>
 public enum FormaPago
@@ -40,7 +40,7 @@ public enum FormaPago
 /// Proveedor de una empresa: a quién se le compra o de quién se reciben gastos. Guarda sus datos
 /// fiscales, incluida la retención de IRPF por defecto (habitual en proveedores autónomos).
 /// </summary>
-public sealed class Proveedor : RaizAgregadoEmpresa<Guid>
+public sealed class Proveedor : RaizAgregadoGrupo<Guid>
 {
     public const int LongitudMaximaNombre = 200;
     public const int LongitudMaximaTipo = 80;
@@ -53,8 +53,8 @@ public sealed class Proveedor : RaizAgregadoEmpresa<Guid>
         Direccion = Direccion.Vacia;
     }
 
-    private Proveedor(Guid id, Guid empresaId, string nombre, string? nifFiscal, string? email, Direccion direccion, decimal irpf, FormaPago formaPago, string? nifIva, DateTimeOffset ahora)
-        : base(id, empresaId)
+    private Proveedor(Guid id, Guid grupoId, string nombre, string? nifFiscal, string? email, Direccion direccion, decimal irpf, FormaPago formaPago, string? nifIva, DateTimeOffset ahora)
+        : base(id, grupoId)
     {
         Nombre = nombre;
         NifFiscal = nifFiscal;
@@ -132,7 +132,7 @@ public sealed class Proveedor : RaizAgregadoEmpresa<Guid>
         Iban = string.IsNullOrWhiteSpace(iban) ? null : iban.Replace(" ", string.Empty, StringComparison.Ordinal).ToUpperInvariant();
 
     public static Resultado<Proveedor> Crear(
-        Guid empresaId, string? nombre, string? nifFiscal, string? email, Direccion direccion, decimal porcentajeIrpfDefecto, FormaPago formaPago, IReloj reloj, string? nifIva = null)
+        Guid grupoId, string? nombre, string? nifFiscal, string? email, Direccion direccion, decimal porcentajeIrpfDefecto, FormaPago formaPago, IReloj reloj, string? nifIva = null)
     {
         ArgumentNullException.ThrowIfNull(direccion);
         ArgumentNullException.ThrowIfNull(reloj);
@@ -144,8 +144,8 @@ public sealed class Proveedor : RaizAgregadoEmpresa<Guid>
         }
 
         var proveedor = new Proveedor(
-            Guid.NewGuid(), empresaId, nombre!.Trim(), Normalizar(nifFiscal), Normalizar(email), direccion, porcentajeIrpfDefecto, formaPago, nifIva, reloj.AhoraUtc);
-        proveedor.RegistrarEvento(new ProveedorCreado(proveedor.Id, empresaId, reloj.AhoraUtc));
+            Guid.NewGuid(), grupoId, nombre!.Trim(), Normalizar(nifFiscal), Normalizar(email), direccion, porcentajeIrpfDefecto, formaPago, nifIva, reloj.AhoraUtc);
+        proveedor.RegistrarEvento(new ProveedorCreado(proveedor.Id, grupoId, reloj.AhoraUtc));
         return Resultado.Ok(proveedor);
     }
 

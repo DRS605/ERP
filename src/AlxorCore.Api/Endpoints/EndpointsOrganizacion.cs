@@ -34,6 +34,12 @@ public static class EndpointsOrganizacion
             .WithSummary("Devuelve la empresa activa.")
             .RequireAuthorization();
 
+        rutas.MapGet("/grupos/actual", (AlxorCore.Nucleo.Multiempresa.IContextoEmpresa contexto) =>
+                Results.Ok(new { id = contexto.GrupoId }))
+            .WithTags("Grupos")
+            .WithSummary("Devuelve el grupo (holding) de la empresa activa; sus maestros son compartidos.")
+            .RequireAuthorization();
+
         empresas.MapPut("/actual/cobro", DatosCobroAsync)
             .WithSummary("Fija los datos de cobro por domiciliación (IBAN e identificador del acreedor SEPA).")
             .RequierePermiso(Permisos.EmpresaAjustes);
@@ -163,7 +169,7 @@ public static class EndpointsOrganizacion
 
         var comando = new CrearEmpresaComando(
             usuarioId.Value, peticion.Nif, peticion.RazonSocial,
-            peticion.Calle, peticion.CodigoPostal, peticion.Poblacion, peticion.Provincia, peticion.RegimenIva);
+            peticion.Calle, peticion.CodigoPostal, peticion.Poblacion, peticion.Provincia, peticion.RegimenIva, peticion.GrupoId);
 
         var resultado = await caso.EjecutarAsync(comando, ct).ConfigureAwait(false);
         return resultado.EsCorrecto ? resultado.ACreado("/empresas/actual") : ResultadosHttp.AProblema(resultado.Error);

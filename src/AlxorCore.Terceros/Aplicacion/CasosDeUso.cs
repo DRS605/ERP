@@ -43,12 +43,12 @@ public sealed class CrearCliente
         _reloj = reloj;
     }
 
-    public async Task<Resultado<ClienteDto>> EjecutarAsync(Guid empresaId, DatosCliente datos, CancellationToken ct = default)
+    public async Task<Resultado<ClienteDto>> EjecutarAsync(Guid grupoId, DatosCliente datos, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(datos);
 
         var direccion = Direccion.Crear(datos.Calle, datos.CodigoPostal, datos.Poblacion, datos.Provincia, datos.Pais);
-        var cliente = Cliente.Crear(empresaId, datos.Nombre, datos.NifFiscal, datos.Email, direccion, datos.PorcentajeIrpfDefecto, _reloj, datos.RecargoEquivalencia, datos.Iban, datos.MandatoReferencia, datos.MandatoFecha, datos.NifIva);
+        var cliente = Cliente.Crear(grupoId, datos.Nombre, datos.NifFiscal, datos.Email, direccion, datos.PorcentajeIrpfDefecto, _reloj, datos.RecargoEquivalencia, datos.Iban, datos.MandatoReferencia, datos.MandatoFecha, datos.NifIva);
         if (cliente.EsFallo)
         {
             return Resultado.Fallo<ClienteDto>(cliente.Error);
@@ -111,8 +111,8 @@ public sealed class ListarClientes
 
     public ListarClientes(IConsultaClientes consulta) => _consulta = consulta;
 
-    public Task<IReadOnlyList<ClienteDto>> EjecutarAsync(Guid empresaId, CancellationToken ct = default) =>
-        _consulta.ListarAsync(empresaId, incluirInactivos: false, ct);
+    public Task<IReadOnlyList<ClienteDto>> EjecutarAsync(Guid grupoId, CancellationToken ct = default) =>
+        _consulta.ListarAsync(grupoId, incluirInactivos: false, ct);
 }
 
 /// <summary>Caso de uso: buscar clientes con filtros y paginación (en servidor).</summary>
@@ -122,8 +122,8 @@ public sealed class BuscarClientes
 
     public BuscarClientes(IConsultaClientes consulta) => _consulta = consulta;
 
-    public Task<Nucleo.Consultas.PaginaResultado<ClienteDto>> EjecutarAsync(Guid empresaId, FiltroTerceros filtro, Nucleo.Consultas.Paginacion paginacion, CancellationToken ct = default) =>
-        _consulta.BuscarAsync(empresaId, filtro, paginacion, ct);
+    public Task<Nucleo.Consultas.PaginaResultado<ClienteDto>> EjecutarAsync(Guid grupoId, FiltroTerceros filtro, Nucleo.Consultas.Paginacion paginacion, CancellationToken ct = default) =>
+        _consulta.BuscarAsync(grupoId, filtro, paginacion, ct);
 }
 
 /// <summary>Caso de uso: obtener un cliente por su identificador.</summary>

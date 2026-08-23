@@ -7,7 +7,7 @@ public sealed record IdentidadUsuario(Guid Id, string Email, string Nombre, bool
 /// Alcance de empresa que se incrusta en el token cuando el usuario opera dentro de una empresa:
 /// la empresa activa, su rol y los permisos concedidos. Otros módulos lo usan para autorizar.
 /// </summary>
-public sealed record AlcanceEmpresa(Guid EmpresaId, string RolCodigo, IReadOnlyCollection<string> Permisos);
+public sealed record AlcanceEmpresa(Guid EmpresaId, Guid GrupoId, string RolCodigo, IReadOnlyCollection<string> Permisos);
 
 /// <summary>Token de acceso emitido para un usuario autenticado.</summary>
 public sealed record TokenAcceso(string Token, DateTimeOffset ExpiraEn);

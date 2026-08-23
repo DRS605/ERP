@@ -2,12 +2,23 @@ using AlxorCore.Organizacion.Dominio;
 
 namespace AlxorCore.Organizacion.Aplicacion.Puertos;
 
+/// <summary>Repositorio de grupos (holdings): tenant de los datos maestros compartidos.</summary>
+public interface IRepositorioGrupos
+{
+    Task<Grupo?> ObtenerPorIdAsync(Guid id, CancellationToken ct = default);
+
+    void Agregar(Grupo grupo);
+}
+
 /// <summary>Repositorio de empresas (tenants).</summary>
 public interface IRepositorioEmpresas
 {
     Task<Empresa?> ObtenerPorIdAsync(Guid id, CancellationToken ct = default);
 
     Task<bool> ExisteNifAsync(string nif, CancellationToken ct = default);
+
+    /// <summary>Grupo (holding) al que pertenece la empresa, o null si no existe.</summary>
+    Task<Guid?> ObtenerGrupoIdAsync(Guid empresaId, CancellationToken ct = default);
 
     void Agregar(Empresa empresa);
 }

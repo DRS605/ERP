@@ -29,6 +29,25 @@ public static class RlsSql
             """;
     }
 
+    /// <summary>
+    /// SQL que activa (y fuerza) la RLS de una tabla de <b>maestros compartidos</b>, aislando por
+    /// <c>grupo_id</c> contra el parámetro de sesión <c>app.grupo_actual</c>.
+    /// </summary>
+    public static string ActivarPorGrupo(string esquema, string tabla)
+    {
+        var cualificada = $"\"{esquema}\".\"{tabla}\"";
+        var nombrePolitica = $"pol_grupo_{tabla}";
+
+        return $"""
+            ALTER TABLE {cualificada} ENABLE ROW LEVEL SECURITY;
+            ALTER TABLE {cualificada} FORCE ROW LEVEL SECURITY;
+            DROP POLICY IF EXISTS "{nombrePolitica}" ON {cualificada};
+            CREATE POLICY "{nombrePolitica}" ON {cualificada}
+                USING (grupo_id = NULLIF(current_setting('app.grupo_actual', true), '')::uuid)
+                WITH CHECK (grupo_id = NULLIF(current_setting('app.grupo_actual', true), '')::uuid);
+            """;
+    }
+
     /// <summary>SQL que desactiva la RLS de la tabla (para revertir la migración).</summary>
     public static string Desactivar(string esquema, string tabla)
     {

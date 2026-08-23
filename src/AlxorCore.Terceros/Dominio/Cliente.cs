@@ -6,14 +6,14 @@ using AlxorCore.Nucleo.Tiempo;
 namespace AlxorCore.Terceros.Dominio;
 
 /// <summary>Se ha creado un cliente.</summary>
-public sealed record ClienteCreado(Guid ClienteId, Guid EmpresaId, DateTimeOffset OcurridoEn) : IEventoDominio;
+public sealed record ClienteCreado(Guid ClienteId, Guid GrupoId, DateTimeOffset OcurridoEn) : IEventoDominio;
 
 /// <summary>
 /// Cliente de una empresa. Guarda los datos fiscales necesarios para facturarle. El identificador
 /// fiscal (<see cref="NifFiscal"/>) es opcional y se acepta como texto: un cliente puede ser
 /// extranjero y no tener NIF español.
 /// </summary>
-public sealed class Cliente : RaizAgregadoEmpresa<Guid>
+public sealed class Cliente : RaizAgregadoGrupo<Guid>
 {
     public const int LongitudMaximaNombre = 200;
     public const int LongitudMaximaTipo = 80;
@@ -27,8 +27,8 @@ public sealed class Cliente : RaizAgregadoEmpresa<Guid>
         Direccion = Direccion.Vacia;
     }
 
-    private Cliente(Guid id, Guid empresaId, string nombre, string? nifFiscal, string? email, Direccion direccion, decimal irpf, bool recargoEquivalencia, string? iban, string? mandatoReferencia, DateOnly? mandatoFecha, string? nifIva, DateTimeOffset ahora)
-        : base(id, empresaId)
+    private Cliente(Guid id, Guid grupoId, string nombre, string? nifFiscal, string? email, Direccion direccion, decimal irpf, bool recargoEquivalencia, string? iban, string? mandatoReferencia, DateOnly? mandatoFecha, string? nifIva, DateTimeOffset ahora)
+        : base(id, grupoId)
     {
         Nombre = nombre;
         NifFiscal = nifFiscal;
@@ -157,7 +157,7 @@ public sealed class Cliente : RaizAgregadoEmpresa<Guid>
     }
 
     public static Resultado<Cliente> Crear(
-        Guid empresaId,
+        Guid grupoId,
         string? nombre,
         string? nifFiscal,
         string? email,
@@ -180,8 +180,8 @@ public sealed class Cliente : RaizAgregadoEmpresa<Guid>
         }
 
         var cliente = new Cliente(
-            Guid.NewGuid(), empresaId, nombre!.Trim(), Normalizar(nifFiscal), Normalizar(email), direccion, porcentajeIrpfDefecto, recargoEquivalencia, iban, mandatoReferencia, mandatoFecha, nifIva, reloj.AhoraUtc);
-        cliente.RegistrarEvento(new ClienteCreado(cliente.Id, empresaId, reloj.AhoraUtc));
+            Guid.NewGuid(), grupoId, nombre!.Trim(), Normalizar(nifFiscal), Normalizar(email), direccion, porcentajeIrpfDefecto, recargoEquivalencia, iban, mandatoReferencia, mandatoFecha, nifIva, reloj.AhoraUtc);
+        cliente.RegistrarEvento(new ClienteCreado(cliente.Id, grupoId, reloj.AhoraUtc));
         return Resultado.Ok(cliente);
     }
 

@@ -21,6 +21,9 @@ internal sealed class RepositorioEmpresas : IRepositorioEmpresas, IConsultaEmpre
         return _contexto.Empresas.AnyAsync(e => e.Nif == vo, ct);
     }
 
+    public Task<Guid?> ObtenerGrupoIdAsync(Guid empresaId, CancellationToken ct = default) =>
+        _contexto.Empresas.Where(e => e.Id == empresaId).Select(e => (Guid?)e.GrupoId).SingleOrDefaultAsync(ct);
+
     public void Agregar(Empresa empresa) => _contexto.Empresas.Add(empresa);
 
     public async Task<EmpresaDto?> ObtenerAsync(Guid empresaId, CancellationToken ct = default)
@@ -28,6 +31,18 @@ internal sealed class RepositorioEmpresas : IRepositorioEmpresas, IConsultaEmpre
         var empresa = await _contexto.Empresas.SingleOrDefaultAsync(e => e.Id == empresaId, ct).ConfigureAwait(false);
         return empresa is null ? null : EmpresaDto.Desde(empresa);
     }
+}
+
+internal sealed class RepositorioGrupos : IRepositorioGrupos
+{
+    private readonly OrganizacionDbContext _contexto;
+
+    public RepositorioGrupos(OrganizacionDbContext contexto) => _contexto = contexto;
+
+    public Task<Grupo?> ObtenerPorIdAsync(Guid id, CancellationToken ct = default) =>
+        _contexto.Grupos.SingleOrDefaultAsync(g => g.Id == id, ct);
+
+    public void Agregar(Grupo grupo) => _contexto.Grupos.Add(grupo);
 }
 
 internal sealed class RepositorioMembresias : IRepositorioMembresias

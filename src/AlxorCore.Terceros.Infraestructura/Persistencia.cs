@@ -40,7 +40,7 @@ internal sealed class ConfiguracionCliente : IEntityTypeConfiguration<Cliente>
         builder.ToTable("cliente");
         builder.HasKey(c => c.Id);
         builder.Property(c => c.Id).HasColumnName("id");
-        builder.Property(c => c.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        builder.Property(c => c.GrupoId).HasColumnName("grupo_id").IsRequired();
         builder.Property(c => c.Nombre).HasColumnName("nombre").HasMaxLength(Cliente.LongitudMaximaNombre).IsRequired();
         builder.Property(c => c.NifFiscal).HasColumnName("nif_fiscal").HasMaxLength(20);
         builder.Property(c => c.Email).HasColumnName("email").HasMaxLength(254);
@@ -69,7 +69,7 @@ internal sealed class ConfiguracionCliente : IEntityTypeConfiguration<Cliente>
         builder.Property(c => c.Dir3OrganoGestor).HasColumnName("dir3_organo_gestor").HasMaxLength(Cliente.LongitudMaximaDir3);
         builder.Property(c => c.Dir3UnidadTramitadora).HasColumnName("dir3_unidad_tramitadora").HasMaxLength(Cliente.LongitudMaximaDir3);
 
-        builder.HasIndex(c => new { c.EmpresaId, c.Nombre }).HasDatabaseName("ix_cliente_empresa_nombre");
+        builder.HasIndex(c => new { c.GrupoId, c.Nombre }).HasDatabaseName("ix_cliente_grupo_nombre");
         builder.Ignore(c => c.EventosDominio);
         builder.Ignore(c => c.CentrosDir3Completos);
     }
@@ -92,9 +92,9 @@ internal sealed class RepositorioClientes : IRepositorioClientes, IConsultaClien
         return cliente is null ? null : ClienteDto.Desde(cliente);
     }
 
-    public async Task<IReadOnlyList<ClienteDto>> ListarAsync(Guid empresaId, bool incluirInactivos = false, CancellationToken ct = default)
+    public async Task<IReadOnlyList<ClienteDto>> ListarAsync(Guid grupoId, bool incluirInactivos = false, CancellationToken ct = default)
     {
-        var consulta = _contexto.Clientes.Where(c => c.EmpresaId == empresaId);
+        var consulta = _contexto.Clientes.AsQueryable();
         if (!incluirInactivos)
         {
             consulta = consulta.Where(c => c.Activo);
@@ -104,12 +104,12 @@ internal sealed class RepositorioClientes : IRepositorioClientes, IConsultaClien
         return clientes.Select(ClienteDto.Desde).ToList();
     }
 
-    public async Task<PaginaResultado<ClienteDto>> BuscarAsync(Guid empresaId, FiltroTerceros filtro, Paginacion paginacion, CancellationToken ct = default)
+    public async Task<PaginaResultado<ClienteDto>> BuscarAsync(Guid grupoId, FiltroTerceros filtro, Paginacion paginacion, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(filtro);
         ArgumentNullException.ThrowIfNull(paginacion);
 
-        var consulta = _contexto.Clientes.Where(c => c.EmpresaId == empresaId);
+        var consulta = _contexto.Clientes.AsQueryable();
         if (!filtro.IncluirInactivos)
         {
             consulta = consulta.Where(c => c.Activo);
@@ -140,7 +140,7 @@ internal sealed class ConfiguracionProveedor : IEntityTypeConfiguration<Proveedo
         builder.ToTable("proveedor");
         builder.HasKey(p => p.Id);
         builder.Property(p => p.Id).HasColumnName("id");
-        builder.Property(p => p.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        builder.Property(p => p.GrupoId).HasColumnName("grupo_id").IsRequired();
         builder.Property(p => p.Nombre).HasColumnName("nombre").HasMaxLength(Proveedor.LongitudMaximaNombre).IsRequired();
         builder.Property(p => p.NifFiscal).HasColumnName("nif_fiscal").HasMaxLength(20);
         builder.Property(p => p.Email).HasColumnName("email").HasMaxLength(254);
@@ -163,7 +163,7 @@ internal sealed class ConfiguracionProveedor : IEntityTypeConfiguration<Proveedo
         builder.Property(p => p.CreadoEn).HasColumnName("creado_en").IsRequired();
         builder.Property(p => p.ActualizadoEn).HasColumnName("actualizado_en").IsRequired();
 
-        builder.HasIndex(p => new { p.EmpresaId, p.Nombre }).HasDatabaseName("ix_proveedor_empresa_nombre");
+        builder.HasIndex(p => new { p.GrupoId, p.Nombre }).HasDatabaseName("ix_proveedor_grupo_nombre");
         builder.Ignore(p => p.EventosDominio);
     }
 }
@@ -185,9 +185,9 @@ internal sealed class RepositorioProveedores : IRepositorioProveedores, IConsult
         return proveedor is null ? null : ProveedorDto.Desde(proveedor);
     }
 
-    public async Task<IReadOnlyList<ProveedorDto>> ListarAsync(Guid empresaId, bool incluirInactivos = false, CancellationToken ct = default)
+    public async Task<IReadOnlyList<ProveedorDto>> ListarAsync(Guid grupoId, bool incluirInactivos = false, CancellationToken ct = default)
     {
-        var consulta = _contexto.Proveedores.Where(p => p.EmpresaId == empresaId);
+        var consulta = _contexto.Proveedores.AsQueryable();
         if (!incluirInactivos)
         {
             consulta = consulta.Where(p => p.Activo);
@@ -197,12 +197,12 @@ internal sealed class RepositorioProveedores : IRepositorioProveedores, IConsult
         return proveedores.Select(ProveedorDto.Desde).ToList();
     }
 
-    public async Task<PaginaResultado<ProveedorDto>> BuscarAsync(Guid empresaId, FiltroTerceros filtro, Paginacion paginacion, CancellationToken ct = default)
+    public async Task<PaginaResultado<ProveedorDto>> BuscarAsync(Guid grupoId, FiltroTerceros filtro, Paginacion paginacion, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(filtro);
         ArgumentNullException.ThrowIfNull(paginacion);
 
-        var consulta = _contexto.Proveedores.Where(p => p.EmpresaId == empresaId);
+        var consulta = _contexto.Proveedores.AsQueryable();
         if (!filtro.IncluirInactivos)
         {
             consulta = consulta.Where(p => p.Activo);

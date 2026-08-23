@@ -60,7 +60,7 @@ public class EmpresaYMembresiaTests
     [Fact]
     public void Crear_empresa_valida_emite_evento()
     {
-        var empresa = Empresa.Crear(UnNif(), "Mi Empresa SL", Direccion.Vacia, RegimenIva.General, Reloj);
+        var empresa = Empresa.Crear(Guid.NewGuid(), UnNif(), "Mi Empresa SL", Direccion.Vacia, RegimenIva.General, Reloj);
 
         empresa.EsCorrecto.Should().BeTrue();
         empresa.Valor.Moneda.Should().Be("EUR");
@@ -72,7 +72,7 @@ public class EmpresaYMembresiaTests
     [InlineData("   ")]
     public void Crear_empresa_rechaza_razon_social_vacia(string razon)
     {
-        Empresa.Crear(UnNif(), razon, Direccion.Vacia, RegimenIva.General, Reloj).EsFallo.Should().BeTrue();
+        Empresa.Crear(Guid.NewGuid(), UnNif(), razon, Direccion.Vacia, RegimenIva.General, Reloj).EsFallo.Should().BeTrue();
     }
 
     [Fact]

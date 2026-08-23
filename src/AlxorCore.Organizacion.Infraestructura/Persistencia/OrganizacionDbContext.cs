@@ -23,6 +23,8 @@ public sealed class OrganizacionDbContext : DbContextEmpresaBase, AlxorCore.Orga
 
     public const string Esquema = "organizacion";
 
+    public DbSet<Grupo> Grupos => Set<Grupo>();
+
     public DbSet<Empresa> Empresas => Set<Empresa>();
 
     public DbSet<Membresia> Membresias => Set<Membresia>();

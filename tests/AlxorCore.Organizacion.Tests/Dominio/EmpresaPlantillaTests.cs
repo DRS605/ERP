@@ -16,7 +16,7 @@ public class EmpresaPlantillaTests
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC");
 
     private static Empresa NuevaEmpresa() =>
-        Empresa.Crear(Nif.Crear("B12345674").Valor, "Mi Empresa SL", Direccion.Vacia, RegimenIva.General, Reloj).Valor;
+        Empresa.Crear(Guid.NewGuid(), Nif.Crear("B12345674").Valor, "Mi Empresa SL", Direccion.Vacia, RegimenIva.General, Reloj).Valor;
 
     [Fact]
     public void Guarda_contacto_color_pie_y_logo_validos()

@@ -10,7 +10,8 @@ public sealed record CrearEmpresaPeticion(
     string? CodigoPostal = null,
     string? Poblacion = null,
     string? Provincia = null,
-    RegimenIva RegimenIva = RegimenIva.General);
+    RegimenIva RegimenIva = RegimenIva.General,
+    Guid? GrupoId = null);
 
 /// <summary>Cuerpo para crear una serie de numeración.</summary>
 public sealed record CrearSeriePeticion(TipoDocumento TipoDocumento, int Ejercicio, string Prefijo);

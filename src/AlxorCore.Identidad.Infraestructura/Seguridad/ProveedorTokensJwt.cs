@@ -39,6 +39,7 @@ internal sealed class ProveedorTokensJwt : IProveedorTokens
         if (alcance is not null)
         {
             claims.Add(new Claim(ClaimsAlxor.EmpresaId, alcance.EmpresaId.ToString()));
+            claims.Add(new Claim(ClaimsAlxor.GrupoId, alcance.GrupoId.ToString()));
             claims.Add(new Claim(ClaimsAlxor.Rol, alcance.RolCodigo));
             claims.AddRange(alcance.Permisos.Select(p => new Claim(ClaimsAlxor.Permiso, p)));
         }

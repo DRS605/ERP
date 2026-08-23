@@ -63,10 +63,10 @@ public interface IConsultaClientes
 {
     Task<ClienteDto?> ObtenerAsync(Guid clienteId, CancellationToken ct = default);
 
-    Task<IReadOnlyList<ClienteDto>> ListarAsync(Guid empresaId, bool incluirInactivos = false, CancellationToken ct = default);
+    Task<IReadOnlyList<ClienteDto>> ListarAsync(Guid grupoId, bool incluirInactivos = false, CancellationToken ct = default);
 
     /// <summary>Búsqueda paginada y filtrada de clientes (el filtrado ocurre en la base de datos).</summary>
-    Task<PaginaResultado<ClienteDto>> BuscarAsync(Guid empresaId, FiltroTerceros filtro, Paginacion paginacion, CancellationToken ct = default);
+    Task<PaginaResultado<ClienteDto>> BuscarAsync(Guid grupoId, FiltroTerceros filtro, Paginacion paginacion, CancellationToken ct = default);
 }
 
 /// <summary>Unidad de trabajo del módulo Terceros.</summary>

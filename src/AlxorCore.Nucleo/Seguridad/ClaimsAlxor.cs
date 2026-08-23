@@ -6,6 +6,9 @@ public static class ClaimsAlxor
     /// <summary>Empresa (tenant) activa del usuario.</summary>
     public const string EmpresaId = "empresa_id";
 
+    /// <summary>Grupo (holding) de la empresa activa: tenant de los datos maestros compartidos.</summary>
+    public const string GrupoId = "grupo_id";
+
     /// <summary>Código del rol del usuario en la empresa activa.</summary>
     public const string Rol = "rol";
 
