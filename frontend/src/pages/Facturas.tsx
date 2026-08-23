@@ -1,9 +1,18 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "../lib/cliente";
+import { useToast } from "../lib/toast";
 import { eur, fecha, cantidad } from "../lib/format";
 import { DataTable, type Columna } from "../components/DataTable";
 import { Modal } from "../components/Modal";
-import type { FacturaResumen } from "../lib/tipos";
+import type { Actividad, Cliente, FacturaResumen } from "../lib/tipos";
+
+interface LineaForm {
+  descripcion: string;
+  cantidad: number;
+  precioUnitario: number;
+  codigoIva: string;
+}
+const lineaVacia: LineaForm = { descripcion: "", cantidad: 1, precioUnitario: 0, codigoIva: "IVA21" };
 
 interface LineaDetalle {
   descripcion: string;
@@ -24,13 +33,54 @@ function estadoPill(estado: string) {
 }
 
 export function Facturas() {
+  const toast = useToast();
   const [facturas, setFacturas] = useState<FacturaResumen[] | null>(null);
   const [error, setError] = useState("");
   const [detalle, setDetalle] = useState<FacturaDetalle | null>(null);
 
-  useEffect(() => {
+  const [creando, setCreando] = useState(false);
+  const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [actividades, setActividades] = useState<Actividad[]>([]);
+  const [clienteId, setClienteId] = useState("");
+  const [actividadId, setActividadId] = useState("");
+  const [lineas, setLineas] = useState<LineaForm[]>([{ ...lineaVacia }]);
+
+  const cargar = useCallback(() => {
     api.get<FacturaResumen[]>("/facturas").then(setFacturas).catch((e: Error) => setError(e.message));
   }, []);
+
+  useEffect(cargar, [cargar]);
+
+  function abrirNueva() {
+    setClienteId("");
+    setActividadId("");
+    setLineas([{ ...lineaVacia }]);
+    // Clientes y actividades que el usuario puede elegir en Ventas (según su visibilidad).
+    api.get<Cliente[]>("/clientes").then(setClientes).catch(() => setClientes([]));
+    api.get<Actividad[]>("/actividades/visibles?area=Ventas").then(setActividades).catch(() => setActividades([]));
+    setCreando(true);
+  }
+
+  async function emitir() {
+    if (!clienteId) {
+      toast("Selecciona un cliente.", "err");
+      return;
+    }
+    try {
+      await api.post("/facturas", {
+        clienteId,
+        actividadNegocioId: actividadId || null,
+        lineas: lineas
+          .filter((l) => l.descripcion.trim() !== "")
+          .map((l) => ({ descripcion: l.descripcion, cantidad: Number(l.cantidad) || 0, precioUnitario: Number(l.precioUnitario) || 0, codigoIva: l.codigoIva })),
+      });
+      setCreando(false);
+      toast("Factura emitida.", "ok");
+      cargar();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "No se pudo emitir la factura.", "err");
+    }
+  }
 
   async function abrir(f: FacturaResumen) {
     try {
@@ -50,7 +100,10 @@ export function Facturas() {
 
   return (
     <div>
-      <h1 style={{ marginTop: 0 }}>Facturas</h1>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+        <h1 style={{ margin: 0 }}>Facturas</h1>
+        <button className="btn small" onClick={abrirNueva}>+ Nueva factura</button>
+      </div>
       {error && <p style={{ color: "var(--neg)" }}>{error}</p>}
       {facturas === null && !error && <p className="muted">Cargando…</p>}
 
@@ -110,6 +163,46 @@ export function Facturas() {
             {detalle.tipo !== "Simplificada" && (detalle.clienteNif || detalle.clienteNombre) && (
               <a className="btn small ghost" href={`/facturas/${detalle.id}/facturae.xml`} target="_blank" rel="noreferrer">Facturae (XML)</a>
             )}
+          </div>
+        </Modal>
+      )}
+
+      {creando && (
+        <Modal titulo="Nueva factura" onGuardar={emitir} onCerrar={() => setCreando(false)}>
+          <label htmlFor="f_cliente">Cliente</label>
+          <select id="f_cliente" value={clienteId} onChange={(e) => setClienteId(e.target.value)}>
+            <option value="">— Selecciona un cliente —</option>
+            {clientes.map((c) => (
+              <option key={c.id} value={c.id}>{c.nombre}</option>
+            ))}
+          </select>
+
+          <label htmlFor="f_actividad">Actividad de negocio (opcional)</label>
+          <select id="f_actividad" value={actividadId} onChange={(e) => setActividadId(e.target.value)}>
+            <option value="">Según el cliente / sin actividad</option>
+            {actividades.map((a) => (
+              <option key={a.id} value={a.id}>{a.nombre}</option>
+            ))}
+          </select>
+          <p className="muted" style={{ fontSize: 12, marginTop: 4 }}>Solo se muestran las actividades a las que tienes acceso.</p>
+
+          <div style={{ marginTop: 8 }}>
+            <div className="muted" style={{ fontSize: 12, marginBottom: 4 }}>Líneas</div>
+            {lineas.map((l, i) => (
+              <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 70px 90px 90px 28px", gap: 6, marginBottom: 6 }}>
+                <input placeholder="Descripción" value={l.descripcion} onChange={(e) => setLineas(lineas.map((x, j) => (j === i ? { ...x, descripcion: e.target.value } : x)))} />
+                <input type="number" placeholder="Cant." value={l.cantidad} onChange={(e) => setLineas(lineas.map((x, j) => (j === i ? { ...x, cantidad: Number(e.target.value) } : x)))} />
+                <input type="number" placeholder="Precio" value={l.precioUnitario} onChange={(e) => setLineas(lineas.map((x, j) => (j === i ? { ...x, precioUnitario: Number(e.target.value) } : x)))} />
+                <select value={l.codigoIva} onChange={(e) => setLineas(lineas.map((x, j) => (j === i ? { ...x, codigoIva: e.target.value } : x)))}>
+                  <option value="IVA21">21%</option>
+                  <option value="IVA10">10%</option>
+                  <option value="IVA4">4%</option>
+                  <option value="IVA0">0%</option>
+                </select>
+                <button className="btn small secondary" type="button" aria-label="Quitar línea" onClick={() => setLineas(lineas.length > 1 ? lineas.filter((_, j) => j !== i) : lineas)}>×</button>
+              </div>
+            ))}
+            <button className="btn small ghost" type="button" onClick={() => setLineas([...lineas, { ...lineaVacia }])}>+ Añadir línea</button>
           </div>
         </Modal>
       )}

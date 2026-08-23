@@ -77,6 +77,29 @@ public sealed class ActividadesVisibilidadTests : IClassFixture<FabricaApiPrueba
     }
 
     [Fact]
+    public async Task Actividades_visibles_devuelve_solo_las_accesibles_del_area()
+    {
+        var (cli, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+        var usuario = await UsuarioActualAsync(cli);
+
+        var a = (await (await cli.PostAsJsonAsync("/actividades", new { Nombre = "Accesible" })).Content.ReadFromJsonAsync<ActividadResp>())!.Id;
+        var b = (await (await cli.PostAsJsonAsync("/actividades", new { Nombre = "Oculta" })).Content.ReadFromJsonAsync<ActividadResp>())!.Id;
+
+        // Sin reglas: se ven todas.
+        var todas = await cli.GetFromJsonAsync<List<ActividadResp>>("/actividades/visibles?area=Ventas");
+        todas!.Select(x => x.Id).Should().Contain(new[] { a, b });
+
+        // Con regla que solo concede A en Ventas: /visibles?area=Ventas devuelve solo A.
+        await cli.PutAsJsonAsync($"/actividades/visibilidad/{usuario}", new { Area = "Ventas", Actividades = new[] { a } });
+        var visibles = await cli.GetFromJsonAsync<List<ActividadResp>>("/actividades/visibles?area=Ventas");
+        visibles!.Select(x => x.Id).Should().Contain(a).And.NotContain(b);
+
+        // En Compras (sin reglas) siguen viéndose todas.
+        var compras = await cli.GetFromJsonAsync<List<ActividadResp>>("/actividades/visibles?area=Compras");
+        compras!.Select(x => x.Id).Should().Contain(new[] { a, b });
+    }
+
+    [Fact]
     public async Task Conceder_la_actividad_hace_visible_el_cliente()
     {
         var (cli, _) = await Ayudas.ConEmpresaAsync(_fabrica);

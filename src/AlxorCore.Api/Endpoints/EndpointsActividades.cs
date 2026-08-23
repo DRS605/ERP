@@ -24,6 +24,10 @@ public static class EndpointsActividades
             .WithSummary("Lista las actividades de negocio del grupo activo.")
             .RequireAuthorization();
 
+        g.MapGet("/visibles", VisiblesAsync)
+            .WithSummary("Lista las actividades activas que el usuario puede elegir en un área (Ventas/Compras/Articulos/General).")
+            .RequireAuthorization();
+
         g.MapPost("", CrearAsync)
             .WithSummary("Crea una actividad de negocio en el grupo activo.")
             .RequierePermiso(Permisos.ActividadGestionar);
@@ -51,6 +55,25 @@ public static class EndpointsActividades
 
     /// <summary>Cuerpo para fijar la visibilidad de un usuario en un área concreta.</summary>
     public sealed record FijarVisibilidadPeticion(AreaVisibilidad Area, IReadOnlyList<Guid>? Actividades);
+
+    private static async Task<IResult> VisiblesAsync(IContextoEmpresa contexto, System.Security.Claims.ClaimsPrincipal usuario,
+        ListarActividades caso, IConsultaVisibilidad visibilidad, AreaVisibilidad? area, CancellationToken ct)
+    {
+        if (contexto.GrupoId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        var todas = (await caso.EjecutarAsync(contexto.GrupoId.Value, ct).ConfigureAwait(false)).Where(a => a.Activa).ToList();
+        var usuarioId = usuario.ObtenerUsuarioId();
+        var permitidas = usuarioId is null
+            ? null
+            : await visibilidad.ActividadesPermitidasAsync(usuarioId.Value, area ?? AreaVisibilidad.General, ct).ConfigureAwait(false);
+
+        // null = sin reglas en el área => puede elegir todas; con reglas, solo las concedidas.
+        var visibles = permitidas is null ? todas : todas.Where(a => permitidas.Contains(a.Id)).ToList();
+        return Results.Ok(visibles);
+    }
 
     private static async Task<IResult> ListarAsync(IContextoEmpresa contexto, ListarActividades caso, CancellationToken ct)
     {
