@@ -30,12 +30,24 @@ public sealed record ClienteDto(
     string? NifIva,
     string? Tipo,
     Guid? FormaPagoDefectoId,
-    decimal? LimiteRiesgo)
+    decimal? LimiteRiesgo,
+    bool EsAdministracionPublica = false,
+    string? Dir3OficinaContable = null,
+    string? Dir3OrganoGestor = null,
+    string? Dir3UnidadTramitadora = null)
 {
+    /// <summary>¿Tiene los tres centros DIR3 necesarios para enviar la Facturae por FACe?</summary>
+    public bool CentrosDir3Completos =>
+        EsAdministracionPublica
+        && !string.IsNullOrWhiteSpace(Dir3OficinaContable)
+        && !string.IsNullOrWhiteSpace(Dir3OrganoGestor)
+        && !string.IsNullOrWhiteSpace(Dir3UnidadTramitadora);
+
     public static ClienteDto Desde(Cliente c) => new(
         c.Id, c.Nombre, c.NifFiscal, c.Email,
         c.Direccion.Calle, c.Direccion.CodigoPostal, c.Direccion.Poblacion, c.Direccion.Provincia, c.Direccion.Pais,
-        c.PorcentajeIrpfDefecto, c.Activo, c.RecargoEquivalencia, c.Iban, c.MandatoReferencia, c.MandatoFecha, c.NifIva, c.Tipo, c.FormaPagoDefectoId, c.LimiteRiesgo);
+        c.PorcentajeIrpfDefecto, c.Activo, c.RecargoEquivalencia, c.Iban, c.MandatoReferencia, c.MandatoFecha, c.NifIva, c.Tipo, c.FormaPagoDefectoId, c.LimiteRiesgo,
+        c.EsAdministracionPublica, c.Dir3OficinaContable, c.Dir3OrganoGestor, c.Dir3UnidadTramitadora);
 }
 
 /// <summary>Repositorio de clientes (escritura).</summary>

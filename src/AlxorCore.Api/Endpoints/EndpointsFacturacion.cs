@@ -36,6 +36,10 @@ public static class EndpointsFacturacion
             .WithSummary("Descarga el registro de alta VeriFactu (XML) de la factura.")
             .RequierePermiso(Permisos.FacturaLeer);
 
+        facturas.MapGet("/{id:guid}/facturae.xml", FacturaeXmlAsync)
+            .WithSummary("Descarga la factura electrónica (Facturae 3.2.2, XML) de la factura, con centros DIR3 si el cliente es AAPP.")
+            .RequierePermiso(Permisos.FacturaLeer);
+
         rutas.MapPost("/tickets", EmitirTicketAsync)
             .WithTags("TPV / Tickets")
             .WithSummary("Emite un ticket (factura simplificada) desde el TPV.")
@@ -281,6 +285,43 @@ public static class EndpointsFacturacion
         }
 
         var xml = AlxorCore.Api.Comun.GeneradorXmlVerifactu.Generar(factura, emisor);
+        return Results.Text(xml, "application/xml");
+    }
+
+    private static async Task<IResult> FacturaeXmlAsync(
+        Guid id, IContextoEmpresa contexto, IConsultaFacturas facturas,
+        AlxorCore.Organizacion.Aplicacion.Puertos.IConsultaEmpresas empresas,
+        AlxorCore.Terceros.Aplicacion.IConsultaClientes clientes, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        var factura = await facturas.ObtenerAsync(id, ct).ConfigureAwait(false);
+        if (factura is null)
+        {
+            return ResultadosHttp.AProblema(Error.NoEncontrado("factura.no_encontrada", "La factura no existe."));
+        }
+
+        // Facturae necesita un destinatario identificado; un ticket sin cliente no puede convertirse.
+        if (factura.ClienteId is null && string.IsNullOrWhiteSpace(factura.ClienteNif))
+        {
+            return ResultadosHttp.AProblema(Error.Validacion(
+                "facturae.sin_destinatario", "La factura electrónica exige un destinatario identificado (con NIF)."));
+        }
+
+        var emisor = await empresas.ObtenerAsync(contexto.EmpresaId.Value, ct).ConfigureAwait(false);
+        if (emisor is null)
+        {
+            return ResultadosHttp.AProblema(Error.NoEncontrado("empresa.no_encontrada", "La empresa no existe."));
+        }
+
+        var cliente = factura.ClienteId is null
+            ? null
+            : await clientes.ObtenerAsync(factura.ClienteId.Value, ct).ConfigureAwait(false);
+
+        var xml = AlxorCore.Api.Comun.GeneradorXmlFacturae.Generar(factura, emisor, cliente);
         return Results.Text(xml, "application/xml");
     }
 }

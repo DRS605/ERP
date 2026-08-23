@@ -64,9 +64,14 @@ internal sealed class ConfiguracionCliente : IEntityTypeConfiguration<Cliente>
         builder.Property(c => c.Activo).HasColumnName("activo").IsRequired();
         builder.Property(c => c.CreadoEn).HasColumnName("creado_en").IsRequired();
         builder.Property(c => c.ActualizadoEn).HasColumnName("actualizado_en").IsRequired();
+        builder.Property(c => c.EsAdministracionPublica).HasColumnName("es_administracion_publica").IsRequired();
+        builder.Property(c => c.Dir3OficinaContable).HasColumnName("dir3_oficina_contable").HasMaxLength(Cliente.LongitudMaximaDir3);
+        builder.Property(c => c.Dir3OrganoGestor).HasColumnName("dir3_organo_gestor").HasMaxLength(Cliente.LongitudMaximaDir3);
+        builder.Property(c => c.Dir3UnidadTramitadora).HasColumnName("dir3_unidad_tramitadora").HasMaxLength(Cliente.LongitudMaximaDir3);
 
         builder.HasIndex(c => new { c.EmpresaId, c.Nombre }).HasDatabaseName("ix_cliente_empresa_nombre");
         builder.Ignore(c => c.EventosDominio);
+        builder.Ignore(c => c.CentrosDir3Completos);
     }
 }
 

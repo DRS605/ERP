@@ -709,6 +709,7 @@
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:18px">
           <button class="btn small ghost" onclick="abrirPdf('${f.id}')">Ver PDF</button>
           <button class="btn small ghost" onclick="abrirXml('${f.id}')">Registro XML</button>
+          ${(f.tipo!=="Simplificada"&&(f.clienteId||f.clienteNif))?`<button class="btn small ghost" onclick="abrirFacturae('${f.id}')" title="Factura electrónica Facturae 3.2.2 (para FACe)">Facturae (XML)</button>`:""}
           <button class="btn small ghost" onclick="cerrarModal();duplicarFactura('${f.id}')">Duplicar</button>
           ${(f.estado==="Emitida"&&f.tipo==="Ordinaria")?`<button class="btn small secondary" onclick="cerrarModal();modalRectificar('${f.id}')">Rectificar</button>`:""}
         </div>`;
@@ -1084,6 +1085,11 @@
     async function abrirXml(id){ try{
         const r=await fetch(`/facturas/${id}/verifactu.xml`,{headers:{Authorization:"Bearer "+token}});
         if(!r.ok) throw new Error("No se pudo generar el XML");
+        const u=URL.createObjectURL(await r.blob()); window.open(u,"_blank"); setTimeout(()=>URL.revokeObjectURL(u),60000);
+      }catch(e){ toast(e.message,"err"); } }
+    async function abrirFacturae(id){ try{
+        const r=await fetch(`/facturas/${id}/facturae.xml`,{headers:{Authorization:"Bearer "+token}});
+        if(!r.ok){ let m="No se pudo generar la Facturae"; try{m=(await r.json()).title||m}catch{}; throw new Error(m); }
         const u=URL.createObjectURL(await r.blob()); window.open(u,"_blank"); setTimeout(()=>URL.revokeObjectURL(u),60000);
       }catch(e){ toast(e.message,"err"); } }
     async function abrirPdf(id, imprimir){ try{
@@ -2864,13 +2870,19 @@
       <div class="grid2"><div><label>Referencia del mandato</label><input id="c_mref" placeholder="Ej. MND-0001"/></div><div><label>Fecha del mandato</label><input id="c_mfecha" type="date"/></div></div>
       <label style="margin-top:14px">NIF-IVA intracomunitario (opcional, para el modelo 349)</label>
       <input id="c_iva" placeholder="Ej. DE123456789"/>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:14px;font-weight:500;cursor:pointer"><input id="c_aapp" type="checkbox" style="width:auto" onchange="document.getElementById('c_dir3').style.display=this.checked?'block':'none'"/> Administración Pública (factura electrónica por FACe)</label>
+      <div id="c_dir3" style="display:none">
+        <p class="muted" style="font-size:12px;margin:6px 0 8px">Códigos DIR3 del organismo (los facilita el propio ente público). Necesarios para remitir la Facturae por FACe.</p>
+        <div class="grid2"><div><label>Oficina contable</label><input id="c_oc" placeholder="Ej. L01280796"/></div><div><label>Órgano gestor</label><input id="c_og" placeholder="Ej. L01280796"/></div></div>
+        <label style="margin-top:8px">Unidad tramitadora</label><input id="c_ut" placeholder="Ej. L01280796"/>
+      </div>
       <label style="margin-top:14px">Tipo (opcional, para reglas de contabilización)</label>
       <input id="c_tipo" placeholder="Ej. Nacional, Intracomunitario, Minorista"/>
       <label style="margin-top:14px">Cuenta contable (430…)</label><input id="c_cuenta" placeholder="—"/><div id="c_cuenta_hint" class="muted" style="font-size:12px;margin-top:4px"></div>
       <label style="margin-top:14px">Forma de pago habitual (opcional)</label>${formaPagoSel("c_forma",c&&c.formaPagoDefectoId)}
       <label style="margin-top:14px">Límite de riesgo (€, opcional)</label><input id="c_riesgo" type="number" step="0.01" placeholder="Sin límite"/>`,
-      async()=>{ const r=val("c_riesgo"); const b=JSON.stringify({nombre:val("c_nombre"),nifFiscal:val("c_nif")||null,email:val("c_email")||null,porcentajeIrpfDefecto:Number(val("c_irpf")),recargoEquivalencia:document.getElementById("c_recargo").checked,iban:val("c_iban")||null,mandatoReferencia:val("c_mref")||null,mandatoFecha:val("c_mfecha")||null,nifIva:val("c_iva")||null,tipo:val("c_tipo")||null,formaPagoDefectoId:val("c_forma")||null,limiteRiesgo:r?Number(r):null}); const resp=await api("/clientes"+(c?"/"+c.id:""),{method:c?"PUT":"POST",body:b}); await guardarSubcuentaCampo("Cliente", c?c.id:(resp&&resp.id), val("c_nombre"), "c_cuenta"); vClientes(); });
-      if(c){ rellenar({c_nombre:c.nombre,c_nif:c.nifFiscal,c_email:c.email,c_irpf:c.porcentajeIrpfDefecto,c_iban:c.iban,c_mref:c.mandatoReferencia,c_mfecha:c.mandatoFecha,c_iva:c.nifIva,c_tipo:c.tipo,c_riesgo:c.limiteRiesgo}); document.getElementById("c_recargo").checked=!!c.recargoEquivalencia; }
+      async()=>{ const r=val("c_riesgo"); const b=JSON.stringify({nombre:val("c_nombre"),nifFiscal:val("c_nif")||null,email:val("c_email")||null,porcentajeIrpfDefecto:Number(val("c_irpf")),recargoEquivalencia:document.getElementById("c_recargo").checked,iban:val("c_iban")||null,mandatoReferencia:val("c_mref")||null,mandatoFecha:val("c_mfecha")||null,nifIva:val("c_iva")||null,tipo:val("c_tipo")||null,formaPagoDefectoId:val("c_forma")||null,limiteRiesgo:r?Number(r):null,esAdministracionPublica:document.getElementById("c_aapp").checked,dir3OficinaContable:val("c_oc")||null,dir3OrganoGestor:val("c_og")||null,dir3UnidadTramitadora:val("c_ut")||null}); const resp=await api("/clientes"+(c?"/"+c.id:""),{method:c?"PUT":"POST",body:b}); await guardarSubcuentaCampo("Cliente", c?c.id:(resp&&resp.id), val("c_nombre"), "c_cuenta"); vClientes(); });
+      if(c){ rellenar({c_nombre:c.nombre,c_nif:c.nifFiscal,c_email:c.email,c_irpf:c.porcentajeIrpfDefecto,c_iban:c.iban,c_mref:c.mandatoReferencia,c_mfecha:c.mandatoFecha,c_iva:c.nifIva,c_tipo:c.tipo,c_riesgo:c.limiteRiesgo,c_oc:c.dir3OficinaContable,c_og:c.dir3OrganoGestor,c_ut:c.dir3UnidadTramitadora}); document.getElementById("c_recargo").checked=!!c.recargoEquivalencia; document.getElementById("c_aapp").checked=!!c.esAdministracionPublica; document.getElementById("c_dir3").style.display=c.esAdministracionPublica?"block":"none"; }
       cargarSubcuentaCampo("Cliente", c?c.id:null, "c_cuenta"); }
     async function modalProveedor(pr){ _cacheFormasPago=await api("/formas-pago").catch(()=>[]); const fp=[["NoIndicada","Sin especificar"],["Transferencia","Transferencia"],["Domiciliacion","Domiciliación"],["Efectivo","Efectivo"],["Tarjeta","Tarjeta"],["Pagare","Pagaré"],["Confirming","Confirming"],["Otro","Otro"]].map(o=>`<option value="${o[0]}">${o[1]}</option>`).join("");
       abrir(pr?"Editar proveedor":"Nuevo proveedor",`<label>Nombre</label><input id="pr_nombre" placeholder="Nombre o razón social"/><div class="grid2"><div><label>NIF (opcional)</label><input id="pr_nif"/></div><div><label>IRPF (opcional)</label><input id="pr_irpf" type="number" value="0"/></div></div>

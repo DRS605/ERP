@@ -65,4 +65,37 @@ public class ClienteTests
         cliente.Desactivar(Reloj);
         cliente.Activo.Should().BeFalse();
     }
+
+    [Fact]
+    public void Centros_dir3_completos_para_administracion_publica()
+    {
+        var cliente = Cliente.Crear(Empresa, "Ayuntamiento", "P2800000H", null, Direccion.Vacia, 0m, Reloj).Valor;
+
+        cliente.EstablecerCentrosDir3(true, "l01280796", "LA0002982", "GE0010034");
+
+        cliente.EsAdministracionPublica.Should().BeTrue();
+        cliente.Dir3OficinaContable.Should().Be("L01280796"); // se normaliza a mayúsculas
+        cliente.CentrosDir3Completos.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Desmarcar_administracion_publica_limpia_los_centros()
+    {
+        var cliente = Cliente.Crear(Empresa, "Ayuntamiento", "P2800000H", null, Direccion.Vacia, 0m, Reloj).Valor;
+        cliente.EstablecerCentrosDir3(true, "L01280796", "LA0002982", "GE0010034");
+
+        cliente.EstablecerCentrosDir3(false, "x", "y", "z");
+
+        cliente.EsAdministracionPublica.Should().BeFalse();
+        cliente.Dir3OficinaContable.Should().BeNull();
+        cliente.CentrosDir3Completos.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Administracion_publica_sin_todos_los_centros_no_esta_completa()
+    {
+        var cliente = Cliente.Crear(Empresa, "Ayuntamiento", "P2800000H", null, Direccion.Vacia, 0m, Reloj).Valor;
+        cliente.EstablecerCentrosDir3(true, "L01280796", null, null);
+        cliente.CentrosDir3Completos.Should().BeFalse();
+    }
 }

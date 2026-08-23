@@ -23,6 +23,11 @@ public sealed record FacturaDto(
     Guid? ClienteId,
     string ClienteNombre,
     string? ClienteNif,
+    string ClienteCalle,
+    string ClienteCodigoPostal,
+    string ClientePoblacion,
+    string ClienteProvincia,
+    string ClientePais,
     decimal BaseImponible,
     decimal CuotaIva,
     decimal PorcentajeIrpf,
@@ -43,6 +48,7 @@ public sealed record FacturaDto(
 {
     public static FacturaDto Desde(Factura f) => new(
         f.Id, f.NumeroCompleto, f.FechaEmision, f.FechaOperacion, f.FechaVencimiento, f.ClienteId, f.ClienteNombre, f.ClienteNif,
+        f.ClienteCalle, f.ClienteCodigoPostal, f.ClientePoblacion, f.ClienteProvincia, f.Pais,
         f.BaseImponible, f.CuotaIva, f.PorcentajeIrpf, f.RetencionIrpf, f.RecargoEquivalencia, f.RecargoTotal, f.Total, f.Estado.ToString(), f.TipoFactura.ToString(), f.Huella, f.HuellaAnterior,
         f.FechaHoraGenRegistro,
         f.RectificaFacturaId, f.MotivoRectificacion, f.MotivoAnulacion,

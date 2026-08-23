@@ -17,6 +17,7 @@ public sealed class Cliente : RaizAgregadoEmpresa<Guid>
 {
     public const int LongitudMaximaNombre = 200;
     public const int LongitudMaximaTipo = 80;
+    public const int LongitudMaximaDir3 = 20;
     public const decimal IrpfMaximo = 60m;
 
     private Cliente(Guid id)
@@ -94,6 +95,28 @@ public sealed class Cliente : RaizAgregadoEmpresa<Guid>
 
     public DateTimeOffset ActualizadoEn { get; private set; }
 
+    /// <summary>
+    /// El cliente es una <b>Administración Pública</b>: al facturarle, la factura electrónica
+    /// (Facturae) debe remitirse por FACe con los centros administrativos DIR3.
+    /// </summary>
+    public bool EsAdministracionPublica { get; private set; }
+
+    /// <summary>Código DIR3 de la <b>Oficina Contable</b> (rol fiscal 01) del destinatario AAPP.</summary>
+    public string? Dir3OficinaContable { get; private set; }
+
+    /// <summary>Código DIR3 del <b>Órgano Gestor</b> (rol fiscal 02) del destinatario AAPP.</summary>
+    public string? Dir3OrganoGestor { get; private set; }
+
+    /// <summary>Código DIR3 de la <b>Unidad Tramitadora</b> (rol fiscal 03) del destinatario AAPP.</summary>
+    public string? Dir3UnidadTramitadora { get; private set; }
+
+    /// <summary>¿Tiene los tres centros DIR3 necesarios para enviar la Facturae por FACe?</summary>
+    public bool CentrosDir3Completos =>
+        EsAdministracionPublica
+        && !string.IsNullOrWhiteSpace(Dir3OficinaContable)
+        && !string.IsNullOrWhiteSpace(Dir3OrganoGestor)
+        && !string.IsNullOrWhiteSpace(Dir3UnidadTramitadora);
+
     /// <summary>Establece el tipo/categoría del cliente (se recorta; vacío = sin tipo).</summary>
     public void EstablecerTipo(string? tipo)
     {
@@ -111,6 +134,27 @@ public sealed class Cliente : RaizAgregadoEmpresa<Guid>
 
     /// <summary>Fija el límite de riesgo del cliente (null o negativo = sin límite).</summary>
     public void EstablecerLimiteRiesgo(decimal? limite) => LimiteRiesgo = limite is > 0m ? limite : null;
+
+    /// <summary>
+    /// Marca al cliente como Administración Pública y fija sus centros administrativos <b>DIR3</b>
+    /// (Oficina Contable, Órgano Gestor y Unidad Tramitadora), necesarios para remitir la factura
+    /// electrónica (Facturae) a través de FACe. Si no es AAPP, se limpian los códigos.
+    /// </summary>
+    public void EstablecerCentrosDir3(bool esAdministracionPublica, string? oficinaContable, string? organoGestor, string? unidadTramitadora)
+    {
+        EsAdministracionPublica = esAdministracionPublica;
+        if (!esAdministracionPublica)
+        {
+            Dir3OficinaContable = null;
+            Dir3OrganoGestor = null;
+            Dir3UnidadTramitadora = null;
+            return;
+        }
+
+        Dir3OficinaContable = NormalizarDir3(oficinaContable);
+        Dir3OrganoGestor = NormalizarDir3(organoGestor);
+        Dir3UnidadTramitadora = NormalizarDir3(unidadTramitadora);
+    }
 
     public static Resultado<Cliente> Crear(
         Guid empresaId,
@@ -199,4 +243,15 @@ public sealed class Cliente : RaizAgregadoEmpresa<Guid>
 
     private static string? NormalizarIva(string? nifIva) =>
         string.IsNullOrWhiteSpace(nifIva) ? null : nifIva.Replace(" ", string.Empty, StringComparison.Ordinal).ToUpperInvariant();
+
+    private static string? NormalizarDir3(string? valor)
+    {
+        if (string.IsNullOrWhiteSpace(valor))
+        {
+            return null;
+        }
+
+        var limpia = valor.Replace(" ", string.Empty, StringComparison.Ordinal).ToUpperInvariant();
+        return limpia.Length > LongitudMaximaDir3 ? limpia[..LongitudMaximaDir3] : limpia;
+    }
 }

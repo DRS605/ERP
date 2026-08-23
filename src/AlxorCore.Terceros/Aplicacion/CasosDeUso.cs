@@ -23,7 +23,11 @@ public sealed record DatosCliente(
     string? NifIva = null,
     string? Tipo = null,
     Guid? FormaPagoDefectoId = null,
-    decimal? LimiteRiesgo = null);
+    decimal? LimiteRiesgo = null,
+    bool EsAdministracionPublica = false,
+    string? Dir3OficinaContable = null,
+    string? Dir3OrganoGestor = null,
+    string? Dir3UnidadTramitadora = null);
 
 /// <summary>Caso de uso: crear un cliente en la empresa activa.</summary>
 public sealed class CrearCliente
@@ -53,6 +57,7 @@ public sealed class CrearCliente
         cliente.Valor.EstablecerTipo(datos.Tipo);
         cliente.Valor.EstablecerFormaPagoDefecto(datos.FormaPagoDefectoId);
         cliente.Valor.EstablecerLimiteRiesgo(datos.LimiteRiesgo);
+        cliente.Valor.EstablecerCentrosDir3(datos.EsAdministracionPublica, datos.Dir3OficinaContable, datos.Dir3OrganoGestor, datos.Dir3UnidadTramitadora);
         _clientes.Agregar(cliente.Valor);
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return Resultado.Ok(ClienteDto.Desde(cliente.Valor));
@@ -93,6 +98,7 @@ public sealed class ActualizarCliente
         cliente.EstablecerTipo(datos.Tipo);
         cliente.EstablecerFormaPagoDefecto(datos.FormaPagoDefectoId);
         cliente.EstablecerLimiteRiesgo(datos.LimiteRiesgo);
+        cliente.EstablecerCentrosDir3(datos.EsAdministracionPublica, datos.Dir3OficinaContable, datos.Dir3OrganoGestor, datos.Dir3UnidadTramitadora);
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return Resultado.Ok(ClienteDto.Desde(cliente));
     }
