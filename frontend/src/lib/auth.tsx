@@ -3,11 +3,17 @@ import { api } from "./cliente";
 import { sesion } from "./sesion";
 import type { Empresa, LoginRespuesta, SeleccionRespuesta, Usuario } from "./tipos";
 
+/** Resultado de un intento de login: o pide 2FA, o entrega la lista de empresas del usuario. */
+export interface ResultadoEntrar {
+  requiere2fa: boolean;
+  empresas: Empresa[];
+}
+
 interface EstadoAuth {
   usuario: Usuario | null;
   empresa: Empresa | null;
   autenticado: boolean;
-  entrar: (email: string, contrasena: string) => Promise<Empresa[]>;
+  entrar: (email: string, contrasena: string, codigo?: string) => Promise<ResultadoEntrar>;
   seleccionarEmpresa: (empresa: Empresa) => Promise<void>;
   salir: () => void;
 }
@@ -19,12 +25,16 @@ export function ProveedorAuth({ children }: { children: ReactNode }) {
   const [empresa, setEmpresa] = useState<Empresa | null>(sesion.empresa);
 
   const valor = useMemo<EstadoAuth>(() => {
-    async function entrar(email: string, contrasena: string): Promise<Empresa[]> {
-      const login = await api.post<LoginRespuesta>("/auth/login", { email, contrasena });
+    async function entrar(email: string, contrasena: string, codigo?: string): Promise<ResultadoEntrar> {
+      const login = await api.post<LoginRespuesta>("/auth/login", { email, contrasena, codigo });
+      if (login.requiere2fa) {
+        return { requiere2fa: true, empresas: [] };
+      }
+
       // Token provisional (sin empresa) para poder listar las empresas del usuario.
       sesion.guardar({ token: login.token, usuario: login.usuario, empresa: { id: "", nif: "", razonSocial: "" } });
       setUsuario(login.usuario);
-      return api.get<Empresa[]>("/empresas");
+      return { requiere2fa: false, empresas: await api.get<Empresa[]>("/empresas") };
     }
 
     async function seleccionarEmpresa(emp: Empresa): Promise<void> {

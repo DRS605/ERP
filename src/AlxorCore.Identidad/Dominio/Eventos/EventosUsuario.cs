@@ -16,3 +16,9 @@ public sealed record UsuarioSuspendido(Guid UsuarioId, DateTimeOffset OcurridoEn
 
 /// <summary>El usuario suspendido ha sido reactivado.</summary>
 public sealed record UsuarioReactivado(Guid UsuarioId, DateTimeOffset OcurridoEn) : IEventoDominio;
+
+/// <summary>El usuario ha activado la verificación en dos pasos (2FA).</summary>
+public sealed record DobleFactorActivado(Guid UsuarioId, DateTimeOffset OcurridoEn) : IEventoDominio;
+
+/// <summary>El usuario ha desactivado la verificación en dos pasos (2FA).</summary>
+public sealed record DobleFactorDesactivado(Guid UsuarioId, DateTimeOffset OcurridoEn) : IEventoDominio;

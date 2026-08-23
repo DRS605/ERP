@@ -16,6 +16,7 @@ export interface Empresa {
 export interface LoginRespuesta {
   token: string;
   usuario: Usuario;
+  requiere2fa?: boolean;
 }
 
 export interface SeleccionRespuesta {

@@ -104,6 +104,33 @@ builder.Services
 
 builder.Services.AddAuthorization();
 
+// --- Seguridad: limitación de peticiones (rate limiting) en autenticación ---
+builder.Services.Configure<AlxorCore.Api.Comun.OpcionesSeguridad>(
+    builder.Configuration.GetSection(AlxorCore.Api.Comun.OpcionesSeguridad.Seccion));
+builder.Services.AddRateLimiter(opciones =>
+{
+    opciones.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    opciones.AddPolicy(AlxorCore.Api.Comun.OpcionesSeguridad.PoliticaAuth, contexto =>
+    {
+        // El cupo se lee de la configuración (IOptions) en cada petición, no al arrancar.
+        var seg = contexto.RequestServices
+            .GetRequiredService<Microsoft.Extensions.Options.IOptions<AlxorCore.Api.Comun.OpcionesSeguridad>>().Value;
+        // Partición por IP del cliente: cada origen tiene su propio cupo (frena la fuerza bruta).
+        var clave = contexto.Connection.RemoteIpAddress?.ToString() ?? "desconocida";
+        return System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(clave, _ =>
+            new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+            {
+                PermitLimit = seg.RateLimitPeticiones,
+                Window = TimeSpan.FromSeconds(seg.RateLimitVentanaSegundos),
+                QueueLimit = 0,
+            });
+    });
+});
+
+// --- Operación: health checks (liveness/readiness) ---
+builder.Services.AddHealthChecks()
+    .AddCheck<AlxorCore.Api.Comun.ComprobacionBaseDatos>("base_datos", tags: ["listo"]);
+
 // --- OpenAPI (API First) ---
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(opciones =>
@@ -161,12 +188,33 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+// Identificador de correlación y cabeceras de seguridad: lo antes posible en el pipeline.
+app.UseMiddleware<AlxorCore.Api.Comun.MiddlewareCorrelacion>();
+app.UseMiddleware<AlxorCore.Api.Comun.MiddlewareCabecerasSeguridad>();
+
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHsts();
+}
+
 // Sirve la interfaz web (SPA) desde wwwroot, en el mismo origen que la API (sin CORS).
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
+app.UseRateLimiter();
+
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Salud: liveness (sin comprobaciones) y readiness (comprueba la base de datos).
+app.MapHealthChecks("/salud/vivo", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = _ => false,
+}).AllowAnonymous();
+app.MapHealthChecks("/salud/listo", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = comprobacion => comprobacion.Tags.Contains("listo"),
+}).AllowAnonymous();
 
 // Auditoría: registra las operaciones que modifican datos (tras autenticar, para conocer al autor).
 app.UseMiddleware<AlxorCore.Api.Comun.MiddlewareAuditoria>();

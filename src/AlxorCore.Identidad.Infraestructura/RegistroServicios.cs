@@ -71,6 +71,10 @@ public static class RegistroServicios
         servicios.AddScoped<RecuperarContrasena>();
         servicios.AddScoped<RestablecerContrasena>();
         servicios.AddScoped<CrearUsuarioInvitado>();
+        servicios.AddScoped<PrepararDobleFactor>();
+        servicios.AddScoped<ActivarDobleFactor>();
+        servicios.AddScoped<DesactivarDobleFactor>();
+        servicios.AddScoped<ConsultarDobleFactor>();
 
         return servicios;
     }

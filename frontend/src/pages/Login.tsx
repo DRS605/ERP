@@ -8,6 +8,8 @@ export function Login() {
   const navegar = useNavigate();
   const [email, setEmail] = useState("");
   const [contrasena, setContrasena] = useState("");
+  const [codigo, setCodigo] = useState("");
+  const [pide2fa, setPide2fa] = useState(false);
   const [error, setError] = useState("");
   const [cargando, setCargando] = useState(false);
   const [empresas, setEmpresas] = useState<Empresa[] | null>(null);
@@ -17,13 +19,16 @@ export function Login() {
     setError("");
     setCargando(true);
     try {
-      const lista = await entrar(email.trim(), contrasena);
-      if (lista.length === 0) {
+      const r = await entrar(email.trim(), contrasena, pide2fa ? codigo.trim() : undefined);
+      if (r.requiere2fa) {
+        setPide2fa(true);
+        setError(pide2fa ? "Código incorrecto. Inténtalo de nuevo." : "Introduce el código de tu app de autenticación.");
+      } else if (r.empresas.length === 0) {
         setError("Tu usuario aún no tiene ninguna empresa. Créala en la interfaz clásica.");
-      } else if (lista.length === 1) {
-        await elegir(lista[0]);
+      } else if (r.empresas.length === 1) {
+        await elegir(r.empresas[0]);
       } else {
-        setEmpresas(lista);
+        setEmpresas(r.empresas);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo iniciar sesión.");
@@ -61,6 +66,12 @@ export function Login() {
             <input id="email" type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required />
             <label htmlFor="pass">Contraseña</label>
             <input id="pass" type="password" autoComplete="current-password" value={contrasena} onChange={(e) => setContrasena(e.target.value)} required />
+            {pide2fa && (
+              <>
+                <label htmlFor="cod">Código de verificación (2FA)</label>
+                <input id="cod" inputMode="numeric" autoComplete="one-time-code" placeholder="123456 o código de recuperación" value={codigo} onChange={(e) => setCodigo(e.target.value)} autoFocus />
+              </>
+            )}
             <button className="btn" style={{ width: "100%", marginTop: 18 }} disabled={cargando}>{cargando ? "Entrando…" : "Entrar"}</button>
             {error && <p style={{ color: "var(--neg)", fontSize: 12.5, marginTop: 12 }}>{error}</p>}
           </form>

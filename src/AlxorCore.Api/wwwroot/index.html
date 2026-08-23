@@ -307,6 +307,10 @@
         <input id="email" type="email" autocomplete="username" />
         <label>Contraseña</label>
         <input id="pass" type="password" autocomplete="current-password" />
+        <div id="login2fa" style="display:none">
+          <label>Código de verificación (2FA)</label>
+          <input id="login2faCod" inputmode="numeric" autocomplete="one-time-code" placeholder="123456 o código de recuperación" onkeydown="if(event.key==='Enter')entrar()"/>
+        </div>
         <button class="btn" onclick="entrar()">Entrar</button>
         <div style="text-align:right;margin-top:12px"><a href="#" onclick="mostrarRecuperar();return false" style="color:var(--accent);font-size:13px;text-decoration:none">¿Olvidaste tu contraseña?</a></div>
         <div class="error" id="loginError"></div>
@@ -461,8 +465,15 @@
     async function entrar() {
       const email=document.getElementById("email").value.trim(), pass=document.getElementById("pass").value;
       const err=document.getElementById("loginError"); err.textContent="";
+      const codEl=document.getElementById("login2fa");
+      const codigo=codEl && codEl.style.display!=="none" ? (document.getElementById("login2faCod").value||"").trim() : null;
       try {
-        const login=await api("/auth/login",{method:"POST",body:JSON.stringify({email,contrasena:pass})});
+        const login=await api("/auth/login",{method:"POST",body:JSON.stringify({email,contrasena:pass,codigo})});
+        if(login.requiere2fa){
+          if(codEl){ codEl.style.display="block"; document.getElementById("login2faCod").focus(); }
+          err.textContent=codigo?"Código incorrecto. Inténtalo de nuevo.":"Introduce el código de tu app de autenticación.";
+          return;
+        }
         token=login.token; usuario=login.usuario;
         const empresas=await api("/empresas");
         if(!empresas.length){
@@ -2641,14 +2652,45 @@
       const panelImport=panelImportacionHtml();
       let panelUsuarios="";
       try{ panelUsuarios=await panelUsuariosHtml(); }catch(e){ panelUsuarios=""; }
+      let panelSeguridad="";
+      try{ panelSeguridad=await panelSeguridadHtml(); }catch(e){ panelSeguridad=""; }
       let panelAudit="";
       try{ panelAudit=await panelAuditoriaHtml(); }catch(e){ panelAudit=""; }
       let panelValoracion="";
       try{ panelValoracion=await panelValoracionHtml(); }catch(e){ panelValoracion=""; }
       let panelPlantilla="";
       try{ panelPlantilla=await panelPlantillaHtml(); }catch(e){ panelPlantilla=""; }
-      view(panelSeries+panelAsig+panelPlantilla+panelFormas+panelRiesgo+panelImport+panelValoracion+panelCobroHtml()+panelUsuarios+panelDatosHtml()+panelAudit);
+      view(panelSeries+panelAsig+panelPlantilla+panelFormas+panelRiesgo+panelImport+panelValoracion+panelCobroHtml()+panelUsuarios+panelSeguridad+panelDatosHtml()+panelAudit);
     }
+    async function panelSeguridadHtml(){
+      const e=await api("/auth/2fa").catch(()=>({activo:false,codigosRecuperacionPendientes:0}));
+      const cuerpo=e.activo
+        ? `<p class="muted" style="margin:0 0 12px">La verificación en dos pasos está <strong style="color:var(--pos)">activa</strong>. Te quedan <strong>${e.codigosRecuperacionPendientes}</strong> códigos de recuperación.</p>
+           <button class="btn small ghost" onclick="desactivar2fa()">Desactivar 2FA</button>`
+        : `<p class="muted" style="margin:0 0 12px">Añade una segunda capa de seguridad: al entrar pedirá un código de tu app de autenticación (Google Authenticator, Authy, 1Password…).</p>
+           <button class="btn small" onclick="preparar2fa()">Activar verificación en dos pasos</button>`;
+      return panel("Seguridad · verificación en dos pasos (2FA)",cuerpo);
+    }
+    async function preparar2fa(){
+      try{
+        const p=await api("/auth/2fa/preparar",{method:"POST"});
+        abrir("Activar verificación en dos pasos",
+          `<p class="muted" style="margin:0 0 10px">1) Añade esta cuenta en tu app de autenticación con este secreto (o el enlace):</p>
+           <label>Secreto</label><input readonly value="${p.secreto}" onclick="this.select()" class="mono"/>
+           <p style="font-size:12px;margin:8px 0 14px"><a href="${p.uriOtpauth}" style="color:var(--accent);word-break:break-all">${p.uriOtpauth}</a></p>
+           <p class="muted" style="margin:0 0 6px">2) Escribe el código de 6 dígitos que muestra la app:</p>
+           <label>Código</label><input id="s2fa_cod" inputmode="numeric" placeholder="123456"/>`,
+          async()=>{ const r=await api("/auth/2fa/activar",{method:"POST",body:JSON.stringify({codigo:val("s2fa_cod")})});
+            cerrarModal();
+            const lista=(r.codigosRecuperacion||[]).map(c=>`<div class="mono">${c}</div>`).join("");
+            abrir("Guarda tus códigos de recuperación",
+              `<p class="muted" style="margin:0 0 10px">Guárdalos en un lugar seguro: sirven para entrar si pierdes el móvil. <strong>No se volverán a mostrar.</strong></p>
+               <div style="background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px;line-height:1.9">${lista}</div>`,()=>{});
+            document.getElementById("modalOk").style.display="none"; toast("Verificación en dos pasos activada.","ok"); if(vista==="ajustes")vAjustes(); });
+      }catch(e){ toast(e.message,"err"); }
+    }
+    async function desactivar2fa(){ if(!confirm("¿Desactivar la verificación en dos pasos?")) return;
+      try{ await api("/auth/2fa/desactivar",{method:"POST"}); toast("2FA desactivado.","ok"); if(vista==="ajustes")vAjustes(); }catch(e){ toast(e.message,"err"); } }
     let _logoPlantillaB64=null; // null = no cambiar; "" = quitar; string = nuevo PNG (base64 sin prefijo)
     async function panelPlantillaHtml(){
       const e=await api("/empresas/actual");

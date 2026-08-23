@@ -3,11 +3,12 @@ using AlxorCore.Identidad.Aplicacion.Puertos;
 using AlxorCore.Nucleo.Seguridad;
 using AlxorCore.Identidad.Dominio;
 using AlxorCore.Nucleo.Resultados;
+using AlxorCore.Nucleo.Tiempo;
 
 namespace AlxorCore.Identidad.Aplicacion.CasosDeUso;
 
-/// <summary>Credenciales para iniciar sesión.</summary>
-public sealed record IniciarSesionComando(string Email, string Contrasena);
+/// <summary>Credenciales para iniciar sesión. <paramref name="Codigo"/> es el segundo factor (2FA), opcional.</summary>
+public sealed record IniciarSesionComando(string Email, string Contrasena, string? Codigo = null);
 
 /// <summary>
 /// Caso de uso: autenticación por correo y contraseña. Ante credenciales incorrectas devuelve
@@ -21,12 +22,16 @@ public sealed class IniciarSesion
     private readonly IRepositorioUsuarios _usuarios;
     private readonly IHasherContrasena _hasher;
     private readonly IProveedorTokens _tokens;
+    private readonly IUnidadDeTrabajoIdentidad _unidadDeTrabajo;
+    private readonly IReloj _reloj;
 
-    public IniciarSesion(IRepositorioUsuarios usuarios, IHasherContrasena hasher, IProveedorTokens tokens)
+    public IniciarSesion(IRepositorioUsuarios usuarios, IHasherContrasena hasher, IProveedorTokens tokens, IUnidadDeTrabajoIdentidad unidadDeTrabajo, IReloj reloj)
     {
         _usuarios = usuarios;
         _hasher = hasher;
         _tokens = tokens;
+        _unidadDeTrabajo = unidadDeTrabajo;
+        _reloj = reloj;
     }
 
     public async Task<Resultado<ResultadoAutenticacion>> EjecutarAsync(IniciarSesionComando comando, CancellationToken ct = default)
@@ -49,6 +54,24 @@ public sealed class IniciarSesion
         {
             return Resultado.Fallo<ResultadoAutenticacion>(
                 Error.Prohibido("auth.cuenta_suspendida", "La cuenta está suspendida."));
+        }
+
+        // Verificación en dos pasos: si está activa, exige un segundo factor válido (TOTP o código de recuperación).
+        if (usuario.DobleFactorActivo)
+        {
+            if (string.IsNullOrWhiteSpace(comando.Codigo))
+            {
+                return Resultado.Ok(ResultadoAutenticacion.RetoDobleFactor(PerfilUsuario.Desde(usuario)));
+            }
+
+            if (!usuario.VerificarSegundoFactor(comando.Codigo, _reloj))
+            {
+                return Resultado.Fallo<ResultadoAutenticacion>(
+                    Error.NoAutenticado("auth.2fa_invalido", "El código de verificación no es correcto."));
+            }
+
+            // Un código de recuperación consumido modifica al usuario: se persiste.
+            await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
         }
 
         var identidad = new IdentidadUsuario(usuario.Id, usuario.Email.Valor, usuario.Nombre, usuario.EmailVerificado);

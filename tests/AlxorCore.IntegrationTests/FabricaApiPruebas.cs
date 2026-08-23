@@ -17,7 +17,7 @@ namespace AlxorCore.IntegrationTests;
 /// dejando la tabla de usuarios vacía antes de la batería de pruebas.
 /// La cadena de conexión puede sobrescribirse con la variable <c>ALXOR_TEST_CONEXION</c>.
 /// </summary>
-public sealed class FabricaApiPruebas : WebApplicationFactory<Program>, IAsyncLifetime
+public class FabricaApiPruebas : WebApplicationFactory<Program>, IAsyncLifetime
 {
     private static readonly string CadenaConexion =
         Environment.GetEnvironmentVariable("ALXOR_TEST_CONEXION")
@@ -49,6 +49,8 @@ public sealed class FabricaApiPruebas : WebApplicationFactory<Program>, IAsyncLi
                 ["FacturacionRecurrente:Activo"] = "false",
                 // La entrega de webhooks se dispara a mano en las pruebas (/integraciones/webhooks/procesar).
                 ["Webhooks:Activo"] = "false",
+                // Límite de autenticación alto por defecto: la batería hace muchos logins desde el mismo cliente.
+                ["Seguridad:RateLimitPeticiones"] = "100000",
             });
         });
 

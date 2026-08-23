@@ -64,7 +64,13 @@ internal sealed class ConfiguracionUsuario : IEntityTypeConfiguration<Usuario>
         builder.HasIndex(u => u.TokenVerificacionHash).HasDatabaseName("ix_usuario_token_verificacion");
         builder.HasIndex(u => u.TokenRestablecimientoHash).HasDatabaseName("ix_usuario_token_restablecimiento");
 
+        // Verificación en dos pasos (2FA).
+        builder.Property(u => u.DobleFactorActivo).HasColumnName("doble_factor_activo").IsRequired();
+        builder.Property(u => u.DobleFactorSecreto).HasColumnName("doble_factor_secreto").HasMaxLength(64);
+        builder.Property(u => u.CodigosRecuperacion).HasColumnName("codigos_recuperacion").HasMaxLength(600);
+
         // Los eventos de dominio no se persisten.
         builder.Ignore(u => u.EventosDominio);
+        builder.Ignore(u => u.CodigosRecuperacionPendientes);
     }
 }
