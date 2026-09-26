@@ -18,4 +18,8 @@
     <PackageReference Include="FluentAssertions" Version="6.12.1" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Include="..\AlxorCore.Migracion.Tests\PaqueteEjemplo.cs" Link="Migracion\PaqueteEjemplo.cs" />
+  </ItemGroup>
+
 </Project>

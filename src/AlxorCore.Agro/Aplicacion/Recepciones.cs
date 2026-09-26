@@ -1,3 +1,4 @@
+using AlxorCore.Nucleo.Comun;
 using AlxorCore.Agro.Dominio;
 using AlxorCore.Catalogo.Aplicacion;
 using AlxorCore.Nucleo.Resultados;
@@ -339,7 +340,7 @@ public sealed class RecepcionesAgro
         var saldo = (await _repo.SaldosAsync([p.Id], ct).ConfigureAwait(false)).Where(s => s.PaleId == datos.PaleId).Sum(s => s.Kilos);
         if (saldo + datos.Kilos < 0m)
         {
-            return Resultado.Fallo(Error.Conflicto("partida.saldo_insuficiente", $"La partida solo tiene {saldo:N3} kg ahí."));
+            return Resultado.Fallo(Error.Conflicto("partida.saldo_insuficiente", $"La partida solo tiene {Redondeo.Formatear(saldo, 3)} kg ahí."));
         }
 
         _repo.Agregar(m.Valor);

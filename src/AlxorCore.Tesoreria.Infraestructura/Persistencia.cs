@@ -26,6 +26,8 @@ public sealed class TesoreriaDbContext : DbContextEmpresaBase, IUnidadDeTrabajoT
 
     public DbSet<Anticipo> Anticipos => Set<Anticipo>();
 
+    public DbSet<EfectoCartera> Cartera => Set<EfectoCartera>();
+
     public DbSet<Reclamacion> Reclamaciones => Set<Reclamacion>();
 
     public DbSet<ConfiguracionReclamaciones> ConfiguracionesReclamacion => Set<ConfiguracionReclamaciones>();
@@ -57,6 +59,47 @@ internal sealed class ConfiguracionMovimiento : IEntityTypeConfiguration<Movimie
         builder.HasIndex(m => new { m.EmpresaId, m.TipoDocumento, m.DocumentoId }).HasDatabaseName("ix_movimiento_documento");
         builder.Ignore(m => m.EventosDominio);
     }
+}
+
+internal sealed class ConfiguracionEfectoCartera : IEntityTypeConfiguration<EfectoCartera>
+{
+    public void Configure(EntityTypeBuilder<EfectoCartera> builder)
+    {
+        builder.ToTable("efecto_cartera");
+        builder.HasKey(e => e.Id);
+        builder.Property(e => e.Id).HasColumnName("id").ValueGeneratedNever();
+        builder.Property(e => e.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        builder.Property(e => e.Sentido).HasColumnName("sentido").HasMaxLength(10).HasConversion<string>().IsRequired();
+        builder.Property(e => e.TerceroId).HasColumnName("tercero_id");
+        builder.Property(e => e.TerceroNombre).HasColumnName("tercero_nombre").HasMaxLength(EfectoCartera.LongitudTexto).IsRequired();
+        builder.Property(e => e.Documento).HasColumnName("documento").HasMaxLength(EfectoCartera.LongitudTexto).IsRequired();
+        builder.Property(e => e.FechaDocumento).HasColumnName("fecha_documento");
+        builder.Property(e => e.Vencimiento).HasColumnName("vencimiento").IsRequired();
+        builder.Property(e => e.Importe).HasColumnName("importe").HasColumnType("numeric(14,2)").IsRequired();
+        builder.Property(e => e.Origen).HasColumnName("origen").HasMaxLength(40);
+        builder.Property(e => e.OrigenReferencia).HasColumnName("origen_referencia").HasMaxLength(80);
+        builder.Property(e => e.CreadoEn).HasColumnName("creado_en").IsRequired();
+        builder.HasIndex(e => new { e.EmpresaId, e.Sentido, e.Vencimiento }).HasDatabaseName("ix_efecto_cartera_vencimiento");
+        builder.HasIndex(e => new { e.EmpresaId, e.Origen, e.OrigenReferencia }).IsUnique().HasDatabaseName("ux_efecto_cartera_origen");
+        builder.Ignore(e => e.EventosDominio);
+    }
+}
+
+internal sealed class RepositorioCartera : IRepositorioCartera
+{
+    private readonly TesoreriaDbContext _ctx;
+
+    public RepositorioCartera(TesoreriaDbContext ctx) => _ctx = ctx;
+
+    public void Agregar(EfectoCartera efecto) => _ctx.Cartera.Add(efecto);
+
+    public Task<EfectoCartera?> ObtenerAsync(Guid id, CancellationToken ct = default) => _ctx.Cartera.SingleOrDefaultAsync(e => e.Id == id, ct);
+
+    public async Task<IReadOnlyList<EfectoCartera>> ListarAsync(Guid empresaId, SentidoCartera? sentido, CancellationToken ct = default) =>
+        await _ctx.Cartera.AsNoTracking().Where(e => e.EmpresaId == empresaId && (sentido == null || e.Sentido == sentido)).ToListAsync(ct).ConfigureAwait(false);
+
+    public Task<EfectoCartera?> PorOrigenAsync(Guid empresaId, string origen, string origenReferencia, CancellationToken ct = default) =>
+        _ctx.Cartera.SingleOrDefaultAsync(e => e.EmpresaId == empresaId && e.Origen == origen && e.OrigenReferencia == origenReferencia, ct);
 }
 
 internal sealed class ConfiguracionPrevision : IEntityTypeConfiguration<PrevisionTesoreria>

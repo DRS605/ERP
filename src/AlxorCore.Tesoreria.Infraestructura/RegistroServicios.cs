@@ -33,6 +33,8 @@ public static class RegistroServicios
 
         servicios.AddScoped<IRepositorioPrevisiones, RepositorioPrevisiones>();
         servicios.AddScoped<IRepositorioAnticipos, RepositorioAnticipos>();
+        servicios.AddScoped<IRepositorioCartera, RepositorioCartera>();
+        servicios.AddScoped<GestionCartera>();
         servicios.AddScoped<IRepositorioReclamaciones, RepositorioReclamaciones>();
         servicios.AddScoped<RegistrarAnticipo>();
         servicios.AddScoped<AplicarAnticipo>();

@@ -22,4 +22,7 @@ public static class Redondeo
 
     /// <summary>Formatea un importe con 2 decimales y coma decimal (formato español).</summary>
     public static string Formatear(decimal valor) => Dos(valor).ToString("N2", FormatoEspanol);
+
+    /// <summary>Formatea un número con los decimales indicados en formato español (p. ej. kilos con 3).</summary>
+    public static string Formatear(decimal valor, int decimales) => valor.ToString("N" + decimales.ToString(CultureInfo.InvariantCulture), FormatoEspanol);
 }

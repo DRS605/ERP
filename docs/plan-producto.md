@@ -65,4 +65,4 @@ reflejar las partidas en Inventario y el albarán de venta de los palés expedid
 | 3 | Garantías de integridad en la BD (puntos 1-5 de §2) | ✅ |
 | 4 | Analítica (inspirada en Hispatec) y presupuestos contables · prorrata · IGIC — ver [analitica.md](modulos/analitica.md) e [impuestos-indirectos.md](modulos/impuestos-indirectos.md) | ✅ |
 | 5 | Módulo `agro` (§3): recepción con pesadas y envases, partidas y palés SSCC, clasificación, liquidación con autofactura REAGP, confección con coste, expedición, trazabilidad e informe de campaña con coste por kilo — ver [agro.md](modulos/agro.md) | ✅ |
-| 6 | Migración desde Hispatec (esquema ya analizado en Clon: `docs/hispatec/`) | 🔜 |
+| 6 | Migración desde Hispatec: extracción T-SQL del paquete, diagnóstico, validación con informe (huérfanos, acumuladores descuadrados, cartera frente a contabilidad) y carga idempotente de terceros, artículos, plan de cuentas, apertura, cartera y agro — ver [migracion-hispatec.md](migracion-hispatec.md). Pendiente validarla con una extracción real. | ✅ |

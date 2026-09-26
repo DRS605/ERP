@@ -187,7 +187,7 @@ public sealed class ParteConfeccion : RaizAgregadoEmpresa<Guid>
 
         if (KilosObtenidos > KilosConsumidos)
         {
-            errores.Add(Error.Validacion("parte.kilos_salida", $"Se obtienen más kilos ({KilosObtenidos:N3}) de los que se consumen ({KilosConsumidos:N3})."));
+            errores.Add(Error.Validacion("parte.kilos_salida", $"Se obtienen más kilos ({Redondeo.Formatear(KilosObtenidos, 3)}) de los que se consumen ({Redondeo.Formatear(KilosConsumidos, 3)})."));
         }
 
         if (Reparto == RepartoCoste.PorFactor && _salidas.All(s => s.Factor == 0m))

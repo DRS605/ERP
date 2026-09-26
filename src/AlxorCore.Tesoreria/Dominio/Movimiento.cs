@@ -10,6 +10,9 @@ public enum TipoDocumentoTesoreria
 {
     Factura = 1,
     Gasto = 2,
+
+    /// <summary>Efecto de la cartera pendiente sin documento en ALXOR (p. ej. migrado de otro ERP).</summary>
+    Cartera = 3,
 }
 
 /// <summary>Sentido del movimiento.</summary>

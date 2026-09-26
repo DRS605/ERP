@@ -90,6 +90,7 @@ public static class EndpointsCuenta
         AuditoriaDbContext auditoria,
         OrganizacionDbContext organizacion,
         AlxorCore.Agro.Infraestructura.AgroDbContext agro,
+        AlxorCore.Migracion.Infraestructura.MigracionDbContext migracion,
         CancellationToken ct)
     {
         if (contexto.EmpresaId is not { } id)
@@ -107,7 +108,16 @@ public static class EndpointsCuenta
             await facturacion.FacturasRecurrentes.Where(r => r.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
         }, ct).ConfigureAwait(false);
         await gastos.Gastos.Where(g => g.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
-        await BorradoEmpresa.EjecutarAsync(tesoreria, id, () => tesoreria.Movimientos.Where(m => m.EmpresaId == id).ExecuteDeleteAsync(ct), ct).ConfigureAwait(false);
+        await BorradoEmpresa.EjecutarAsync(tesoreria, id, async () =>
+        {
+            await tesoreria.Movimientos.Where(m => m.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+            await tesoreria.Cartera.Where(e => e.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+        }, ct).ConfigureAwait(false);
+        await BorradoEmpresa.EjecutarAsync(migracion, id, async () =>
+        {
+            await migracion.Correspondencias.Where(c => c.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+            await migracion.Ejecuciones.Where(e => e.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+        }, ct).ConfigureAwait(false);
         await BorradoEmpresa.EjecutarAsync(agro, id, () => agro.BorrarEmpresaAsync(id, ct), ct).ConfigureAwait(false);
 
         // Los maestros de Terceros son del grupo (compartidos): se borran por grupo.

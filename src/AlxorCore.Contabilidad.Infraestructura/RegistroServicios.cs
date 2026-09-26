@@ -69,6 +69,7 @@ public static class RegistroServicios
         servicios.AddScoped<ObtenerSubcuentaTercero>();
         servicios.AddScoped<ListarSubcuentasTercero>();
         servicios.AddScoped<AsignarSubcuentaTercero>();
+        servicios.AddScoped<ImportarPlanCuentas>();
         servicios.AddScoped<CambiarLongitudSubcuenta>();
         servicios.AddScoped<GenerarAsientoCompra>();
 

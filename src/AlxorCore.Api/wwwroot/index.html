@@ -439,7 +439,7 @@
     // Menú agrupado en carpetas: Ventas, Compras y Artículos.
     const NAV = [
       { t:"item", k:"inicio", l:"Inicio" },
-      { t:"grupo", k:"ventas", l:"Ventas", items:[["presupuestos","Presupuestos"],["pedidosventa","Pedidos de venta"],["facturas","Facturas"],["tpv","TPV · Tickets"],["recurrentes","Periódicas"],["clientes","Clientes"],["cobros","Cobros"],["impagados","Impagados"],["anticipos","Anticipos"],["remesas","Remesas SEPA"]] },
+      { t:"grupo", k:"ventas", l:"Ventas", items:[["presupuestos","Presupuestos"],["pedidosventa","Pedidos de venta"],["facturas","Facturas"],["tpv","TPV · Tickets"],["recurrentes","Periódicas"],["clientes","Clientes"],["cobros","Cobros"],["cartera","Efectos de cartera"],["impagados","Impagados"],["anticipos","Anticipos"],["remesas","Remesas SEPA"]] },
       { t:"grupo", k:"compras", l:"Compras", items:[["solicitudes","Solicitudes"],["pedidos","Pedidos de compra"],["recepcion","Buzón de facturas"],["gastos","Gastos"],["proveedores","Proveedores"],["pagos","Pagos"],["conciliacion","Conciliación banco"]] },
       { t:"grupo", k:"articulos", l:"Artículos", items:[["productos","Productos"],["familias","Familias"],["inventario","Inventario / Almacenes"],["produccion","Producción"]] },
       { t:"item", k:"personal", l:"Personal" },
@@ -456,7 +456,7 @@
       { t:"item", k:"integraciones", l:"API y webhooks" },
       { t:"item", k:"ajustes", l:"Ajustes" },
     ];
-    const TITULOS = { agrorecepciones:"Agro · recepciones de fruta", agropartidas:"Agro · partidas y palés", agroconfeccion:"Agro · confección", agroliquidaciones:"Agro · liquidaciones al agricultor", agrotrazabilidad:"Agro · trazabilidad", agroinforme:"Agro · informe de campaña", agromaestros:"Agro · campañas, agricultores y precios", analitica:"Analítica · resultados", analiticapend:"Analítica · pendientes de imputar", analiticamaestros:"Analítica · centros, partidas y reglas", presupuestoscont:"Presupuestos contables", impagados:"Impagados y reclamaciones", anticipos:"Anticipos de clientes", inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", gestion:"Análisis de gestión", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", divisas:"Divisas y tipos de cambio", aprobaciones:"Aprobaciones y control de firmas", integraciones:"API pública y webhooks", ajustes:"Ajustes" };
+    const TITULOS = { cartera:"Efectos de cartera", agrorecepciones:"Agro · recepciones de fruta", agropartidas:"Agro · partidas y palés", agroconfeccion:"Agro · confección", agroliquidaciones:"Agro · liquidaciones al agricultor", agrotrazabilidad:"Agro · trazabilidad", agroinforme:"Agro · informe de campaña", agromaestros:"Agro · campañas, agricultores y precios", analitica:"Analítica · resultados", analiticapend:"Analítica · pendientes de imputar", analiticamaestros:"Analítica · centros, partidas y reglas", presupuestoscont:"Presupuestos contables", impagados:"Impagados y reclamaciones", anticipos:"Anticipos de clientes", inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", gestion:"Análisis de gestión", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", divisas:"Divisas y tipos de cambio", aprobaciones:"Aprobaciones y control de firmas", integraciones:"API pública y webhooks", ajustes:"Ajustes" };
     // Plan contratado de la empresa activa (lo devuelve /empresas/{id}/seleccionar).
     let plan = null;
     // Vista → módulo contratable que necesita. Las vistas que no están aquí son de la base.
@@ -575,7 +575,7 @@
       document.getElementById("viewTitle").textContent=TITULOS[k]||k;
       if(!contratado(k)){ const m=NOMBRE_MODULO[MODULO_VISTA[k]]||MODULO_VISTA[k];
         view(panel("No incluido en tu plan",`<p class="muted" style="margin:0 0 14px">Esta pantalla forma parte del módulo <strong>${m}</strong>, que tu plan no incluye.</p><button class="btn small" onclick="ir('ajustes')">Ver planes en Ajustes →</button>`)); return; }
-      ({agrorecepciones:vAgroRecepciones,agropartidas:vAgroPartidas,agroconfeccion:vAgroConfeccion,agroliquidaciones:vAgroLiquidaciones,agrotrazabilidad:vAgroTrazabilidad,agroinforme:()=>vAgroInforme(),agromaestros:()=>vAgroMaestros(),analitica:vAnalitica,analiticapend:vAnaliticaPend,analiticamaestros:vAnaliticaMaestros,presupuestoscont:vPresupuestosCont,impagados:vImpagados,anticipos:vAnticipos,inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:vPedidosVenta,clientes:vClientes,productos:vProductos,familias:vFamilias,gastos:vGastos,solicitudes:vSolicitudes,pedidos:vPedidos,inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,gestion:vGestion,contabilidad:vContabilidad,inmovilizado:vInmovilizado,divisas:vDivisas,aprobaciones:vAprobaciones,integraciones:vIntegraciones,ajustes:vAjustes}[k])();
+      ({cartera:vCartera,agrorecepciones:vAgroRecepciones,agropartidas:vAgroPartidas,agroconfeccion:vAgroConfeccion,agroliquidaciones:vAgroLiquidaciones,agrotrazabilidad:vAgroTrazabilidad,agroinforme:()=>vAgroInforme(),agromaestros:()=>vAgroMaestros(),analitica:vAnalitica,analiticapend:vAnaliticaPend,analiticamaestros:vAnaliticaMaestros,presupuestoscont:vPresupuestosCont,impagados:vImpagados,anticipos:vAnticipos,inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:vPedidosVenta,clientes:vClientes,productos:vProductos,familias:vFamilias,gastos:vGastos,solicitudes:vSolicitudes,pedidos:vPedidos,inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,gestion:vGestion,contabilidad:vContabilidad,inmovilizado:vInmovilizado,divisas:vDivisas,aprobaciones:vAprobaciones,integraciones:vIntegraciones,ajustes:vAjustes}[k])();
     }
     const view = h => { document.getElementById("view").innerHTML=h; try{ mejorarTablas(); }catch(e){} };
 
@@ -2881,7 +2881,7 @@
       try{ panelPlan=await panelPlanHtml(); }catch(e){ panelPlan=""; }
       let panelFiscal="";
       try{ panelFiscal=await panelFiscalHtml(); }catch(e){ panelFiscal=""; }
-      view(panelPlan+panelFiscal+panelSeries+panelAsig+panelPlantilla+panelFormas+panelRiesgo+panelImport+panelValoracion+panelCobroHtml()+panelUsuarios+panelSeguridad+panelDatosHtml()+panelAudit);
+      view(panelPlan+panelFiscal+panelSeries+panelAsig+panelPlantilla+panelFormas+panelRiesgo+panelImport+panelMigracionHtml()+panelValoracion+panelCobroHtml()+panelUsuarios+panelSeguridad+panelDatosHtml()+panelAudit);
     }
     /* ---------- Fiscalidad: territorio (IVA / IGIC) y prorrata ---------- */
     async function panelFiscalHtml(){
@@ -3501,6 +3501,58 @@
         <div class="grid2"><div><label>Tipo de hora</label><select id="ta_t">${["Normal","Extra","Nocturna","Festiva","Destajo"].map(h=>`<option>${h}</option>`).join("")}</select></div><div><label>Coste (€/h, o €/pieza a destajo)</label><input id="ta_x" type="number" step="0.0001"/></div></div>
         <div class="grid2"><div><label>Desde</label><input id="ta_d" type="date" value="${new Date().getFullYear()}-01-01"/></div><div><label>Hasta (opcional)</label><input id="ta_h" type="date"/></div></div>`,
         async()=>{ await api("/agro/tarifas",{method:"POST",body:JSON.stringify({recurso:val("ta_r"),categoria:val("ta_c"),tipoHora:val("ta_t"),costeUnitario:Number(val("ta_x")),desde:val("ta_d"),hasta:val("ta_h")||null})}); setTimeout(()=>vAgroMaestros()); });
+    }
+
+
+    /* ---------------- Migración desde Hispatec ---------------- */
+    let _mig={b64:null,nombre:null};
+    function panelMigracionHtml(){
+      return panel("Migración desde Hispatec",`<p class="muted" style="margin:0 0 10px">Genera el paquete en el servidor de Hispatec con <span class="mono">herramientas/hispatec/exportar.ps1</span> (solo lee) y súbelo aquí. Primero se <strong>valida</strong> sin tocar nada; la carga se puede repetir sin duplicar.</p>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><label class="btn small ghost" style="cursor:pointer;width:auto;margin:0">Elegir paquete .zip…<input type="file" accept=".zip" style="display:none" onchange="migElegir(this)"/></label>
+        <span id="mig_nombre" class="muted">${_mig.nombre?agEsc(_mig.nombre):"Ningún paquete elegido"}</span>
+        <button class="btn small secondary" onclick="migEjecutar(false)">Validar</button><button class="btn small" id="mig_cargar" onclick="migEjecutar(true)" disabled>Cargar</button></div>
+        <div id="mig_res" style="margin-top:12px"></div>`);
+    }
+    async function migElegir(input){
+      const f=input.files&&input.files[0]; input.value=""; if(!f) return;
+      _mig.b64=await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(String(r.result).split(",")[1]); r.onerror=rej; r.readAsDataURL(f); });
+      _mig.nombre=f.name; document.getElementById("mig_nombre").textContent=f.name; document.getElementById("mig_cargar").disabled=true; document.getElementById("mig_res").innerHTML="";
+    }
+    async function migEjecutar(cargar){
+      if(!_mig.b64){ toast("Elige primero el paquete .zip.","err"); return; }
+      if(cargar && !confirm("Se cargarán en esta empresa todos los registros válidos del paquete. Lo que ya exista se reutiliza. ¿Continuar?")) return;
+      const res=document.getElementById("mig_res"); res.innerHTML='<div class="muted">Procesando…</div>';
+      try{
+        const r=await api(`/migracion/hispatec/${cargar?"cargar":"validar"}`,{method:"POST",body:JSON.stringify({contenidoBase64:_mig.b64})});
+        const i=r.informe, c=i.cuadres;
+        const archivos=`<table><thead><tr><th>Archivo</th><th class="num">Filas</th><th class="num">Válidas</th></tr></thead><tbody>${i.archivos.map(a=>`<tr><td class="mono">${a.archivo}</td><td class="num">${a.filas}</td><td class="num">${a.validas<a.filas?`<strong>${a.validas}</strong>`:a.validas}</td></tr>`).join("")}</tbody></table>`;
+        const cuadres=`<table style="margin-top:10px"><tbody>
+          <tr><td class="muted">Apertura: debe / haber</td><td class="num">${eur(c.saldosDebe)} / ${eur(c.saldosHaber)} ${c.saldosDebe===c.saldosHaber?'<span class="pill ok">cuadra</span>':'<span class="pill neg">no cuadra</span>'}</td></tr>
+          <tr><td class="muted">Cartera de cobro / saldo de clientes (43)</td><td class="num">${eur(c.carteraCobros)} / ${eur(c.saldoClientes)}</td></tr>
+          <tr><td class="muted">Cartera de pago / saldo de proveedores (40-41)</td><td class="num">${eur(c.carteraPagos)} / ${eur(c.saldoProveedores)}</td></tr>
+          <tr><td class="muted">Cuentas con acumulado de Hispatec distinto de sus apuntes</td><td class="num">${c.cuentasDescuadradasConAcumuladores?`<strong>${c.cuentasDescuadradasConAcumuladores}</strong>`:"0"}</td></tr></tbody></table>`;
+        const inc=i.incidencias.length?`<table style="margin-top:10px"><thead><tr><th></th><th>Archivo</th><th class="num">Fila</th><th>Detalle</th></tr></thead><tbody>${i.incidencias.slice(0,300).map(x=>`<tr><td>${x.nivel==="Error"?'<span class="pill neg">Error</span>':'<span class="pill wait">Aviso</span>'}</td><td class="mono muted">${x.archivo}</td><td class="num muted">${x.fila??""}</td><td>${agEsc(x.mensaje)}</td></tr>`).join("")}</tbody></table>`:'<p class="muted">Sin incidencias.</p>';
+        const pasos=r.cargado?`<table style="margin-top:10px"><thead><tr><th>Paso</th><th class="num">Nuevos</th><th class="num">Reutilizados</th><th class="num">Ya migrados</th><th>Errores</th></tr></thead><tbody>${r.pasos.map(p=>`<tr><td><strong>${p.paso}</strong></td><td class="num">${p.creados}</td><td class="num">${p.reutilizados}</td><td class="num">${p.yaMigrados}</td><td class="muted">${p.errores.map(agEsc).join("<br>")}</td></tr>`).join("")}</tbody></table>`:"";
+        const cab=`<p style="margin:0 0 8px">${agEsc(i.empresa||"")} · saldos a ${fdate(i.fechaCorte)} · <strong>${i.errores}</strong> errores (esas filas no se cargan) · <strong>${i.avisos}</strong> avisos ${i.puedeCargar?'<span class="pill ok">se puede cargar</span>':'<span class="pill neg">no se puede cargar</span>'}${r.cargado?' <span class="pill ok">cargado</span>':''}</p>`;
+        res.innerHTML=cab+pasos+archivos+cuadres+inc;
+        document.getElementById("mig_cargar").disabled=!i.puedeCargar;
+        toast(r.cargado?"Migración cargada.":"Paquete validado.","ok");
+      }catch(e){ res.innerHTML=""; toast(e.message,"err"); }
+    }
+
+    /* ---------------- Cartera de efectos (sin factura ni gasto en ALXOR) ---------------- */
+    async function vCartera(){
+      view('<div class="muted">Cargando…</div>');
+      const lista=await api("/cartera?pendientes=true");
+      const fila=e=>`<tr><td>${e.sentido==="Cobro"?'<span class="pill part">Cobro</span>':'<span class="pill wait">Pago</span>'}</td><td><strong>${agEsc(e.terceroNombre)}</strong></td><td class="muted">${agEsc(e.documento)}</td><td class="muted">${fdate(e.vencimiento)}</td><td class="num">${eur(e.importe)}</td><td class="num"><strong>${eur(e.pendiente)}</strong></td><td class="muted">${e.origen||""}</td><td class="right"><button class="btn small secondary" onclick="modalLiquidarEfecto('${e.id}',${e.pendiente},'${e.sentido}')">${e.sentido==="Cobro"?"Cobrar":"Pagar"}</button></td></tr>`;
+      const cobros=lista.filter(e=>e.sentido==="Cobro"), pagos=lista.filter(e=>e.sentido==="Pago");
+      const tot=l=>eur(l.reduce((s,e)=>s+e.pendiente,0));
+      view(panel(`Efectos pendientes · a cobrar ${tot(cobros)} · a pagar ${tot(pagos)}`,lista.length?`<table><thead><tr><th></th><th>Tercero</th><th>Documento</th><th>Vencimiento</th><th class="num">Importe</th><th class="num">Pendiente</th><th>Origen</th><th></th></tr></thead><tbody>${lista.map(fila).join("")}</tbody></table>`
+        :'<p class="muted" style="margin:0">No hay efectos pendientes. Aquí aparece la cartera viva traída de otro ERP (por ejemplo, en la migración desde Hispatec): vencimientos que no tienen factura ni gasto en ALXOR.</p>'));
+    }
+    function modalLiquidarEfecto(id,pendiente,sentido){
+      abrir(sentido==="Cobro"?"Registrar cobro":"Registrar pago",`<div class="grid2"><div><label>Importe</label><input id="ef_i" type="number" step="0.01" value="${pendiente}"/></div><div><label>Fecha</label><input id="ef_f" type="date" value="${new Date().toISOString().slice(0,10)}"/></div></div><label>Método</label><input id="ef_m" placeholder="Transferencia"/>`,
+        async()=>{ await api(`/cartera/${id}/movimientos`,{method:"POST",body:JSON.stringify({importe:Number(val("ef_i")),fecha:val("ef_f"),metodo:val("ef_m")||null})}); toast("Registrado.","ok"); setTimeout(vCartera); });
     }
 
     /* modales */

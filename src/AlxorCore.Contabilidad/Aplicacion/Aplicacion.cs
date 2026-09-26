@@ -488,3 +488,50 @@ public sealed class GenerarAsientoCompra
         return Resultado.Ok(AsientoDto.Desde(asiento.Valor));
     }
 }
+
+/// <summary>
+/// Da de alta un plan de cuentas (por ejemplo, el de otro ERP al migrar): crea las cuentas que falten y deja
+/// intactas las que ya existen. Devuelve cuántas creó y los códigos rechazados con su motivo.
+/// </summary>
+public sealed class ImportarPlanCuentas
+{
+    private readonly IRepositorioCuentas _cuentas;
+    private readonly IUnidadDeTrabajoContabilidad _unidad;
+
+    public ImportarPlanCuentas(IRepositorioCuentas cuentas, IUnidadDeTrabajoContabilidad unidad)
+    {
+        _cuentas = cuentas;
+        _unidad = unidad;
+    }
+
+    public async Task<(int Creadas, IReadOnlyList<string> Rechazadas)> EjecutarAsync(Guid empresaId, IReadOnlyList<(string Codigo, string Nombre)> cuentas, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(cuentas);
+        await SembradorPlan.AsegurarAsync(empresaId, _cuentas, ct).ConfigureAwait(false);
+        var existentes = (await _cuentas.CodigosExistentesAsync(empresaId, ct).ConfigureAwait(false)).ToHashSet(StringComparer.Ordinal);
+        var creadas = 0;
+        var rechazadas = new List<string>();
+        foreach (var (codigo, nombre) in cuentas)
+        {
+            var c = codigo?.Trim() ?? string.Empty;
+            if (existentes.Contains(c))
+            {
+                continue;
+            }
+
+            var cuenta = Cuenta.Crear(empresaId, c, nombre);
+            if (cuenta.EsFallo)
+            {
+                rechazadas.Add($"{c}: {cuenta.Error.Mensaje}");
+                continue;
+            }
+
+            _cuentas.Agregar(cuenta.Valor);
+            existentes.Add(c);
+            creadas++;
+        }
+
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return (creadas, rechazadas);
+    }
+}

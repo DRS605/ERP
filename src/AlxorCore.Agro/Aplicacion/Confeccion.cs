@@ -1,3 +1,4 @@
+using AlxorCore.Nucleo.Comun;
 using AlxorCore.Agro.Dominio;
 using AlxorCore.Catalogo.Aplicacion;
 using AlxorCore.Nucleo.Resultados;
@@ -295,7 +296,7 @@ public sealed class ConfeccionAgro
             var pedido = g.Sum(c => c.Kilos);
             if (pedido > disponible)
             {
-                errores.Add(Error.Conflicto("parte.saldo_insuficiente", $"La partida {p.Codigo} solo tiene {disponible:N3} kg {(g.Key.PaleId is null ? "sueltos" : "en ese palé")} y se consumen {pedido:N3}."));
+                errores.Add(Error.Conflicto("parte.saldo_insuficiente", $"La partida {p.Codigo} solo tiene {Redondeo.Formatear(disponible, 3)} kg {(g.Key.PaleId is null ? "sueltos" : "en ese palé")} y se consumen {Redondeo.Formatear(pedido, 3)}."));
             }
         }
 
@@ -558,7 +559,7 @@ public sealed class PalesAgro
         var disponible = (await _repo.SaldosAsync([partidaId], ct).ConfigureAwait(false)).Where(s => s.PaleId == desdePaleId).Sum(s => s.Kilos);
         if (kilos > disponible)
         {
-            return Resultado.Fallo(Error.Conflicto("partida.saldo_insuficiente", $"La partida {partida.Codigo} solo tiene {disponible:N3} kg {(desdePaleId is null ? "sueltos" : "en ese palé")}."));
+            return Resultado.Fallo(Error.Conflicto("partida.saldo_insuficiente", $"La partida {partida.Codigo} solo tiene {Redondeo.Formatear(disponible, 3)} kg {(desdePaleId is null ? "sueltos" : "en ese palé")}."));
         }
 
         var dia = fecha ?? Hoy;

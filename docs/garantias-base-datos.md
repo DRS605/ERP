@@ -95,6 +95,13 @@ Detalle en [modulos/analitica.md](modulos/analitica.md).
 
 Detalle en [modulos/agro.md](modulos/agro.md).
 
+**Migración y cartera (fase 6):**
+- `migracion.correspondencia` y `migracion.ejecucion`: solo inserción, para que quede la traza de qué se trajo de dónde.
+- `tesoreria.efecto_cartera`: solo inserción, con importe positivo; se cobra o se paga con movimientos, sin
+  superar el pendiente.
+
+Ver [migracion-hispatec.md](migracion-hispatec.md).
+
 **Anulación de gastos:** un gasto anulado (hoy, la autofactura de una liquidación agrícola) encola su
 **contraasiento** en la misma transacción que la anulación, y deja de contar en los libros de IVA (antes el
 libro de IVA soportado incluía los gastos anulados) y en las autoliquidaciones.

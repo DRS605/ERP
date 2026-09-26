@@ -245,7 +245,7 @@ public static class Valoracion
         var baseImponible = bruto - totalDescuentos;
         if (baseImponible < 0m)
         {
-            var error = Error.Validacion("liquidacion.base_negativa", $"Los descuentos ({totalDescuentos:N2} €) superan el importe de la fruta ({bruto:N2} €).");
+            var error = Error.Validacion("liquidacion.base_negativa", $"Los descuentos ({Redondeo.Formatear(totalDescuentos)} €) superan el importe de la fruta ({Redondeo.Formatear(bruto)} €).");
             errores = [error];
             return Resultado.Fallo<ValoracionLiquidacion>(error);
         }
