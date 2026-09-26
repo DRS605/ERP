@@ -4,6 +4,7 @@ using AlxorCore.Nucleo.Aplicacion;
 using AlxorCore.Nucleo.Consultas;
 using AlxorCore.Nucleo.Dominio;
 using AlxorCore.Nucleo.Multiempresa;
+using AlxorCore.Nucleo.Resultados;
 using AlxorCore.Persistencia;
 using AlxorCore.Terceros.Aplicacion;
 using Microsoft.EntityFrameworkCore;
@@ -251,23 +252,60 @@ internal sealed class RepositorioFacturas : IRepositorioFacturas, IConsultaFactu
 
     public void Agregar(Factura factura) => _contexto.Facturas.Add(factura);
 
+    /// <summary>Clave del bloqueo de la numeración y de la cadena VeriFactu de una empresa (la usa también el trigger de la base).</summary>
+    internal static string ClaveBloqueo(Guid empresaId) => $"alxor.facturacion:{empresaId:D}";
+
     public async Task<string?> UltimaHuellaAsync(Guid empresaId, CancellationToken ct = default)
     {
-        // La cadena antifraude incluye los registros de alta y los de anulación de la empresa; se
-        // devuelve la huella del más reciente por su instante de generación.
-        var altas = await _contexto.Facturas
-            .Where(f => f.EmpresaId == empresaId && f.Huella != null)
-            .Select(f => new { Fecha = f.FechaHoraGenRegistro, f.Huella })
-            .ToListAsync(ct).ConfigureAwait(false);
-        var anulaciones = await _contexto.Facturas
-            .Where(f => f.EmpresaId == empresaId && f.HuellaAnulacion != null)
-            .Select(f => new { Fecha = f.FechaHoraAnulacion, Huella = f.HuellaAnulacion })
-            .ToListAsync(ct).ConfigureAwait(false);
+        // Encadenar exige leer la última huella y guardar la nueva sin que otra emisión se cuele:
+        // se bloquea la cadena de la empresa hasta el guardado.
+        await _contexto.BloquearAsync(ClaveBloqueo(empresaId), ct).ConfigureAwait(false);
 
-        return altas.Concat(anulaciones)
-            .OrderByDescending(x => x.Fecha)
-            .Select(x => x.Huella)
-            .FirstOrDefault();
+        // La cadena antifraude incluye los registros de alta y los de anulación de la empresa; se
+        // devuelve la huella del más reciente por su instante de generación (solo se lee uno de cada).
+        var alta = await _contexto.Facturas
+            .Where(f => f.EmpresaId == empresaId && f.Huella != null)
+            .OrderByDescending(f => f.FechaHoraGenRegistro)
+            .Select(f => new { Fecha = f.FechaHoraGenRegistro, f.Huella })
+            .FirstOrDefaultAsync(ct).ConfigureAwait(false);
+        var anulacion = await _contexto.Facturas
+            .Where(f => f.EmpresaId == empresaId && f.HuellaAnulacion != null)
+            .OrderByDescending(f => f.FechaHoraAnulacion)
+            .Select(f => new { Fecha = f.FechaHoraAnulacion, Huella = f.HuellaAnulacion })
+            .FirstOrDefaultAsync(ct).ConfigureAwait(false);
+
+        if (anulacion is null)
+        {
+            return alta?.Huella;
+        }
+
+        return alta is null || anulacion.Fecha > alta.Fecha ? anulacion.Huella : alta.Huella;
+    }
+
+    public async Task<Resultado<NumeroFactura>> ReservarNumeroAsync(Guid empresaId, string? serie, DateOnly fecha, CancellationToken ct = default)
+    {
+        var prefijo = string.IsNullOrWhiteSpace(serie) ? "FA" : serie.Trim().ToUpperInvariant();
+        if (prefijo.Length > 10)
+        {
+            return Resultado.Fallo<NumeroFactura>(Error.Validacion("serie.prefijo_largo", "El prefijo de la serie admite como máximo 10 caracteres."));
+        }
+
+        await _contexto.BloquearAsync(ClaveBloqueo(empresaId), ct).ConfigureAwait(false);
+
+        var ultima = await _contexto.Facturas
+            .Where(f => f.EmpresaId == empresaId && f.Prefijo == prefijo && f.Ejercicio == fecha.Year)
+            .OrderByDescending(f => f.Numero)
+            .Select(f => new { f.Numero, f.FechaEmision, f.NumeroCompleto })
+            .FirstOrDefaultAsync(ct).ConfigureAwait(false);
+
+        if (ultima is not null && fecha < ultima.FechaEmision)
+        {
+            return Resultado.Fallo<NumeroFactura>(Error.Conflicto("factura.fecha_no_correlativa",
+                $"La última factura de la serie {prefijo} ({ultima.NumeroCompleto}) es del {ultima.FechaEmision:dd/MM/yyyy}: " +
+                "una factura posterior en número no puede tener una fecha anterior. Usa esa fecha o una posterior, u otra serie."));
+        }
+
+        return Resultado.Ok(new NumeroFactura(prefijo, fecha.Year, (ultima?.Numero ?? 0) + 1));
     }
 
     public async Task<FacturaDto?> ObtenerAsync(Guid facturaId, CancellationToken ct = default)

@@ -107,6 +107,7 @@ public sealed class CobranzaEndpointsTests : IClassFixture<FabricaApiPruebas>
     {
         var (c, _) = await Ayudas.ConEmpresaAsync(_fabrica);
         var cliente = await ClienteAsync(c, "Bar Central SL");
+        await FacturaAsync(c, cliente, haceDias: 3);      // primero la antigua: las fechas siguen a la numeración
         var alDia = await FacturaAsync(c, cliente);
         (await c.PostAsJsonAsync($"/impagados/{alDia.Id}/reclamar", new { Canal = "Telefono" })).StatusCode.Should().Be(HttpStatusCode.Conflict);
 
@@ -119,7 +120,6 @@ public sealed class CobranzaEndpointsTests : IClassFixture<FabricaApiPruebas>
 
         (await c.PutAsJsonAsync("/impagados/niveles", new[] { new { Nivel = 1, DiasTrasVencimiento = 1, Asunto = "Aviso {factura}", Texto = "Debe {pendiente} €" } }))
             .StatusCode.Should().Be(HttpStatusCode.OK);
-        await FacturaAsync(c, cliente, haceDias: 3);
         (await c.GetFromJsonAsync<List<ImpagadoResp>>("/impagados"))!.Single().NivelQueToca.Should().Be(1);
     }
 }

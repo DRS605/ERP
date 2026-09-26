@@ -1,6 +1,7 @@
 using AlxorCore.Facturacion.Dominio;
 using AlxorCore.Nucleo.Aplicacion;
 using AlxorCore.Nucleo.Consultas;
+using AlxorCore.Nucleo.Resultados;
 
 namespace AlxorCore.Facturacion.Aplicacion;
 
@@ -87,6 +88,14 @@ public interface IRepositorioFacturas
 
     /// <summary>Huella del último registro VeriFactu de la empresa (para el encadenamiento), o null si es el primero.</summary>
     Task<string?> UltimaHuellaAsync(Guid empresaId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Reserva el siguiente número de la serie (último + 1, sin huecos) para una factura con fecha
+    /// <paramref name="fecha"/>. Bloquea la numeración de la empresa hasta que se guarden los cambios.
+    /// Falla si la fecha es anterior a la de la última factura de la serie (la numeración debe ser
+    /// correlativa también en fechas).
+    /// </summary>
+    Task<Resultado<NumeroFactura>> ReservarNumeroAsync(Guid empresaId, string? serie, DateOnly fecha, CancellationToken ct = default);
 }
 
 /// <summary>Consultas de lectura de facturas (las usan la API, Tesorería e Informes).</summary>

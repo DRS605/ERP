@@ -19,9 +19,27 @@ namespace AlxorCore.IntegrationTests;
 /// </summary>
 public class FabricaApiPruebas : WebApplicationFactory<Program>, IAsyncLifetime
 {
-    private static readonly string CadenaConexion =
+    /// <summary>Conexión de administración (superusuario): solo crea el rol y la base de pruebas.</summary>
+    private static readonly string CadenaAdministracion =
         Environment.GetEnvironmentVariable("ALXOR_TEST_CONEXION")
         ?? "Host=localhost;Port=5432;Database=alxor_test;Username=postgres;Password=postgres";
+
+    /// <summary>
+    /// Rol con el que se conecta la aplicación en las pruebas: <b>sin</b> superusuario ni BYPASSRLS,
+    /// como en producción. Así la Row-Level Security se aplica de verdad y las pruebas comprueban la
+    /// segunda barrera de aislamiento entre empresas, no solo el filtro de EF Core.
+    /// </summary>
+    public const string RolAplicacion = "alxor_app";
+
+    /// <summary>Conexión de la aplicación: la misma base, con el rol restringido (dueño de la base).</summary>
+    public static readonly string CadenaConexion = new NpgsqlConnectionStringBuilder(CadenaAdministracion)
+    {
+        Username = RolAplicacion,
+        Password = RolAplicacion,
+    }.ConnectionString;
+
+    /// <summary>Cadena de administración, para las pruebas que inspeccionan el catálogo de PostgreSQL.</summary>
+    public static string CadenaAdmin => CadenaAdministracion;
 
     static FabricaApiPruebas()
     {
@@ -134,23 +152,50 @@ public class FabricaApiPruebas : WebApplicationFactory<Program>, IAsyncLifetime
 
     public new async Task DisposeAsync() => await base.DisposeAsync().ConfigureAwait(false);
 
+    /// <summary>
+    /// Crea (si no existen) el rol restringido de la aplicación y la base de pruebas, cuyo dueño es ese
+    /// rol: así puede aplicar las migraciones, pero como las tablas tienen FORCE ROW LEVEL SECURITY la
+    /// RLS le afecta igualmente. Si la base existe con otro dueño (versiones anteriores de la batería,
+    /// que usaban el superusuario), se recrea.
+    /// </summary>
     private static async Task AsegurarBaseDatosAsync()
     {
-        var constructor = new NpgsqlConnectionStringBuilder(CadenaConexion);
-        var nombreBd = constructor.Database;
+        var constructor = new NpgsqlConnectionStringBuilder(CadenaAdministracion);
+        var nombreBd = constructor.Database!;
         constructor.Database = "postgres";
 
         await using var conexion = new NpgsqlConnection(constructor.ConnectionString);
         await conexion.OpenAsync().ConfigureAwait(false);
 
-        await using var comprobar = new NpgsqlCommand("SELECT 1 FROM pg_database WHERE datname = @n", conexion);
-        comprobar.Parameters.AddWithValue("n", nombreBd!);
-        var existe = await comprobar.ExecuteScalarAsync().ConfigureAwait(false);
+        await EjecutarAsync(conexion, $"""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{RolAplicacion}') THEN
+                    CREATE ROLE {RolAplicacion} LOGIN PASSWORD '{RolAplicacion}' NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE;
+                END IF;
+            END $$;
+            """).ConfigureAwait(false);
 
-        if (existe is null)
+        await using var comprobar = new NpgsqlCommand(
+            "SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname = @n", conexion);
+        comprobar.Parameters.AddWithValue("n", nombreBd);
+        var dueno = (string?)await comprobar.ExecuteScalarAsync().ConfigureAwait(false);
+
+        if (dueno is not null && dueno != RolAplicacion)
         {
-            await using var crear = new NpgsqlCommand($"CREATE DATABASE \"{nombreBd}\"", conexion);
-            await crear.ExecuteNonQueryAsync().ConfigureAwait(false);
+            await EjecutarAsync(conexion, $"DROP DATABASE \"{nombreBd}\" WITH (FORCE)").ConfigureAwait(false);
+            dueno = null;
         }
+
+        if (dueno is null)
+        {
+            await EjecutarAsync(conexion, $"CREATE DATABASE \"{nombreBd}\" OWNER {RolAplicacion}").ConfigureAwait(false);
+        }
+    }
+
+    private static async Task EjecutarAsync(NpgsqlConnection conexion, string sql)
+    {
+        await using var comando = new NpgsqlCommand(sql, conexion);
+        await comando.ExecuteNonQueryAsync().ConfigureAwait(false);
     }
 }

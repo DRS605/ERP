@@ -255,6 +255,10 @@ internal sealed class RepositorioAsientos : IRepositorioAsientos
 
     public async Task<int> SiguienteNumeroAsync(Guid empresaId, int ejercicio, CancellationToken ct = default)
     {
+        // Bloqueo por empresa y ejercicio hasta guardar: dos contabilizaciones simultáneas no pueden
+        // calcular el mismo número (la base de datos exige además que no haya huecos).
+        await _contexto.BloquearAsync($"alxor.contabilidad:{empresaId:D}:{ejercicio}", ct).ConfigureAwait(false);
+
         var maxBd = await _contexto.Asientos.Where(a => a.EmpresaId == empresaId && a.Ejercicio == ejercicio)
             .Select(a => (int?)a.Numero).MaxAsync(ct).ConfigureAwait(false) ?? 0;
 

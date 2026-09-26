@@ -12,6 +12,7 @@ using AlxorCore.Catalogo.Infraestructura;
 using AlxorCore.Facturacion.Infraestructura;
 using AlxorCore.Gastos.Infraestructura;
 using AlxorCore.Organizacion.Infraestructura.Persistencia;
+using AlxorCore.Persistencia;
 using AlxorCore.Terceros.Infraestructura;
 using AlxorCore.Tesoreria.Infraestructura;
 using Microsoft.EntityFrameworkCore;
@@ -97,10 +98,15 @@ public static class EndpointsCuenta
 
         // Borramos los datos de la empresa en cada módulo. El filtro por empresa (EF + RLS) garantiza
         // que solo se eliminan los de la empresa activa; las líneas (owned) caen en cascada.
-        await facturacion.Facturas.Where(f => f.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
-        await facturacion.FacturasRecurrentes.Where(r => r.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+        // Las facturas emitidas, los movimientos y la auditoría están protegidos en la base de datos:
+        // la baja de la empresa es la única que los puede borrar, y lo declara en su transacción.
+        await BorradoEmpresa.EjecutarAsync(facturacion, id, async () =>
+        {
+            await facturacion.Facturas.Where(f => f.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+            await facturacion.FacturasRecurrentes.Where(r => r.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+        }, ct).ConfigureAwait(false);
         await gastos.Gastos.Where(g => g.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
-        await tesoreria.Movimientos.Where(m => m.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+        await BorradoEmpresa.EjecutarAsync(tesoreria, id, () => tesoreria.Movimientos.Where(m => m.EmpresaId == id).ExecuteDeleteAsync(ct), ct).ConfigureAwait(false);
 
         // Los maestros de Terceros son del grupo (compartidos): se borran por grupo.
         var grupo = contexto.GrupoId ?? Guid.Empty;
@@ -110,11 +116,11 @@ public static class EndpointsCuenta
         // El catálogo (artículos, familias, histórico de precios) es del grupo; las existencias y sus
         // movimientos son por empresa.
         await catalogo.Existencias.Where(e => e.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
-        await catalogo.MovimientosStock.Where(m => m.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+        await BorradoEmpresa.EjecutarAsync(catalogo, id, () => catalogo.MovimientosStock.Where(m => m.EmpresaId == id).ExecuteDeleteAsync(ct), ct).ConfigureAwait(false);
         await catalogo.HistoricoPrecios.Where(h => h.GrupoId == grupo).ExecuteDeleteAsync(ct).ConfigureAwait(false);
         await catalogo.Productos.Where(p => p.GrupoId == grupo).ExecuteDeleteAsync(ct).ConfigureAwait(false);
         await catalogo.Familias.Where(f => f.GrupoId == grupo).ExecuteDeleteAsync(ct).ConfigureAwait(false);
-        await auditoria.Registros.Where(a => a.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+        await BorradoEmpresa.EjecutarAsync(auditoria, id, () => auditoria.Registros.Where(a => a.EmpresaId == id).ExecuteDeleteAsync(ct), ct).ConfigureAwait(false);
         await organizacion.Series.Where(s => s.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
         await organizacion.Membresias.Where(m => m.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
         await organizacion.Empresas.Where(e => e.Id == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);

@@ -43,7 +43,6 @@ public sealed class EmitirFactura
 {
     private readonly IConsultaClientes _clientes;
     private readonly IConsultaProductos _productos;
-    private readonly IServicioNumeracion _numeracion;
     private readonly IResolverSerie _resolverSerie;
     private readonly IRepositorioFacturas _facturas;
     private readonly IConsultaEmpresas _empresas;
@@ -61,7 +60,6 @@ public sealed class EmitirFactura
     public EmitirFactura(
         IConsultaClientes clientes,
         IConsultaProductos productos,
-        IServicioNumeracion numeracion,
         IResolverSerie resolverSerie,
         IRepositorioFacturas facturas,
         IConsultaEmpresas empresas,
@@ -80,7 +78,6 @@ public sealed class EmitirFactura
         _precios = precios;
         _clientes = clientes;
         _productos = productos;
-        _numeracion = numeracion;
         _resolverSerie = resolverSerie;
         _facturas = facturas;
         _empresas = empresas;
@@ -177,13 +174,16 @@ public sealed class EmitirFactura
         }
 
         // La numeración es lo último antes de crear y guardar (minimiza huecos).
-        var numero = await _numeracion.SiguienteAsync(empresaId, TipoDocumento.Factura, fechaEmision.Year, serie, ct).ConfigureAwait(false);
+        // Número correlativo SIN huecos: se calcula (último + 1) dentro de la misma transacción que
+        // guarda la factura y bajo un bloqueo por empresa, de modo que si la emisión falla no se pierde
+        // ningún número y dos emisiones simultáneas no se pisan (ni el número ni la cadena VeriFactu).
+        var numero = await _facturas.ReservarNumeroAsync(empresaId, serie, fechaEmision, ct).ConfigureAwait(false);
         if (numero.EsFallo)
         {
             return Resultado.Fallo<FacturaDto>(numero.Error);
         }
 
-        var numeroFactura = new NumeroFactura(numero.Valor.Prefijo, numero.Valor.Ejercicio, numero.Valor.Numero);
+        var numeroFactura = numero.Valor;
         var factura = Factura.Emitir(empresaId, numeroFactura, fechaEmision, fechaOperacion, clienteFacturado, lineas, porcentajeIrpf, _reloj, fechaVencimiento);
         if (factura.EsFallo)
         {

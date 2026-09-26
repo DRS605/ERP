@@ -22,13 +22,15 @@ public sealed class LineaFactura : EntidadBase<Guid>
         EmpresaId = empresaId;
         ProductoId = datos.ProductoId;
         Descripcion = datos.Descripcion.Trim();
-        Cantidad = datos.Cantidad;
-        PrecioUnitario = datos.PrecioUnitario;
-        CosteUnitario = datos.CosteUnitario;
-        PorcentajeDescuento = datos.PorcentajeDescuento;
+        // Se redondea a la precisión con la que se guarda cada columna ANTES de calcular: así la línea
+        // guardada reproduce exactamente su base y su cuota (la base de datos lo comprueba).
+        Cantidad = Math.Round(datos.Cantidad, 3, MidpointRounding.AwayFromZero);
+        PrecioUnitario = Math.Round(datos.PrecioUnitario, 4, MidpointRounding.AwayFromZero);
+        CosteUnitario = Math.Round(datos.CosteUnitario, 4, MidpointRounding.AwayFromZero);
+        PorcentajeDescuento = Redondeo.Dos(datos.PorcentajeDescuento);
         CodigoIva = datos.CodigoIva;
-        PorcentajeIva = datos.PorcentajeIva;
-        PorcentajeRecargo = datos.PorcentajeRecargo;
+        PorcentajeIva = Redondeo.Dos(datos.PorcentajeIva);
+        PorcentajeRecargo = Redondeo.Dos(datos.PorcentajeRecargo);
 
         Base = Redondeo.Dos(Cantidad * PrecioUnitario * (1 - (PorcentajeDescuento / 100m)));
         CuotaIva = Redondeo.Dos(Base * PorcentajeIva / 100m);

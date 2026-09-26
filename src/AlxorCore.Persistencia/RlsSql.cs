@@ -7,9 +7,9 @@ namespace AlxorCore.Persistencia;
 /// </summary>
 /// <remarks>
 /// La RLS solo se aplica si la aplicación se conecta con un rol <b>sin</b> privilegios de
-/// superusuario y sin BYPASSRLS. En desarrollo/tests se usa el rol <c>postgres</c> (superusuario),
-/// que la ignora; el aislamiento queda garantizado por el filtro global de EF Core. En producción
-/// debe usarse un rol de aplicación restringido para que esta segunda barrera sea efectiva.
+/// superusuario y sin BYPASSRLS. Los tests de integración ya se conectan así (rol <c>alxor_app</c>),
+/// y un test guardián comprueba que toda tabla de negocio la tiene forzada. En producción debe usarse
+/// también un rol restringido (ver <c>docs/garantias-base-datos.md</c>).
 /// </remarks>
 public static class RlsSql
 {

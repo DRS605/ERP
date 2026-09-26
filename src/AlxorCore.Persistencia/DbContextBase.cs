@@ -1,6 +1,7 @@
 using AlxorCore.Nucleo.Aplicacion;
 using AlxorCore.Nucleo.Dominio;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace AlxorCore.Persistencia;
 
@@ -12,6 +13,7 @@ namespace AlxorCore.Persistencia;
 public abstract class DbContextBase : DbContext, IUnidadDeTrabajo
 {
     private readonly IPublicadorEventos _publicadorEventos;
+    private IDbContextTransaction? _transaccionPropia;
 
     protected DbContextBase(DbContextOptions opciones, IPublicadorEventos publicadorEventos)
         : base(opciones)
@@ -29,7 +31,32 @@ public abstract class DbContextBase : DbContext, IUnidadDeTrabajo
 
         var eventos = agregados.SelectMany(a => a.EventosDominio).ToList();
 
-        var filas = await SaveChangesAsync(ct).ConfigureAwait(false);
+        int filas;
+        try
+        {
+            filas = await SaveChangesAsync(ct).ConfigureAwait(false);
+            if (_transaccionPropia is not null)
+            {
+                await _transaccionPropia.CommitAsync(ct).ConfigureAwait(false);
+            }
+        }
+        catch
+        {
+            if (_transaccionPropia is not null)
+            {
+                await _transaccionPropia.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+
+            throw;
+        }
+        finally
+        {
+            if (_transaccionPropia is not null)
+            {
+                await _transaccionPropia.DisposeAsync().ConfigureAwait(false);
+                _transaccionPropia = null;
+            }
+        }
 
         if (eventos.Count > 0)
         {
@@ -41,5 +68,24 @@ public abstract class DbContextBase : DbContext, IUnidadDeTrabajo
         }
 
         return filas;
+    }
+
+    /// <summary>
+    /// Toma un bloqueo consultivo de PostgreSQL (<c>pg_advisory_xact_lock</c>) identificado por
+    /// <paramref name="clave"/>, abriendo antes una transacción propia si no hay ninguna. El bloqueo
+    /// dura hasta que <see cref="GuardarCambiosAsync"/> confirma (o hasta que se descarta el contexto,
+    /// que deshace): así, «leer el último número y guardar el siguiente» ocurre sin que otra petición
+    /// se cuele entre medias. Es reentrante dentro de la misma transacción.
+    /// </summary>
+    public async Task BloquearAsync(string clave, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(clave);
+        if (Database.CurrentTransaction is null)
+        {
+            _transaccionPropia = await Database.BeginTransactionAsync(ct).ConfigureAwait(false);
+        }
+
+        await Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtextextended({clave}, 0))", ct)
+            .ConfigureAwait(false);
     }
 }

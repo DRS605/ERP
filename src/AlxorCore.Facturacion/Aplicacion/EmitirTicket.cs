@@ -30,7 +30,6 @@ public sealed class EmitirTicket
 
     private readonly IConsultaClientes _clientes;
     private readonly IConsultaProductos _productos;
-    private readonly IServicioNumeracion _numeracion;
     private readonly IResolverSerie _resolverSerie;
     private readonly IRepositorioFacturas _facturas;
     private readonly IConsultaEmpresas _empresas;
@@ -46,7 +45,6 @@ public sealed class EmitirTicket
     public EmitirTicket(
         IConsultaClientes clientes,
         IConsultaProductos productos,
-        IServicioNumeracion numeracion,
         IResolverSerie resolverSerie,
         IRepositorioFacturas facturas,
         IConsultaEmpresas empresas,
@@ -61,7 +59,6 @@ public sealed class EmitirTicket
     {
         _clientes = clientes;
         _productos = productos;
-        _numeracion = numeracion;
         _resolverSerie = resolverSerie;
         _facturas = facturas;
         _empresas = empresas;
@@ -124,13 +121,16 @@ public sealed class EmitirTicket
 
         serie = string.IsNullOrWhiteSpace(serie) ? SeriePorDefecto : serie;
 
-        var numero = await _numeracion.SiguienteAsync(empresaId, TipoDocumento.Factura, fecha.Year, serie, ct).ConfigureAwait(false);
+        // Número correlativo SIN huecos: se calcula (último + 1) dentro de la misma transacción que
+        // guarda la factura y bajo un bloqueo por empresa, de modo que si la emisión falla no se pierde
+        // ningún número y dos emisiones simultáneas no se pisan (ni el número ni la cadena VeriFactu).
+        var numero = await _facturas.ReservarNumeroAsync(empresaId, serie, fecha, ct).ConfigureAwait(false);
         if (numero.EsFallo)
         {
             return Resultado.Fallo<FacturaDto>(numero.Error);
         }
 
-        var numeroFactura = new NumeroFactura(numero.Valor.Prefijo, numero.Valor.Ejercicio, numero.Valor.Numero);
+        var numeroFactura = numero.Valor;
         var ticket = Factura.EmitirSimplificada(empresaId, numeroFactura, fecha, cliente, resolucion.Valor, _reloj);
         if (ticket.EsFallo)
         {

@@ -220,6 +220,7 @@ app.MapHealthChecks("/salud/listo", new Microsoft.AspNetCore.Diagnostics.HealthC
 
 // Auditoría: registra las operaciones que modifican datos (tras autenticar, para conocer al autor).
 app.UseMiddleware<AlxorCore.Api.Comun.MiddlewareAuditoria>();
+app.UseMiddleware<AlxorCore.Api.Comun.MiddlewareGarantiasBaseDatos>();
 
 app.MapGet("/salud", () => Results.Ok(new { estado = "ok" }))
     .WithTags("Salud")

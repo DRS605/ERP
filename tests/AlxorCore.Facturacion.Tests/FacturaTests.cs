@@ -39,6 +39,21 @@ public class FacturaTests
     }
 
     [Fact]
+    public void La_linea_se_redondea_a_la_precision_guardada_antes_de_calcular()
+    {
+        // 2,0004 uds se guardan como 2,000 (numeric(14,3)): la base debe salir de 2,000 (200,00 €) y no
+        // de 2,0004 (200,04 €), para que la línea guardada reproduzca su base (la base de datos lo comprueba).
+        var factura = Factura.Emitir(Guid.NewGuid(), Numero(), Fecha, Fecha, Cliente,
+            [new NuevaLinea("Kilos", 2.0004m, 100.00004m, "IVA21", 21m)], 0m, Reloj).Valor;
+
+        var linea = factura.Lineas.Single();
+        linea.Cantidad.Should().Be(2.000m);
+        linea.PrecioUnitario.Should().Be(100.0000m);
+        linea.Base.Should().Be(200.00m);
+        factura.Total.Should().Be(242.00m);
+    }
+
+    [Fact]
     public void Emitir_aplica_retencion_de_irpf()
     {
         var factura = Factura.Emitir(Guid.NewGuid(), Numero(), Fecha, Fecha, Cliente,

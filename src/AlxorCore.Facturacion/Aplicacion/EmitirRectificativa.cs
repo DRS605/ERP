@@ -26,7 +26,6 @@ public sealed class EmitirRectificativa
     public const string SeriePorDefecto = "R";
 
     private readonly IConsultaProductos _productos;
-    private readonly IServicioNumeracion _numeracion;
     private readonly IResolverSerie _resolverSerie;
     private readonly IRepositorioFacturas _facturas;
     private readonly IConsultaEmpresas _empresas;
@@ -36,7 +35,6 @@ public sealed class EmitirRectificativa
 
     public EmitirRectificativa(
         IConsultaProductos productos,
-        IServicioNumeracion numeracion,
         IResolverSerie resolverSerie,
         IRepositorioFacturas facturas,
         IConsultaEmpresas empresas,
@@ -45,7 +43,6 @@ public sealed class EmitirRectificativa
         IReloj reloj)
     {
         _productos = productos;
-        _numeracion = numeracion;
         _resolverSerie = resolverSerie;
         _facturas = facturas;
         _empresas = empresas;
@@ -98,13 +95,16 @@ public sealed class EmitirRectificativa
 
         serie = string.IsNullOrWhiteSpace(serie) ? SeriePorDefecto : serie;
 
-        var numero = await _numeracion.SiguienteAsync(empresaId, TipoDocumento.Factura, fecha.Year, serie, ct).ConfigureAwait(false);
+        // Número correlativo SIN huecos: se calcula (último + 1) dentro de la misma transacción que
+        // guarda la factura y bajo un bloqueo por empresa, de modo que si la emisión falla no se pierde
+        // ningún número y dos emisiones simultáneas no se pisan (ni el número ni la cadena VeriFactu).
+        var numero = await _facturas.ReservarNumeroAsync(empresaId, serie, fecha, ct).ConfigureAwait(false);
         if (numero.EsFallo)
         {
             return Resultado.Fallo<FacturaDto>(numero.Error);
         }
 
-        var numeroFactura = new NumeroFactura(numero.Valor.Prefijo, numero.Valor.Ejercicio, numero.Valor.Numero);
+        var numeroFactura = numero.Valor;
         var rectificativa = Factura.EmitirRectificativa(
             empresaId, numeroFactura, fecha, cliente, resolucion.Valor, porcentajeIrpf, facturaOriginalId, comando.Motivo, _reloj);
         if (rectificativa.EsFallo)

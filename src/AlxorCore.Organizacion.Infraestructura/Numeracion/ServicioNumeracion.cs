@@ -36,11 +36,13 @@ internal sealed class ServicioNumeracion : IServicioNumeracion
             : prefijoPedido.Trim().ToUpperInvariant();
         var tipoTexto = tipoDocumento.ToString();
 
+        // La conexión se abre a través de EF (no directamente sobre DbConnection) para que el
+        // InterceptorEmpresa fije app.empresa_actual: sin él, la RLS rechaza el INSERT/UPDATE.
         var conexion = _contexto.Database.GetDbConnection();
         var estabaAbierta = conexion.State == ConnectionState.Open;
         if (!estabaAbierta)
         {
-            await conexion.OpenAsync(ct).ConfigureAwait(false);
+            await _contexto.Database.OpenConnectionAsync(ct).ConfigureAwait(false);
         }
 
         try
@@ -88,7 +90,7 @@ internal sealed class ServicioNumeracion : IServicioNumeracion
         {
             if (!estabaAbierta)
             {
-                await conexion.CloseAsync().ConfigureAwait(false);
+                await _contexto.Database.CloseConnectionAsync().ConfigureAwait(false);
             }
         }
     }

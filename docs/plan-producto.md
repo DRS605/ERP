@@ -32,7 +32,9 @@ todo eso se garantiza en PostgreSQL y lo vigilan tests guardianes. Plan:
 4. `CHECK` en importes y estados (cuadre de asientos, importe = cantidad × precio, totales).
 5. **Tests guardianes del esquema**: toda tabla con `empresa_id` con RLS forzada, toda FK con índice, sin FK duplicadas.
 
-Ya aplicado: restricciones `CHECK` del plan de la empresa y guardián de rutas por módulo.
+✅ Hecho (fase 3): los cinco puntos. Detalle en [garantias-base-datos.md](garantias-base-datos.md).
+Encontró dos fallos reales: la numeración de facturas saltaba la RLS (con un rol correcto no se podía
+facturar) y podía dejar huecos y bifurcar la cadena VeriFactu con emisiones simultáneas.
 
 ## 3. Vertical hortofrutícola (módulo `agro`)
 
@@ -57,7 +59,7 @@ autofactura) y ventas (albarán con palés).
 |---|---|---|
 | 1 | Ediciones y módulos contratables | ✅ |
 | 2 | Menú de la interfaz por plan ✅ · tarifas de precios y descuentos ✅ · anticipos y reclamación de impagados ✅ | ✅ |
-| 3 | Garantías de integridad en la BD (puntos 1-5 de §2) | 🔜 |
+| 3 | Garantías de integridad en la BD (puntos 1-5 de §2) | ✅ |
 | 4 | Analítica y presupuestos contables · prorrata · IGIC | 🔜 |
 | 5 | Módulo `agro` (§3) | 🔜 |
 | 6 | Migración desde Hispatec (esquema ya analizado en Clon: `docs/hispatec/`) | 🔜 |

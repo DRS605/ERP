@@ -7,7 +7,10 @@ documento, la serie se resuelve automáticamente.
 
 ## Concepto
 
-- `SerieNumeracion` (ya existente): contador correlativo sin huecos por prefijo/ejercicio.
+- `SerieNumeracion` (ya existente): contador correlativo por prefijo/ejercicio. Para las **facturas**
+  el número ya no sale de este contador sino de «última factura de la serie + 1» en la misma
+  transacción que la guarda (sin huecos posibles); la serie se actualiza sola para mostrar el próximo
+  número. Ver [garantías de la base de datos](../garantias-base-datos.md).
 - `AsignacionSerie` (nuevo): dice **qué prefijo** usar para un `TipoDocumento` y un **ámbito**
   (`Empresa`, `Cliente`, `Proveedor`). Para el ámbito Empresa el tercero es `Guid.Empty`; para
   cliente/proveedor guarda su id. Índice único por (empresa, tipo, ámbito, tercero).
