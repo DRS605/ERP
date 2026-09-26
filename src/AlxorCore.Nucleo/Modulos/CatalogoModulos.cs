@@ -2,8 +2,11 @@ using AlxorCore.Nucleo.Resultados;
 
 namespace AlxorCore.Nucleo.Modulos;
 
-/// <summary>Módulo contratable de ALXOR Core. <see cref="Requiere"/> son los módulos sin los que no funciona.</summary>
-public sealed record ModuloAlxor(string Codigo, string Nombre, string Descripcion, IReadOnlyList<string> Requiere);
+/// <summary>
+/// Módulo contratable de ALXOR Core. <see cref="Requiere"/> son los módulos sin los que no funciona. Un módulo
+/// <see cref="Vertical"/> es de un sector (agro): no entra en ninguna edición y se contrata aparte.
+/// </summary>
+public sealed record ModuloAlxor(string Codigo, string Nombre, string Descripcion, IReadOnlyList<string> Requiere, bool Vertical = false);
 
 /// <summary>Edición comercial: un conjunto de módulos que se vende junto.</summary>
 public sealed record EdicionAlxor(string Codigo, string Nombre, string Descripcion, IReadOnlyList<string> Modulos);
@@ -36,6 +39,7 @@ public static class CatalogoModulos
     public const string Divisas = "divisas";
     public const string Aprobaciones = "aprobaciones";
     public const string Integraciones = "integraciones";
+    public const string Agro = "agro";
 
     public const string EdicionStart = "start";
     public const string EdicionGestion = "gestion";
@@ -61,6 +65,8 @@ public static class CatalogoModulos
         new(Divisas, "Divisas", "Tipos de cambio y documentos en otras monedas.", []),
         new(Aprobaciones, "Aprobaciones", "Circuitos de aprobación de documentos.", []),
         new(Integraciones, "Integraciones", "API pública y webhooks para conectar otras aplicaciones.", []),
+        new(Agro, "Agro (hortofrutícola)", "Recepción de fruta con pesadas y envases, partidas, clasificación, liquidación al agricultor con autofactura (REAGP), "
+            + "confección con coste por kilo, palés SSCC, expedición y trazabilidad del campo al cliente.", [], Vertical: true),
     ];
 
     public static IReadOnlyList<EdicionAlxor> Ediciones { get; } =
@@ -72,7 +78,7 @@ public static class CatalogoModulos
             [Contabilidad, Inmovilizado, Analitica, TesoreriaAvanzada]),
         new(EdicionGestionFinanzas, "Gestión y finanzas", "Gestión y Finanzas juntas.",
             [Ventas, Compras, Inventario, Divisas, Aprobaciones, Integraciones, Contabilidad, Inmovilizado, Analitica, TesoreriaAvanzada]),
-        new(EdicionCompleta, "Completa", "Todos los módulos, incluidos producción y proyectos.",
+        new(EdicionCompleta, "Completa", "Todos los módulos generalistas, incluidos producción y proyectos (los sectoriales, como agro, se contratan aparte).",
             [Ventas, Compras, Inventario, Divisas, Aprobaciones, Integraciones, Contabilidad, Inmovilizado, Analitica, TesoreriaAvanzada,
              Produccion, Personal, Proyectos]),
     ];

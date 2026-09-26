@@ -62,8 +62,15 @@ public sealed class Impuesto
     public static readonly Impuesto IgicIncrementado15 = new("IGIC15", TipoImpuesto.Igic, 15m, "IGIC incrementado (15%)");
     public static readonly Impuesto IgicEspecial = new("IGIC20", TipoImpuesto.Igic, 20m, "IGIC especial incrementado (20%)");
 
+    // Compensaciones del régimen especial de la agricultura, ganadería y pesca (REAGP, arts. 124-134
+    // LIVA). El comprador las paga al agricultor en la autofactura y las deduce como IVA soportado
+    // (casillas 42-43 del 303).
+    public static readonly Impuesto CompensacionAgricola = new("REAGP12", TipoImpuesto.Iva, 12m, "Compensación REAGP agrícola y forestal (12%)");
+    public static readonly Impuesto CompensacionGanadera = new("REAGP105", TipoImpuesto.Iva, 10.5m, "Compensación REAGP ganadera y pesquera (10,5%)");
+
     private static readonly Dictionary<string, Impuesto> PorCodigo =
-        new[] { IvaGeneral, IvaReducido, IvaSuperreducido, IvaExento, IgicCero, IgicReducido, IgicGeneral, IgicIncrementado, IgicIncrementado15, IgicEspecial }
+        new[] { IvaGeneral, IvaReducido, IvaSuperreducido, IvaExento, IgicCero, IgicReducido, IgicGeneral, IgicIncrementado, IgicIncrementado15, IgicEspecial,
+                CompensacionAgricola, CompensacionGanadera }
             .ToDictionary(i => i.Codigo, StringComparer.OrdinalIgnoreCase);
 
     private Impuesto(string codigo, TipoImpuesto tipo, decimal porcentaje, string nombre)
@@ -84,6 +91,9 @@ public sealed class Impuesto
 
     /// <summary>Nombre legible en español.</summary>
     public string Nombre { get; }
+
+    /// <summary>Es una compensación del REAGP (no un tipo de IVA repercutible).</summary>
+    public bool EsCompensacionReagp => Codigo.StartsWith("REAGP", StringComparison.Ordinal);
 
     /// <summary>Todos los tipos de IVA disponibles.</summary>
     public static IReadOnlyCollection<Impuesto> TodosIva => PorCodigo.Values.Where(i => i.Tipo == TipoImpuesto.Iva).ToList();

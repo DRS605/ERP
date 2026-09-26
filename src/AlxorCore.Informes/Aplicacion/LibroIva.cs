@@ -51,7 +51,7 @@ public sealed class GenerarLibroIva
         {
             var gastos = await _gastos.ListarAsync(empresaId, ct).ConfigureAwait(false);
             asientos = gastos
-                .Where(g => g.Fecha >= desde && g.Fecha <= hasta)
+                .Where(g => g.Fecha >= desde && g.Fecha <= hasta && !string.Equals(g.Estado, "Anulado", StringComparison.OrdinalIgnoreCase))
                 .OrderBy(g => g.Fecha)
                 .Select(g => new AsientoIva(g.Fecha, g.Concepto, g.ProveedorTexto ?? string.Empty, null, g.BaseImponible, g.CuotaIva))
                 .ToList();

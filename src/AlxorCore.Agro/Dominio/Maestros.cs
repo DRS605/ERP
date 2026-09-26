@@ -1,0 +1,573 @@
+using AlxorCore.Nucleo.Comun;
+using AlxorCore.Nucleo.Dominio;
+using AlxorCore.Nucleo.Resultados;
+
+namespace AlxorCore.Agro.Dominio;
+
+/// <summary>Validaciones y utilidades comunes del módulo agro.</summary>
+public static class ReglasAgro
+{
+    public const int LongitudCodigo = 30;
+    public const int LongitudNombre = 150;
+
+    public static Error? CodigoNombre(ref string? codigo, ref string? nombre, string ambito)
+    {
+        codigo = codigo?.Trim().ToUpperInvariant();
+        nombre = nombre?.Trim();
+        if (string.IsNullOrWhiteSpace(codigo) || codigo.Length > LongitudCodigo)
+        {
+            return Error.Validacion($"{ambito}.codigo", $"El código es obligatorio (máximo {LongitudCodigo} caracteres).");
+        }
+
+        return string.IsNullOrWhiteSpace(nombre) || nombre.Length > LongitudNombre
+            ? Error.Validacion($"{ambito}.nombre", $"El nombre es obligatorio (máximo {LongitudNombre} caracteres).")
+            : null;
+    }
+
+    /// <summary>
+    /// Reparte <paramref name="total"/> en proporción a <paramref name="pesos"/> con <paramref name="decimales"/>
+    /// decimales, sin perder ni sobrar nada (método del mayor resto): la suma de las partes es el total.
+    /// </summary>
+    public static IReadOnlyList<decimal> Repartir(decimal total, IReadOnlyList<decimal> pesos, int decimales)
+    {
+        ArgumentNullException.ThrowIfNull(pesos);
+        var sumaPesos = pesos.Sum();
+        if (pesos.Count == 0 || sumaPesos <= 0m)
+        {
+            return pesos.Select(_ => 0m).ToList();
+        }
+
+        var escala = (decimal)Math.Pow(10, decimales);
+        var unidades = decimal.Round(total * escala, 0, MidpointRounding.AwayFromZero);
+        var exactos = pesos.Select(p => unidades * p / sumaPesos).ToList();
+        var partes = exactos.Select(e => decimal.Floor(e)).ToList();
+        var faltan = (int)(unidades - partes.Sum());
+        foreach (var i in exactos.Select((e, i) => (Resto: e - decimal.Floor(e), i)).OrderByDescending(x => x.Resto).ThenBy(x => x.i).Take(Math.Max(0, faltan)).Select(x => x.i))
+        {
+            partes[i] += 1m;
+        }
+
+        return partes.Select(p => p / escala).ToList();
+    }
+
+    /// <summary>Dígito de control GS1 correcto (SSCC de 18 dígitos, GTIN…).</summary>
+    public static bool Gs1Valido(string? codigo)
+    {
+        if (codigo is null || codigo.Length is < 8 or > 18 || !codigo.All(char.IsAsciiDigit))
+        {
+            return false;
+        }
+
+        var n = codigo.Length;
+        var suma = 0;
+        for (var i = 0; i < n - 1; i++)
+        {
+            suma += (codigo[i] - '0') * ((n - 1 - i) % 2 == 1 ? 3 : 1);
+        }
+
+        return (10 - (suma % 10)) % 10 == codigo[n - 1] - '0';
+    }
+
+    /// <summary>Completa un SSCC: 17 dígitos (extensión + prefijo de empresa + serie) más el de control.</summary>
+    public static string ConDigitoControl(string diecisiete)
+    {
+        ArgumentNullException.ThrowIfNull(diecisiete);
+        var suma = 0;
+        for (var i = 0; i < diecisiete.Length; i++)
+        {
+            suma += (diecisiete[i] - '0') * ((diecisiete.Length - i) % 2 == 1 ? 3 : 1);
+        }
+
+        return diecisiete + ((10 - (suma % 10)) % 10).ToString(System.Globalization.CultureInfo.InvariantCulture);
+    }
+}
+
+/// <summary>Campaña agrícola (por ejemplo, 2026/27 de septiembre a agosto).</summary>
+public sealed class Campana : RaizAgregadoEmpresa<Guid>
+{
+    private Campana(Guid id)
+        : base(id, Guid.Empty)
+    {
+        Codigo = null!;
+        Nombre = null!;
+    }
+
+    private Campana(Guid id, Guid empresaId, string codigo, string nombre, DateOnly desde, DateOnly hasta)
+        : base(id, empresaId)
+    {
+        Codigo = codigo;
+        Nombre = nombre;
+        Desde = desde;
+        Hasta = hasta;
+    }
+
+    public string Codigo { get; private set; }
+
+    public string Nombre { get; private set; }
+
+    public DateOnly Desde { get; private set; }
+
+    public DateOnly Hasta { get; private set; }
+
+    public bool Contiene(DateOnly fecha) => fecha >= Desde && fecha <= Hasta;
+
+    public static Resultado<Campana> Crear(Guid empresaId, string? codigo, string? nombre, DateOnly desde, DateOnly hasta)
+    {
+        var error = ReglasAgro.CodigoNombre(ref codigo, ref nombre, "campana");
+        if (error is null && hasta < desde)
+        {
+            error = Error.Validacion("campana.fechas", "La campaña termina antes de empezar.");
+        }
+
+        return error is not null ? Resultado.Fallo<Campana>(error) : Resultado.Ok(new Campana(Guid.NewGuid(), empresaId, codigo!, nombre!, desde, hasta));
+    }
+}
+
+/// <summary>Régimen fiscal del agricultor en sus ventas a la empresa.</summary>
+public enum RegimenAgricultor
+{
+    /// <summary>Régimen especial de la agricultura (REAGP): se le paga una compensación (12 % agrícola).</summary>
+    Reagp = 1,
+
+    /// <summary>Régimen general: se le repercute IVA (4 % frutas y hortalizas).</summary>
+    General = 2,
+}
+
+/// <summary>
+/// Agricultor: un proveedor (Terceros) con su ficha agrícola en la empresa: régimen fiscal, retención de
+/// IRPF, desde cuándo autoriza que la empresa le emita la factura (autofacturación) y bloqueo.
+/// </summary>
+public sealed class Agricultor : RaizAgregadoEmpresa<Guid>
+{
+    private Agricultor(Guid id)
+        : base(id, Guid.Empty)
+    {
+        Nombre = null!;
+    }
+
+    private Agricultor(Guid id, Guid empresaId, Guid proveedorId, string nombre)
+        : base(id, empresaId)
+    {
+        ProveedorId = proveedorId;
+        Nombre = nombre;
+    }
+
+    public Guid ProveedorId { get; private set; }
+
+    /// <summary>Nombre del proveedor al darlo de alta (para listados).</summary>
+    public string Nombre { get; private set; }
+
+    public RegimenAgricultor Regimen { get; private set; }
+
+    /// <summary>Retención de IRPF sobre la base (actividades agrícolas en módulos: 2 %).</summary>
+    public decimal PorcentajeRetencion { get; private set; }
+
+    /// <summary>Fecha desde la que el agricultor autoriza la autofacturación. Sin ella no se emiten liquidaciones.</summary>
+    public DateOnly? AutofacturacionDesde { get; private set; }
+
+    /// <summary>Si tiene valor, el agricultor está bloqueado: no se le reciben entregas ni se le liquida.</summary>
+    public string? MotivoBloqueo { get; private set; }
+
+    /// <summary>
+    /// Impuesto de sus autofacturas: la compensación <c>REAGP12</c> (o <c>REAGP105</c> en ganadería) en el
+    /// REAGP; en régimen general, el IVA de la fruta (<c>IVA4</c>) o el IGIC en Canarias.
+    /// </summary>
+    public string CodigoImpuesto { get; private set; } = Impuesto.CompensacionAgricola.Codigo;
+
+    public bool Bloqueado => MotivoBloqueo is not null;
+
+    public static Resultado<Agricultor> Crear(Guid empresaId, Guid proveedorId, string nombre, RegimenAgricultor regimen, decimal retencion, DateOnly? autofacturacionDesde, string? codigoImpuesto = null)
+    {
+        var a = new Agricultor(Guid.NewGuid(), empresaId, proveedorId, nombre.Trim());
+        var r = a.Actualizar(regimen, retencion, autofacturacionDesde, null, codigoImpuesto);
+        return r.EsFallo ? Resultado.Fallo<Agricultor>(r.Error) : Resultado.Ok(a);
+    }
+
+    public Resultado Actualizar(RegimenAgricultor regimen, decimal retencion, DateOnly? autofacturacionDesde, string? motivoBloqueo, string? codigoImpuesto = null)
+    {
+        if (!Enum.IsDefined(regimen))
+        {
+            return Resultado.Fallo(Error.Validacion("agricultor.regimen", "El régimen debe ser Reagp o General."));
+        }
+
+        var codigo = string.IsNullOrWhiteSpace(codigoImpuesto)
+            ? (regimen == RegimenAgricultor.Reagp ? Impuesto.CompensacionAgricola.Codigo : Impuesto.IvaSuperreducido.Codigo)
+            : codigoImpuesto.Trim().ToUpperInvariant();
+        var impuesto = Impuesto.PorCodigoImpuesto(codigo);
+        if (impuesto.EsFallo || impuesto.Valor.Tipo == TipoImpuesto.Irpf || impuesto.Valor.EsCompensacionReagp != (regimen == RegimenAgricultor.Reagp))
+        {
+            return Resultado.Fallo(Error.Validacion("agricultor.impuesto", regimen == RegimenAgricultor.Reagp
+                ? "En el REAGP la autofactura lleva la compensación (REAGP12 o REAGP105)."
+                : "En régimen general la autofactura lleva un tipo de IVA o de IGIC."));
+        }
+
+        CodigoImpuesto = impuesto.Valor.Codigo;
+
+        if (retencion is < 0m or > 50m)
+        {
+            return Resultado.Fallo(Error.Validacion("agricultor.retencion", "La retención no es válida."));
+        }
+
+        Regimen = regimen;
+        PorcentajeRetencion = retencion;
+        AutofacturacionDesde = autofacturacionDesde;
+        MotivoBloqueo = string.IsNullOrWhiteSpace(motivoBloqueo) ? null : motivoBloqueo.Trim();
+        return Resultado.Ok();
+    }
+}
+
+/// <summary>Parcela de un agricultor, identificada en SIGPAC. Puede apuntar a un centro analítico (coste por kilo).</summary>
+public sealed class Parcela : RaizAgregadoEmpresa<Guid>
+{
+    private Parcela(Guid id)
+        : base(id, Guid.Empty)
+    {
+        Codigo = null!;
+        Nombre = null!;
+    }
+
+    private Parcela(Guid id, Guid empresaId, Guid agricultorId, string codigo, string nombre)
+        : base(id, empresaId)
+    {
+        AgricultorId = agricultorId;
+        Codigo = codigo;
+        Nombre = nombre;
+        Activa = true;
+    }
+
+    public Guid AgricultorId { get; private set; }
+
+    public string Codigo { get; private set; }
+
+    public string Nombre { get; private set; }
+
+    /// <summary>Referencia SIGPAC: provincia:municipio:agregado:zona:polígono:parcela:recinto.</summary>
+    public string? ReferenciaSigpac { get; private set; }
+
+    public decimal? SuperficieHa { get; private set; }
+
+    /// <summary>Cultivo (artículo del catálogo) y variedad.</summary>
+    public Guid? ProductoId { get; private set; }
+
+    public string? Variedad { get; private set; }
+
+    /// <summary>Centro analítico de la parcela: su coste imputado se divide por los kilos que produce.</summary>
+    public Guid? CentroAnaliticoId { get; private set; }
+
+    public bool Activa { get; private set; }
+
+    public static Resultado<Parcela> Crear(Guid empresaId, Guid agricultorId, DatosParcela datos)
+    {
+        ArgumentNullException.ThrowIfNull(datos);
+        string? codigo = datos.Codigo, nombre = datos.Nombre;
+        var error = ReglasAgro.CodigoNombre(ref codigo, ref nombre, "parcela");
+        if (error is not null)
+        {
+            return Resultado.Fallo<Parcela>(error);
+        }
+
+        var p = new Parcela(Guid.NewGuid(), empresaId, agricultorId, codigo!, nombre!);
+        var r = p.Actualizar(datos with { Codigo = codigo, Nombre = nombre });
+        return r.EsFallo ? Resultado.Fallo<Parcela>(r.Error) : Resultado.Ok(p);
+    }
+
+    public Resultado Actualizar(DatosParcela datos)
+    {
+        ArgumentNullException.ThrowIfNull(datos);
+        var sigpac = string.IsNullOrWhiteSpace(datos.ReferenciaSigpac) ? null : datos.ReferenciaSigpac.Trim();
+        if (sigpac is not null && (sigpac.Split(':').Length != 7 || sigpac.Split(':').Any(p => p.Length == 0 || !p.All(char.IsAsciiDigit))))
+        {
+            return Resultado.Fallo(Error.Validacion("parcela.sigpac", "La referencia SIGPAC son 7 números separados por «:» (provincia:municipio:agregado:zona:polígono:parcela:recinto)."));
+        }
+
+        if (datos.SuperficieHa is <= 0m)
+        {
+            return Resultado.Fallo(Error.Validacion("parcela.superficie", "La superficie debe ser positiva."));
+        }
+
+        var nombre = datos.Nombre?.Trim();
+        if (!string.IsNullOrWhiteSpace(nombre))
+        {
+            Nombre = nombre;
+        }
+
+        ReferenciaSigpac = sigpac;
+        SuperficieHa = datos.SuperficieHa;
+        ProductoId = datos.ProductoId;
+        Variedad = string.IsNullOrWhiteSpace(datos.Variedad) ? null : datos.Variedad.Trim();
+        CentroAnaliticoId = datos.CentroAnaliticoId;
+        Activa = datos.Activa;
+        return Resultado.Ok();
+    }
+}
+
+public sealed record DatosParcela(
+    string? Codigo, string? Nombre, string? ReferenciaSigpac = null, decimal? SuperficieHa = null, Guid? ProductoId = null,
+    string? Variedad = null, Guid? CentroAnaliticoId = null, bool Activa = true);
+
+/// <summary>Categoría de clasificación de la fruta (Extra, 1ª, 2ª, destrío…).</summary>
+public sealed class Categoria : RaizAgregadoEmpresa<Guid>
+{
+    private Categoria(Guid id)
+        : base(id, Guid.Empty)
+    {
+        Codigo = null!;
+        Nombre = null!;
+    }
+
+    private Categoria(Guid id, Guid empresaId, string codigo, string nombre, bool esDestrio, int orden)
+        : base(id, empresaId)
+    {
+        Codigo = codigo;
+        Nombre = nombre;
+        EsDestrio = esDestrio;
+        Orden = orden;
+    }
+
+    public string Codigo { get; private set; }
+
+    public string Nombre { get; private set; }
+
+    public bool EsDestrio { get; private set; }
+
+    public int Orden { get; private set; }
+
+    public static Resultado<Categoria> Crear(Guid empresaId, string? codigo, string? nombre, bool esDestrio, int orden)
+    {
+        var error = ReglasAgro.CodigoNombre(ref codigo, ref nombre, "categoria");
+        return error is not null ? Resultado.Fallo<Categoria>(error) : Resultado.Ok(new Categoria(Guid.NewGuid(), empresaId, codigo!, nombre!, esDestrio, orden));
+    }
+}
+
+/// <summary>Cómo se liquida un artículo en una campaña.</summary>
+public enum MetodoLiquidacion
+{
+    /// <summary>Los kilos de cada partida se reparten por categorías según su clasificación definitiva; cada categoría tiene su precio.</summary>
+    PorClasificacion = 1,
+
+    /// <summary>Un precio por kilo vigente en la fecha de recepción (semana, quincena…).</summary>
+    PorPeriodo = 2,
+}
+
+/// <summary>Método de liquidación de un artículo en una campaña.</summary>
+public sealed class ArticuloCampana : RaizAgregadoEmpresa<Guid>
+{
+    private ArticuloCampana(Guid id)
+        : base(id, Guid.Empty)
+    {
+    }
+
+    private ArticuloCampana(Guid id, Guid empresaId, Guid campanaId, Guid productoId, MetodoLiquidacion metodo)
+        : base(id, empresaId)
+    {
+        CampanaId = campanaId;
+        ProductoId = productoId;
+        Metodo = metodo;
+    }
+
+    public Guid CampanaId { get; private set; }
+
+    public Guid ProductoId { get; private set; }
+
+    public MetodoLiquidacion Metodo { get; private set; }
+
+    public static ArticuloCampana Crear(Guid empresaId, Guid campanaId, Guid productoId, MetodoLiquidacion metodo) =>
+        new(Guid.NewGuid(), empresaId, campanaId, productoId, metodo);
+
+    public void CambiarMetodo(MetodoLiquidacion metodo) => Metodo = metodo;
+}
+
+/// <summary>Precio de liquidación (€/kg) de un artículo —y categoría, si se liquida por clasificación— en un periodo de la campaña.</summary>
+public sealed class PrecioLiquidacion : RaizAgregadoEmpresa<Guid>
+{
+    private PrecioLiquidacion(Guid id)
+        : base(id, Guid.Empty)
+    {
+    }
+
+    private PrecioLiquidacion(Guid id, Guid empresaId, Guid campanaId, Guid productoId, Guid? categoriaId, DateOnly desde, DateOnly hasta, decimal precioKg)
+        : base(id, empresaId)
+    {
+        CampanaId = campanaId;
+        ProductoId = productoId;
+        CategoriaId = categoriaId;
+        Desde = desde;
+        Hasta = hasta;
+        PrecioKg = precioKg;
+    }
+
+    public Guid CampanaId { get; private set; }
+
+    public Guid ProductoId { get; private set; }
+
+    public Guid? CategoriaId { get; private set; }
+
+    public DateOnly Desde { get; private set; }
+
+    public DateOnly Hasta { get; private set; }
+
+    public decimal PrecioKg { get; private set; }
+
+    public bool Vigente(DateOnly fecha) => fecha >= Desde && fecha <= Hasta;
+
+    /// <summary>Cambia el periodo o el importe (la base de datos lo impide si ya se aplicó en una liquidación emitida).</summary>
+    public Resultado Actualizar(DateOnly desde, DateOnly hasta, decimal precioKg)
+    {
+        var validado = Crear(EmpresaId, CampanaId, ProductoId, CategoriaId, desde, hasta, precioKg);
+        if (validado.EsFallo)
+        {
+            return Resultado.Fallo(validado.Error);
+        }
+
+        Desde = desde;
+        Hasta = hasta;
+        PrecioKg = precioKg;
+        return Resultado.Ok();
+    }
+
+    public static Resultado<PrecioLiquidacion> Crear(Guid empresaId, Guid campanaId, Guid productoId, Guid? categoriaId, DateOnly desde, DateOnly hasta, decimal precioKg)
+    {
+        if (hasta < desde)
+        {
+            return Resultado.Fallo<PrecioLiquidacion>(Error.Validacion("precio.fechas", "El periodo del precio termina antes de empezar."));
+        }
+
+        return precioKg < 0m || decimal.Round(precioKg, 6) != precioKg
+            ? Resultado.Fallo<PrecioLiquidacion>(Error.Validacion("precio.importe", "El precio por kilo no puede ser negativo (hasta 6 decimales)."))
+            : Resultado.Ok(new PrecioLiquidacion(Guid.NewGuid(), empresaId, campanaId, productoId, categoriaId, desde, hasta, precioKg));
+    }
+}
+
+/// <summary>Cómo se calcula un descuento de la liquidación.</summary>
+public enum TipoConceptoLiquidacion
+{
+    /// <summary>Tantos euros por kilo liquidado (transporte, manipulación…).</summary>
+    PorKilo = 1,
+
+    /// <summary>Porcentaje sobre el importe bruto de la fruta (comisión…).</summary>
+    PorcentajeBruto = 2,
+
+    /// <summary>Importe fijo por liquidación (cuota, seguro…).</summary>
+    Fijo = 3,
+}
+
+/// <summary>Concepto de descuento de las liquidaciones.</summary>
+public sealed class ConceptoLiquidacion : RaizAgregadoEmpresa<Guid>
+{
+    private ConceptoLiquidacion(Guid id)
+        : base(id, Guid.Empty)
+    {
+        Codigo = null!;
+        Nombre = null!;
+    }
+
+    private ConceptoLiquidacion(Guid id, Guid empresaId, string codigo, string nombre, TipoConceptoLiquidacion tipo, decimal valor)
+        : base(id, empresaId)
+    {
+        Codigo = codigo;
+        Nombre = nombre;
+        Tipo = tipo;
+        Valor = valor;
+        Activo = true;
+    }
+
+    public string Codigo { get; private set; }
+
+    public string Nombre { get; private set; }
+
+    public TipoConceptoLiquidacion Tipo { get; private set; }
+
+    /// <summary>€/kg, porcentaje o euros, según el tipo.</summary>
+    public decimal Valor { get; private set; }
+
+    public bool Activo { get; private set; }
+
+    public static Resultado<ConceptoLiquidacion> Crear(Guid empresaId, string? codigo, string? nombre, TipoConceptoLiquidacion tipo, decimal valor)
+    {
+        var error = ReglasAgro.CodigoNombre(ref codigo, ref nombre, "concepto");
+        if (error is null && (!Enum.IsDefined(tipo) || valor < 0m || (tipo == TipoConceptoLiquidacion.PorcentajeBruto && valor > 100m)))
+        {
+            error = Error.Validacion("concepto.valor", "El tipo o el valor del concepto no son válidos.");
+        }
+
+        return error is not null ? Resultado.Fallo<ConceptoLiquidacion>(error) : Resultado.Ok(new ConceptoLiquidacion(Guid.NewGuid(), empresaId, codigo!, nombre!, tipo, valor));
+    }
+
+    public void FijarActivo(bool activo) => Activo = activo;
+}
+
+/// <summary>Recurso que se valora con una tarifa en los partes de confección.</summary>
+public enum RecursoCoste
+{
+    ManoObra = 1,
+    Maquina = 2,
+}
+
+/// <summary>Tipo de hora de la mano de obra. El destajo se paga por piezas (cajas, kilos…).</summary>
+public enum TipoHora
+{
+    Normal = 1,
+    Extra = 2,
+    Nocturna = 3,
+    Festiva = 4,
+    Destajo = 5,
+}
+
+/// <summary>Tarifa de coste (€/hora, o €/pieza en destajo) de una categoría de mano de obra o maquinaria, con vigencia.</summary>
+public sealed class TarifaCoste : RaizAgregadoEmpresa<Guid>
+{
+    private TarifaCoste(Guid id)
+        : base(id, Guid.Empty)
+    {
+        Categoria = null!;
+    }
+
+    private TarifaCoste(Guid id, Guid empresaId, RecursoCoste recurso, string categoria, TipoHora tipoHora, DateOnly desde, DateOnly? hasta, decimal coste)
+        : base(id, empresaId)
+    {
+        Recurso = recurso;
+        Categoria = categoria;
+        TipoHora = tipoHora;
+        Desde = desde;
+        Hasta = hasta;
+        CosteUnitario = coste;
+    }
+
+    public RecursoCoste Recurso { get; private set; }
+
+    /// <summary>Categoría (peón, encargado, carretilla…).</summary>
+    public string Categoria { get; private set; }
+
+    public TipoHora TipoHora { get; private set; }
+
+    public DateOnly Desde { get; private set; }
+
+    public DateOnly? Hasta { get; private set; }
+
+    public decimal CosteUnitario { get; private set; }
+
+    public bool Vigente(DateOnly fecha) => fecha >= Desde && (Hasta is null || fecha <= Hasta);
+
+    public static Resultado<TarifaCoste> Crear(Guid empresaId, RecursoCoste recurso, string? categoria, TipoHora tipoHora, DateOnly desde, DateOnly? hasta, decimal coste)
+    {
+        var cat = categoria?.Trim().ToUpperInvariant();
+        if (string.IsNullOrWhiteSpace(cat) || cat.Length > ReglasAgro.LongitudCodigo)
+        {
+            return Resultado.Fallo<TarifaCoste>(Error.Validacion("tarifa.categoria", "La categoría es obligatoria."));
+        }
+
+        if (!Enum.IsDefined(recurso) || !Enum.IsDefined(tipoHora) || (recurso == RecursoCoste.Maquina && tipoHora != TipoHora.Normal))
+        {
+            return Resultado.Fallo<TarifaCoste>(Error.Validacion("tarifa.tipo", "La maquinaria solo tiene tarifa por hora normal."));
+        }
+
+        if (hasta is { } h && h < desde)
+        {
+            return Resultado.Fallo<TarifaCoste>(Error.Validacion("tarifa.fechas", "La vigencia termina antes de empezar."));
+        }
+
+        return coste < 0m
+            ? Resultado.Fallo<TarifaCoste>(Error.Validacion("tarifa.coste", "El coste no puede ser negativo."))
+            : Resultado.Ok(new TarifaCoste(Guid.NewGuid(), empresaId, recurso, cat, tipoHora, desde, hasta, coste));
+    }
+}

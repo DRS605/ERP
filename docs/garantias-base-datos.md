@@ -81,6 +81,24 @@ insertó), que rellena un trigger.
 
 Detalle en [modulos/analitica.md](modulos/analitica.md).
 
+### Agro (fase 5)
+
+| Tabla | Regla |
+|---|---|
+| `agro.recepcion`, `agro.liquidacion`, `agro.parte_confeccion`, `agro.clasificacion` | Solo cambian en borrador (provisional en la clasificación). Después, solo su transición (confirmada → anulada, emitida → anulada, validado → anulado, definitiva → sustituida), y solo las columnas de esa transición. Solo el borrador se borra. Numeración sin huecos por ejercicio. |
+| Sus líneas (pesadas, líneas de recepción y de liquidación, consumos, salidas…) | Se modifican con la cabecera en borrador o en la misma transacción de su cambio de estado (columna `tx_estado`). |
+| `agro.movimiento_partida`, `agro.movimiento_envase`, `agro.genealogia` | Solo inserción. El saldo de cada partida, suelto y en cada palé, nunca es negativo. Una partida anulada no se mueve. Cada palé solo admite los movimientos de su estado. |
+| `agro.partida`, `agro.pale` | El origen y los kilos de una partida no cambian. El SSCC no cambia y lleva un dígito de control GS1 válido. Un palé expedido ya no se toca. |
+| Recepción confirmada | Cada línea tiene el neto y los envases de sus pesadas, y su partida con esos kilos. |
+| Liquidación | Cada entrega en una sola liquidación viva y con todos sus kilos netos; el precio vigente en su fecha. Importe = round(kilos × precio, 2) y totales coherentes. Emitir exige que el agricultor haya autorizado la autofacturación. |
+| Precios y tarifas | Sin solapes; los precios aplicados en una liquidación emitida y las tarifas usadas en un parte no cambian. |
+
+Detalle en [modulos/agro.md](modulos/agro.md).
+
+**Anulación de gastos:** un gasto anulado (hoy, la autofactura de una liquidación agrícola) encola su
+**contraasiento** en la misma transacción que la anulación, y deja de contar en los libros de IVA (antes el
+libro de IVA soportado incluía los gastos anulados) y en las autoliquidaciones.
+
 ## 4. Restricciones sobre importes y estados
 
 - Factura: número ≥ 1, ejercicio = año de la fecha, número completo coherente con prefijo, ejercicio y

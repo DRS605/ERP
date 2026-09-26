@@ -51,6 +51,7 @@ public sealed class DocumentoPendiente : RaizAgregadoEmpresa<Guid>
         TipoTercero = d.TipoTercero;
         Afectacion = d.Afectacion;
         ActividadNegocioId = d.ActividadNegocioId;
+        Anulacion = d.Anulacion;
         Estado = EstadoContabilizacion.Pendiente;
         CreadoEn = ahora;
     }
@@ -98,6 +99,9 @@ public sealed class DocumentoPendiente : RaizAgregadoEmpresa<Guid>
 
     /// <summary>Actividad de negocio del documento (para la imputación analítica).</summary>
     public Guid? ActividadNegocioId { get; private set; }
+
+    /// <summary>Anula otro documento: se contabiliza con el asiento inverso.</summary>
+    public bool Anulacion { get; private set; }
 
     public EstadoContabilizacion Estado { get; private set; }
 

@@ -89,6 +89,7 @@ public static class EndpointsCuenta
         CatalogoDbContext catalogo,
         AuditoriaDbContext auditoria,
         OrganizacionDbContext organizacion,
+        AlxorCore.Agro.Infraestructura.AgroDbContext agro,
         CancellationToken ct)
     {
         if (contexto.EmpresaId is not { } id)
@@ -107,6 +108,7 @@ public static class EndpointsCuenta
         }, ct).ConfigureAwait(false);
         await gastos.Gastos.Where(g => g.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
         await BorradoEmpresa.EjecutarAsync(tesoreria, id, () => tesoreria.Movimientos.Where(m => m.EmpresaId == id).ExecuteDeleteAsync(ct), ct).ConfigureAwait(false);
+        await BorradoEmpresa.EjecutarAsync(agro, id, () => agro.BorrarEmpresaAsync(id, ct), ct).ConfigureAwait(false);
 
         // Los maestros de Terceros son del grupo (compartidos): se borran por grupo.
         var grupo = contexto.GrupoId ?? Guid.Empty;

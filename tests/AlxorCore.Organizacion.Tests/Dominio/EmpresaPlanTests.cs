@@ -21,7 +21,7 @@ public class EmpresaPlanTests
     {
         var e = NuevaEmpresa();
         e.Plan.Edicion.Should().Be(CatalogoModulos.EdicionCompleta);
-        e.Plan.ModulosActivos.Should().HaveCount(CatalogoModulos.Modulos.Count);
+        e.Plan.ModulosActivos.Should().HaveCount(CatalogoModulos.Modulos.Count(m => !m.Vertical), "los módulos sectoriales se contratan aparte");
     }
 
     [Fact]

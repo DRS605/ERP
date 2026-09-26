@@ -49,9 +49,12 @@ Se porta desde Clon como módulo contratable aparte de las ediciones, con su pro
 | Partes de confección con destajo y genealogía | `0004`, `0010` |
 | Trazabilidad de palé a parcela y de parcela a cliente | `0007`, `0010`, `0011` |
 
-Encaja sobre lo que ya tiene ALXOR: terceros (agricultor = proveedor con marca), catálogo (lotes y
-series), inventario (almacenes y ubicaciones), compras (la liquidación genera la factura recibida o
-autofactura) y ventas (albarán con palés).
+Encaja sobre lo que ya tiene ALXOR: terceros (agricultor = proveedor con ficha agrícola), catálogo
+(productos en kg, envases y materiales), gastos (la liquidación genera la autofactura), contabilidad y
+analítica (coste por kilo de cada parcela).
+
+✅ Hecho (fase 5), sin recursos humanos: la mano de obra es solo coste por categoría y tarifa. Pendiente:
+reflejar las partidas en Inventario y el albarán de venta de los palés expedidos.
 
 ## 4. Hoja de ruta
 
@@ -61,5 +64,5 @@ autofactura) y ventas (albarán con palés).
 | 2 | Menú de la interfaz por plan ✅ · tarifas de precios y descuentos ✅ · anticipos y reclamación de impagados ✅ | ✅ |
 | 3 | Garantías de integridad en la BD (puntos 1-5 de §2) | ✅ |
 | 4 | Analítica (inspirada en Hispatec) y presupuestos contables · prorrata · IGIC — ver [analitica.md](modulos/analitica.md) e [impuestos-indirectos.md](modulos/impuestos-indirectos.md) | ✅ |
-| 5 | Módulo `agro` (§3) | 🔜 |
+| 5 | Módulo `agro` (§3): recepción con pesadas y envases, partidas y palés SSCC, clasificación, liquidación con autofactura REAGP, confección con coste, expedición, trazabilidad e informe de campaña con coste por kilo — ver [agro.md](modulos/agro.md) | ✅ |
 | 6 | Migración desde Hispatec (esquema ya analizado en Clon: `docs/hispatec/`) | 🔜 |

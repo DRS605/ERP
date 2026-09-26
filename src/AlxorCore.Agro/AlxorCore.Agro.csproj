@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AlxorCore.Agro</RootNamespace>
+    <AssemblyName>AlxorCore.Agro</AssemblyName>
+  </PropertyGroup>
+
+  <!-- Vertical hortofrutícola: el agricultor es un proveedor (Terceros), la fruta y los envases son
+       artículos (Catálogo) y la liquidación se registra como gasto (Gastos). -->
+  <ItemGroup>
+    <ProjectReference Include="..\AlxorCore.Nucleo\AlxorCore.Nucleo.csproj" />
+    <ProjectReference Include="..\AlxorCore.Terceros\AlxorCore.Terceros.csproj" />
+    <ProjectReference Include="..\AlxorCore.Catalogo\AlxorCore.Catalogo.csproj" />
+  </ItemGroup>
+
+</Project>

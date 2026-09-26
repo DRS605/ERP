@@ -149,6 +149,7 @@ internal sealed class ConfiguracionDocumentoPendiente : IEntityTypeConfiguration
         builder.Property(d => d.TipoTercero).HasColumnName("tipo_tercero").HasMaxLength(80);
         builder.Property(d => d.Afectacion).HasColumnName("afectacion").HasMaxLength(20);
         builder.Property(d => d.ActividadNegocioId).HasColumnName("actividad_negocio_id");
+        builder.Property(d => d.Anulacion).HasColumnName("anulacion").HasDefaultValue(false).IsRequired();
         builder.Property(d => d.Estado).HasColumnName("estado").HasMaxLength(20).HasConversion<string>().IsRequired();
         builder.Property(d => d.AsientoId).HasColumnName("asiento_id");
         builder.Property(d => d.CreadoEn).HasColumnName("creado_en").IsRequired();

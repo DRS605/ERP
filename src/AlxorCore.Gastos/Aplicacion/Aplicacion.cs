@@ -205,6 +205,59 @@ public sealed class RegistrarGasto
     }
 }
 
+/// <summary>
+/// Caso de uso: anular un gasto. Deja de contar en los libros y autoliquidaciones y, si se había
+/// encolado su contabilización, se encola el contraasiento (en la misma transacción, por la bandeja de
+/// salida). No comprueba los pagos: lo hace quien lo invoca (los gastos que nacen de otro documento, como
+/// una liquidación agrícola, se anulan desde ese documento).
+/// </summary>
+public sealed class AnularGasto
+{
+    private readonly IRepositorioGastos _gastos;
+    private readonly IConsultaProveedores _proveedores;
+    private readonly IUnidadDeTrabajoGastos _unidadDeTrabajo;
+    private readonly EncolarSalidaGastos _encolarSalida;
+    private readonly DespacharSalidaGastos _despacharSalida;
+    private readonly IReloj _reloj;
+
+    public AnularGasto(IRepositorioGastos gastos, IConsultaProveedores proveedores, IUnidadDeTrabajoGastos unidadDeTrabajo,
+        EncolarSalidaGastos encolarSalida, DespacharSalidaGastos despacharSalida, IReloj reloj)
+    {
+        _gastos = gastos;
+        _proveedores = proveedores;
+        _unidadDeTrabajo = unidadDeTrabajo;
+        _encolarSalida = encolarSalida;
+        _despacharSalida = despacharSalida;
+        _reloj = reloj;
+    }
+
+    public async Task<Resultado> EjecutarAsync(Guid gastoId, CancellationToken ct = default)
+    {
+        var g = await _gastos.ObtenerPorIdAsync(gastoId, ct).ConfigureAwait(false);
+        if (g is null)
+        {
+            return Resultado.Fallo(Error.NoEncontrado("gasto.no_encontrado", "El gasto no existe."));
+        }
+
+        var r = g.Anular(_reloj);
+        if (r.EsFallo)
+        {
+            return r;
+        }
+
+        var tipoTercero = g.ProveedorId is { } p ? (await _proveedores.ObtenerAsync(p, ct).ConfigureAwait(false))?.Tipo : null;
+        var referencia = $"Anulación: {g.Concepto}";
+        _encolarSalida.Contabilizacion(g.EmpresaId, new DocumentoContabilizable(
+            SentidoContable.Compra, "AnulacionGasto", g.Id, referencia.Length > 80 ? referencia[..80] : referencia, g.ProveedorId, g.ProveedorTexto ?? g.Concepto,
+            g.Fecha, g.BaseImponible, g.CodigoIva, g.CuotaIva, g.PorcentajeIrpf, g.RetencionIrpf, g.Total, TipoTercero: tipoTercero,
+            Afectacion: g.Afectacion.ToString(), ActividadNegocioId: g.ActividadNegocioId, Anulacion: true));
+
+        await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        await _despacharSalida.EjecutarAsync(ct: ct).ConfigureAwait(false);
+        return Resultado.Ok();
+    }
+}
+
 /// <summary>Caso de uso: cambiar la afectación de un gasto a efectos de la prorrata especial.</summary>
 public sealed class CambiarAfectacionGasto
 {

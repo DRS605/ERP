@@ -142,10 +142,18 @@ public sealed class Gasto : RaizAgregadoEmpresa<Guid>
     public void EstablecerActividad(Guid? actividadNegocioId) =>
         ActividadNegocioId = actividadNegocioId is { } a && a != Guid.Empty ? a : null;
 
-    public void Anular(IReloj reloj)
+    /// <summary>Anula el gasto: deja de contar en los libros de IVA y en las autoliquidaciones.</summary>
+    public Resultado Anular(IReloj reloj)
     {
+        ArgumentNullException.ThrowIfNull(reloj);
+        if (Estado == EstadoGasto.Anulado)
+        {
+            return Resultado.Fallo(Error.Conflicto("gasto.anulado", "El gasto ya está anulado."));
+        }
+
         Estado = EstadoGasto.Anulado;
         ActualizadoEn = reloj.AhoraUtc;
+        return Resultado.Ok();
     }
 
     private static string? Normalizar(string? valor) => string.IsNullOrWhiteSpace(valor) ? null : valor.Trim();

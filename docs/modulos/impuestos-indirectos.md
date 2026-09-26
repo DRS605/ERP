@@ -74,7 +74,14 @@ deducible. La no deducible se suma a la cuenta de gasto, como manda el PGC.
 - El asiento de la regularización anual (634/639); hoy el importe se calcula pero el asiento se hace a mano.
 - La regularización de bienes de inversión en 5 o 10 años (art. 107).
 
-## 3. Correcciones de paso
+## 3. Compensaciones del REAGP
+
+El catálogo incluye las compensaciones del régimen especial de la agricultura, ganadería y pesca:
+`REAGP12` (agrícola y forestal, 12 %) y `REAGP105` (ganadera y pesquera, 10,5 %). Las usa la autofactura de
+las liquidaciones al agricultor del [módulo agro](agro.md). Son IVA soportado deducible, y el 303 las
+muestra aparte (casillas 42-43).
+
+## 4. Correcciones de paso
 
 - El 303 y el 130 contaban los **gastos anulados**, y ya no.
 - El PDF redondeaba los porcentajes a enteros: 10,5 % salía como «11 %».

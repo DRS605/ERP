@@ -50,6 +50,11 @@ public static class Permisos
     public const string ProyectoLeer = "proyecto.leer";
     public const string ProyectoGestionar = "proyecto.gestionar";
 
+    // Agro (recepción de fruta, confección y trazabilidad; la liquidación al agricultor va aparte porque genera facturas)
+    public const string AgroLeer = "agro.leer";
+    public const string AgroGestionar = "agro.gestionar";
+    public const string AgroLiquidar = "agro.liquidar";
+
     // Terceros y catálogo
     public const string ClienteGestionar = "cliente.gestionar";
     public const string ProductoGestionar = "producto.gestionar";
@@ -85,6 +90,7 @@ public static class Permisos
         ProduccionLeer, ProduccionGestionar,
         PersonalLeer, PersonalGestionar,
         ProyectoLeer, ProyectoGestionar,
+        AgroLeer, AgroGestionar, AgroLiquidar,
         ClienteGestionar, ProductoGestionar,
         InformeLeer, DatosExportar,
         AprobacionConfigurar, AprobacionAprobar,

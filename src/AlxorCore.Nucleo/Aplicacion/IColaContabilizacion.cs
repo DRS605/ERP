@@ -10,7 +10,8 @@ public enum SentidoContable
 /// <summary>
 /// Datos de un documento que debe contabilizarse (factura emitida, gasto, factura recibida, factura
 /// de compra). Los módulos de negocio los envían a la <see cref="IColaContabilizacion"/> sin conocer
-/// el módulo de Contabilidad.
+/// el módulo de Contabilidad. Con <c>Anulacion</c>, el documento anula otro ya encolado: se contabiliza con
+/// el asiento inverso (contraasiento), con los mismos importes en positivo.
 /// </summary>
 public sealed record DocumentoContabilizable(
     SentidoContable Sentido,
@@ -30,7 +31,8 @@ public sealed record DocumentoContabilizable(
     string? Familia = null,
     string? TipoTercero = null,
     string? Afectacion = null,
-    Guid? ActividadNegocioId = null);
+    Guid? ActividadNegocioId = null,
+    bool Anulacion = false);
 
 /// <summary>
 /// Cola de contabilización: recibe los documentos contabilizables y los deja <b>pendientes</b> de que

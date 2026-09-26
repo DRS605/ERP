@@ -22,7 +22,9 @@ public sealed record Modelo303Dto(
     decimal Resultado,
     decimal IvaSoportadoCuota = 0m,
     int PorcentajeProrrata = 100,
-    decimal RegularizacionProrrata = 0m);
+    decimal RegularizacionProrrata = 0m,
+    decimal CompensacionesReagpBase = 0m,
+    decimal CompensacionesReagpCuota = 0m);
 
 /// <summary>
 /// Resumen del <b>modelo 130</b> (pago fraccionado del IRPF en estimación directa). Es
@@ -94,9 +96,13 @@ public sealed class GenerarResumenesFiscales
             ? new DeduccionTrimestre(null, 100, soportado.Total, 0m)
             : await _prorrata.DeduccionAsync(empresaId, anio, trimestre, TipoImpuesto.Iva, soportado, ct).ConfigureAwait(false);
 
+        // Compensaciones pagadas a agricultores en REAGP (casillas 42-43): son parte de lo soportado.
+        var reagp = gastos.Where(g => g.Fecha >= desde && g.Fecha <= hasta && g.CodigoIva.StartsWith("REAGP", StringComparison.OrdinalIgnoreCase)).ToList();
+
         return new Modelo303Dto(anio, trimestre, desde, hasta, devBase, devCuota, soportado.Base, deduccion.Deducible,
             Redondeo.Dos(devCuota - deduccion.Deducible - deduccion.Regularizacion),
-            soportado.Total, deduccion.Porcentaje, deduccion.Regularizacion);
+            soportado.Total, deduccion.Porcentaje, deduccion.Regularizacion,
+            Redondeo.Dos(reagp.Sum(g => g.BaseImponible)), Redondeo.Dos(reagp.Sum(g => g.CuotaIva)));
     }
 
     private static Modelo130Dto Calcular130(int anio, int trimestre, IReadOnlyList<FacturaResumen> facturas, IReadOnlyList<GastoDto> gastos)

@@ -18,6 +18,7 @@ using AlxorCore.Inventario.Infraestructura;
 using AlxorCore.Produccion.Infraestructura;
 using AlxorCore.Personal.Infraestructura;
 using AlxorCore.Proyectos.Infraestructura;
+using AlxorCore.Agro.Infraestructura;
 using AlxorCore.Tesoreria.Infraestructura;
 using AlxorCore.Documentos.Infraestructura;
 using AlxorCore.Informes.Infraestructura;
@@ -55,11 +56,16 @@ builder.Services.AgregarModuloProduccion(builder.Configuration);
 builder.Services.AgregarModuloPersonal(builder.Configuration);
 builder.Services.AgregarModuloProyectos(builder.Configuration);
 builder.Services.AgregarModuloTesoreria(builder.Configuration);
+builder.Services.AgregarModuloAgro(builder.Configuration);
 builder.Services.AgregarModuloDocumentos();
 builder.Services.AgregarModuloInformes();
 
 // Contabilidad pregunta qué parte del IVA/IGIC soportado es deducible (prorrata, en Organización).
 builder.Services.AddScoped<AlxorCore.Contabilidad.Aplicacion.IDeduccionImpuesto, AlxorCore.Api.Comun.DeduccionImpuestoProrrata>();
+
+// Agro: la autofactura de las liquidaciones es un gasto (Gastos/Tesorería) y el coste por kilo sale de la analítica.
+builder.Services.AddScoped<AlxorCore.Agro.Aplicacion.IAutofacturas, AlxorCore.Api.Comun.AutofacturasGastos>();
+builder.Services.AddScoped<AlxorCore.Agro.Aplicacion.ICosteAnalitico, AlxorCore.Api.Comun.CosteAnaliticoContabilidad>();
 builder.Services.AgregarModuloAuditoria(builder.Configuration);
 builder.Services.AgregarModuloDivisas(builder.Configuration);
 builder.Services.AgregarModuloAprobaciones(builder.Configuration);
@@ -182,6 +188,7 @@ if (app.Environment.IsDevelopment())
     await ambito.ServiceProvider.GetRequiredService<PersonalDbContext>().Database.MigrateAsync().ConfigureAwait(false);
     await ambito.ServiceProvider.GetRequiredService<ProyectosDbContext>().Database.MigrateAsync().ConfigureAwait(false);
     await ambito.ServiceProvider.GetRequiredService<AlxorCore.Tesoreria.Infraestructura.TesoreriaDbContext>().Database.MigrateAsync().ConfigureAwait(false);
+    await ambito.ServiceProvider.GetRequiredService<AgroDbContext>().Database.MigrateAsync().ConfigureAwait(false);
     await ambito.ServiceProvider.GetRequiredService<AlxorCore.Auditoria.Infraestructura.AuditoriaDbContext>().Database.MigrateAsync().ConfigureAwait(false);
     await ambito.ServiceProvider.GetRequiredService<AlxorCore.Divisas.Infraestructura.DivisasDbContext>().Database.MigrateAsync().ConfigureAwait(false);
     await ambito.ServiceProvider.GetRequiredService<AlxorCore.Aprobaciones.Infraestructura.AprobacionesDbContext>().Database.MigrateAsync().ConfigureAwait(false);
@@ -251,6 +258,7 @@ app.MapearProduccion();
 app.MapearPersonal();
 app.MapearProyectos();
 app.MapearTesoreria();
+app.MapearAgro();
 app.MapearCobranza();
 app.MapearImpuestosIndirectos();
 app.MapearAnalitica();

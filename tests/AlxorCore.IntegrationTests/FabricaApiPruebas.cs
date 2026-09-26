@@ -98,6 +98,7 @@ public class FabricaApiPruebas : WebApplicationFactory<Program>, IAsyncLifetime
         var personal = ambito.ServiceProvider.GetRequiredService<AlxorCore.Personal.Infraestructura.PersonalDbContext>();
         var proyectos = ambito.ServiceProvider.GetRequiredService<AlxorCore.Proyectos.Infraestructura.ProyectosDbContext>();
         var tesoreria = ambito.ServiceProvider.GetRequiredService<AlxorCore.Tesoreria.Infraestructura.TesoreriaDbContext>();
+        var agro = ambito.ServiceProvider.GetRequiredService<AlxorCore.Agro.Infraestructura.AgroDbContext>();
         var auditoria = ambito.ServiceProvider.GetRequiredService<AlxorCore.Auditoria.Infraestructura.AuditoriaDbContext>();
         var divisas = ambito.ServiceProvider.GetRequiredService<AlxorCore.Divisas.Infraestructura.DivisasDbContext>();
         var aprobaciones = ambito.ServiceProvider.GetRequiredService<AlxorCore.Aprobaciones.Infraestructura.AprobacionesDbContext>();
@@ -117,6 +118,7 @@ public class FabricaApiPruebas : WebApplicationFactory<Program>, IAsyncLifetime
         await personal.Database.MigrateAsync().ConfigureAwait(false);
         await proyectos.Database.MigrateAsync().ConfigureAwait(false);
         await tesoreria.Database.MigrateAsync().ConfigureAwait(false);
+        await agro.Database.MigrateAsync().ConfigureAwait(false);
         await auditoria.Database.MigrateAsync().ConfigureAwait(false);
         await divisas.Database.MigrateAsync().ConfigureAwait(false);
         await aprobaciones.Database.MigrateAsync().ConfigureAwait(false);

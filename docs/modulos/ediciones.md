@@ -18,9 +18,12 @@ auditoría e importación de datos.
 | Gestión | `gestion` | Pyme comercial o de servicios | Ventas, Compras, Inventario, Divisas, Aprobaciones, Integraciones |
 | Finanzas | `finanzas` | Empresas con contabilidad propia, asesorías | Contabilidad, Inmovilizado, Analítica y presupuestos, Tesorería avanzada |
 | Gestión y finanzas | `gestion_finanzas` | Pyme completa | Gestión + Finanzas |
-| Completa | `completa` | Industria y proyectos | Todo, incluidos Producción, Personal y Proyectos |
+| Completa | `completa` | Industria y proyectos | Todos los generalistas, incluidos Producción, Personal y Proyectos |
 
 Cualquier módulo se puede añadir suelto sobre una edición (por ejemplo, Start + Contabilidad).
+
+Los módulos **sectoriales** no entran en ninguna edición, ni siquiera en la Completa: una empresa
+generalista no debe ver menús de otro sector. Se contratan aparte (por ejemplo, Gestión y finanzas + Agro).
 
 ## Módulos y dependencias
 
@@ -39,6 +42,7 @@ Cualquier módulo se puede añadir suelto sobre una edición (por ejemplo, Start
 | Divisas | `divisas` | — |
 | Aprobaciones | `aprobaciones` | — |
 | Integraciones (API pública y webhooks) | `integraciones` | — |
+| **Agro** (sectorial): recepción de fruta, liquidación al agricultor, confección, palés SSCC, trazabilidad — [agro.md](agro.md) | `agro` | — |
 
 Un plan al que le falta una dependencia se **rechaza** (no se añade sola, porque es de pago):
 *"Producción necesita Inventario."*

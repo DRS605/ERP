@@ -114,6 +114,12 @@ public sealed class PosterDocumento
             ? LineasVenta(doc, cuentaResultado, cuentaTercero, concepto)
             : LineasCompra(doc, cuentaResultado, cuentaTercero, concepto, cuotaDeducible);
 
+        // Anulación: el contraasiento, con el debe y el haber cambiados.
+        if (doc.Anulacion)
+        {
+            lineas = lineas.Select(l => l with { Debe = l.Haber, Haber = l.Debe }).ToList();
+        }
+
         await SembradorPlan.AsegurarAsync(doc.EmpresaId, _cuentas, ct).ConfigureAwait(false);
         var ejercicio = doc.FechaRegistro.Year;
         var numero = await _asientos.SiguienteNumeroAsync(doc.EmpresaId, ejercicio, ct).ConfigureAwait(false);

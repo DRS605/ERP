@@ -101,9 +101,12 @@ Esquema analizado en `DRS605/Clon/docs/hispatec`: `AnaliticaEstructuras/Grupos/S
 | Presupuesto analítico (año × proyecto × partida × 12 meses) sin uso (0 filas) | Presupuesto por cuenta o grupo, centro y partida, de 1 a 24 meses, generado desde el real, con versiones y seguimiento |
 | Repartos por fórmula y por pesos (tablas sin uso) | No se portan: claves de reparto y reparto secundario cubren lo que se usa |
 
-**Pendiente, para el módulo agro (fase 5):**
-- Imputación desde documentos operativos (partes de trabajo, albaranes), con **cantidades** (kilos,
-  horas) para el coste por unidad, como `AnaliticaLinea`.
+**Coste por unidad (fase 5):** el [módulo agro](agro.md) divide el gasto imputado al centro de cada parcela
+entre los kilos que produce en la campaña (coste de cultivo por kilo), y valora la confección por kilo.
+
+**Pendiente:**
+- Imputación desde documentos operativos (partes de confección, albaranes) directamente a centros, con
+  cantidades, como `AnaliticaLinea` de Hispatec.
 - Mano de obra entre empresas del grupo.
 
 ## 7. Garantías en la base de datos
