@@ -46,6 +46,8 @@ public sealed class ContabilidadDbContext : DbContextEmpresaBase, IUnidadDeTraba
 
     public DbSet<EjecucionAnalitica> EjecucionesAnaliticas => Set<EjecucionAnalitica>();
 
+    public DbSet<PresupuestoContable> PresupuestosContables => Set<PresupuestoContable>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Esquema);

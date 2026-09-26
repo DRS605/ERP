@@ -39,6 +39,9 @@ public static class RegistroServicios
         servicios.AddScoped<MaestrosAnaliticos>();
         servicios.AddScoped<ImputacionesAnaliticas>();
         servicios.AddScoped<InformeAnalitico>();
+        servicios.AddScoped<IRepositorioPresupuestosContables, RepositorioPresupuestosContables>();
+        servicios.AddScoped<GestionPresupuestosContables>();
+        servicios.AddScoped<SeguimientoPresupuesto>();
 
         servicios.AddScoped<ListarCuentas>();
         servicios.AddScoped<CrearAsiento>();

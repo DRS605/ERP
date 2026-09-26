@@ -298,3 +298,55 @@ internal sealed class RepositorioAnalitica : IRepositorioAnalitica
         }).ToList();
     }
 }
+
+internal sealed class ConfiguracionPresupuestoContable : IEntityTypeConfiguration<PresupuestoContable>
+{
+    public void Configure(EntityTypeBuilder<PresupuestoContable> builder)
+    {
+        builder.ToTable("presupuesto_contable");
+        builder.HasKey(p => p.Id);
+        builder.Property(p => p.Id).HasColumnName("id").ValueGeneratedNever();
+        builder.Property(p => p.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        builder.Property(p => p.Codigo).HasColumnName("codigo").HasMaxLength(MaestroAnaliticoLimites.Codigo).IsRequired();
+        builder.Property(p => p.Nombre).HasColumnName("nombre").HasMaxLength(MaestroAnaliticoLimites.Nombre).IsRequired();
+        builder.Property(p => p.Desde).HasColumnName("desde").IsRequired();
+        builder.Property(p => p.Meses).HasColumnName("meses").IsRequired();
+        builder.Property(p => p.Estado).HasColumnName("estado").HasMaxLength(20).HasConversion<string>().IsRequired();
+        builder.Property(p => p.CreadoEn).HasColumnName("creado_en").IsRequired();
+        builder.OwnsMany(p => p.Lineas, l =>
+        {
+            l.ToTable("linea_presupuesto");
+            l.WithOwner().HasForeignKey("presupuesto_id");
+            l.HasKey(x => x.Id);
+            l.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+            l.Property(x => x.CuentaCodigo).HasColumnName("cuenta_codigo").HasMaxLength(12).IsRequired();
+            l.Property(x => x.CentroId).HasColumnName("centro_id");
+            l.Property(x => x.PartidaId).HasColumnName("partida_id");
+            l.Property(x => x.Importes).HasColumnName("importes").HasColumnType("numeric(14,2)[]").IsRequired();
+            l.HasOne<CentroAnalitico>().WithMany().HasForeignKey(x => x.CentroId).OnDelete(DeleteBehavior.Restrict);
+            l.HasOne<PartidaAnalitica>().WithMany().HasForeignKey(x => x.PartidaId).OnDelete(DeleteBehavior.Restrict);
+            l.HasIndex("presupuesto_id").HasDatabaseName("ix_linea_presupuesto_presupuesto");
+            l.Ignore(x => x.Naturaleza);
+            l.Ignore(x => x.Total);
+        });
+        builder.Navigation(p => p.Lineas).UsePropertyAccessMode(PropertyAccessMode.Field);
+        builder.HasIndex(p => new { p.EmpresaId, p.Codigo }).IsUnique().HasDatabaseName("ux_presupuesto_contable_empresa_codigo");
+        builder.Ignore(p => p.Hasta);
+        builder.Ignore(p => p.EventosDominio);
+    }
+}
+
+internal sealed class RepositorioPresupuestosContables : IRepositorioPresupuestosContables
+{
+    private readonly ContabilidadDbContext _contexto;
+
+    public RepositorioPresupuestosContables(ContabilidadDbContext contexto) => _contexto = contexto;
+
+    public async Task<IReadOnlyList<PresupuestoContable>> ListarAsync(Guid empresaId, CancellationToken ct = default) =>
+        await _contexto.PresupuestosContables.Where(p => p.EmpresaId == empresaId).ToListAsync(ct).ConfigureAwait(false);
+
+    public Task<PresupuestoContable?> ObtenerAsync(Guid id, CancellationToken ct = default) =>
+        _contexto.PresupuestosContables.SingleOrDefaultAsync(p => p.Id == id, ct);
+
+    public void Agregar(PresupuestoContable presupuesto) => _contexto.PresupuestosContables.Add(presupuesto);
+}

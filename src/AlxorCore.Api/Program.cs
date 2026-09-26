@@ -254,6 +254,7 @@ app.MapearTesoreria();
 app.MapearCobranza();
 app.MapearImpuestosIndirectos();
 app.MapearAnalitica();
+app.MapearPresupuestosContables();
 app.MapearDocumentos();
 app.MapearInformes();
 app.MapearAuditoria();
