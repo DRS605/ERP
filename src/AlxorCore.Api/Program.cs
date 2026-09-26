@@ -247,6 +247,7 @@ app.MapearProduccion();
 app.MapearPersonal();
 app.MapearProyectos();
 app.MapearTesoreria();
+app.MapearCobranza();
 app.MapearDocumentos();
 app.MapearInformes();
 app.MapearAuditoria();

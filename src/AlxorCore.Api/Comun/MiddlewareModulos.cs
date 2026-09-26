@@ -40,7 +40,7 @@ public static class RutasModulos
     [
         "/auth", "/empresas", "/grupos", "/planes", "/usuarios", "/cuenta", "/series", "/formas-pago", "/actividades",
         "/clientes", "/proveedores", "/productos", "/familias", "/tipos-iva", "/impuestos", "/tickets",
-        "/facturas", "/facturas-recurrentes", "/gastos", "/recepcion", "/cobros", "/pagos",
+        "/facturas", "/facturas-recurrentes", "/gastos", "/recepcion", "/cobros", "/pagos", "/anticipos", "/impagados",
         "/informes", "/auditoria", "/importar", "/salud", "/swagger",
     ];
 

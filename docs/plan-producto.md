@@ -12,11 +12,11 @@ Referencia: lo que un comprador de pyme española espera de Holded, Odoo, Busine
 | Área | ALXOR hoy | Hueco |
 |---|---|---|
 | Facturación y Verifactu | ✅ Facturas, tickets, rectificativas, recurrentes, Facturae, XML Verifactu | Envío real a la AEAT y QR (si falta) |
-| Ventas | ✅ Presupuesto → pedido → albarán → factura, carta de porte | **Tarifas de precios** por cliente o grupo, **descuentos** por volumen, **comisiones** de comerciales, **rappels** |
+| Ventas | ✅ Presupuesto → pedido → albarán → factura, carta de porte, **tarifas de precios** con descuentos por producto/familia, escalado y vigencia | **Comisiones** de comerciales, **rappels** |
 | Compras | ✅ Solicitud → pedido → albarán → factura, buzón de facturas | Tarifas de proveedor, anticipos a proveedor |
 | Inventario y producción | ✅ Multialmacén, ubicaciones, lotes y series, montaje, órdenes de fabricación | Inventario por recuento con ajuste, reservas, valoración FIFO (revisar) |
 | Contabilidad | ✅ PGC, asientos, mayor, balances, cierre, cuentas anuales, modelo 200, inmovilizado | **Analítica** (centros de coste), **presupuestos contables**, periodificaciones, **prorrata** de IVA, consolidación de grupo |
-| Tesorería | ✅ Cobros y pagos, Norma 43, SEPA (19/34, pain.001/008), confirming, previsión, riesgo | **Reclamación de impagados**, **anticipos** de clientes, cartera de efectos (pagarés), sincronización bancaria PSD2 |
+| Tesorería | ✅ Cobros y pagos, Norma 43, SEPA (19/34, pain.001/008), confirming, previsión, riesgo, **anticipos** y **reclamación de impagados** | Factura de anticipo automática, cartera de efectos (pagarés), sincronización bancaria PSD2 |
 | Impuestos | ✅ 303, 130, 390, 347, 111, 190, 349, SII (XML), REAGP, OSS, criterio de caja, ISP | **IGIC** (Canarias), **TicketBAI/Batuz** (País Vasco), Intrastat, envío SII |
 | Plataforma | ✅ Multiempresa y grupos, roles y permisos, 2FA, auditoría, webhooks, API, importación | **Ediciones y módulos** (✅ hecho), portal de cliente, menú por plan |
 
@@ -56,7 +56,7 @@ autofactura) y ventas (albarán con palés).
 | Fase | Contenido | Estado |
 |---|---|---|
 | 1 | Ediciones y módulos contratables | ✅ |
-| 2 | Menú de la interfaz por plan ✅ · tarifas de precios y descuentos ✅ · anticipos y reclamación de impagados | 🔜 |
+| 2 | Menú de la interfaz por plan ✅ · tarifas de precios y descuentos ✅ · anticipos y reclamación de impagados ✅ | ✅ |
 | 3 | Garantías de integridad en la BD (puntos 1-5 de §2) | 🔜 |
 | 4 | Analítica y presupuestos contables · prorrata · IGIC | 🔜 |
 | 5 | Módulo `agro` (§3) | 🔜 |

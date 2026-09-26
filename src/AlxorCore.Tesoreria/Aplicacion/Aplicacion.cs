@@ -87,7 +87,8 @@ public sealed class RegistrarCobro
 
     internal static async Task<Resultado<SaldoDto>> RegistrarAsync(
         Guid empresaId, TipoDocumentoTesoreria tipo, Guid documentoId, SentidoMovimiento sentido, decimal importe, decimal totalDocumento,
-        DateOnly? fecha, string? metodo, IRepositorioMovimientos movimientos, IUnidadDeTrabajo unidadDeTrabajo, IReloj reloj, CancellationToken ct)
+        DateOnly? fecha, string? metodo, IRepositorioMovimientos movimientos, IUnidadDeTrabajo unidadDeTrabajo, IReloj reloj, CancellationToken ct,
+        Action<Movimiento>? antesDeGuardar = null)
     {
         var importeRedondeado = Redondeo.Dos(importe);
         if (importeRedondeado <= 0)
@@ -109,6 +110,7 @@ public sealed class RegistrarCobro
         }
 
         movimientos.Agregar(movimiento.Valor);
+        antesDeGuardar?.Invoke(movimiento.Valor);   // p. ej. anotar la aplicación de un anticipo en la misma transacción
         await unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
 
         var nuevoLiquidado = Redondeo.Dos(liquidado + importeRedondeado);

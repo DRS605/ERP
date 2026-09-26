@@ -24,6 +24,12 @@ public sealed class TesoreriaDbContext : DbContextEmpresaBase, IUnidadDeTrabajoT
 
     public DbSet<PrevisionTesoreria> Previsiones => Set<PrevisionTesoreria>();
 
+    public DbSet<Anticipo> Anticipos => Set<Anticipo>();
+
+    public DbSet<Reclamacion> Reclamaciones => Set<Reclamacion>();
+
+    public DbSet<ConfiguracionReclamaciones> ConfiguracionesReclamacion => Set<ConfiguracionReclamaciones>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Esquema);
@@ -165,4 +171,114 @@ public sealed class TesoreriaDbContextFactory : IDesignTimeDbContextFactory<Teso
     {
         public Guid? EmpresaId => null;
     }
+}
+
+internal sealed class ConfiguracionAnticipo : IEntityTypeConfiguration<Anticipo>
+{
+    public void Configure(EntityTypeBuilder<Anticipo> builder)
+    {
+        builder.ToTable("anticipo");
+        builder.HasKey(a => a.Id);
+        builder.Property(a => a.Id).HasColumnName("id");
+        builder.Property(a => a.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        builder.Property(a => a.ClienteId).HasColumnName("cliente_id").IsRequired();
+        builder.Property(a => a.Importe).HasColumnName("importe").HasColumnType("numeric(14,2)").IsRequired();
+        builder.Property(a => a.Fecha).HasColumnName("fecha").IsRequired();
+        builder.Property(a => a.Concepto).HasColumnName("concepto").HasMaxLength(Anticipo.LongitudMaximaConcepto).IsRequired();
+        builder.Property(a => a.Metodo).HasColumnName("metodo").HasMaxLength(60);
+        builder.Property(a => a.CreadoEn).HasColumnName("creado_en").IsRequired();
+        builder.OwnsMany(a => a.Aplicaciones, ap =>
+        {
+            ap.ToTable("aplicacion_anticipo");
+            ap.WithOwner().HasForeignKey("anticipo_id");
+            ap.HasKey(x => x.Id);
+            ap.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+            ap.Property(x => x.FacturaId).HasColumnName("factura_id").IsRequired();
+            ap.Property(x => x.Importe).HasColumnName("importe").HasColumnType("numeric(14,2)").IsRequired();
+            ap.Property(x => x.Fecha).HasColumnName("fecha").IsRequired();
+            ap.Property(x => x.MovimientoId).HasColumnName("movimiento_id").IsRequired();
+            ap.HasIndex("anticipo_id").HasDatabaseName("ix_aplicacion_anticipo_anticipo");
+            ap.HasIndex(x => x.MovimientoId).IsUnique().HasDatabaseName("ux_aplicacion_anticipo_movimiento");
+        });
+        builder.Navigation(a => a.Aplicaciones).UsePropertyAccessMode(PropertyAccessMode.Field);
+        builder.Ignore(a => a.Aplicado);
+        builder.Ignore(a => a.Disponible);
+        builder.Ignore(a => a.Estado);
+        builder.HasIndex(a => new { a.EmpresaId, a.ClienteId }).HasDatabaseName("ix_anticipo_empresa_cliente");
+        builder.Ignore(a => a.EventosDominio);
+    }
+}
+
+internal sealed class ConfiguracionReclamacion : IEntityTypeConfiguration<Reclamacion>
+{
+    public void Configure(EntityTypeBuilder<Reclamacion> builder)
+    {
+        builder.ToTable("reclamacion");
+        builder.HasKey(r => r.Id);
+        builder.Property(r => r.Id).HasColumnName("id");
+        builder.Property(r => r.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        builder.Property(r => r.FacturaId).HasColumnName("factura_id").IsRequired();
+        builder.Property(r => r.Nivel).HasColumnName("nivel").IsRequired();
+        builder.Property(r => r.Canal).HasColumnName("canal").HasMaxLength(20).HasConversion<string>().IsRequired();
+        builder.Property(r => r.Pendiente).HasColumnName("pendiente").HasColumnType("numeric(14,2)").IsRequired();
+        builder.Property(r => r.DiasRetraso).HasColumnName("dias_retraso").IsRequired();
+        builder.Property(r => r.Nota).HasColumnName("nota").HasMaxLength(Reclamacion.LongitudMaximaNota);
+        builder.Property(r => r.RealizadaEn).HasColumnName("realizada_en").IsRequired();
+        builder.HasIndex(r => new { r.EmpresaId, r.FacturaId }).HasDatabaseName("ix_reclamacion_empresa_factura");
+        builder.Ignore(r => r.EventosDominio);
+    }
+}
+
+internal sealed class ConfiguracionConfiguracionReclamaciones : IEntityTypeConfiguration<ConfiguracionReclamaciones>
+{
+    private static readonly System.Text.Json.JsonSerializerOptions Json = new(System.Text.Json.JsonSerializerDefaults.Web);
+
+    public void Configure(EntityTypeBuilder<ConfiguracionReclamaciones> builder)
+    {
+        builder.ToTable("configuracion_reclamaciones");
+        builder.HasKey(c => c.Id);
+        builder.Property(c => c.Id).HasColumnName("id");
+        builder.Property(c => c.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        builder.Property(c => c.Niveles).HasColumnName("niveles").HasColumnType("jsonb").IsRequired()
+            .HasConversion(
+                v => System.Text.Json.JsonSerializer.Serialize(v, Json),
+                v => System.Text.Json.JsonSerializer.Deserialize<List<NivelReclamacion>>(v, Json) ?? new List<NivelReclamacion>(),
+                new Microsoft.EntityFrameworkCore.ChangeTracking.ValueComparer<List<NivelReclamacion>>(
+                    (a, b) => a!.SequenceEqual(b!), v => v.Aggregate(0, (h, n) => HashCode.Combine(h, n.GetHashCode())), v => v.ToList()));
+        builder.HasIndex(c => c.EmpresaId).IsUnique().HasDatabaseName("ux_configuracion_reclamaciones_empresa");
+        builder.Ignore(c => c.EventosDominio);
+    }
+}
+
+internal sealed class RepositorioAnticipos : IRepositorioAnticipos
+{
+    private readonly TesoreriaDbContext _contexto;
+
+    public RepositorioAnticipos(TesoreriaDbContext contexto) => _contexto = contexto;
+
+    public void Agregar(Anticipo anticipo) => _contexto.Anticipos.Add(anticipo);
+
+    public Task<Anticipo?> ObtenerAsync(Guid id, CancellationToken ct = default) =>
+        _contexto.Anticipos.SingleOrDefaultAsync(a => a.Id == id, ct);
+
+    public async Task<IReadOnlyList<Anticipo>> ListarAsync(Guid? clienteId, CancellationToken ct = default) =>
+        await _contexto.Anticipos.Where(a => clienteId == null || a.ClienteId == clienteId)
+            .OrderByDescending(a => a.Fecha).ToListAsync(ct).ConfigureAwait(false);
+}
+
+internal sealed class RepositorioReclamaciones : IRepositorioReclamaciones
+{
+    private readonly TesoreriaDbContext _contexto;
+
+    public RepositorioReclamaciones(TesoreriaDbContext contexto) => _contexto = contexto;
+
+    public void Agregar(Reclamacion reclamacion) => _contexto.Reclamaciones.Add(reclamacion);
+
+    public async Task<IReadOnlyList<Reclamacion>> ListarAsync(IReadOnlyCollection<Guid> facturaIds, CancellationToken ct = default) =>
+        await _contexto.Reclamaciones.Where(r => facturaIds.Contains(r.FacturaId)).ToListAsync(ct).ConfigureAwait(false);
+
+    public Task<ConfiguracionReclamaciones?> ConfiguracionAsync(CancellationToken ct = default) =>
+        _contexto.ConfiguracionesReclamacion.SingleOrDefaultAsync(ct);
+
+    public void AgregarConfiguracion(ConfiguracionReclamaciones configuracion) => _contexto.ConfiguracionesReclamacion.Add(configuracion);
 }

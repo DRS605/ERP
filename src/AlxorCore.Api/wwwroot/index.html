@@ -429,7 +429,7 @@
     // Menú agrupado en carpetas: Ventas, Compras y Artículos.
     const NAV = [
       { t:"item", k:"inicio", l:"Inicio" },
-      { t:"grupo", k:"ventas", l:"Ventas", items:[["presupuestos","Presupuestos"],["pedidosventa","Pedidos de venta"],["facturas","Facturas"],["tpv","TPV · Tickets"],["recurrentes","Periódicas"],["clientes","Clientes"],["cobros","Cobros"],["remesas","Remesas SEPA"]] },
+      { t:"grupo", k:"ventas", l:"Ventas", items:[["presupuestos","Presupuestos"],["pedidosventa","Pedidos de venta"],["facturas","Facturas"],["tpv","TPV · Tickets"],["recurrentes","Periódicas"],["clientes","Clientes"],["cobros","Cobros"],["impagados","Impagados"],["anticipos","Anticipos"],["remesas","Remesas SEPA"]] },
       { t:"grupo", k:"compras", l:"Compras", items:[["solicitudes","Solicitudes"],["pedidos","Pedidos de compra"],["recepcion","Buzón de facturas"],["gastos","Gastos"],["proveedores","Proveedores"],["pagos","Pagos"],["conciliacion","Conciliación banco"]] },
       { t:"grupo", k:"articulos", l:"Artículos", items:[["productos","Productos"],["familias","Familias"],["inventario","Inventario / Almacenes"],["produccion","Producción"]] },
       { t:"item", k:"personal", l:"Personal" },
@@ -444,7 +444,7 @@
       { t:"item", k:"integraciones", l:"API y webhooks" },
       { t:"item", k:"ajustes", l:"Ajustes" },
     ];
-    const TITULOS = { inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", gestion:"Análisis de gestión", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", divisas:"Divisas y tipos de cambio", aprobaciones:"Aprobaciones y control de firmas", integraciones:"API pública y webhooks", ajustes:"Ajustes" };
+    const TITULOS = { impagados:"Impagados y reclamaciones", anticipos:"Anticipos de clientes", inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", gestion:"Análisis de gestión", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", divisas:"Divisas y tipos de cambio", aprobaciones:"Aprobaciones y control de firmas", integraciones:"API pública y webhooks", ajustes:"Ajustes" };
     // Plan contratado de la empresa activa (lo devuelve /empresas/{id}/seleccionar).
     let plan = null;
     // Vista → módulo contratable que necesita. Las vistas que no están aquí son de la base.
@@ -562,7 +562,7 @@
       document.getElementById("viewTitle").textContent=TITULOS[k]||k;
       if(!contratado(k)){ const m=NOMBRE_MODULO[MODULO_VISTA[k]]||MODULO_VISTA[k];
         view(panel("No incluido en tu plan",`<p class="muted" style="margin:0 0 14px">Esta pantalla forma parte del módulo <strong>${m}</strong>, que tu plan no incluye.</p><button class="btn small" onclick="ir('ajustes')">Ver planes en Ajustes →</button>`)); return; }
-      ({inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:vPedidosVenta,clientes:vClientes,productos:vProductos,familias:vFamilias,gastos:vGastos,solicitudes:vSolicitudes,pedidos:vPedidos,inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,gestion:vGestion,contabilidad:vContabilidad,inmovilizado:vInmovilizado,divisas:vDivisas,aprobaciones:vAprobaciones,integraciones:vIntegraciones,ajustes:vAjustes}[k])();
+      ({impagados:vImpagados,anticipos:vAnticipos,inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:vPedidosVenta,clientes:vClientes,productos:vProductos,familias:vFamilias,gastos:vGastos,solicitudes:vSolicitudes,pedidos:vPedidos,inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,gestion:vGestion,contabilidad:vContabilidad,inmovilizado:vInmovilizado,divisas:vDivisas,aprobaciones:vAprobaciones,integraciones:vIntegraciones,ajustes:vAjustes}[k])();
     }
     const view = h => { document.getElementById("view").innerHTML=h; try{ mejorarTablas(); }catch(e){} };
 
@@ -2183,6 +2183,54 @@
       const cuerpo=fs.length?`<table><thead><tr><th>Factura</th><th>Cliente</th><th>Vencimiento</th><th class="num">Total</th><th class="num">Cobrado</th><th class="num">Pendiente</th><th class="right">Estado</th><th></th></tr></thead><tbody>${filas}</tbody></table>`:vacio("cobros","Nada que cobrar aún","Cuando emitas facturas verás aquí tu cartera de cobro.");
       view(kpis+panel("Cartera de cobro",cuerpo));
     }
+    // ---- Impagados: facturas vencidas con pendiente y reclamación por niveles ----
+    async function vImpagados() {
+      view('<div class="muted">Cargando…</div>');
+      const lista=await api("/impagados");
+      const total=lista.reduce((a,i)=>a+i.pendiente,0), porReclamar=lista.filter(i=>i.pendienteDeReclamar).length;
+      const filas=lista.map(i=>{
+        const accion=i.pendienteDeReclamar
+          ?`<button class="btn small" onclick="reclamar('${i.facturaId}')">Reclamar · nivel ${i.nivelQueToca}</button>`
+          :(i.ultimoNivelReclamado?`<span class="pill ok">Reclamado nivel ${i.ultimoNivelReclamado}</span>`:'<span class="muted">Aún no toca</span>');
+        return `<tr><td><strong>${i.numero}</strong></td><td>${i.clienteNombre}</td><td class="muted">${fdate(i.vencimiento)}</td><td class="num">${i.diasRetraso}</td><td class="num">${eur(i.pendiente)}</td><td class="right">${accion}</td></tr>`;}).join("");
+      const kpis=`<div class="kpis" style="grid-template-columns:repeat(2,1fr);max-width:560px">
+        <div class="kpi ${total>0?'warn':''}"><div class="lbl">Vencido pendiente · ${lista.length} factura${lista.length===1?'':'s'}</div><div class="val ${total>0?'neg':''}">${eur(total)}</div></div>
+        <div class="kpi"><div class="lbl">Por reclamar</div><div class="val">${porReclamar}</div></div></div>`;
+      const cuerpo=lista.length?`<table><thead><tr><th>Factura</th><th>Cliente</th><th>Vencimiento</th><th class="num">Días</th><th class="num">Pendiente</th><th></th></tr></thead><tbody>${filas}</tbody></table>`
+        :'<p class="muted" style="margin:0">No hay facturas vencidas pendientes de cobro.</p>';
+      view(kpis+panel("Facturas vencidas",`<p class="muted" style="margin:0 0 12px">Cada nivel de reclamación llega unos días después del vencimiento (por defecto 7, 30 y 60). Al reclamar se envía el aviso por correo con la factura en PDF y queda registrado.</p>`+cuerpo));
+    }
+    async function reclamar(facturaId){
+      try{ const r=await api("/impagados/"+facturaId+"/reclamar",{method:"POST",body:JSON.stringify({canal:"Email"})});
+        toast(r.correoEnviado?`Reclamación de nivel ${r.reclamacion.nivel} enviada.`:(r.motivoNoEnviado||"Reclamación registrada."), r.correoEnviado?"ok":"warn"); vImpagados();
+      }catch(e){ toast(e.message,"err"); } }
+
+    // ---- Anticipos de clientes (entregas a cuenta) ----
+    async function vAnticipos() {
+      view('<div class="muted">Cargando…</div>');
+      const [lista, clientes]=await Promise.all([api("/anticipos"), api("/clientes")]);
+      const nombre=Object.fromEntries(clientes.map(c=>[c.id,c.nombre]));
+      const filas=lista.map(a=>{ const pill=a.estado==="Aplicado"?'<span class="pill ok">Aplicado</span>':(a.estado==="Parcial"?'<span class="pill part">Parcial</span>':'<span class="pill wait">Disponible</span>');
+        const aplicar=a.disponible>0?`<button class="btn small secondary" onclick="modalAplicarAnticipo('${a.id}','${a.clienteId}',${a.disponible})">Aplicar a factura</button>`:"";
+        return `<tr><td class="muted">${fdate(a.fecha)}</td><td>${nombre[a.clienteId]||"—"}</td><td>${a.concepto}</td><td class="num">${eur(a.importe)}</td><td class="num">${eur(a.disponible)}</td><td>${pill}</td><td class="right">${aplicar}</td></tr>`;}).join("");
+      const cuerpo=lista.length?`<table><thead><tr><th>Fecha</th><th>Cliente</th><th>Concepto</th><th class="num">Importe</th><th class="num">Disponible</th><th>Estado</th><th></th></tr></thead><tbody>${filas}</tbody></table>`
+        :'<p class="muted" style="margin:0">Aún no hay anticipos.</p>';
+      view(panel("Anticipos",`<p class="muted" style="margin:0 0 12px">Dinero cobrado antes de facturar. Al aplicarlo a una factura del mismo cliente queda como cobro de esa factura.</p>`+cuerpo,`<button class="btn small" onclick="modalAnticipo()">+ Nuevo anticipo</button>`));
+    }
+    async function modalAnticipo(){
+      const clientes=await api("/clientes"); const hoy=new Date().toISOString().slice(0,10);
+      const metodos=["Transferencia","Efectivo","Tarjeta","Bizum"].map(m=>`<option>${m}</option>`).join("");
+      abrir("Nuevo anticipo",`<label>Cliente</label><select id="an_cli">${clientes.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join("")}</select>
+        <div class="grid2"><div><label>Importe (€)</label><input id="an_imp" type="number" step="0.01"/></div><div><label>Fecha</label><input id="an_fecha" type="date" value="${hoy}"/></div></div>
+        <div class="grid2"><div><label>Concepto</label><input id="an_con" placeholder="Entrega a cuenta"/></div><div><label>Método</label><select id="an_met">${metodos}</select></div></div>`,
+        async()=>{ await api("/anticipos",{method:"POST",body:JSON.stringify({clienteId:val("an_cli"),importe:Number(val("an_imp")),fecha:val("an_fecha"),concepto:val("an_con")||null,metodo:val("an_met")})}); toast("Anticipo registrado.","ok"); vAnticipos(); }); }
+    async function modalAplicarAnticipo(id,clienteId,disponible){
+      const fs=(await api("/facturas")).filter(f=>f.clienteId===clienteId && f.estado==="Emitida");
+      if(!fs.length){ toast("Este cliente no tiene facturas emitidas.","warn"); return; }
+      abrir("Aplicar anticipo",`<label>Factura</label><select id="ap_fac">${fs.map(f=>`<option value="${f.id}">${f.numeroCompleto} · ${eur(f.total)}</option>`).join("")}</select>
+        <label>Importe (€) · disponible ${eur(disponible)}</label><input id="ap_imp" type="number" step="0.01" placeholder="Vacío: lo máximo posible"/>`,
+        async()=>{ const imp=val("ap_imp"); await api("/anticipos/"+id+"/aplicar",{method:"POST",body:JSON.stringify({facturaId:val("ap_fac"),importe:imp?Number(imp):null})}); toast("Anticipo aplicado.","ok"); vAnticipos(); }); }
+
     function modalCobro(id,numero,pendiente){
       const hoy=new Date().toISOString().slice(0,10);
       const metodos=["Efectivo","Transferencia","Tarjeta","Bizum","Domiciliación"].map(m=>`<option>${m}</option>`).join("");

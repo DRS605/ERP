@@ -1,0 +1,306 @@
+using AlxorCore.Facturacion.Aplicacion;
+using AlxorCore.Nucleo.Comun;
+using AlxorCore.Nucleo.Resultados;
+using AlxorCore.Nucleo.Tiempo;
+using AlxorCore.Terceros.Aplicacion;
+using AlxorCore.Tesoreria.Dominio;
+
+namespace AlxorCore.Tesoreria.Aplicacion;
+
+// ---------------------------------------------------------------------------- Anticipos
+
+/// <summary>Vista de una aplicación de anticipo.</summary>
+public sealed record AplicacionAnticipoDto(Guid FacturaId, decimal Importe, DateOnly Fecha);
+
+/// <summary>Vista de un anticipo con su saldo.</summary>
+public sealed record AnticipoDto(
+    Guid Id, Guid ClienteId, DateOnly Fecha, decimal Importe, decimal Aplicado, decimal Disponible, string Estado, string Concepto,
+    IReadOnlyList<AplicacionAnticipoDto> Aplicaciones)
+{
+    public static AnticipoDto Desde(Anticipo a) => new(a.Id, a.ClienteId, a.Fecha, a.Importe, a.Aplicado, a.Disponible, a.Estado.ToString(),
+        a.Concepto, a.Aplicaciones.Select(x => new AplicacionAnticipoDto(x.FacturaId, x.Importe, x.Fecha)).ToList());
+}
+
+/// <summary>Datos para registrar un anticipo de cliente.</summary>
+public sealed record RegistrarAnticipoComando(Guid ClienteId, decimal Importe, DateOnly? Fecha = null, string? Concepto = null, string? Metodo = null);
+
+/// <summary>Datos para aplicar un anticipo a una factura. Sin importe, se aplica lo máximo posible.</summary>
+public sealed record AplicarAnticipoComando(Guid FacturaId, decimal? Importe = null, DateOnly? Fecha = null);
+
+/// <summary>Repositorio de anticipos.</summary>
+public interface IRepositorioAnticipos
+{
+    void Agregar(Anticipo anticipo);
+
+    Task<Anticipo?> ObtenerAsync(Guid id, CancellationToken ct = default);
+
+    Task<IReadOnlyList<Anticipo>> ListarAsync(Guid? clienteId, CancellationToken ct = default);
+}
+
+/// <summary>Caso de uso: registrar un anticipo (entrega a cuenta) de un cliente.</summary>
+public sealed class RegistrarAnticipo
+{
+    private readonly IConsultaClientes _clientes;
+    private readonly IRepositorioAnticipos _anticipos;
+    private readonly IUnidadDeTrabajoTesoreria _unidadDeTrabajo;
+    private readonly IReloj _reloj;
+
+    public RegistrarAnticipo(IConsultaClientes clientes, IRepositorioAnticipos anticipos, IUnidadDeTrabajoTesoreria unidadDeTrabajo, IReloj reloj)
+    {
+        _clientes = clientes;
+        _anticipos = anticipos;
+        _unidadDeTrabajo = unidadDeTrabajo;
+        _reloj = reloj;
+    }
+
+    public async Task<Resultado<AnticipoDto>> EjecutarAsync(Guid empresaId, RegistrarAnticipoComando comando, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(comando);
+
+        if (await _clientes.ObtenerAsync(comando.ClienteId, ct).ConfigureAwait(false) is null)
+        {
+            return Resultado.Fallo<AnticipoDto>(Error.NoEncontrado("cliente.no_encontrado", "El cliente no existe."));
+        }
+
+        var fecha = comando.Fecha ?? DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
+        var anticipo = Anticipo.Registrar(empresaId, comando.ClienteId, comando.Importe, fecha, comando.Concepto, comando.Metodo, _reloj);
+        if (anticipo.EsFallo)
+        {
+            return Resultado.Fallo<AnticipoDto>(anticipo.Error);
+        }
+
+        _anticipos.Agregar(anticipo.Valor);
+        await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(AnticipoDto.Desde(anticipo.Valor));
+    }
+}
+
+/// <summary>
+/// Caso de uso: aplicar un anticipo a una factura del mismo cliente. Registra un cobro de la factura
+/// (con las mismas reglas: sin sobrepago) y anota la aplicación en el anticipo, en la misma transacción.
+/// </summary>
+public sealed class AplicarAnticipo
+{
+    private readonly IRepositorioAnticipos _anticipos;
+    private readonly IConsultaFacturas _facturas;
+    private readonly IRepositorioMovimientos _movimientos;
+    private readonly IUnidadDeTrabajoTesoreria _unidadDeTrabajo;
+    private readonly IReloj _reloj;
+
+    public AplicarAnticipo(
+        IRepositorioAnticipos anticipos, IConsultaFacturas facturas, IRepositorioMovimientos movimientos, IUnidadDeTrabajoTesoreria unidadDeTrabajo, IReloj reloj)
+    {
+        _anticipos = anticipos;
+        _facturas = facturas;
+        _movimientos = movimientos;
+        _unidadDeTrabajo = unidadDeTrabajo;
+        _reloj = reloj;
+    }
+
+    public async Task<Resultado<AnticipoDto>> EjecutarAsync(Guid empresaId, Guid anticipoId, AplicarAnticipoComando comando, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(comando);
+
+        var anticipo = await _anticipos.ObtenerAsync(anticipoId, ct).ConfigureAwait(false);
+        if (anticipo is null)
+        {
+            return Resultado.Fallo<AnticipoDto>(Error.NoEncontrado("anticipo.no_encontrado", "El anticipo no existe."));
+        }
+
+        var factura = await _facturas.ObtenerAsync(comando.FacturaId, ct).ConfigureAwait(false);
+        if (factura is null)
+        {
+            return Resultado.Fallo<AnticipoDto>(Error.NoEncontrado("factura.no_encontrada", "La factura no existe."));
+        }
+
+        var pendiente = Redondeo.Dos(factura.Total - await _movimientos.SumaAsync(TipoDocumentoTesoreria.Factura, factura.Id, ct).ConfigureAwait(false));
+        var importe = anticipo.ValidarAplicacion(factura.ClienteId, comando.Importe ?? Math.Min(anticipo.Disponible, pendiente));
+        if (importe.EsFallo)
+        {
+            return Resultado.Fallo<AnticipoDto>(importe.Error);
+        }
+
+        var fecha = comando.Fecha ?? DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
+        var cobro = await RegistrarCobro.RegistrarAsync(
+            empresaId, TipoDocumentoTesoreria.Factura, factura.Id, SentidoMovimiento.Cobro, importe.Valor, factura.Total, fecha,
+            $"Anticipo del {anticipo.Fecha:dd/MM/yyyy}", _movimientos, _unidadDeTrabajo, _reloj, ct,
+            antesDeGuardar: m => anticipo.AnotarAplicacion(factura.Id, importe.Valor, fecha, m.Id)).ConfigureAwait(false);
+        return cobro.EsFallo ? Resultado.Fallo<AnticipoDto>(cobro.Error) : Resultado.Ok(AnticipoDto.Desde(anticipo));
+    }
+}
+
+/// <summary>Caso de uso: listar anticipos (de un cliente o todos).</summary>
+public sealed class ListarAnticipos
+{
+    private readonly IRepositorioAnticipos _anticipos;
+
+    public ListarAnticipos(IRepositorioAnticipos anticipos) => _anticipos = anticipos;
+
+    public async Task<IReadOnlyList<AnticipoDto>> EjecutarAsync(Guid? clienteId, CancellationToken ct = default) =>
+        (await _anticipos.ListarAsync(clienteId, ct).ConfigureAwait(false)).Select(AnticipoDto.Desde).ToList();
+}
+
+// ---------------------------------------------------------------------------- Impagados y reclamaciones
+
+/// <summary>Factura vencida con importe pendiente y su situación de reclamación.</summary>
+public sealed record ImpagadoDto(
+    Guid FacturaId, string Numero, Guid? ClienteId, string ClienteNombre, DateOnly Vencimiento, int DiasRetraso,
+    decimal Total, decimal Pendiente, int? NivelQueToca, int? UltimoNivelReclamado, DateTimeOffset? UltimaReclamacion)
+{
+    /// <summary>¿Toca enviar una reclamación de un nivel superior al último enviado?</summary>
+    public bool PendienteDeReclamar => NivelQueToca is { } n && (UltimoNivelReclamado ?? 0) < n;
+}
+
+/// <summary>Vista de una reclamación registrada, con el texto compuesto para enviar.</summary>
+public sealed record ReclamacionDto(
+    Guid Id, Guid FacturaId, int Nivel, string Canal, decimal Pendiente, int DiasRetraso, string? Nota, DateTimeOffset RealizadaEn,
+    string Asunto, string Texto, string? EmailCliente);
+
+/// <summary>Datos para registrar una reclamación. Sin nivel, se usa el que toca por los días de retraso.</summary>
+public sealed record RegistrarReclamacionComando(CanalReclamacion Canal = CanalReclamacion.Email, int? Nivel = null, string? Nota = null);
+
+/// <summary>Repositorio de reclamaciones y de la configuración de niveles.</summary>
+public interface IRepositorioReclamaciones
+{
+    void Agregar(Reclamacion reclamacion);
+
+    Task<IReadOnlyList<Reclamacion>> ListarAsync(IReadOnlyCollection<Guid> facturaIds, CancellationToken ct = default);
+
+    Task<ConfiguracionReclamaciones?> ConfiguracionAsync(CancellationToken ct = default);
+
+    void AgregarConfiguracion(ConfiguracionReclamaciones configuracion);
+}
+
+/// <summary>Caso de uso: consultar y cambiar los niveles de reclamación de la empresa.</summary>
+public sealed class NivelesReclamacion
+{
+    private readonly IRepositorioReclamaciones _repo;
+    private readonly IUnidadDeTrabajoTesoreria _unidadDeTrabajo;
+
+    public NivelesReclamacion(IRepositorioReclamaciones repo, IUnidadDeTrabajoTesoreria unidadDeTrabajo)
+    {
+        _repo = repo;
+        _unidadDeTrabajo = unidadDeTrabajo;
+    }
+
+    public async Task<IReadOnlyList<NivelReclamacion>> ObtenerAsync(CancellationToken ct = default) =>
+        (await _repo.ConfiguracionAsync(ct).ConfigureAwait(false))?.Niveles ?? NivelReclamacion.PorDefecto;
+
+    public async Task<Resultado<IReadOnlyList<NivelReclamacion>>> CambiarAsync(Guid empresaId, IReadOnlyList<NivelReclamacion> niveles, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(niveles);
+        var actual = await _repo.ConfiguracionAsync(ct).ConfigureAwait(false);
+        if (actual is null)
+        {
+            var nueva = ConfiguracionReclamaciones.Crear(empresaId, niveles);
+            if (nueva.EsFallo)
+            {
+                return Resultado.Fallo<IReadOnlyList<NivelReclamacion>>(nueva.Error);
+            }
+
+            _repo.AgregarConfiguracion(nueva.Valor);
+        }
+        else if (actual.Cambiar(niveles) is { EsFallo: true } r)
+        {
+            return Resultado.Fallo<IReadOnlyList<NivelReclamacion>>(r.Error);
+        }
+
+        await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok<IReadOnlyList<NivelReclamacion>>([.. niveles]);
+    }
+}
+
+/// <summary>Caso de uso: impagados (facturas vencidas con pendiente) y registro de reclamaciones.</summary>
+public sealed class GestionImpagados
+{
+    private readonly IConsultaFacturas _facturas;
+    private readonly IConsultaTesoreria _tesoreria;
+    private readonly IConsultaClientes _clientes;
+    private readonly IRepositorioReclamaciones _reclamaciones;
+    private readonly NivelesReclamacion _niveles;
+    private readonly IUnidadDeTrabajoTesoreria _unidadDeTrabajo;
+    private readonly IReloj _reloj;
+
+    public GestionImpagados(
+        IConsultaFacturas facturas, IConsultaTesoreria tesoreria, IConsultaClientes clientes, IRepositorioReclamaciones reclamaciones,
+        NivelesReclamacion niveles, IUnidadDeTrabajoTesoreria unidadDeTrabajo, IReloj reloj)
+    {
+        _facturas = facturas;
+        _tesoreria = tesoreria;
+        _clientes = clientes;
+        _reclamaciones = reclamaciones;
+        _niveles = niveles;
+        _unidadDeTrabajo = unidadDeTrabajo;
+        _reloj = reloj;
+    }
+
+    private DateOnly Hoy => DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
+
+    /// <summary>Facturas emitidas, vencidas y con pendiente, de más a menos retraso.</summary>
+    public async Task<IReadOnlyList<ImpagadoDto>> ListarAsync(Guid empresaId, CancellationToken ct = default)
+    {
+        var hoy = Hoy;
+        var vencidas = (await _facturas.ListarAsync(empresaId, ct).ConfigureAwait(false))
+            .Where(f => f.Estado == "Emitida" && f.Tipo != "Rectificativa" && f.Total > 0 && f.FechaVencimiento < hoy)
+            .ToList();
+        if (vencidas.Count == 0)
+        {
+            return [];
+        }
+
+        var ids = vencidas.Select(f => f.Id).ToList();
+        var cobrado = await _tesoreria.LiquidadoPorDocumentosAsync(TipoDocumentoTesoreria.Factura, ids, ct).ConfigureAwait(false);
+        var reclamaciones = (await _reclamaciones.ListarAsync(ids, ct).ConfigureAwait(false)).ToLookup(r => r.FacturaId);
+        var niveles = await _niveles.ObtenerAsync(ct).ConfigureAwait(false);
+
+        return vencidas
+            .Select(f =>
+            {
+                var pendiente = Redondeo.Dos(f.Total - cobrado.GetValueOrDefault(f.Id));
+                var dias = hoy.DayNumber - f.FechaVencimiento.DayNumber;
+                var ultima = reclamaciones[f.Id].MaxBy(r => r.RealizadaEn);
+                return new ImpagadoDto(f.Id, f.NumeroCompleto, f.ClienteId, f.ClienteNombre, f.FechaVencimiento, dias, f.Total, pendiente,
+                    NivelReclamacion.QueToca(niveles, dias)?.Nivel, reclamaciones[f.Id].Select(r => (int?)r.Nivel).Max(), ultima?.RealizadaEn);
+            })
+            .Where(i => i.Pendiente > 0)
+            .OrderByDescending(i => i.DiasRetraso)
+            .ToList();
+    }
+
+    /// <summary>Registra una reclamación de una factura vencida y devuelve el texto del nivel, listo para enviar.</summary>
+    public async Task<Resultado<ReclamacionDto>> ReclamarAsync(Guid empresaId, Guid facturaId, RegistrarReclamacionComando comando, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(comando);
+
+        var impagado = (await ListarAsync(empresaId, ct).ConfigureAwait(false)).FirstOrDefault(i => i.FacturaId == facturaId);
+        if (impagado is null)
+        {
+            return Resultado.Fallo<ReclamacionDto>(Error.Conflicto("reclamacion.no_vencida",
+                "Solo se reclaman facturas emitidas, vencidas y con importe pendiente."));
+        }
+
+        var niveles = await _niveles.ObtenerAsync(ct).ConfigureAwait(false);
+        var numeroNivel = comando.Nivel ?? impagado.NivelQueToca ?? 1;
+        var nivel = niveles.FirstOrDefault(n => n.Nivel == numeroNivel);
+        if (nivel is null)
+        {
+            return Resultado.Fallo<ReclamacionDto>(Error.Validacion("reclamacion.nivel", $"No existe el nivel de reclamación {numeroNivel}."));
+        }
+
+        var reclamacion = Reclamacion.Registrar(empresaId, facturaId, nivel.Nivel, comando.Canal, impagado.Pendiente, impagado.DiasRetraso, comando.Nota, _reloj);
+        if (reclamacion.EsFallo)
+        {
+            return Resultado.Fallo<ReclamacionDto>(reclamacion.Error);
+        }
+
+        _reclamaciones.Agregar(reclamacion.Valor);
+        await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
+
+        var cliente = impagado.ClienteId is { } cid ? await _clientes.ObtenerAsync(cid, ct).ConfigureAwait(false) : null;
+        string Componer(string plantilla) =>
+            NivelReclamacion.Componer(plantilla, impagado.ClienteNombre, impagado.Numero, impagado.Vencimiento, impagado.Pendiente, impagado.DiasRetraso);
+        var r = reclamacion.Valor;
+        return Resultado.Ok(new ReclamacionDto(r.Id, r.FacturaId, r.Nivel, r.Canal.ToString(), r.Pendiente, r.DiasRetraso, r.Nota, r.RealizadaEn,
+            Componer(nivel.Asunto), Componer(nivel.Texto), cliente?.Email));
+    }
+}

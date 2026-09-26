@@ -169,6 +169,8 @@ dotnet ef migrations add <Nombre> \
 | **Auditoría** (registro de quién hizo qué y cuándo) | ✅ Terminado |
 | **Cuenta / RGPD** (exportación y borrado de datos, páginas legales) | ✅ Terminado |
 | **Ediciones y módulos** (Start, Gestión, Finanzas, Gestión y finanzas, Completa; módulos sueltos; 403 claro si no está contratado) | ✅ Terminado |
+| **Tarifas de precios** (producto, familia o general; escalado por cantidad; vigencia; aplicadas en facturas y presupuestos) | ✅ Terminado |
+| **Cobranza** (anticipos de clientes y reclamación de impagados por niveles con envío por correo) | ✅ Terminado |
 
 **MVP completo**: los módulos están terminados (dominio · API · persistencia · tests · docs). El
 desarrollo ha avanzado **módulo a módulo**, cada uno entregado por completo antes del siguiente.
