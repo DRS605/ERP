@@ -1,5 +1,6 @@
 using AlxorCore.Catalogo.Aplicacion;
 using AlxorCore.Facturacion.Dominio;
+using AlxorCore.Nucleo.Comun;
 using AlxorCore.Nucleo.Resultados;
 using AlxorCore.Nucleo.Tiempo;
 using AlxorCore.Organizacion.Aplicacion.Puertos;
@@ -73,7 +74,8 @@ public sealed class EmitirRectificativa
             return Resultado.Fallo<FacturaDto>(marcado.Error);
         }
 
-        var resolucion = await ResolucionLineasFactura.ResolverAsync(comando.Lineas, _productos, ct, false, empresaId, _resolverIva).ConfigureAwait(false);
+        // La rectificativa corrige la original: lleva su mismo impuesto (IVA o IGIC).
+        var resolucion = await ResolucionLineasFactura.ResolverAsync(comando.Lineas, _productos, ct, false, empresaId, _resolverIva, impuestoEmpresa: original.Impuesto).ConfigureAwait(false);
         if (resolucion.EsFallo)
         {
             return Resultado.Fallo<FacturaDto>(resolucion.Error);
@@ -113,6 +115,7 @@ public sealed class EmitirRectificativa
         }
 
         rectificativa.Valor.EstablecerMencionFiscal(mencionFiscal);
+        rectificativa.Valor.EstablecerImpuesto(original.Impuesto);
         await RegistroVerifactu.AplicarAsync(empresaId, rectificativa.Valor, _empresas, _facturas, _reloj, ct).ConfigureAwait(false);
         _facturas.Agregar(rectificativa.Valor);
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);

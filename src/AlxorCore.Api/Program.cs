@@ -57,6 +57,9 @@ builder.Services.AgregarModuloProyectos(builder.Configuration);
 builder.Services.AgregarModuloTesoreria(builder.Configuration);
 builder.Services.AgregarModuloDocumentos();
 builder.Services.AgregarModuloInformes();
+
+// Contabilidad pregunta qué parte del IVA/IGIC soportado es deducible (prorrata, en Organización).
+builder.Services.AddScoped<AlxorCore.Contabilidad.Aplicacion.IDeduccionImpuesto, AlxorCore.Api.Comun.DeduccionImpuestoProrrata>();
 builder.Services.AgregarModuloAuditoria(builder.Configuration);
 builder.Services.AgregarModuloDivisas(builder.Configuration);
 builder.Services.AgregarModuloAprobaciones(builder.Configuration);
@@ -249,6 +252,7 @@ app.MapearPersonal();
 app.MapearProyectos();
 app.MapearTesoreria();
 app.MapearCobranza();
+app.MapearImpuestosIndirectos();
 app.MapearDocumentos();
 app.MapearInformes();
 app.MapearAuditoria();

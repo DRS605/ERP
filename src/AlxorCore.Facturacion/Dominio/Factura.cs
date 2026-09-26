@@ -98,6 +98,12 @@ public sealed class Factura : RaizAgregadoEmpresa<Guid>
     /// </summary>
     public string? MencionFiscal { get; private set; }
 
+    /// <summary>Impuesto indirecto de la factura: IVA, o IGIC si la empresa está en Canarias. Se fija al emitir.</summary>
+    public TipoImpuesto Impuesto { get; private set; } = TipoImpuesto.Iva;
+
+    /// <summary>Fija el impuesto de la factura (se establece al emitir, según el territorio fiscal de la empresa).</summary>
+    public void EstablecerImpuesto(TipoImpuesto impuesto) => Impuesto = impuesto;
+
     /// <summary>Fija la mención fiscal de la factura (se establece al emitir a partir de los tipos de IVA).</summary>
     public void EstablecerMencionFiscal(string? mencion) =>
         MencionFiscal = string.IsNullOrWhiteSpace(mencion) ? null : mencion.Trim();

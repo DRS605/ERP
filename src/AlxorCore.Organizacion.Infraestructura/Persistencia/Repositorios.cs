@@ -192,6 +192,26 @@ internal sealed class ConsultasOrganizacion : IConsultasOrganizacion
     }
 }
 
+internal sealed class RepositorioProrratas : IRepositorioProrratas, IConsultaProrrata
+{
+    private readonly OrganizacionDbContext _contexto;
+
+    public RepositorioProrratas(OrganizacionDbContext contexto) => _contexto = contexto;
+
+    public void Agregar(ProrrataEjercicio prorrata) => _contexto.Prorratas.Add(prorrata);
+
+    public void Eliminar(ProrrataEjercicio prorrata) => _contexto.Prorratas.Remove(prorrata);
+
+    public Task<ProrrataEjercicio?> ObtenerAsync(Guid empresaId, int ejercicio, CancellationToken ct = default) =>
+        _contexto.Prorratas.SingleOrDefaultAsync(p => p.EmpresaId == empresaId && p.Ejercicio == ejercicio, ct);
+
+    async Task<ProrrataDto?> IConsultaProrrata.ObtenerAsync(Guid empresaId, int ejercicio, CancellationToken ct)
+    {
+        var p = await ObtenerAsync(empresaId, ejercicio, ct).ConfigureAwait(false);
+        return p is null ? null : new ProrrataDto(p.Ejercicio, p.Regimen, p.PorcentajeProvisional);
+    }
+}
+
 internal sealed class RepositorioFormasPago : IRepositorioFormasPago, IConsultaFormasPago
 {
     private readonly OrganizacionDbContext _contexto;

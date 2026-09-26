@@ -15,11 +15,11 @@ public sealed record GastoDto(
     Guid Id, Guid? ProveedorId, string? ProveedorTexto, string Concepto, DateOnly Fecha,
     decimal BaseImponible, string CodigoIva, decimal PorcentajeIva, decimal CuotaIva,
     decimal PorcentajeIrpf, decimal RetencionIrpf, decimal Total, string Estado, string? AvisoRiesgo = null,
-    Guid? ActividadNegocioId = null)
+    Guid? ActividadNegocioId = null, AfectacionIva Afectacion = AfectacionIva.Comun)
 {
     public static GastoDto Desde(Gasto g) => new(
         g.Id, g.ProveedorId, g.ProveedorTexto, g.Concepto, g.Fecha, g.BaseImponible, g.CodigoIva, g.PorcentajeIva, g.CuotaIva,
-        g.PorcentajeIrpf, g.RetencionIrpf, g.Total, g.Estado.ToString(), ActividadNegocioId: g.ActividadNegocioId);
+        g.PorcentajeIrpf, g.RetencionIrpf, g.Total, g.Estado.ToString(), ActividadNegocioId: g.ActividadNegocioId, Afectacion: g.Afectacion);
 }
 
 /// <summary>Repositorio de gastos (escritura).</summary>
@@ -67,7 +67,8 @@ public sealed record RegistrarGastoComando(
     decimal PorcentajeIrpf = 0m,
     DateOnly? Fecha = null,
     Guid? FormaPagoId = null,
-    Guid? ActividadNegocioId = null);
+    Guid? ActividadNegocioId = null,
+    AfectacionIva? Afectacion = null);
 
 /// <summary>Caso de uso: registrar un gasto. Si se indica un proveedor, se copia su nombre.</summary>
 public sealed class RegistrarGasto
@@ -139,10 +140,24 @@ public sealed class RegistrarGasto
             : null;
 
         var fecha = comando.Fecha ?? DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
-        var gasto = Gasto.Registrar(empresaId, comando.ProveedorId, proveedorTexto, comando.Concepto, fecha, comando.BaseImponible, comando.CodigoIva, comando.PorcentajeIrpf, _reloj);
+
+        // Sin tipo indicado, el general del impuesto de la empresa: IVA 21 %, o IGIC 7 % en Canarias.
+        var codigoIva = comando.CodigoIva;
+        if (string.IsNullOrWhiteSpace(codigoIva) &&
+            (await _empresas.ObtenerAsync(empresaId, ct).ConfigureAwait(false))?.ImpuestoIndirecto == TipoImpuesto.Igic)
+        {
+            codigoIva = Impuesto.IgicGeneral.Codigo;
+        }
+
+        var gasto = Gasto.Registrar(empresaId, comando.ProveedorId, proveedorTexto, comando.Concepto, fecha, comando.BaseImponible, codigoIva, comando.PorcentajeIrpf, _reloj);
         if (gasto.EsFallo)
         {
             return Resultado.Fallo<GastoDto>(gasto.Error);
+        }
+
+        if (comando.Afectacion is { } afectacion)
+        {
+            gasto.Valor.EstablecerAfectacion(afectacion, _reloj);
         }
 
         // La actividad se hereda del proveedor, salvo que se indique una en el comando (el acceso del
@@ -173,7 +188,8 @@ public sealed class RegistrarGasto
         var g = gasto.Valor;
         _encolarSalida.Contabilizacion(empresaId, new DocumentoContabilizable(
             SentidoContable.Compra, "Gasto", g.Id, g.Concepto, g.ProveedorId, g.ProveedorTexto ?? g.Concepto,
-            g.Fecha, g.BaseImponible, g.CodigoIva, g.CuotaIva, g.PorcentajeIrpf, g.RetencionIrpf, g.Total, TipoTercero: tipoTercero));
+            g.Fecha, g.BaseImponible, g.CodigoIva, g.CuotaIva, g.PorcentajeIrpf, g.RetencionIrpf, g.Total, TipoTercero: tipoTercero,
+            Afectacion: g.Afectacion.ToString(), ActividadNegocioId: g.ActividadNegocioId));
 
         _gastos.Agregar(g);
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
@@ -186,6 +202,39 @@ public sealed class RegistrarGasto
         }
 
         return Resultado.Ok(GastoDto.Desde(g) with { AvisoRiesgo = avisoRiesgo });
+    }
+}
+
+/// <summary>Caso de uso: cambiar la afectación de un gasto a efectos de la prorrata especial.</summary>
+public sealed class CambiarAfectacionGasto
+{
+    private readonly IRepositorioGastos _gastos;
+    private readonly IUnidadDeTrabajoGastos _unidadDeTrabajo;
+    private readonly IReloj _reloj;
+
+    public CambiarAfectacionGasto(IRepositorioGastos gastos, IUnidadDeTrabajoGastos unidadDeTrabajo, IReloj reloj)
+    {
+        _gastos = gastos;
+        _unidadDeTrabajo = unidadDeTrabajo;
+        _reloj = reloj;
+    }
+
+    public async Task<Resultado<GastoDto>> EjecutarAsync(Guid gastoId, AfectacionIva afectacion, CancellationToken ct = default)
+    {
+        if (!Enum.IsDefined(afectacion))
+        {
+            return Resultado.Fallo<GastoDto>(Error.Validacion("gasto.afectacion", "La afectación debe ser Comun, ConDerecho o SinDerecho."));
+        }
+
+        var gasto = await _gastos.ObtenerPorIdAsync(gastoId, ct).ConfigureAwait(false);
+        if (gasto is null)
+        {
+            return Resultado.Fallo<GastoDto>(Error.NoEncontrado("gasto.no_encontrado", "El gasto no existe."));
+        }
+
+        gasto.EstablecerAfectacion(afectacion, _reloj);
+        await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(GastoDto.Desde(gasto));
     }
 }
 

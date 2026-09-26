@@ -1,6 +1,7 @@
 using AlxorCore.Facturacion.Aplicacion;
 using AlxorCore.Facturacion.Dominio;
 using AlxorCore.Nucleo.Aplicacion;
+using AlxorCore.Nucleo.Comun;
 using AlxorCore.Nucleo.Consultas;
 using AlxorCore.Nucleo.Dominio;
 using AlxorCore.Nucleo.Multiempresa;
@@ -97,6 +98,8 @@ internal sealed class ConfiguracionFactura : IEntityTypeConfiguration<Factura>
         builder.Property(f => f.IdRegistro).HasColumnName("id_registro").HasMaxLength(64);
         builder.Property(f => f.TipoOperacion).HasColumnName("tipo_operacion").HasMaxLength(20);
         builder.Property(f => f.EstadoEnvioAeat).HasColumnName("estado_envio_aeat").HasMaxLength(20);
+        builder.Property(f => f.Impuesto).HasColumnName("impuesto").HasMaxLength(10).HasConversion<string>().IsRequired()
+            .HasDefaultValue(TipoImpuesto.Iva).HasSentinel((TipoImpuesto)0);
         builder.Property(f => f.FechaHoraGenRegistro).HasColumnName("fecha_hora_gen_registro");
         builder.Property(f => f.MotivoAnulacion).HasColumnName("motivo_anulacion").HasMaxLength(300);
         builder.Property(f => f.HuellaAnulacion).HasColumnName("huella_anulacion").HasMaxLength(128);
@@ -308,6 +311,22 @@ internal sealed class RepositorioFacturas : IRepositorioFacturas, IConsultaFactu
         return Resultado.Ok(new NumeroFactura(prefijo, fecha.Year, (ultima?.Numero ?? 0) + 1));
     }
 
+    public async Task<IReadOnlyList<DesgloseImpuestoDto>> DesgloseImpuestoAsync(Guid empresaId, DateOnly desde, DateOnly hasta, CancellationToken ct = default)
+    {
+        // Mismas facturas que las autoliquidaciones: las emitidas (no las anuladas ni las sustituidas
+        // por una rectificativa, que aporta ya los importes corregidos).
+        var lineas = await _contexto.Facturas
+            .Where(f => f.EmpresaId == empresaId && f.Estado == EstadoFactura.Emitida && f.FechaEmision >= desde && f.FechaEmision <= hasta)
+            .SelectMany(f => f.Lineas.Select(l => new { f.Impuesto, l.CodigoIva, l.PorcentajeIva, l.Base, l.CuotaIva }))
+            .ToListAsync(ct).ConfigureAwait(false);
+
+        return lineas
+            .GroupBy(l => (l.Impuesto, Codigo: l.CodigoIva.ToUpperInvariant(), l.PorcentajeIva))
+            .Select(g => new DesgloseImpuestoDto(g.Key.Impuesto, g.Key.Codigo, g.Key.PorcentajeIva, g.Sum(l => l.Base), g.Sum(l => l.CuotaIva)))
+            .OrderBy(d => d.Impuesto).ThenByDescending(d => d.Porcentaje).ThenBy(d => d.CodigoIva, StringComparer.Ordinal)
+            .ToList();
+    }
+
     public async Task<FacturaDto?> ObtenerAsync(Guid facturaId, CancellationToken ct = default)
     {
         var factura = await _contexto.Facturas.SingleOrDefaultAsync(f => f.Id == facturaId, ct).ConfigureAwait(false);
@@ -323,7 +342,7 @@ internal sealed class RepositorioFacturas : IRepositorioFacturas, IConsultaFactu
 
         return facturas
             .Select(f => new FacturaResumen(
-                f.Id, f.NumeroCompleto, f.FechaEmision, f.FechaVencimiento, f.ClienteNombre, f.ClienteNif, f.BaseImponible, f.CuotaIva, f.RetencionIrpf, f.Total, f.Estado.ToString(), f.TipoFactura.ToString(), f.ClienteId, f.ActividadNegocioId))
+                f.Id, f.NumeroCompleto, f.FechaEmision, f.FechaVencimiento, f.ClienteNombre, f.ClienteNif, f.BaseImponible, f.CuotaIva, f.RetencionIrpf, f.Total, f.Estado.ToString(), f.TipoFactura.ToString(), f.ClienteId, f.ActividadNegocioId, f.Impuesto))
             .ToList();
     }
 
@@ -381,7 +400,7 @@ internal sealed class RepositorioFacturas : IRepositorioFacturas, IConsultaFactu
 
         var elementos = facturas
             .Select(f => new FacturaResumen(
-                f.Id, f.NumeroCompleto, f.FechaEmision, f.FechaVencimiento, f.ClienteNombre, f.ClienteNif, f.BaseImponible, f.CuotaIva, f.RetencionIrpf, f.Total, f.Estado.ToString(), f.TipoFactura.ToString(), f.ClienteId, f.ActividadNegocioId))
+                f.Id, f.NumeroCompleto, f.FechaEmision, f.FechaVencimiento, f.ClienteNombre, f.ClienteNif, f.BaseImponible, f.CuotaIva, f.RetencionIrpf, f.Total, f.Estado.ToString(), f.TipoFactura.ToString(), f.ClienteId, f.ActividadNegocioId, f.Impuesto))
             .ToList();
         return PaginaResultado<FacturaResumen>.Crear(elementos, total, paginacion);
     }

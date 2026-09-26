@@ -1,5 +1,6 @@
 using AlxorCore.Catalogo.Aplicacion;
 using AlxorCore.Facturacion.Dominio;
+using AlxorCore.Nucleo.Comun;
 using AlxorCore.Nucleo.Aplicacion;
 using AlxorCore.Nucleo.Resultados;
 using AlxorCore.Nucleo.Tiempo;
@@ -104,7 +105,8 @@ public sealed class EmitirTicket
             ? await _formasPago.ObtenerAsync(fpid, ct).ConfigureAwait(false)
             : null;
 
-        var resolucion = await ResolucionLineasFactura.ResolverAsync(comando.Lineas, _productos, ct, false, empresaId, _resolverIva).ConfigureAwait(false);
+        var impuesto = (await _empresas.ObtenerAsync(empresaId, ct).ConfigureAwait(false))?.ImpuestoIndirecto ?? TipoImpuesto.Iva;
+        var resolucion = await ResolucionLineasFactura.ResolverAsync(comando.Lineas, _productos, ct, false, empresaId, _resolverIva, impuestoEmpresa: impuesto).ConfigureAwait(false);
         if (resolucion.EsFallo)
         {
             return Resultado.Fallo<FacturaDto>(resolucion.Error);
@@ -138,6 +140,7 @@ public sealed class EmitirTicket
         }
 
         ticket.Valor.EstablecerMencionFiscal(mencionFiscal);
+        ticket.Valor.EstablecerImpuesto(impuesto);
         await RegistroVerifactu.AplicarAsync(empresaId, ticket.Valor, _empresas, _facturas, _reloj, ct).ConfigureAwait(false);
         _facturas.Agregar(ticket.Valor);
 
@@ -155,7 +158,8 @@ public sealed class EmitirTicket
 
         _encolarSalida.Contabilizacion(empresaId, new DocumentoContabilizable(
             SentidoContable.Venta, "Ticket", t.Id, t.NumeroCompleto, comando.ClienteId, t.ClienteNombre,
-            t.FechaEmision, t.BaseImponible, codigoIva, t.CuotaIva, t.PorcentajeIrpf, t.RetencionIrpf, t.Total, productoId, familia, tipoTercero));
+            t.FechaEmision, t.BaseImponible, codigoIva, t.CuotaIva, t.PorcentajeIrpf, t.RetencionIrpf, t.Total, productoId, familia, tipoTercero,
+            ActividadNegocioId: t.ActividadNegocioId));
 
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
         await _despacharSalida.EjecutarAsync(ct: ct).ConfigureAwait(false);

@@ -15,13 +15,18 @@ public sealed record EmpresaDto(
     Guid Id, string Nif, string RazonSocial, RegimenIva RegimenIva, string Moneda, string Pais,
     string? Iban, string? IdentificadorAcreedor, MetodoValoracion MetodoValoracion, ControlRiesgo ControlRiesgo,
     string Calle, string CodigoPostal, string Poblacion, string Provincia,
-    string? Telefono, string? Web, string? EmailContacto, string? ColorPrincipal, string? TextoPie, byte[]? LogoPng)
+    string? Telefono, string? Web, string? EmailContacto, string? ColorPrincipal, string? TextoPie, byte[]? LogoPng,
+    TerritorioFiscal TerritorioFiscal = TerritorioFiscal.Comun)
 {
+    /// <summary>Impuesto indirecto que repercute la empresa (IVA o IGIC).</summary>
+    public TipoImpuesto ImpuestoIndirecto => TerritorioFiscal.ImpuestoIndirecto();
+
     public static EmpresaDto Desde(Empresa empresa) =>
         new(empresa.Id, empresa.Nif.Valor, empresa.RazonSocial, empresa.RegimenIva, empresa.Moneda, empresa.Pais,
             empresa.Iban, empresa.IdentificadorAcreedor, empresa.MetodoValoracion, empresa.ControlRiesgo,
             empresa.Direccion.Calle, empresa.Direccion.CodigoPostal, empresa.Direccion.Poblacion, empresa.Direccion.Provincia,
-            empresa.Telefono, empresa.Web, empresa.EmailContacto, empresa.ColorPrincipal, empresa.TextoPie, empresa.LogoPng);
+            empresa.Telefono, empresa.Web, empresa.EmailContacto, empresa.ColorPrincipal, empresa.TextoPie, empresa.LogoPng,
+            empresa.TerritorioFiscal);
 }
 
 /// <summary>Resumen de una empresa a la que pertenece un usuario, con su rol.</summary>

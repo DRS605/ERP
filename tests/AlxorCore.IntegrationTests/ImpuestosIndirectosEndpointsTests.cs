@@ -1,0 +1,227 @@
+using System.Net;
+using System.Net.Http.Json;
+using FluentAssertions;
+using Xunit;
+
+namespace AlxorCore.IntegrationTests;
+
+/// <summary>IGIC (Canarias), modelo 420 y prorrata del IVA/IGIC soportado.</summary>
+public sealed class ImpuestosIndirectosEndpointsTests : IClassFixture<FabricaApiPruebas>
+{
+    private readonly FabricaApiPruebas _fabrica;
+
+    public ImpuestosIndirectosEndpointsTests(FabricaApiPruebas fabrica) => _fabrica = fabrica;
+
+    private sealed record IdResp(Guid Id);
+    private sealed record TipoResp(string Codigo, decimal Porcentaje, string Clase, string Impuesto);
+    private sealed record ImpuestoResp(string Codigo, decimal Porcentaje);
+    private sealed record LineaResp(string CodigoIva, decimal PorcentajeIva, decimal CuotaIva, decimal CuotaRecargo);
+    private sealed record FacturaResp(Guid Id, decimal CuotaIva, decimal RecargoTotal, decimal Total, string Impuesto, List<LineaResp> Lineas);
+    private sealed record ProblemaResp(string Title, string Codigo);
+    private sealed record DevengoResp(string Codigo, decimal Porcentaje, decimal Base, decimal Cuota);
+    private sealed record Modelo420Resp(List<DevengoResp> Devengado, decimal DevengadoCuota, decimal SoportadoCuota, int PorcentajeProrrata,
+        decimal DeducibleCuota, decimal RegularizacionProrrata, decimal Resultado);
+    private sealed record Modelo303Resp(decimal IvaDevengadoCuota, decimal IvaDeducibleCuota, decimal Resultado, decimal IvaSoportadoCuota,
+        int PorcentajeProrrata, decimal RegularizacionProrrata);
+    private sealed record ResumenResp(Modelo303Resp Modelo303);
+    private sealed record SoportadoResp(decimal Total, decimal Comun, decimal ConDerecho, decimal SinDerecho);
+    private sealed record ProrrataResp(string? Regimen, int PorcentajeProvisional, int PorcentajeDefinitivo, decimal BaseConDerecho, decimal BaseSinDerecho,
+        SoportadoResp Soportado, decimal DeducibleProvisional, decimal DeducibleDefinitivo, decimal Regularizacion,
+        decimal DeducibleGeneral, decimal DeducibleEspecial, bool EspecialObligatoria, string? Aviso);
+    private sealed record ApunteResp(string CuentaCodigo, decimal Debe, decimal Haber);
+    private sealed record AsientoResp(string Origen, List<ApunteResp> Apuntes);
+
+    private static readonly int Anio = DateTime.UtcNow.Year;
+
+    private static DateOnly Dia(int mes, int dia) => new(Anio, mes, dia);
+
+    private static async Task<(HttpClient Api, Guid Cliente)> EmpresaAsync(FabricaApiPruebas fabrica, bool canarias, bool recargo = false)
+    {
+        var (api, _) = await Ayudas.ConEmpresaAsync(fabrica);
+        if (canarias)
+        {
+            (await api.PutAsJsonAsync("/empresas/actual/territorio-fiscal", new { TerritorioFiscal = "Canarias" })).StatusCode.Should().Be(HttpStatusCode.OK);
+        }
+
+        await api.GetAsync(new Uri("/tipos-iva", UriKind.Relative));   // siembra el catálogo del territorio
+        var cliente = (await (await api.PostAsJsonAsync("/clientes", new { Nombre = "Cliente SL", NifFiscal = Ayudas.GenerarNif(), RecargoEquivalencia = recargo }))
+            .Content.ReadFromJsonAsync<IdResp>())!.Id;
+        return (api, cliente);
+    }
+
+    private static Task<HttpResponseMessage> FacturarAsync(HttpClient api, Guid cliente, DateOnly fecha, params (decimal Base, string? Codigo)[] lineas) =>
+        api.PostAsJsonAsync("/facturas", new
+        {
+            ClienteId = cliente,
+            FechaEmision = fecha,
+            Lineas = lineas.Select(l => new { Cantidad = 1m, Descripcion = "Servicio", PrecioUnitario = l.Base, CodigoIva = l.Codigo }).ToArray(),
+        });
+
+    private static async Task<FacturaResp> FacturaAsync(HttpClient api, Guid cliente, DateOnly fecha, params (decimal Base, string? Codigo)[] lineas)
+    {
+        var resp = await FacturarAsync(api, cliente, fecha, lineas);
+        resp.StatusCode.Should().Be(HttpStatusCode.Created, await resp.Content.ReadAsStringAsync());
+        return (await resp.Content.ReadFromJsonAsync<FacturaResp>())!;
+    }
+
+    private static async Task GastoAsync(HttpClient api, DateOnly fecha, decimal baseImponible, string? codigo, string? afectacion = null)
+    {
+        var resp = await api.PostAsJsonAsync("/gastos", new { Concepto = "Compra", BaseImponible = baseImponible, CodigoIva = codigo, Fecha = fecha, Afectacion = afectacion });
+        resp.StatusCode.Should().Be(HttpStatusCode.Created, await resp.Content.ReadAsStringAsync());
+    }
+
+    // ------------------------------------------------------------------ IGIC
+
+    [Fact]
+    public async Task Una_empresa_canaria_recibe_los_tipos_de_IGIC()
+    {
+        var (api, _) = await EmpresaAsync(_fabrica, canarias: true);
+
+        var tipos = (await api.GetFromJsonAsync<List<TipoResp>>("/tipos-iva"))!;
+        tipos.Should().Contain(t => t.Codigo == "IGIC7" && t.Porcentaje == 7m && t.Impuesto == "Igic");
+        tipos.Should().Contain(t => t.Codigo == "IGIC95" && t.Porcentaje == 9.5m);
+        tipos.Should().Contain(t => t.Codigo == "IGICEXENTO" && t.Clase == "Exento");
+
+        var estatales = (await api.GetFromJsonAsync<List<ImpuestoResp>>("/impuestos"))!;
+        estatales.Select(i => i.Codigo).Should().Contain("IGIC7").And.NotContain("IVA21");
+    }
+
+    [Fact]
+    public async Task En_Canarias_se_factura_con_IGIC_sin_recargo_y_no_se_admite_IVA()
+    {
+        var (api, cliente) = await EmpresaAsync(_fabrica, canarias: true, recargo: true);
+
+        var f = await FacturaAsync(api, cliente, Dia(3, 10), (100m, "IGIC7"), (200m, null));   // sin código: IGIC general
+        f.Impuesto.Should().Be("Igic");
+        f.Lineas.Select(l => l.CodigoIva).Should().Equal("IGIC7", "IGIC7");
+        f.CuotaIva.Should().Be(21m);
+        f.RecargoTotal.Should().Be(0m, "el IGIC no tiene recargo de equivalencia");
+        f.Total.Should().Be(321m);
+
+        var iva = await FacturarAsync(api, cliente, Dia(3, 11), (100m, "IVA21"));
+        iva.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await iva.Content.ReadFromJsonAsync<ProblemaResp>())!.Title.Should().Be("El tipo IVA21 es de IVA, pero la empresa tributa por IGIC (Canarias).");
+
+        var xml = await api.GetStringAsync(new Uri($"/facturas/{f.Id}/verifactu.xml", UriKind.Relative));
+        xml.Should().Contain("<Impuesto>03</Impuesto>", "en VeriFactu el IGIC es la clave 03");
+    }
+
+    [Fact]
+    public async Task Una_empresa_peninsular_no_puede_facturar_con_IGIC()
+    {
+        var (api, cliente) = await EmpresaAsync(_fabrica, canarias: false);
+        var resp = await FacturarAsync(api, cliente, Dia(3, 10), (100m, "IGIC7"));
+        resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await resp.Content.ReadFromJsonAsync<ProblemaResp>())!.Codigo.Should().Be("factura.impuesto_territorio");
+    }
+
+    [Fact]
+    public async Task El_modelo_420_desglosa_el_IGIC_por_tipos_y_el_303_no_lo_incluye()
+    {
+        var (api, cliente) = await EmpresaAsync(_fabrica, canarias: true);
+        await FacturaAsync(api, cliente, Dia(2, 1), (100m, "IGIC7"), (200m, "IGIC3"));
+        await FacturaAsync(api, cliente, Dia(2, 2), (50m, "IGIC0"));
+        await GastoAsync(api, Dia(2, 3), 50m, null);             // sin código en Canarias: IGIC 7 %
+
+        var m420 = (await api.GetFromJsonAsync<Modelo420Resp>($"/impuestos/modelo-420?anio={Anio}&trimestre=1"))!;
+        m420.Devengado.Should().BeEquivalentTo(new[]
+        {
+            new DevengoResp("IGIC7", 7m, 100m, 7m),
+            new DevengoResp("IGIC3", 3m, 200m, 6m),
+            new DevengoResp("IGIC0", 0m, 50m, 0m),
+        }, o => o.WithStrictOrdering());
+        m420.DevengadoCuota.Should().Be(13m);
+        m420.SoportadoCuota.Should().Be(3.50m);
+        m420.Resultado.Should().Be(9.50m);
+
+        var r303 = (await api.GetFromJsonAsync<ResumenResp>($"/informes/resumen-trimestral?anio={Anio}&trimestre=1"))!;
+        r303.Modelo303.IvaDevengadoCuota.Should().Be(0m);
+        r303.Modelo303.IvaDeducibleCuota.Should().Be(0m);
+    }
+
+    // ------------------------------------------------------------------ prorrata
+
+    [Fact]
+    public async Task Con_prorrata_general_se_deduce_el_provisional_y_se_regulariza_con_el_definitivo()
+    {
+        var (api, cliente) = await EmpresaAsync(_fabrica, canarias: false);
+        (await api.PutAsJsonAsync($"/impuestos/prorrata/{Anio}", new { Regimen = "General", PorcentajeProvisional = 70 })).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // Ventas del año: 801 € con derecho a deducir y 200 € exentas (IVA0, art. 20) → 801 / 1001 = 80,02 % → 81 %.
+        await FacturaAsync(api, cliente, Dia(2, 10), (801m, "IVA21"));
+        await FacturaAsync(api, cliente, Dia(2, 11), (200m, "IVA0"));
+        await GastoAsync(api, Dia(2, 12), 1000m, "IVA21");           // 210 € de IVA soportado
+
+        var t1 = (await api.GetFromJsonAsync<ResumenResp>($"/informes/resumen-trimestral?anio={Anio}&trimestre=1"))!.Modelo303;
+        t1.IvaSoportadoCuota.Should().Be(210m);
+        t1.PorcentajeProrrata.Should().Be(70);
+        t1.IvaDeducibleCuota.Should().Be(147m);
+        t1.RegularizacionProrrata.Should().Be(0m);
+
+        var p = (await api.GetFromJsonAsync<ProrrataResp>($"/impuestos/prorrata?ejercicio={Anio}"))!;
+        p.PorcentajeDefinitivo.Should().Be(81, "el porcentaje se redondea a la unidad superior");
+        p.DeducibleProvisional.Should().Be(147m);
+        p.DeducibleDefinitivo.Should().Be(170.10m);
+        p.Regularizacion.Should().Be(23.10m);
+
+        var t4 = (await api.GetFromJsonAsync<ResumenResp>($"/informes/resumen-trimestral?anio={Anio}&trimestre=4"))!.Modelo303;
+        t4.RegularizacionProrrata.Should().Be(23.10m, "la última autoliquidación regulariza el año con el porcentaje definitivo");
+        t4.Resultado.Should().Be(-23.10m);
+    }
+
+    [Fact]
+    public async Task La_prorrata_especial_deduce_por_afectacion_y_se_avisa_si_es_obligatoria()
+    {
+        var (api, cliente) = await EmpresaAsync(_fabrica, canarias: false);
+        (await api.PutAsJsonAsync($"/impuestos/prorrata/{Anio}", new { Regimen = "General", PorcentajeProvisional = 80 })).StatusCode.Should().Be(HttpStatusCode.OK);
+        await FacturaAsync(api, cliente, Dia(1, 10), (800m, "IVA21"));
+        await FacturaAsync(api, cliente, Dia(1, 11), (200m, "IVA0"));
+        await GastoAsync(api, Dia(1, 12), 1000m, "IVA21", "ConDerecho");
+        await GastoAsync(api, Dia(1, 13), 1000m, "IVA21", "SinDerecho");
+
+        var general = (await api.GetFromJsonAsync<ProrrataResp>($"/impuestos/prorrata?ejercicio={Anio}"))!;
+        general.PorcentajeDefinitivo.Should().Be(80);
+        general.Soportado.Should().Be(new SoportadoResp(420m, 0m, 210m, 210m));
+        general.DeducibleGeneral.Should().Be(336m);
+        general.DeducibleEspecial.Should().Be(210m);
+        general.EspecialObligatoria.Should().BeTrue("la general deduce un 10 % o más que la especial");
+        general.Aviso.Should().Contain("prorrata especial es obligatoria");
+
+        await api.PutAsJsonAsync($"/impuestos/prorrata/{Anio}", new { Regimen = "Especial", PorcentajeProvisional = 80 });
+        var t1 = (await api.GetFromJsonAsync<ResumenResp>($"/informes/resumen-trimestral?anio={Anio}&trimestre=1"))!.Modelo303;
+        t1.IvaDeducibleCuota.Should().Be(210m, "entero lo afecto a operaciones con derecho, nada lo afecto a exentas");
+    }
+
+    [Fact]
+    public async Task Sin_prorrata_configurada_se_avisa_si_hay_ventas_exentas()
+    {
+        var (api, cliente) = await EmpresaAsync(_fabrica, canarias: false);
+        await FacturaAsync(api, cliente, Dia(1, 10), (500m, "IVA21"));
+        await FacturaAsync(api, cliente, Dia(1, 11), (500m, "IVA0"));
+
+        var p = (await api.GetFromJsonAsync<ProrrataResp>($"/impuestos/prorrata?ejercicio={Anio}"))!;
+        p.Regimen.Should().BeNull();
+        p.PorcentajeDefinitivo.Should().Be(50);
+        p.Aviso.Should().Contain("debe aplicar prorrata");
+
+        (await api.PutAsJsonAsync($"/impuestos/prorrata/{Anio}", new { Regimen = "General", PorcentajeProvisional = 101 }))
+            .StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task Al_contabilizar_una_compra_con_prorrata_el_IVA_no_deducible_es_mas_gasto()
+    {
+        var (api, _) = await EmpresaAsync(_fabrica, canarias: false);
+        (await api.PutAsJsonAsync("/contabilidad/modo", new { Modo = "Completo" })).StatusCode.Should().Be(HttpStatusCode.OK);
+        await api.PutAsJsonAsync("/contabilidad/contabilizacion-automatica", new { Automatica = true });
+        await api.PutAsJsonAsync($"/impuestos/prorrata/{Anio}", new { Regimen = "General", PorcentajeProvisional = 70 });
+
+        await GastoAsync(api, Dia(3, 1), 1000m, "IVA21");
+
+        var diario = (await api.GetFromJsonAsync<List<AsientoResp>>($"/contabilidad/diario?ejercicio={Anio}"))!;
+        var compra = diario.Single(a => a.Origen == "Compra");
+        compra.Apuntes.Should().Contain(x => x.CuentaCodigo == "629" && x.Debe == 1063m, "base + 30 % del IVA, no deducible");
+        compra.Apuntes.Should().Contain(x => x.CuentaCodigo == "472" && x.Debe == 147m, "solo el 70 % deducible");
+        compra.Apuntes.Should().Contain(x => x.CuentaCodigo == "400" && x.Haber == 1210m);
+    }
+}

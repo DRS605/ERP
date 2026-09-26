@@ -1,4 +1,5 @@
 using AlxorCore.Catalogo.Dominio;
+using AlxorCore.Nucleo.Comun;
 using AlxorCore.Nucleo.Resultados;
 using AlxorCore.Nucleo.Tiempo;
 
@@ -7,17 +8,21 @@ namespace AlxorCore.Catalogo.Aplicacion;
 /// <summary>Vista de un tipo de IVA configurable de la empresa.</summary>
 public sealed record TipoIvaDto(
     Guid Id, string Codigo, string Nombre, decimal Porcentaje, decimal RecargoEquivalencia,
-    ClaseIva Clase, string? MencionFactura, bool Activo, bool Repercute)
+    ClaseIva Clase, string? MencionFactura, bool Activo, bool Repercute, TipoImpuesto Impuesto = TipoImpuesto.Iva)
 {
     public static TipoIvaDto Desde(TipoIva t) =>
-        new(t.Id, t.Codigo, t.Nombre, t.Porcentaje, t.RecargoEquivalencia, t.Clase, t.MencionFactura, t.Activo, t.Clase.Repercute());
+        new(t.Id, t.Codigo, t.Nombre, t.Porcentaje, t.RecargoEquivalencia, t.Clase, t.MencionFactura, t.Activo, t.Clase.Repercute(), t.Impuesto);
 }
 
 /// <summary>Datos para crear o actualizar un tipo de IVA.</summary>
-public sealed record DatosTipoIva(string? Codigo, string? Nombre, decimal Porcentaje, decimal RecargoEquivalencia, ClaseIva Clase, string? MencionFactura);
+public sealed record DatosTipoIva(
+    string? Codigo, string? Nombre, decimal Porcentaje, decimal RecargoEquivalencia, ClaseIva Clase, string? MencionFactura,
+    TipoImpuesto Impuesto = TipoImpuesto.Iva);
 
 /// <summary>Resultado de resolver un código de IVA en el catálogo de la empresa (para facturar).</summary>
-public sealed record IvaResuelto(string Codigo, decimal Porcentaje, decimal RecargoEquivalencia, ClaseIva Clase, decimal PorcentajeRepercutido, string? MencionFactura);
+public sealed record IvaResuelto(
+    string Codigo, decimal Porcentaje, decimal RecargoEquivalencia, ClaseIva Clase, decimal PorcentajeRepercutido, string? MencionFactura,
+    TipoImpuesto Impuesto = TipoImpuesto.Iva);
 
 /// <summary>Repositorio de tipos de IVA por empresa.</summary>
 public interface IRepositorioTiposIva
@@ -60,14 +65,20 @@ public sealed class ListarTiposIva
         _reloj = reloj;
     }
 
-    public async Task<IReadOnlyList<TipoIvaDto>> EjecutarAsync(Guid empresaId, CancellationToken ct = default)
+    /// <summary>
+    /// Lista el catálogo y, si aún no tiene ningún tipo del impuesto de la empresa (<paramref name="impuesto"/>:
+    /// IVA, o IGIC en Canarias), siembra los predeterminados de ese impuesto. Así una empresa que pasa a
+    /// Canarias recibe sus tipos de IGIC sin perder los de IVA que ya tuviera.
+    /// </summary>
+    public async Task<IReadOnlyList<TipoIvaDto>> EjecutarAsync(Guid empresaId, TipoImpuesto impuesto = TipoImpuesto.Iva, CancellationToken ct = default)
     {
         var existentes = await _tipos.ListarAsync(empresaId, ct).ConfigureAwait(false);
-        if (existentes.Count == 0)
+        if (!existentes.Any(t => t.Impuesto == impuesto))
         {
-            foreach (var (codigo, nombre, porcentaje, recargo, clase, mencion) in TipoIva.Predeterminados)
+            var codigos = existentes.Select(t => t.Codigo).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (var (codigo, nombre, porcentaje, recargo, clase, mencion) in TipoIva.PredeterminadosDe(impuesto).Where(p => !codigos.Contains(p.Codigo)))
             {
-                var creado = TipoIva.Crear(empresaId, codigo, nombre, porcentaje, recargo, clase, mencion, _reloj);
+                var creado = TipoIva.Crear(empresaId, codigo, nombre, porcentaje, recargo, clase, mencion, _reloj, impuesto);
                 if (creado.EsCorrecto)
                 {
                     _tipos.Agregar(creado.Valor);
@@ -100,7 +111,7 @@ public sealed class CrearTipoIva
     {
         ArgumentNullException.ThrowIfNull(datos);
 
-        var tipo = TipoIva.Crear(empresaId, datos.Codigo, datos.Nombre, datos.Porcentaje, datos.RecargoEquivalencia, datos.Clase, datos.MencionFactura, _reloj);
+        var tipo = TipoIva.Crear(empresaId, datos.Codigo, datos.Nombre, datos.Porcentaje, datos.RecargoEquivalencia, datos.Clase, datos.MencionFactura, _reloj, datos.Impuesto);
         if (tipo.EsFallo)
         {
             return Resultado.Fallo<TipoIvaDto>(tipo.Error);

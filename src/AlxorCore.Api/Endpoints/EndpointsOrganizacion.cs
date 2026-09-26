@@ -52,6 +52,10 @@ public static class EndpointsOrganizacion
             .WithSummary("Fija el control de riesgo de la empresa (avisar o bloquear al superar el límite).")
             .RequierePermiso(Permisos.EmpresaAjustes);
 
+        empresas.MapPut("/actual/territorio-fiscal", TerritorioFiscalAsync)
+            .WithSummary("Fija el territorio fiscal: Comun (IVA, Península y Baleares) o Canarias (IGIC). Siembra los tipos de IGIC si faltan.")
+            .RequierePermiso(Permisos.EmpresaAjustes);
+
         empresas.MapGet("/actual/plan", PlanAsync)
             .WithSummary("Plan contratado de la empresa: edición, módulos adicionales y módulos activos.")
             .RequireAuthorization();
@@ -259,6 +263,16 @@ public static class EndpointsOrganizacion
     }
 
     private static async Task<IResult> CambiarPlanAsync(CambiarPlanComando comando, IContextoEmpresa contexto, CambiarPlan caso, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        return (await caso.EjecutarAsync(contexto.EmpresaId.Value, comando, ct).ConfigureAwait(false)).AOk();
+    }
+
+    private static async Task<IResult> TerritorioFiscalAsync(TerritorioFiscalComando comando, IContextoEmpresa contexto, ActualizarTerritorioFiscal caso, CancellationToken ct)
     {
         if (contexto.EmpresaId is null)
         {

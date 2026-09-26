@@ -376,10 +376,10 @@ public sealed class ListarVariantes
         _consulta.ListarVariantesAsync(padreId, ct);
 }
 
-/// <summary>Caso de uso: listar el catálogo de tipos de IVA disponibles.</summary>
+/// <summary>Caso de uso: listar el catálogo estatal de tipos del impuesto indirecto (IVA, o IGIC en Canarias).</summary>
 public static class ListarImpuestos
 {
-    public static IReadOnlyList<ImpuestoDto> Ejecutar() => Impuesto.TodosIva.Select(ImpuestoDto.Desde).ToList();
+    public static IReadOnlyList<ImpuestoDto> Ejecutar(TipoImpuesto impuesto = TipoImpuesto.Iva) => Impuesto.De(impuesto).Select(ImpuestoDto.Desde).ToList();
 }
 
 /// <summary>Datos de un movimiento de stock manual.</summary>

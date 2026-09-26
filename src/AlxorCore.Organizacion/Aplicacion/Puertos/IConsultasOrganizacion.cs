@@ -1,3 +1,4 @@
+using AlxorCore.Organizacion.Dominio;
 using AlxorCore.Organizacion.Aplicacion.Modelos;
 
 namespace AlxorCore.Organizacion.Aplicacion.Puertos;
@@ -24,4 +25,13 @@ public interface IConsultaFormasPago
     Task<FormaPagoDto?> ObtenerAsync(Guid formaPagoId, CancellationToken ct = default);
 
     Task<IReadOnlyList<FormaPagoDto>> ListarAsync(Guid empresaId, bool incluirInactivas = false, CancellationToken ct = default);
+}
+
+/// <summary>Prorrata configurada para un ejercicio (null = la empresa no aplica prorrata: deduce el 100 %).</summary>
+public sealed record ProrrataDto(int Ejercicio, RegimenProrrata Regimen, int PorcentajeProvisional);
+
+/// <summary>Consulta y configuración de la prorrata de IVA/IGIC por ejercicio.</summary>
+public interface IConsultaProrrata
+{
+    Task<ProrrataDto?> ObtenerAsync(Guid empresaId, int ejercicio, CancellationToken ct = default);
 }

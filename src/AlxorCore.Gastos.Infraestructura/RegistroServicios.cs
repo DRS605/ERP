@@ -38,6 +38,7 @@ public static class RegistroServicios
         servicios.AddScoped<DespacharSalidaGastos>();
 
         servicios.AddScoped<RegistrarGasto>();
+        servicios.AddScoped<CambiarAfectacionGasto>();
         servicios.AddScoped<ListarGastos>();
         servicios.AddScoped<BuscarGastos>();
         servicios.AddScoped<ObtenerGasto>();

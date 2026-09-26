@@ -1,5 +1,6 @@
 using AlxorCore.Catalogo.Aplicacion;
 using AlxorCore.Catalogo.Dominio;
+using AlxorCore.Nucleo.Comun;
 using AlxorCore.Nucleo.Aplicacion;
 using AlxorCore.Nucleo.Consultas;
 using AlxorCore.Nucleo.Dominio;
@@ -182,6 +183,8 @@ internal sealed class ConfiguracionTipoIva : IEntityTypeConfiguration<TipoIva>
         builder.Property(t => t.Activo).HasColumnName("activo").IsRequired();
         builder.Property(t => t.CreadoEn).HasColumnName("creado_en").IsRequired();
         builder.Property(t => t.ActualizadoEn).HasColumnName("actualizado_en").IsRequired();
+        builder.Property(t => t.Impuesto).HasColumnName("impuesto").HasMaxLength(10).HasConversion<string>().IsRequired()
+            .HasDefaultValue(TipoImpuesto.Iva).HasSentinel((TipoImpuesto)0);
 
         builder.HasIndex(t => new { t.EmpresaId, t.Codigo }).IsUnique().HasDatabaseName("ux_tipo_iva_empresa_codigo");
         builder.Ignore(t => t.EventosDominio);
@@ -220,7 +223,7 @@ internal sealed class RepositorioTiposIva : IRepositorioTiposIva, IResolverIvaEm
         var t = await ObtenerPorCodigoAsync(empresaId, codigo, ct).ConfigureAwait(false);
         return t is null
             ? null
-            : new IvaResuelto(t.Codigo, t.Porcentaje, t.RecargoEquivalencia, t.Clase, t.PorcentajeRepercutido, t.MencionFactura);
+            : new IvaResuelto(t.Codigo, t.Porcentaje, t.RecargoEquivalencia, t.Clase, t.PorcentajeRepercutido, t.MencionFactura, t.Impuesto);
     }
 }
 

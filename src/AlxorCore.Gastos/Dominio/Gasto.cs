@@ -124,6 +124,20 @@ public sealed class Gasto : RaizAgregadoEmpresa<Guid>
         return Resultado.Ok(gasto);
     }
 
+    /// <summary>
+    /// A qué operaciones se destina lo comprado, a efectos de la prorrata especial: de uso común
+    /// (por defecto), solo a operaciones con derecho a deducir o solo a operaciones exentas sin derecho.
+    /// </summary>
+    public AfectacionIva Afectacion { get; private set; } = AfectacionIva.Comun;
+
+    /// <summary>Fija la afectación del gasto (solo cuenta si la empresa aplica la prorrata especial).</summary>
+    public void EstablecerAfectacion(AfectacionIva afectacion, IReloj reloj)
+    {
+        ArgumentNullException.ThrowIfNull(reloj);
+        Afectacion = Enum.IsDefined(afectacion) ? afectacion : AfectacionIva.Comun;
+        ActualizadoEn = reloj.AhoraUtc;
+    }
+
     /// <summary>Clasifica el gasto en una actividad de negocio (snapshot del proveedor). Null/vacío = sin actividad.</summary>
     public void EstablecerActividad(Guid? actividadNegocioId) =>
         ActividadNegocioId = actividadNegocioId is { } a && a != Guid.Empty ? a : null;
@@ -135,4 +149,17 @@ public sealed class Gasto : RaizAgregadoEmpresa<Guid>
     }
 
     private static string? Normalizar(string? valor) => string.IsNullOrWhiteSpace(valor) ? null : valor.Trim();
+}
+
+/// <summary>Destino de una compra a efectos de la prorrata especial del IVA/IGIC.</summary>
+public enum AfectacionIva
+{
+    /// <summary>Se usa a la vez en operaciones con y sin derecho a deducción: se aplica el porcentaje de prorrata.</summary>
+    Comun = 1,
+
+    /// <summary>Se usa solo en operaciones con derecho a deducción: su cuota se deduce entera.</summary>
+    ConDerecho = 2,
+
+    /// <summary>Se usa solo en operaciones exentas sin derecho a deducción: su cuota no se deduce.</summary>
+    SinDerecho = 3,
 }

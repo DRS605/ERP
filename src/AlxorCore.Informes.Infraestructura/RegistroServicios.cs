@@ -13,7 +13,9 @@ public static class RegistroServicios
         servicios.AddScoped<ObtenerDashboard>();
         servicios.AddScoped<GenerarLibroIva>();
         servicios.AddScoped<GenerarSii>();
+        servicios.AddScoped<CalcularProrrata>();
         servicios.AddScoped<GenerarResumenesFiscales>();
+        servicios.AddScoped<GenerarModelo420>();
         servicios.AddScoped<GenerarDeclaracionAnual>();
         servicios.AddScoped<GenerarRetencionesIrpf>();
         servicios.AddScoped<GenerarModelo349>();

@@ -65,7 +65,7 @@ internal sealed class GeneradorPdfPresupuestoQuestPdf : IGeneradorPdfPresupuesto
                             Celda(encabezado.Cell(), color).Text("Descripción").Bold().FontColor(color);
                             Celda(encabezado.Cell(), color).AlignRight().Text("Cantidad").Bold().FontColor(color);
                             Celda(encabezado.Cell(), color).AlignRight().Text("Precio").Bold().FontColor(color);
-                            Celda(encabezado.Cell(), color).AlignRight().Text("IVA").Bold().FontColor(color);
+                            Celda(encabezado.Cell(), color).AlignRight().Text(emisor.ImpuestoIndirecto.Siglas()).Bold().FontColor(color);
                             Celda(encabezado.Cell(), color).AlignRight().Text("Base").Bold().FontColor(color);
                         });
 
@@ -74,7 +74,7 @@ internal sealed class GeneradorPdfPresupuestoQuestPdf : IGeneradorPdfPresupuesto
                             tabla.Cell().Text(linea.Descripcion);
                             tabla.Cell().AlignRight().Text(Redondeo.Formatear(linea.Cantidad));
                             tabla.Cell().AlignRight().Text(Redondeo.Formatear(linea.PrecioUnitario));
-                            tabla.Cell().AlignRight().Text($"{linea.PorcentajeIva:0}%");
+                            tabla.Cell().AlignRight().Text($"{Porcentaje(linea.PorcentajeIva)}%");
                             tabla.Cell().AlignRight().Text(Redondeo.Formatear(linea.Base));
                         }
                     });
@@ -82,7 +82,7 @@ internal sealed class GeneradorPdfPresupuestoQuestPdf : IGeneradorPdfPresupuesto
                     col.Item().AlignRight().PaddingTop(15).Column(totales =>
                     {
                         totales.Item().Text($"Base imponible: {Redondeo.Formatear(presupuesto.BaseImponible)} €");
-                        totales.Item().Text($"IVA: {Redondeo.Formatear(presupuesto.CuotaIva)} €");
+                        totales.Item().Text($"{emisor.ImpuestoIndirecto.Siglas()}: {Redondeo.Formatear(presupuesto.CuotaIva)} €");
                         totales.Item().Text($"TOTAL: {Redondeo.Formatear(presupuesto.Total)} €").Bold().FontSize(13).FontColor(color);
                     });
 
@@ -96,4 +96,8 @@ internal sealed class GeneradorPdfPresupuestoQuestPdf : IGeneradorPdfPresupuesto
 
         return documento.GeneratePdf();
     }
+
+    /// <summary>Porcentaje con sus decimales y coma decimal (10,5 %, 9,5 %; no «11 %» ni «10 %»).</summary>
+    private static string Porcentaje(decimal porcentaje) =>
+        porcentaje.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture).Replace('.', ',');
 }

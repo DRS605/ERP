@@ -48,6 +48,24 @@ public sealed class ResolverCuentasBasico : IResolverCuentas
 }
 
 /// <summary>Construye y guarda el asiento de partida doble de un documento pendiente.</summary>
+/// <summary>
+/// Parte deducible de la cuota soportada de una compra. Sin prorrata es la cuota entera; con prorrata,
+/// el porcentaje del ejercicio (o la cuota entera / nada en la especial, según la afectación).
+/// </summary>
+public interface IDeduccionImpuesto
+{
+    Task<decimal> CuotaDeducibleAsync(Guid empresaId, int ejercicio, decimal cuota, string? afectacion, CancellationToken ct = default);
+}
+
+/// <summary>Deducción íntegra (empresa sin prorrata).</summary>
+public sealed class DeduccionTotal : IDeduccionImpuesto
+{
+    public static DeduccionTotal Instancia { get; } = new();
+
+    public Task<decimal> CuotaDeducibleAsync(Guid empresaId, int ejercicio, decimal cuota, string? afectacion, CancellationToken ct = default) =>
+        Task.FromResult(cuota);
+}
+
 public sealed class PosterDocumento
 {
     private readonly IRepositorioAsientos _asientos;
@@ -56,9 +74,13 @@ public sealed class PosterDocumento
     private readonly IUnidadDeTrabajoContabilidad _unidad;
     private readonly IReloj _reloj;
 
-    public PosterDocumento(IRepositorioAsientos asientos, IRepositorioCuentas cuentas, IResolverCuentas resolver, IUnidadDeTrabajoContabilidad unidad, IReloj reloj)
+    private readonly IDeduccionImpuesto _deduccion;
+
+    public PosterDocumento(IRepositorioAsientos asientos, IRepositorioCuentas cuentas, IResolverCuentas resolver, IUnidadDeTrabajoContabilidad unidad, IReloj reloj,
+        IDeduccionImpuesto? deduccion = null)
     {
         _asientos = asientos; _cuentas = cuentas; _resolver = resolver; _unidad = unidad; _reloj = reloj;
+        _deduccion = deduccion ?? DeduccionTotal.Instancia;
     }
 
     /// <summary>Genera el asiento del documento con su fecha de registro. No guarda (lo hace el llamador).</summary>
@@ -81,9 +103,14 @@ public sealed class PosterDocumento
             }
         }
 
+        // Compras: con prorrata solo es deducible parte de la cuota; la no deducible es más gasto.
+        var cuotaDeducible = doc.Sentido == SentidoContable.Venta || doc.CuotaIva <= 0m
+            ? doc.CuotaIva
+            : await _deduccion.CuotaDeducibleAsync(doc.EmpresaId, doc.FechaRegistro.Year, doc.CuotaIva, doc.Afectacion, ct).ConfigureAwait(false);
+
         var lineas = doc.Sentido == SentidoContable.Venta
             ? LineasVenta(doc, cuentaResultado, cuentaTercero, concepto)
-            : LineasCompra(doc, cuentaResultado, cuentaTercero, concepto);
+            : LineasCompra(doc, cuentaResultado, cuentaTercero, concepto, cuotaDeducible);
 
         await SembradorPlan.AsegurarAsync(doc.EmpresaId, _cuentas, ct).ConfigureAwait(false);
         var ejercicio = doc.FechaRegistro.Year;
@@ -114,13 +141,15 @@ public sealed class PosterDocumento
         return lineas;
     }
 
-    private static List<LineaAsiento> LineasCompra(DocumentoPendiente d, string cuentaGasto, string cuentaProveedor, string concepto)
+    private static List<LineaAsiento> LineasCompra(DocumentoPendiente d, string cuentaGasto, string cuentaProveedor, string concepto, decimal cuotaDeducible)
     {
-        // Debe: gasto (base) + IVA soportado. Haber: retención + proveedores (total).
-        var lineas = new List<LineaAsiento> { new(cuentaGasto, d.BaseImponible, 0m, concepto) };
-        if (d.CuotaIva > 0m)
+        // Debe: gasto (base + cuota no deducible por prorrata) + IVA soportado deducible.
+        // Haber: retención + proveedores (total).
+        var noDeducible = d.CuotaIva - cuotaDeducible;
+        var lineas = new List<LineaAsiento> { new(cuentaGasto, d.BaseImponible + noDeducible, 0m, concepto) };
+        if (cuotaDeducible > 0m)
         {
-            lineas.Add(new LineaAsiento(PlanBasico.CuentaIvaSoportado, d.CuotaIva, 0m, "IVA soportado"));
+            lineas.Add(new LineaAsiento(PlanBasico.CuentaIvaSoportado, cuotaDeducible, 0m, "IVA soportado"));
         }
 
         if (d.RetencionIrpf > 0m)

@@ -46,6 +46,10 @@ public static class RegistroServicios
         servicios.AddScoped<IRepositorioAsignacionesSerie>(sp => sp.GetRequiredService<RepositorioAsignacionesSerie>());
         servicios.AddScoped<IResolverSerie>(sp => sp.GetRequiredService<RepositorioAsignacionesSerie>());
         servicios.AddScoped<RepositorioFormasPago>();
+        servicios.AddScoped<RepositorioProrratas>();
+        servicios.AddScoped<IRepositorioProrratas>(sp => sp.GetRequiredService<RepositorioProrratas>());
+        servicios.AddScoped<IConsultaProrrata>(sp => sp.GetRequiredService<RepositorioProrratas>());
+        servicios.AddScoped<ConfigurarProrrata>();
         servicios.AddScoped<IRepositorioFormasPago>(sp => sp.GetRequiredService<RepositorioFormasPago>());
         servicios.AddScoped<IConsultaFormasPago>(sp => sp.GetRequiredService<RepositorioFormasPago>());
         servicios.AddScoped<IConsultasOrganizacion, ConsultasOrganizacion>();
@@ -62,6 +66,7 @@ public static class RegistroServicios
         servicios.AddScoped<ActualizarPlantillaDocumento>();
         servicios.AddScoped<ActualizarMetodoValoracion>();
         servicios.AddScoped<ActualizarControlRiesgo>();
+        servicios.AddScoped<ActualizarTerritorioFiscal>();
         servicios.AddScoped<ConsultarPlan>();
         servicios.AddScoped<CambiarPlan>();
         servicios.AddScoped<ListarMisEmpresas>();

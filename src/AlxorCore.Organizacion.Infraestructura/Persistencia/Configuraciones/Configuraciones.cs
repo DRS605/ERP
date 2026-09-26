@@ -44,6 +44,8 @@ internal sealed class ConfiguracionEmpresa : IEntityTypeConfiguration<Empresa>
         builder.Property(e => e.IdentificadorAcreedor).HasColumnName("identificador_acreedor").HasMaxLength(35);
         builder.Property(e => e.MetodoValoracion).HasColumnName("metodo_valoracion").HasMaxLength(20).HasConversion<string>().IsRequired();
         builder.Property(e => e.ControlRiesgo).HasColumnName("control_riesgo").HasMaxLength(20).HasConversion<string>().IsRequired();
+        builder.Property(e => e.TerritorioFiscal).HasColumnName("territorio_fiscal").HasMaxLength(20).HasConversion<string>().IsRequired()
+            .HasDefaultValue(AlxorCore.Nucleo.Comun.TerritorioFiscal.Comun).HasSentinel((AlxorCore.Nucleo.Comun.TerritorioFiscal)0);
         builder.Property(e => e.Edicion).HasColumnName("edicion").HasMaxLength(30).IsRequired()
             .HasDefaultValue(AlxorCore.Nucleo.Modulos.CatalogoModulos.EdicionPorDefecto);
         builder.Property(e => e.ModulosAdicionales).HasColumnName("modulos_adicionales").HasColumnType("text[]").IsRequired()
@@ -170,6 +172,22 @@ internal sealed class ConfiguracionVisibilidadActividad : IEntityTypeConfigurati
             .HasDatabaseName("ux_visibilidad_grupo_usuario_area_actividad");
         builder.HasIndex(v => new { v.UsuarioId, v.Area }).HasDatabaseName("ix_visibilidad_usuario_area");
         builder.Ignore(v => v.EventosDominio);
+    }
+}
+
+internal sealed class ConfiguracionProrrata : IEntityTypeConfiguration<ProrrataEjercicio>
+{
+    public void Configure(EntityTypeBuilder<ProrrataEjercicio> builder)
+    {
+        builder.ToTable("prorrata_ejercicio");
+        builder.HasKey(p => p.Id);
+        builder.Property(p => p.Id).HasColumnName("id");
+        builder.Property(p => p.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        builder.Property(p => p.Ejercicio).HasColumnName("ejercicio").IsRequired();
+        builder.Property(p => p.Regimen).HasColumnName("regimen").HasMaxLength(20).HasConversion<string>().IsRequired();
+        builder.Property(p => p.PorcentajeProvisional).HasColumnName("porcentaje_provisional").IsRequired();
+        builder.HasIndex(p => new { p.EmpresaId, p.Ejercicio }).IsUnique().HasDatabaseName("ux_prorrata_empresa_ejercicio");
+        builder.Ignore(p => p.EventosDominio);
     }
 }
 

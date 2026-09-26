@@ -89,7 +89,7 @@ internal sealed class GeneradorPdfFacturaQuestPdf : IGeneradorPdfFactura
                             Celda(encabezado.Cell(), color).Text("Descripción").Bold().FontColor(color);
                             Celda(encabezado.Cell(), color).AlignRight().Text("Cantidad").Bold().FontColor(color);
                             Celda(encabezado.Cell(), color).AlignRight().Text("Precio").Bold().FontColor(color);
-                            Celda(encabezado.Cell(), color).AlignRight().Text("IVA").Bold().FontColor(color);
+                            Celda(encabezado.Cell(), color).AlignRight().Text(factura.SiglasImpuesto).Bold().FontColor(color);
                             Celda(encabezado.Cell(), color).AlignRight().Text("Base").Bold().FontColor(color);
                         });
 
@@ -98,7 +98,7 @@ internal sealed class GeneradorPdfFacturaQuestPdf : IGeneradorPdfFactura
                             tabla.Cell().Text(linea.Descripcion);
                             tabla.Cell().AlignRight().Text(Redondeo.Formatear(linea.Cantidad));
                             tabla.Cell().AlignRight().Text(Redondeo.Formatear(linea.PrecioUnitario));
-                            tabla.Cell().AlignRight().Text($"{linea.PorcentajeIva:0}%");
+                            tabla.Cell().AlignRight().Text($"{Porcentaje(linea.PorcentajeIva)}%");
                             tabla.Cell().AlignRight().Text(Redondeo.Formatear(linea.Base));
                         }
                     });
@@ -106,7 +106,7 @@ internal sealed class GeneradorPdfFacturaQuestPdf : IGeneradorPdfFactura
                     col.Item().AlignRight().PaddingTop(15).Column(totales =>
                     {
                         totales.Item().Text($"Base imponible: {Redondeo.Formatear(factura.BaseImponible)} €");
-                        totales.Item().Text($"IVA: {Redondeo.Formatear(factura.CuotaIva)} €");
+                        totales.Item().Text($"{factura.SiglasImpuesto}: {Redondeo.Formatear(factura.CuotaIva)} €");
                         if (factura.RecargoTotal > 0)
                         {
                             totales.Item().Text($"Recargo de equivalencia: {Redondeo.Formatear(factura.RecargoTotal)} €");
@@ -189,7 +189,7 @@ internal sealed class GeneradorPdfFacturaQuestPdf : IGeneradorPdfFactura
                         col.Item().Text(linea.Descripcion);
                         col.Item().Row(fila =>
                         {
-                            fila.RelativeItem().Text($"{Redondeo.Formatear(linea.Cantidad)} × {Redondeo.Formatear(linea.PrecioUnitario)} €  (IVA {linea.PorcentajeIva:0}%)").FontColor(Colors.Grey.Darken1);
+                            fila.RelativeItem().Text($"{Redondeo.Formatear(linea.Cantidad)} × {Redondeo.Formatear(linea.PrecioUnitario)} €  ({factura.SiglasImpuesto} {Porcentaje(linea.PorcentajeIva)}%)").FontColor(Colors.Grey.Darken1);
                             fila.ConstantItem(70).AlignRight().Text($"{Redondeo.Formatear(linea.Base + linea.CuotaIva)} €");
                         });
                     }
@@ -197,13 +197,13 @@ internal sealed class GeneradorPdfFacturaQuestPdf : IGeneradorPdfFactura
                     col.Item().PaddingVertical(3).LineHorizontal(0.5f).LineColor(Colors.Grey.Medium);
 
                     col.Item().Row(f => { f.RelativeItem().Text("Base"); f.ConstantItem(70).AlignRight().Text($"{Redondeo.Formatear(factura.BaseImponible)} €"); });
-                    col.Item().Row(f => { f.RelativeItem().Text("IVA"); f.ConstantItem(70).AlignRight().Text($"{Redondeo.Formatear(factura.CuotaIva)} €"); });
+                    col.Item().Row(f => { f.RelativeItem().Text(factura.SiglasImpuesto); f.ConstantItem(70).AlignRight().Text($"{Redondeo.Formatear(factura.CuotaIva)} €"); });
                     col.Item().PaddingTop(2).Row(f =>
                     {
                         f.RelativeItem().Text("TOTAL").Bold().FontSize(11);
                         f.ConstantItem(80).AlignRight().Text($"{Redondeo.Formatear(factura.Total)} €").Bold().FontSize(11);
                     });
-                    col.Item().AlignCenter().PaddingTop(2).Text("IVA incluido").FontColor(Colors.Grey.Darken1);
+                    col.Item().AlignCenter().PaddingTop(2).Text($"{factura.SiglasImpuesto} incluido").FontColor(Colors.Grey.Darken1);
 
                     if (!string.IsNullOrWhiteSpace(factura.MencionFiscal))
                     {
@@ -226,4 +226,8 @@ internal sealed class GeneradorPdfFacturaQuestPdf : IGeneradorPdfFactura
 
         return documento.GeneratePdf();
     }
+
+    /// <summary>Porcentaje con sus decimales y coma decimal (10,5 %, 9,5 %; no «11 %» ni «10 %»).</summary>
+    private static string Porcentaje(decimal porcentaje) =>
+        porcentaje.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture).Replace('.', ',');
 }

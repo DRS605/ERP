@@ -77,3 +77,12 @@ public interface IResolverSerie
 {
     Task<string?> ResolverPrefijoAsync(Guid empresaId, TipoDocumento tipoDocumento, Guid? terceroId, CancellationToken ct = default);
 }
+
+public interface IRepositorioProrratas
+{
+    void Agregar(ProrrataEjercicio prorrata);
+
+    void Eliminar(ProrrataEjercicio prorrata);
+
+    Task<ProrrataEjercicio?> ObtenerAsync(Guid empresaId, int ejercicio, CancellationToken ct = default);
+}

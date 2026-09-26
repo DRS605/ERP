@@ -28,7 +28,9 @@ public sealed record DocumentoContabilizable(
     decimal Total,
     Guid? ProductoId = null,
     string? Familia = null,
-    string? TipoTercero = null);
+    string? TipoTercero = null,
+    string? Afectacion = null,
+    Guid? ActividadNegocioId = null);
 
 /// <summary>
 /// Cola de contabilización: recibe los documentos contabilizables y los deja <b>pendientes</b> de que

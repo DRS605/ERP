@@ -107,8 +107,9 @@ public sealed class EmitirFactura
         }
 
         var fechaPrecio = comando.FechaOperacion ?? comando.FechaEmision ?? DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
+        var impuesto = (await _empresas.ObtenerAsync(empresaId, ct).ConfigureAwait(false))?.ImpuestoIndirecto ?? TipoImpuesto.Iva;
         var resolucion = await ResolucionLineasFactura.ResolverAsync(comando.Lineas, _productos, ct, comando.RecargoEquivalencia, empresaId, _resolverIva,
-            (producto, cantidad, c) => _precios.ResolverAsync(cliente.TarifaId, producto, cantidad, fechaPrecio, c)).ConfigureAwait(false);
+            (producto, cantidad, c) => _precios.ResolverAsync(cliente.TarifaId, producto, cantidad, fechaPrecio, c), impuesto).ConfigureAwait(false);
         if (resolucion.EsFallo)
         {
             return Resultado.Fallo<FacturaDto>(resolucion.Error);
@@ -191,6 +192,7 @@ public sealed class EmitirFactura
         }
 
         factura.Valor.EstablecerMencionFiscal(mencionFiscal);
+        factura.Valor.EstablecerImpuesto(impuesto);
         await RegistroVerifactu.AplicarAsync(empresaId, factura.Valor, _empresas, _facturas, _reloj, ct).ConfigureAwait(false);
         _facturas.Agregar(factura.Valor);
 
@@ -210,7 +212,8 @@ public sealed class EmitirFactura
 
         _encolarSalida.Contabilizacion(empresaId, new DocumentoContabilizable(
             SentidoContable.Venta, "FacturaVenta", f.Id, f.NumeroCompleto, f.ClienteId, f.ClienteNombre,
-            f.FechaEmision, f.BaseImponible, codigoIva, f.CuotaIva, f.PorcentajeIrpf, f.RetencionIrpf, f.Total, productoId, familia, cliente.Tipo));
+            f.FechaEmision, f.BaseImponible, codigoIva, f.CuotaIva, f.PorcentajeIrpf, f.RetencionIrpf, f.Total, productoId, familia, cliente.Tipo,
+            ActividadNegocioId: f.ActividadNegocioId));
 
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
 
@@ -271,7 +274,8 @@ internal static class ResolucionLineasFactura
     public static async Task<Resultado<List<NuevaLinea>>> ResolverAsync(
         IReadOnlyList<LineaComando> lineas, IConsultaProductos productos, CancellationToken ct, bool recargoEquivalencia = false,
         Guid? empresaId = null, IResolverIvaEmpresa? resolverIva = null,
-        Func<Guid, decimal, CancellationToken, Task<PrecioVentaDto?>>? precioTarifa = null)
+        Func<Guid, decimal, CancellationToken, Task<PrecioVentaDto?>>? precioTarifa = null,
+        TipoImpuesto? impuestoEmpresa = null)
     {
         var resueltas = new List<NuevaLinea>(lineas.Count);
         foreach (var linea in lineas)
@@ -317,16 +321,19 @@ internal static class ResolucionLineasFactura
 
             // Preferimos el catálogo de IVA de la empresa (con todas las casuísticas: exención, ISP, no
             // sujeto, importación, intracomunitario). Si no está configurado, se usa el catálogo estatal.
-            var codigo = codigoIva ?? Impuesto.IvaGeneral.Codigo;
+            // Sin código, el tipo general del impuesto de la empresa (IVA 21 %, o IGIC 7 % en Canarias).
+            var codigo = codigoIva ?? (impuestoEmpresa == TipoImpuesto.Igic ? Impuesto.IgicGeneral.Codigo : Impuesto.IvaGeneral.Codigo);
             string codigoResuelto;
             decimal porcentaje;
             decimal porcentajeRecargo;
+            TipoImpuesto impuestoLinea;
             if (empresaId is { } emp && resolverIva is not null &&
                 await resolverIva.ResolverAsync(emp, codigo, ct).ConfigureAwait(false) is { } iva)
             {
                 codigoResuelto = iva.Codigo;
                 porcentaje = iva.PorcentajeRepercutido; // 0 en clases sin repercusión (exento, ISP, no sujeto…)
                 porcentajeRecargo = recargoEquivalencia ? iva.RecargoEquivalencia : 0m;
+                impuestoLinea = iva.Impuesto;
             }
             else
             {
@@ -339,6 +346,20 @@ internal static class ResolucionLineasFactura
                 codigoResuelto = impuesto.Valor.Codigo;
                 porcentaje = impuesto.Valor.Porcentaje;
                 porcentajeRecargo = recargoEquivalencia ? Impuesto.RecargoEquivalencia(impuesto.Valor.Porcentaje) : 0m;
+                impuestoLinea = impuesto.Valor.Tipo;
+            }
+
+            // Una factura lleva el impuesto del territorio de la empresa: IVA o IGIC, nunca mezclados.
+            if (impuestoEmpresa is { } esperado && impuestoLinea != esperado)
+            {
+                return Resultado.Fallo<List<NuevaLinea>>(Error.Validacion("factura.impuesto_territorio",
+                    $"El tipo {codigoResuelto} es de {impuestoLinea.Siglas()}, pero la empresa tributa por {esperado.Siglas()}" +
+                    (esperado == TipoImpuesto.Igic ? " (Canarias)." : ".")));
+            }
+
+            if (impuestoLinea == TipoImpuesto.Igic)
+            {
+                porcentajeRecargo = 0m; // el IGIC no tiene recargo de equivalencia
             }
 
             resueltas.Add(new NuevaLinea(

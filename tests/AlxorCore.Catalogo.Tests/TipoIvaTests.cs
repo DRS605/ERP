@@ -89,4 +89,22 @@ public sealed class TipoIvaTests
             p.Mencion.Should().NotBeNullOrWhiteSpace($"la clase {p.Clase} debe llevar mención");
         }
     }
+
+    [Fact]
+    public void Un_tipo_de_IGIC_no_admite_recargo_de_equivalencia()
+    {
+        var igic = TipoIva.Crear(Empresa, "IGIC7", "IGIC general", 7m, 0m, ClaseIva.Ordinario, null, Reloj, AlxorCore.Nucleo.Comun.TipoImpuesto.Igic).Valor;
+        igic.Impuesto.Should().Be(AlxorCore.Nucleo.Comun.TipoImpuesto.Igic);
+        TipoIva.Crear(Empresa, "IGIC7B", "IGIC", 7m, 0.5m, ClaseIva.Ordinario, null, Reloj, AlxorCore.Nucleo.Comun.TipoImpuesto.Igic)
+            .Error.Codigo.Should().Be("tipoiva.igic_sin_recargo");
+    }
+
+    [Fact]
+    public void El_codigo_admite_como_maximo_diez_caracteres_sin_recortarlo()
+    {
+        // Las líneas de factura, gastos y artículos guardan 10 caracteres: un código más largo no se recorta.
+        TipoIva.Crear(Empresa, "IVAMUYLARGO1", "X", 21m, 0m, ClaseIva.Ordinario, null, Reloj).Error.Codigo.Should().Be("tipoiva.codigo_largo");
+        TipoIva.PredeterminadosIgic.Should().OnlyContain(t => t.Codigo.Length <= TipoIva.LongitudMaximaCodigo);
+        TipoIva.Predeterminados.Should().OnlyContain(t => t.Codigo.Length <= TipoIva.LongitudMaximaCodigo);
+    }
 }

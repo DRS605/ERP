@@ -2,8 +2,10 @@ using AlxorCore.Api.Comun;
 using AlxorCore.Catalogo.Aplicacion;
 using AlxorCore.Catalogo.Dominio;
 using AlxorCore.Nucleo.Autorizacion;
+using AlxorCore.Nucleo.Comun;
 using AlxorCore.Nucleo.Multiempresa;
 using AlxorCore.Nucleo.Resultados;
+using AlxorCore.Organizacion.Aplicacion.Puertos;
 
 namespace AlxorCore.Api.Endpoints;
 
@@ -32,19 +34,23 @@ public static class EndpointsTiposIva
     }
 
     /// <summary>Cuerpo para crear o actualizar un tipo de IVA.</summary>
-    public sealed record PeticionTipoIva(string? Codigo, string? Nombre, decimal Porcentaje, decimal RecargoEquivalencia, ClaseIva Clase, string? MencionFactura, bool Activo = true);
+    public sealed record PeticionTipoIva(
+        string? Codigo, string? Nombre, decimal Porcentaje, decimal RecargoEquivalencia, ClaseIva Clase, string? MencionFactura, bool Activo = true,
+        TipoImpuesto? Impuesto = null);
 
-    private static async Task<IResult> ListarAsync(IContextoEmpresa contexto, ListarTiposIva caso, CancellationToken ct)
+    private static async Task<IResult> ListarAsync(IContextoEmpresa contexto, ListarTiposIva caso, IConsultaEmpresas empresas, CancellationToken ct)
     {
         if (contexto.EmpresaId is null)
         {
             return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
         }
 
-        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, ct).ConfigureAwait(false));
+        // Se siembran los tipos del impuesto de la empresa: IVA, o IGIC si está en Canarias.
+        var impuesto = (await empresas.ObtenerAsync(contexto.EmpresaId.Value, ct).ConfigureAwait(false))?.ImpuestoIndirecto ?? TipoImpuesto.Iva;
+        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, impuesto, ct).ConfigureAwait(false));
     }
 
-    private static async Task<IResult> CrearAsync(PeticionTipoIva peticion, IContextoEmpresa contexto, CrearTipoIva caso, CancellationToken ct)
+    private static async Task<IResult> CrearAsync(PeticionTipoIva peticion, IContextoEmpresa contexto, CrearTipoIva caso, IConsultaEmpresas empresas, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(peticion);
         if (contexto.EmpresaId is null)
@@ -52,7 +58,11 @@ public static class EndpointsTiposIva
             return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
         }
 
-        var datos = new DatosTipoIva(peticion.Codigo, peticion.Nombre, peticion.Porcentaje, peticion.RecargoEquivalencia, peticion.Clase, peticion.MencionFactura);
+        // Sin impuesto indicado, el tipo es del impuesto de la empresa (IVA, o IGIC en Canarias).
+        var impuesto = peticion.Impuesto
+            ?? (await empresas.ObtenerAsync(contexto.EmpresaId.Value, ct).ConfigureAwait(false))?.ImpuestoIndirecto
+            ?? TipoImpuesto.Iva;
+        var datos = new DatosTipoIva(peticion.Codigo, peticion.Nombre, peticion.Porcentaje, peticion.RecargoEquivalencia, peticion.Clase, peticion.MencionFactura, impuesto);
         var r = await caso.EjecutarAsync(contexto.EmpresaId.Value, datos, ct).ConfigureAwait(false);
         return r.EsCorrecto ? r.ACreado($"/tipos-iva/{r.Valor.Id}") : ResultadosHttp.AProblema(r.Error);
     }

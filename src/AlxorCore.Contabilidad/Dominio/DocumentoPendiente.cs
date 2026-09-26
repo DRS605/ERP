@@ -49,6 +49,8 @@ public sealed class DocumentoPendiente : RaizAgregadoEmpresa<Guid>
         ProductoId = d.ProductoId;
         Familia = d.Familia;
         TipoTercero = d.TipoTercero;
+        Afectacion = d.Afectacion;
+        ActividadNegocioId = d.ActividadNegocioId;
         Estado = EstadoContabilizacion.Pendiente;
         CreadoEn = ahora;
     }
@@ -90,6 +92,12 @@ public sealed class DocumentoPendiente : RaizAgregadoEmpresa<Guid>
 
     /// <summary>Tipo/categoría del tercero (si aplica), para elegir la cuenta contable.</summary>
     public string? TipoTercero { get; private set; }
+
+    /// <summary>Afectación de la compra a efectos de prorrata (Comun, ConDerecho, SinDerecho). Null en ventas.</summary>
+    public string? Afectacion { get; private set; }
+
+    /// <summary>Actividad de negocio del documento (para la imputación analítica).</summary>
+    public Guid? ActividadNegocioId { get; private set; }
 
     public EstadoContabilizacion Estado { get; private set; }
 

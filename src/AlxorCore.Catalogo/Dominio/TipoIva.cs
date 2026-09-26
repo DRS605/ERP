@@ -1,3 +1,4 @@
+using AlxorCore.Nucleo.Comun;
 using AlxorCore.Nucleo.Dominio;
 using AlxorCore.Nucleo.Resultados;
 using AlxorCore.Nucleo.Tiempo;
@@ -117,7 +118,7 @@ public static class ClaseIvaExtensiones
 /// </summary>
 public sealed class TipoIva : RaizAgregadoEmpresa<Guid>
 {
-    public const int LongitudMaximaCodigo = 15;
+    public const int LongitudMaximaCodigo = 10; // lo que guardan las líneas de factura, gastos, artículos y la cola contable
     public const int LongitudMaximaNombre = 100;
     public const int LongitudMaximaMencion = 300;
     public const decimal PorcentajeMaximo = 100m;
@@ -165,20 +166,33 @@ public sealed class TipoIva : RaizAgregadoEmpresa<Guid>
 
     public DateTimeOffset ActualizadoEn { get; private set; }
 
+    /// <summary>Impuesto al que pertenece el tipo: IVA o IGIC (Canarias). No cambia una vez creado.</summary>
+    public TipoImpuesto Impuesto { get; private set; } = TipoImpuesto.Iva;
+
     /// <summary>Porcentaje que realmente se repercute en la factura (0 en clases sin repercusión).</summary>
     public decimal PorcentajeRepercutido => Clase.Repercute() ? Porcentaje : 0m;
 
-    public static Resultado<TipoIva> Crear(Guid empresaId, string? codigo, string? nombre, decimal porcentaje, decimal recargoEquivalencia, ClaseIva clase, string? mencionFactura, IReloj reloj)
+    public static Resultado<TipoIva> Crear(
+        Guid empresaId, string? codigo, string? nombre, decimal porcentaje, decimal recargoEquivalencia, ClaseIva clase, string? mencionFactura, IReloj reloj,
+        TipoImpuesto impuesto = TipoImpuesto.Iva)
     {
         ArgumentNullException.ThrowIfNull(reloj);
 
-        var error = Validar(ref codigo, ref nombre, porcentaje, recargoEquivalencia, clase);
+        if (impuesto is not (TipoImpuesto.Iva or TipoImpuesto.Igic))
+        {
+            return Resultado.Fallo<TipoIva>(Error.Validacion("tipoiva.impuesto_invalido", "El impuesto debe ser IVA o IGIC."));
+        }
+
+        var error = Validar(ref codigo, ref nombre, porcentaje, recargoEquivalencia, clase) ?? ValidarImpuesto(impuesto, recargoEquivalencia);
         if (error is not null)
         {
             return Resultado.Fallo<TipoIva>(error);
         }
 
-        return Resultado.Ok(new TipoIva(Guid.NewGuid(), empresaId, codigo!, nombre!, porcentaje, recargoEquivalencia, clase, Recortar(mencionFactura, LongitudMaximaMencion), reloj.AhoraUtc));
+        return Resultado.Ok(new TipoIva(Guid.NewGuid(), empresaId, codigo!, nombre!, porcentaje, recargoEquivalencia, clase, Recortar(mencionFactura, LongitudMaximaMencion), reloj.AhoraUtc)
+        {
+            Impuesto = impuesto,
+        });
     }
 
     public Resultado Actualizar(string? nombre, decimal porcentaje, decimal recargoEquivalencia, ClaseIva clase, string? mencionFactura, IReloj reloj)
@@ -186,7 +200,7 @@ public sealed class TipoIva : RaizAgregadoEmpresa<Guid>
         ArgumentNullException.ThrowIfNull(reloj);
 
         var codigo = Codigo; // el código no se cambia una vez creado (lo referencian artículos y facturas)
-        var error = Validar(ref codigo, ref nombre, porcentaje, recargoEquivalencia, clase);
+        var error = Validar(ref codigo, ref nombre, porcentaje, recargoEquivalencia, clase) ?? ValidarImpuesto(Impuesto, recargoEquivalencia);
         if (error is not null)
         {
             return Resultado.Fallo(error);
@@ -210,6 +224,11 @@ public sealed class TipoIva : RaizAgregadoEmpresa<Guid>
 
     private static Error? Validar(ref string? codigo, ref string? nombre, decimal porcentaje, decimal recargo, ClaseIva clase)
     {
+        if (codigo?.Trim().Length > LongitudMaximaCodigo)
+        {
+            return Error.Validacion("tipoiva.codigo_largo", $"El código del tipo admite como máximo {LongitudMaximaCodigo} caracteres.");
+        }
+
         codigo = Recortar(codigo, LongitudMaximaCodigo)?.ToUpperInvariant();
         if (string.IsNullOrWhiteSpace(codigo))
         {
@@ -235,6 +254,11 @@ public sealed class TipoIva : RaizAgregadoEmpresa<Guid>
 
         return null;
     }
+
+    private static Error? ValidarImpuesto(TipoImpuesto impuesto, decimal recargo) =>
+        impuesto == TipoImpuesto.Igic && recargo != 0m
+            ? Error.Validacion("tipoiva.igic_sin_recargo", "El IGIC no tiene recargo de equivalencia.")
+            : null;
 
     private static string? Recortar(string? valor, int max)
     {
@@ -267,4 +291,27 @@ public sealed class TipoIva : RaizAgregadoEmpresa<Guid>
         ("REAGP12", "REAGP agrícola/forestal (comp. 12%)", 12m, 0m, ClaseIva.AgriculturaCompensacion, "Compensación a tanto alzado del régimen especial de la agricultura, ganadería y pesca (art. 130 Ley 37/1992)."),
         ("REAGP105", "REAGP ganadera/pesquera (comp. 10,5%)", 10.5m, 0m, ClaseIva.AgriculturaCompensacion, "Compensación a tanto alzado del régimen especial de la agricultura, ganadería y pesca (art. 130 Ley 37/1992)."),
     };
+
+    /// <summary>
+    /// Tipos de IGIC que se siembran en una empresa de Canarias. Los porcentajes son los vigentes y la
+    /// empresa puede ajustarlos; el IGIC no tiene recargo de equivalencia.
+    /// </summary>
+    public static IReadOnlyList<(string Codigo, string Nombre, decimal Porcentaje, decimal Recargo, ClaseIva Clase, string? Mencion)> PredeterminadosIgic { get; } = new[]
+    {
+        ("IGIC7", "IGIC general (7%)", 7m, 0m, ClaseIva.Ordinario, (string?)null),
+        ("IGIC3", "IGIC reducido (3%)", 3m, 0m, ClaseIva.Ordinario, null),
+        ("IGIC0", "IGIC tipo cero (0%)", 0m, 0m, ClaseIva.Ordinario, null),
+        ("IGIC95", "IGIC incrementado (9,5%)", 9.5m, 0m, ClaseIva.Ordinario, null),
+        ("IGIC15", "IGIC incrementado (15%)", 15m, 0m, ClaseIva.Ordinario, null),
+        ("IGIC20", "IGIC especial incrementado (20%)", 20m, 0m, ClaseIva.Ordinario, null),
+        ("IGICEXENTO", "Exento de IGIC", 0m, 0m, ClaseIva.Exento, "Operación exenta del Impuesto General Indirecto Canario (Ley 20/1991)."),
+        ("IGICNOSUJ", "No sujeto a IGIC", 0m, 0m, ClaseIva.NoSujeto, "Operación no sujeta al Impuesto General Indirecto Canario (Ley 20/1991)."),
+        ("IGICISP", "IGIC: inversión del sujeto pasivo", 0m, 0m, ClaseIva.InversionSujetoPasivo, "Inversión del sujeto pasivo del IGIC (Ley 20/1991)."),
+        ("IGICEXPORT", "IGIC: exportación exenta", 0m, 0m, ClaseIva.Exportacion, "Operación exenta del IGIC: exportación o envío de bienes fuera de Canarias (Ley 20/1991)."),
+        ("IGICIMP7", "IGIC importación (7%)", 7m, 0m, ClaseIva.Importacion, null),
+    };
+
+    /// <summary>Tipos que se siembran para el impuesto indicado.</summary>
+    public static IReadOnlyList<(string Codigo, string Nombre, decimal Porcentaje, decimal Recargo, ClaseIva Clase, string? Mencion)> PredeterminadosDe(TipoImpuesto impuesto) =>
+        impuesto == TipoImpuesto.Igic ? PredeterminadosIgic : Predeterminados;
 }

@@ -35,6 +35,8 @@ public sealed class OrganizacionDbContext : DbContextEmpresaBase, AlxorCore.Orga
 
     public DbSet<FormaPago> FormasPago => Set<FormaPago>();
 
+    public DbSet<ProrrataEjercicio> Prorratas => Set<ProrrataEjercicio>();
+
     public DbSet<ActividadNegocio> Actividades => Set<ActividadNegocio>();
 
     public DbSet<VisibilidadActividad> Visibilidades => Set<VisibilidadActividad>();

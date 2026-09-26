@@ -1,3 +1,4 @@
+using AlxorCore.Nucleo.Comun;
 using System.Globalization;
 using System.Text;
 using System.Xml;
@@ -63,6 +64,11 @@ public static class GeneradorXmlVerifactu
             var baseImp = Redondear(grupo.Sum(l => l.Base));
             var cuota = Redondear(grupo.Sum(l => l.CuotaIva));
             w.WriteStartElement("DetalleDesglose");
+            if (factura.Impuesto == TipoImpuesto.Igic)
+            {
+                w.WriteElementString("Impuesto", "03"); // IGIC (sin este elemento, la AEAT entiende 01 = IVA)
+            }
+
             w.WriteElementString("ClaveRegimen", "01"); // régimen general
             w.WriteElementString("CalificacionOperacion", "S1"); // sujeta y no exenta
             w.WriteElementString("TipoImpositivo", grupo.Key.ToString("F2", Inv));

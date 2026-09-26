@@ -9,11 +9,20 @@ namespace AlxorCore.Informes.Aplicacion;
 /// (repercutido en las facturas emitidas del trimestre) menos IVA deducible (soportado en los
 /// gastos del trimestre).
 /// </summary>
+/// <remarks>
+/// Con prorrata, <see cref="IvaDeducibleCuota"/> es la parte deducible del IVA soportado
+/// (<see cref="IvaSoportadoCuota"/>) con el porcentaje provisional, y en el cuarto trimestre se añade la
+/// <see cref="RegularizacionProrrata"/> del año con el definitivo. Solo cuenta el IVA: las facturas y
+/// gastos con IGIC van al modelo 420.
+/// </remarks>
 public sealed record Modelo303Dto(
     int Anio, int Trimestre, DateOnly Desde, DateOnly Hasta,
     decimal IvaDevengadoBase, decimal IvaDevengadoCuota,
     decimal IvaDeducibleBase, decimal IvaDeducibleCuota,
-    decimal Resultado);
+    decimal Resultado,
+    decimal IvaSoportadoCuota = 0m,
+    int PorcentajeProrrata = 100,
+    decimal RegularizacionProrrata = 0m);
 
 /// <summary>
 /// Resumen del <b>modelo 130</b> (pago fraccionado del IRPF en estimación directa). Es
@@ -41,11 +50,13 @@ public sealed class GenerarResumenesFiscales
 
     private readonly IConsultaFacturas _facturas;
     private readonly IConsultaGastos _gastos;
+    private readonly CalcularProrrata? _prorrata;
 
-    public GenerarResumenesFiscales(IConsultaFacturas facturas, IConsultaGastos gastos)
+    public GenerarResumenesFiscales(IConsultaFacturas facturas, IConsultaGastos gastos, CalcularProrrata? prorrata = null)
     {
         _facturas = facturas;
         _gastos = gastos;
+        _prorrata = prorrata;
     }
 
     public async Task<ResumenTrimestralDto> EjecutarAsync(Guid empresaId, int anio, int trimestre, CancellationToken ct = default)
@@ -56,30 +67,36 @@ public sealed class GenerarResumenesFiscales
         }
 
         var facturas = await _facturas.ListarAsync(empresaId, ct).ConfigureAwait(false);
-        var gastos = await _gastos.ListarAsync(empresaId, ct).ConfigureAwait(false);
+        var todos = await _gastos.ListarAsync(empresaId, ct).ConfigureAwait(false);
 
         // Solo cuentan las facturas realmente emitidas (se excluyen las anuladas y las ya
-        // sustituidas por una rectificativa, que aportaría los importes corregidos).
+        // sustituidas por una rectificativa, que aportaría los importes corregidos) y los gastos
+        // no anulados.
         var emitidas = facturas.Where(f => f.Estado == "Emitida").ToList();
+        var gastos = todos.Where(g => !string.Equals(g.Estado, "Anulado", StringComparison.OrdinalIgnoreCase)).ToList();
 
         return new ResumenTrimestralDto(
-            Calcular303(anio, trimestre, emitidas, gastos),
+            await Calcular303Async(empresaId, anio, trimestre, emitidas, gastos, ct).ConfigureAwait(false),
             Calcular130(anio, trimestre, emitidas, gastos));
     }
 
-    private static Modelo303Dto Calcular303(int anio, int trimestre, IReadOnlyList<FacturaResumen> facturas, IReadOnlyList<GastoDto> gastos)
+    private async Task<Modelo303Dto> Calcular303Async(
+        Guid empresaId, int anio, int trimestre, IReadOnlyList<FacturaResumen> facturas, IReadOnlyList<GastoDto> gastos, CancellationToken ct)
     {
-        var (desde, hasta) = RangoTrimestre(anio, trimestre);
+        var (desde, hasta) = Periodos.Trimestre(anio, trimestre);
 
-        var devengado = facturas.Where(f => f.FechaEmision >= desde && f.FechaEmision <= hasta).ToList();
-        var deducible = gastos.Where(g => g.Fecha >= desde && g.Fecha <= hasta).ToList();
+        var devengado = facturas.Where(f => f.Impuesto == TipoImpuesto.Iva && f.FechaEmision >= desde && f.FechaEmision <= hasta).ToList();
+        var soportado = CuotasSoportadas.De(gastos.Where(g => g.Fecha >= desde && g.Fecha <= hasta), TipoImpuesto.Iva);
 
         var devBase = Redondeo.Dos(devengado.Sum(f => f.BaseImponible));
         var devCuota = Redondeo.Dos(devengado.Sum(f => f.CuotaIva));
-        var dedBase = Redondeo.Dos(deducible.Sum(g => g.BaseImponible));
-        var dedCuota = Redondeo.Dos(deducible.Sum(g => g.CuotaIva));
+        var deduccion = _prorrata is null
+            ? new DeduccionTrimestre(null, 100, soportado.Total, 0m)
+            : await _prorrata.DeduccionAsync(empresaId, anio, trimestre, TipoImpuesto.Iva, soportado, ct).ConfigureAwait(false);
 
-        return new Modelo303Dto(anio, trimestre, desde, hasta, devBase, devCuota, dedBase, dedCuota, Redondeo.Dos(devCuota - dedCuota));
+        return new Modelo303Dto(anio, trimestre, desde, hasta, devBase, devCuota, soportado.Base, deduccion.Deducible,
+            Redondeo.Dos(devCuota - deduccion.Deducible - deduccion.Regularizacion),
+            soportado.Total, deduccion.Porcentaje, deduccion.Regularizacion);
     }
 
     private static Modelo130Dto Calcular130(int anio, int trimestre, IReadOnlyList<FacturaResumen> facturas, IReadOnlyList<GastoDto> gastos)
@@ -91,7 +108,7 @@ public sealed class GenerarResumenesFiscales
 
         for (var t = 1; t <= trimestre; t++)
         {
-            var (_, hasta) = RangoTrimestre(anio, t);
+            var (_, hasta) = Periodos.Trimestre(anio, t);
             var inicioAnio = new DateOnly(anio, 1, 1);
 
             var ingresos = Redondeo.Dos(facturas.Where(f => f.FechaEmision >= inicioAnio && f.FechaEmision <= hasta).Sum(f => f.BaseImponible));
@@ -102,19 +119,11 @@ public sealed class GenerarResumenesFiscales
             var bruto = Redondeo.Dos(Math.Max(0m, rendimiento * PorcentajePagoFraccionado));
             var resultado = Redondeo.Dos(Math.Max(0m, bruto - retenciones - pagosAnteriores));
 
-            var (desdeT, hastaT) = RangoTrimestre(anio, t);
+            var (desdeT, hastaT) = Periodos.Trimestre(anio, t);
             actual = new Modelo130Dto(anio, t, desdeT, hastaT, ingresos, gastosAcum, rendimiento, bruto, retenciones, Redondeo.Dos(pagosAnteriores), resultado);
             pagosAnteriores += resultado;
         }
 
         return actual!;
-    }
-
-    private static (DateOnly Desde, DateOnly Hasta) RangoTrimestre(int anio, int trimestre)
-    {
-        var mesInicio = ((trimestre - 1) * 3) + 1;
-        var desde = new DateOnly(anio, mesInicio, 1);
-        var hasta = desde.AddMonths(3).AddDays(-1);
-        return (desde, hasta);
     }
 }

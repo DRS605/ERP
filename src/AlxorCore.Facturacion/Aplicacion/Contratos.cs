@@ -1,9 +1,13 @@
 using AlxorCore.Facturacion.Dominio;
 using AlxorCore.Nucleo.Aplicacion;
+using AlxorCore.Nucleo.Comun;
 using AlxorCore.Nucleo.Consultas;
 using AlxorCore.Nucleo.Resultados;
 
 namespace AlxorCore.Facturacion.Aplicacion;
+
+/// <summary>Base y cuota de un tipo de impuesto (IVA o IGIC) en un periodo.</summary>
+public sealed record DesgloseImpuestoDto(TipoImpuesto Impuesto, string CodigoIva, decimal Porcentaje, decimal Base, decimal Cuota);
 
 /// <summary>Vista de una línea de factura.</summary>
 public sealed record LineaFacturaDto(
@@ -46,8 +50,12 @@ public sealed record FacturaDto(
     string? MotivoAnulacion,
     IReadOnlyList<LineaFacturaDto> Lineas,
     string? AvisoRiesgo = null,
-    string? MencionFiscal = null)
+    string? MencionFiscal = null,
+    TipoImpuesto Impuesto = TipoImpuesto.Iva)
 {
+    /// <summary>Siglas del impuesto para mostrar en documentos ("IVA" o "IGIC").</summary>
+    public string SiglasImpuesto => Impuesto.Siglas();
+
     public static FacturaDto Desde(Factura f) => new(
         f.Id, f.NumeroCompleto, f.FechaEmision, f.FechaOperacion, f.FechaVencimiento, f.ClienteId, f.ClienteNombre, f.ClienteNif,
         f.ClienteCalle, f.ClienteCodigoPostal, f.ClientePoblacion, f.ClienteProvincia, f.Pais,
@@ -57,14 +65,15 @@ public sealed record FacturaDto(
         f.Lineas.Select(l => new LineaFacturaDto(
             l.Descripcion, l.Cantidad, l.PrecioUnitario, l.PorcentajeDescuento, l.CodigoIva, l.PorcentajeIva, l.Base, l.CuotaIva,
             l.CosteUnitario, l.Margen, l.PorcentajeRecargo, l.CuotaRecargo)).ToList(),
-        MencionFiscal: f.MencionFiscal);
+        MencionFiscal: f.MencionFiscal,
+        Impuesto: f.Impuesto);
 }
 
 /// <summary>Resumen de factura para listados y libros de IVA.</summary>
 public sealed record FacturaResumen(
     Guid Id, string NumeroCompleto, DateOnly FechaEmision, DateOnly FechaVencimiento, string ClienteNombre,
     string? ClienteNif, decimal BaseImponible, decimal CuotaIva, decimal RetencionIrpf, decimal Total, string Estado, string Tipo,
-    Guid? ClienteId, Guid? ActividadNegocioId = null);
+    Guid? ClienteId, Guid? ActividadNegocioId = null, TipoImpuesto Impuesto = TipoImpuesto.Iva);
 
 /// <summary>
 /// Filtros de búsqueda de facturas en servidor. Todos son opcionales (null = no filtra por ese
@@ -110,6 +119,13 @@ public interface IConsultaFacturas
 
     /// <summary>Líneas de las facturas emitidas en un periodo, para el cálculo de márgenes.</summary>
     Task<IReadOnlyList<LineaMargenDto>> ListarLineasMargenAsync(Guid empresaId, DateOnly desde, DateOnly hasta, CancellationToken ct = default);
+
+    /// <summary>
+    /// Bases y cuotas de las facturas emitidas en el periodo, agrupadas por impuesto (IVA/IGIC), código
+    /// y porcentaje: la base de las autoliquidaciones (303, 420) y del cálculo de la prorrata.
+    /// </summary>
+    Task<IReadOnlyList<DesgloseImpuestoDto>> DesgloseImpuestoAsync(Guid empresaId, DateOnly desde, DateOnly hasta, CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<DesgloseImpuestoDto>>([]);
 }
 
 /// <summary>Unidad de trabajo del módulo Facturación.</summary>

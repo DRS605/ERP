@@ -32,8 +32,16 @@ public static class EndpointsGastos
             .WithSummary("Registra un gasto.")
             .RequierePermiso(Permisos.GastoGestionar);
 
+        gastos.MapPut("/{id:guid}/afectacion", async (Guid id, PeticionAfectacion peticion, CambiarAfectacionGasto caso, CancellationToken ct) =>
+                (await caso.EjecutarAsync(id, peticion.Afectacion, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Afectación del gasto para la prorrata especial: Comun, ConDerecho (operaciones con derecho a deducir) o SinDerecho (exentas).")
+            .RequierePermiso(Permisos.GastoGestionar);
+
         return rutas;
     }
+
+    /// <summary>Cuerpo para cambiar la afectación de un gasto.</summary>
+    public sealed record PeticionAfectacion(AlxorCore.Gastos.Dominio.AfectacionIva Afectacion);
 
     private static async Task<IResult> ListarAsync(IContextoEmpresa contexto, ListarGastos caso, CancellationToken ct)
     {

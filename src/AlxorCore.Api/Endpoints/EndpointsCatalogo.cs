@@ -72,9 +72,15 @@ public static class EndpointsCatalogo
             .WithSummary("Crea una variante (talla/color/…) de un artículo.")
             .RequierePermiso(Permisos.ProductoGestionar);
 
-        rutas.MapGet("/impuestos", () => Results.Ok(ListarImpuestos.Ejecutar()))
+        rutas.MapGet("/impuestos", async (AlxorCore.Nucleo.Multiempresa.IContextoEmpresa contexto, AlxorCore.Organizacion.Aplicacion.Puertos.IConsultaEmpresas empresas, CancellationToken ct) =>
+            {
+                var impuesto = contexto.EmpresaId is { } id
+                    ? (await empresas.ObtenerAsync(id, ct).ConfigureAwait(false))?.ImpuestoIndirecto ?? AlxorCore.Nucleo.Comun.TipoImpuesto.Iva
+                    : AlxorCore.Nucleo.Comun.TipoImpuesto.Iva;
+                return Results.Ok(ListarImpuestos.Ejecutar(impuesto));
+            })
             .WithTags("Impuestos")
-            .WithSummary("Lista los tipos de IVA disponibles.")
+            .WithSummary("Lista los tipos del impuesto indirecto de la empresa: IVA, o IGIC si está en Canarias.")
             .RequireAuthorization();
 
         var familias = rutas.MapGroup("/familias").WithTags("Familias");

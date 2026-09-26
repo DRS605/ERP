@@ -69,6 +69,12 @@ public sealed class Empresa : RaizAgregado<Guid>
     /// <summary>Cómo actúa ante el exceso de límite de riesgo de un tercero (avisar o bloquear).</summary>
     public ControlRiesgo ControlRiesgo { get; private set; } = ControlRiesgo.Aviso;
 
+    /// <summary>
+    /// Territorio fiscal: Península y Baleares (IVA) o Canarias (IGIC). Decide el impuesto indirecto de
+    /// las facturas, el catálogo de tipos que se siembra y la autoliquidación (303 o 420).
+    /// </summary>
+    public TerritorioFiscal TerritorioFiscal { get; private set; } = TerritorioFiscal.Comun;
+
     /// <summary>Edición contratada (ver <see cref="CatalogoModulos"/>). Decide qué módulos puede usar la empresa.</summary>
     public string Edicion { get; private set; } = CatalogoModulos.EdicionPorDefecto;
 
@@ -250,6 +256,14 @@ public sealed class Empresa : RaizAgregado<Guid>
     {
         ArgumentNullException.ThrowIfNull(reloj);
         ControlRiesgo = control;
+        ActualizadoEn = reloj.AhoraUtc;
+    }
+
+    /// <summary>Fija el territorio fiscal. Las facturas ya emitidas conservan el impuesto con el que se emitieron.</summary>
+    public void EstablecerTerritorioFiscal(TerritorioFiscal territorio, IReloj reloj)
+    {
+        ArgumentNullException.ThrowIfNull(reloj);
+        TerritorioFiscal = territorio;
         ActualizadoEn = reloj.AhoraUtc;
     }
 }
