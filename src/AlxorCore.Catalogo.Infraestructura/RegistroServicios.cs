@@ -66,6 +66,11 @@ public static class RegistroServicios
         servicios.AddScoped<EliminarFamilia>();
         servicios.AddScoped<ListarFamilias>();
         servicios.AddScoped<ListarArbolFamilias>();
+        servicios.AddScoped<IRepositorioTarifas, RepositorioTarifas>();
+        servicios.AddScoped<CrearTarifa>();
+        servicios.AddScoped<ActualizarTarifa>();
+        servicios.AddScoped<ConsultarTarifas>();
+        servicios.AddScoped<IResolverPrecioVenta, ResolverPrecioVenta>();
 
         return servicios;
     }

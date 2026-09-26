@@ -56,10 +56,12 @@ public sealed class CrearPresupuesto
     private readonly IConsultaProductos _productos;
     private readonly IRepositorioPresupuestos _presupuestos;
     private readonly IUnidadDeTrabajoFacturacion _unidadDeTrabajo;
+    private readonly IResolverPrecioVenta _precios;
     private readonly IReloj _reloj;
 
-    public CrearPresupuesto(IConsultaClientes clientes, IConsultaProductos productos, IRepositorioPresupuestos presupuestos, IUnidadDeTrabajoFacturacion unidadDeTrabajo, IReloj reloj)
+    public CrearPresupuesto(IConsultaClientes clientes, IConsultaProductos productos, IRepositorioPresupuestos presupuestos, IUnidadDeTrabajoFacturacion unidadDeTrabajo, IResolverPrecioVenta precios, IReloj reloj)
     {
+        _precios = precios;
         _clientes = clientes;
         _productos = productos;
         _presupuestos = presupuestos;
@@ -77,7 +79,9 @@ public sealed class CrearPresupuesto
             return Resultado.Fallo<PresupuestoDto>(Error.NoEncontrado("cliente.no_encontrado", "El cliente no existe."));
         }
 
-        var resolucion = await ResolucionLineasFactura.ResolverAsync(datos.Lineas ?? [], _productos, ct).ConfigureAwait(false);
+        var fechaPrecio = DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
+        var resolucion = await ResolucionLineasFactura.ResolverAsync(datos.Lineas ?? [], _productos, ct,
+            precioTarifa: (producto, cantidad, c) => _precios.ResolverAsync(cliente.TarifaId, producto, cantidad, fechaPrecio, c)).ConfigureAwait(false);
         if (resolucion.EsFallo)
         {
             return Resultado.Fallo<PresupuestoDto>(resolucion.Error);
@@ -107,9 +111,11 @@ public sealed class ActualizarPresupuesto
     private readonly IConsultaProductos _productos;
     private readonly IRepositorioPresupuestos _presupuestos;
     private readonly IUnidadDeTrabajoFacturacion _unidadDeTrabajo;
+    private readonly IResolverPrecioVenta _precios;
 
-    public ActualizarPresupuesto(IConsultaClientes clientes, IConsultaProductos productos, IRepositorioPresupuestos presupuestos, IUnidadDeTrabajoFacturacion unidadDeTrabajo)
+    public ActualizarPresupuesto(IConsultaClientes clientes, IConsultaProductos productos, IRepositorioPresupuestos presupuestos, IUnidadDeTrabajoFacturacion unidadDeTrabajo, IResolverPrecioVenta precios)
     {
+        _precios = precios;
         _clientes = clientes;
         _productos = productos;
         _presupuestos = presupuestos;
@@ -132,7 +138,8 @@ public sealed class ActualizarPresupuesto
             return Resultado.Fallo<PresupuestoDto>(Error.NoEncontrado("cliente.no_encontrado", "El cliente no existe."));
         }
 
-        var resolucion = await ResolucionLineasFactura.ResolverAsync(datos.Lineas ?? [], _productos, ct).ConfigureAwait(false);
+        var resolucion = await ResolucionLineasFactura.ResolverAsync(datos.Lineas ?? [], _productos, ct,
+            precioTarifa: (producto, cantidad, c) => _precios.ResolverAsync(cliente.TarifaId, producto, cantidad, presupuesto.Fecha, c)).ConfigureAwait(false);
         if (resolucion.EsFallo)
         {
             return Resultado.Fallo<PresupuestoDto>(resolucion.Error);

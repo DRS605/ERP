@@ -56,7 +56,7 @@ autofactura) y ventas (albarán con palés).
 | Fase | Contenido | Estado |
 |---|---|---|
 | 1 | Ediciones y módulos contratables | ✅ |
-| 2 | Menú de la interfaz por plan · tarifas de precios y descuentos · anticipos y reclamación de impagados | 🔜 |
+| 2 | Menú de la interfaz por plan ✅ · tarifas de precios y descuentos ✅ · anticipos y reclamación de impagados | 🔜 |
 | 3 | Garantías de integridad en la BD (puntos 1-5 de §2) | 🔜 |
 | 4 | Analítica y presupuestos contables · prorrata · IGIC | 🔜 |
 | 5 | Módulo `agro` (§3) | 🔜 |

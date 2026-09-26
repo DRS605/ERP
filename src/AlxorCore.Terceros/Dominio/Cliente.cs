@@ -95,6 +95,9 @@ public sealed class Cliente : RaizAgregadoGrupo<Guid>
     /// <summary>Límite de riesgo (crédito) concedido al cliente. Null = sin límite. Editable.</summary>
     public decimal? LimiteRiesgo { get; private set; }
 
+    /// <summary>Tarifa de precios de venta del cliente (módulo Catálogo). Null = precios del producto.</summary>
+    public Guid? TarifaId { get; private set; }
+
     public bool Activo { get; private set; }
 
     public DateTimeOffset CreadoEn { get; private set; }
@@ -144,6 +147,9 @@ public sealed class Cliente : RaizAgregadoGrupo<Guid>
 
     /// <summary>Fija el límite de riesgo del cliente (null o negativo = sin límite).</summary>
     public void EstablecerLimiteRiesgo(decimal? limite) => LimiteRiesgo = limite is > 0m ? limite : null;
+
+    /// <summary>Asigna (o quita, con null) la tarifa de precios del cliente.</summary>
+    public void AsignarTarifa(Guid? tarifaId) => TarifaId = tarifaId == Guid.Empty ? null : tarifaId;
 
     /// <summary>
     /// Marca al cliente como Administración Pública y fija sus centros administrativos <b>DIR3</b>

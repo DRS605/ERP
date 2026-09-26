@@ -68,7 +68,11 @@ Un plan al que le falta una dependencia se **rechaza** (no se añade sola, porqu
 
 El cambio de plan se aplica a los tokens nuevos: la interfaz vuelve a seleccionar la empresa.
 
+## Interfaz
+
+Las dos interfaces (clásica y React) filtran el menú con el plan de la respuesta de selección, y
+la clásica tiene la sección **Ajustes → Plan contratado** para cambiar edición y módulos.
+
 ## Pendiente
 
-- Menú de la interfaz filtrado por los módulos del token.
 - Enlazar el cambio de plan con la facturación de la suscripción (hoy lo cambia quien tenga `empresa.ajustes`).

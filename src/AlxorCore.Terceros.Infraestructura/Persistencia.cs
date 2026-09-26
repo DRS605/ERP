@@ -62,6 +62,7 @@ internal sealed class ConfiguracionCliente : IEntityTypeConfiguration<Cliente>
         builder.Property(c => c.FormaPagoDefectoId).HasColumnName("forma_pago_defecto_id");
         builder.Property(c => c.ActividadNegocioId).HasColumnName("actividad_negocio_id");
         builder.Property(c => c.LimiteRiesgo).HasColumnName("limite_riesgo").HasColumnType("numeric(14,2)");
+        builder.Property(c => c.TarifaId).HasColumnName("tarifa_id");
         builder.Property(c => c.Activo).HasColumnName("activo").IsRequired();
         builder.Property(c => c.CreadoEn).HasColumnName("creado_en").IsRequired();
         builder.Property(c => c.ActualizadoEn).HasColumnName("actualizado_en").IsRequired();

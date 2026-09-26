@@ -33,6 +33,8 @@ public sealed class CatalogoDbContext : DbContextEmpresaBase, IUnidadDeTrabajoCa
 
     public DbSet<TipoIva> TiposIva => Set<TipoIva>();
 
+    public DbSet<Tarifa> Tarifas => Set<Tarifa>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Esquema);
@@ -450,4 +452,58 @@ public sealed class CatalogoDbContextFactory : IDesignTimeDbContextFactory<Catal
     {
         public Guid? EmpresaId => null;
     }
+}
+
+internal sealed class ConfiguracionTarifa : IEntityTypeConfiguration<Tarifa>
+{
+    public void Configure(EntityTypeBuilder<Tarifa> builder)
+    {
+        builder.ToTable("tarifa");
+        builder.HasKey(t => t.Id);
+        builder.Property(t => t.Id).HasColumnName("id");
+        builder.Property(t => t.GrupoId).HasColumnName("grupo_id").IsRequired();
+        builder.Property(t => t.Codigo).HasColumnName("codigo").HasMaxLength(Tarifa.LongitudMaximaCodigo).IsRequired();
+        builder.Property(t => t.Nombre).HasColumnName("nombre").HasMaxLength(Tarifa.LongitudMaximaNombre).IsRequired();
+        builder.Property(t => t.Activa).HasColumnName("activa").IsRequired();
+        builder.Property(t => t.CreadoEn).HasColumnName("creado_en").IsRequired();
+        builder.Property(t => t.ActualizadoEn).HasColumnName("actualizado_en").IsRequired();
+
+        builder.OwnsMany(t => t.Lineas, l =>
+        {
+            l.ToTable("linea_tarifa");
+            l.WithOwner().HasForeignKey("tarifa_id");
+            l.HasKey(x => x.Id);
+            l.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+            l.Property(x => x.ProductoId).HasColumnName("producto_id");
+            l.Property(x => x.FamiliaId).HasColumnName("familia_id");
+            l.Property(x => x.CantidadMinima).HasColumnName("cantidad_minima").HasColumnType("numeric(14,3)").IsRequired();
+            l.Property(x => x.Precio).HasColumnName("precio").HasColumnType("numeric(15,6)");
+            l.Property(x => x.PorcentajeDescuento).HasColumnName("porcentaje_descuento").HasColumnType("numeric(5,2)").IsRequired();
+            l.Property(x => x.Desde).HasColumnName("desde");
+            l.Property(x => x.Hasta).HasColumnName("hasta");
+            l.HasIndex("tarifa_id").HasDatabaseName("ix_linea_tarifa_tarifa");
+        });
+        builder.Navigation(t => t.Lineas).UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        builder.HasIndex(t => new { t.GrupoId, t.Codigo }).IsUnique().HasDatabaseName("ux_tarifa_grupo_codigo");
+        builder.Ignore(t => t.EventosDominio);
+    }
+}
+
+internal sealed class RepositorioTarifas : IRepositorioTarifas
+{
+    private readonly CatalogoDbContext _contexto;
+
+    public RepositorioTarifas(CatalogoDbContext contexto) => _contexto = contexto;
+
+    public Task<Tarifa?> ObtenerPorIdAsync(Guid id, CancellationToken ct = default) =>
+        _contexto.Tarifas.SingleOrDefaultAsync(t => t.Id == id, ct);
+
+    public Task<bool> ExisteCodigoAsync(string codigo, CancellationToken ct = default) =>
+        _contexto.Tarifas.AnyAsync(t => t.Codigo == codigo, ct);
+
+    public async Task<IReadOnlyList<Tarifa>> ListarAsync(CancellationToken ct = default) =>
+        await _contexto.Tarifas.OrderBy(t => t.Codigo).ToListAsync(ct).ConfigureAwait(false);
+
+    public void Agregar(Tarifa tarifa) => _contexto.Tarifas.Add(tarifa);
 }

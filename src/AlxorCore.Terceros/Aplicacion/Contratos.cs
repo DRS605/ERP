@@ -37,7 +37,8 @@ public sealed record ClienteDto(
     string? Dir3OficinaContable = null,
     string? Dir3OrganoGestor = null,
     string? Dir3UnidadTramitadora = null,
-    Guid? ActividadNegocioId = null)
+    Guid? ActividadNegocioId = null,
+    Guid? TarifaId = null)
 {
     /// <summary>¿Tiene los tres centros DIR3 necesarios para enviar la Facturae por FACe?</summary>
     public bool CentrosDir3Completos =>
@@ -50,7 +51,7 @@ public sealed record ClienteDto(
         c.Id, c.Nombre, c.NifFiscal, c.Email,
         c.Direccion.Calle, c.Direccion.CodigoPostal, c.Direccion.Poblacion, c.Direccion.Provincia, c.Direccion.Pais,
         c.PorcentajeIrpfDefecto, c.Activo, c.RecargoEquivalencia, c.Iban, c.MandatoReferencia, c.MandatoFecha, c.NifIva, c.Tipo, c.FormaPagoDefectoId, c.LimiteRiesgo,
-        c.EsAdministracionPublica, c.Dir3OficinaContable, c.Dir3OrganoGestor, c.Dir3UnidadTramitadora, c.ActividadNegocioId);
+        c.EsAdministracionPublica, c.Dir3OficinaContable, c.Dir3OrganoGestor, c.Dir3UnidadTramitadora, c.ActividadNegocioId, c.TarifaId);
 }
 
 /// <summary>Repositorio de clientes (escritura).</summary>
@@ -74,3 +75,30 @@ public interface IConsultaClientes
 
 /// <summary>Unidad de trabajo del módulo Terceros.</summary>
 public interface IUnidadDeTrabajoTerceros : IUnidadDeTrabajo;
+
+/// <summary>Caso de uso: asignar (o quitar) la tarifa de precios de un cliente. La existencia de la tarifa la comprueba quien llama.</summary>
+public sealed class AsignarTarifaCliente
+{
+    private readonly IRepositorioClientes _clientes;
+    private readonly IUnidadDeTrabajoTerceros _unidadDeTrabajo;
+
+    public AsignarTarifaCliente(IRepositorioClientes clientes, IUnidadDeTrabajoTerceros unidadDeTrabajo)
+    {
+        _clientes = clientes;
+        _unidadDeTrabajo = unidadDeTrabajo;
+    }
+
+    public async Task<AlxorCore.Nucleo.Resultados.Resultado<ClienteDto>> EjecutarAsync(Guid clienteId, Guid? tarifaId, CancellationToken ct = default)
+    {
+        var cliente = await _clientes.ObtenerPorIdAsync(clienteId, ct).ConfigureAwait(false);
+        if (cliente is null)
+        {
+            return AlxorCore.Nucleo.Resultados.Resultado.Fallo<ClienteDto>(
+                AlxorCore.Nucleo.Resultados.Error.NoEncontrado("cliente.no_encontrado", "El cliente no existe."));
+        }
+
+        cliente.AsignarTarifa(tarifaId);
+        await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return AlxorCore.Nucleo.Resultados.Resultado.Ok(ClienteDto.Desde(cliente));
+    }
+}

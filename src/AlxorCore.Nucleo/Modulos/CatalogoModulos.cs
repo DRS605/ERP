@@ -47,7 +47,7 @@ public static class CatalogoModulos
 
     public static IReadOnlyList<ModuloAlxor> Modulos { get; } =
     [
-        new(Ventas, "Ventas", "Presupuestos, pedidos de venta, albaranes de entrega y cartas de porte.", []),
+        new(Ventas, "Ventas", "Presupuestos, pedidos de venta, albaranes, cartas de porte y tarifas de precios con descuentos.", []),
         new(Compras, "Compras", "Solicitudes, pedidos y albaranes de compra.", []),
         new(Inventario, "Inventario", "Almacenes, ubicaciones, movimientos, lotes y números de serie.", []),
         new(Produccion, "Producción", "Órdenes de fabricación sobre la lista de materiales.", [Inventario]),

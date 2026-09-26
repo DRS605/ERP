@@ -30,6 +30,7 @@ public static class RegistroServicios
         servicios.AddScoped<RepositorioClientes>();
         servicios.AddScoped<IRepositorioClientes>(sp => sp.GetRequiredService<RepositorioClientes>());
         servicios.AddScoped<IConsultaClientes>(sp => sp.GetRequiredService<RepositorioClientes>());
+        servicios.AddScoped<AsignarTarifaCliente>();
 
         servicios.AddScoped<CrearCliente>();
         servicios.AddScoped<ImportarClientes>();

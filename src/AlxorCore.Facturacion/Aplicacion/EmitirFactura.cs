@@ -55,6 +55,7 @@ public sealed class EmitirFactura
     private readonly IPagosAutomaticos _pagos;
     private readonly IConsultaRiesgo _riesgo;
     private readonly IResolverIvaEmpresa _resolverIva;
+    private readonly IResolverPrecioVenta _precios;
     private readonly IReloj _reloj;
 
     public EmitirFactura(
@@ -72,9 +73,11 @@ public sealed class EmitirFactura
         IPagosAutomaticos pagos,
         IConsultaRiesgo riesgo,
         IResolverIvaEmpresa resolverIva,
+        IResolverPrecioVenta precios,
         IReloj reloj)
     {
         _resolverIva = resolverIva;
+        _precios = precios;
         _clientes = clientes;
         _productos = productos;
         _numeracion = numeracion;
@@ -106,7 +109,9 @@ public sealed class EmitirFactura
             return Resultado.Fallo<FacturaDto>(Error.NoEncontrado("cliente.no_encontrado", "El cliente no existe."));
         }
 
-        var resolucion = await ResolucionLineasFactura.ResolverAsync(comando.Lineas, _productos, ct, comando.RecargoEquivalencia, empresaId, _resolverIva).ConfigureAwait(false);
+        var fechaPrecio = comando.FechaOperacion ?? comando.FechaEmision ?? DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
+        var resolucion = await ResolucionLineasFactura.ResolverAsync(comando.Lineas, _productos, ct, comando.RecargoEquivalencia, empresaId, _resolverIva,
+            (producto, cantidad, c) => _precios.ResolverAsync(cliente.TarifaId, producto, cantidad, fechaPrecio, c)).ConfigureAwait(false);
         if (resolucion.EsFallo)
         {
             return Resultado.Fallo<FacturaDto>(resolucion.Error);
@@ -265,7 +270,8 @@ internal static class ResolucionLineasFactura
 {
     public static async Task<Resultado<List<NuevaLinea>>> ResolverAsync(
         IReadOnlyList<LineaComando> lineas, IConsultaProductos productos, CancellationToken ct, bool recargoEquivalencia = false,
-        Guid? empresaId = null, IResolverIvaEmpresa? resolverIva = null)
+        Guid? empresaId = null, IResolverIvaEmpresa? resolverIva = null,
+        Func<Guid, decimal, CancellationToken, Task<PrecioVentaDto?>>? precioTarifa = null)
     {
         var resueltas = new List<NuevaLinea>(lineas.Count);
         foreach (var linea in lineas)
@@ -274,6 +280,7 @@ internal static class ResolucionLineasFactura
             decimal? precio = linea.PrecioUnitario;
             string? codigoIva = linea.CodigoIva;
             decimal? coste = linea.CosteUnitario;
+            var descuento = linea.PorcentajeDescuento;
 
             if (linea.ProductoId is not null)
             {
@@ -284,6 +291,15 @@ internal static class ResolucionLineasFactura
                 }
 
                 descripcion ??= producto.Nombre;
+
+                // Sin precio en la línea: manda la tarifa del cliente (precio y descuento). Con precio, se respeta.
+                if (precio is null && precioTarifa is not null
+                    && await precioTarifa(producto.Id, linea.Cantidad, ct).ConfigureAwait(false) is { } tarifa)
+                {
+                    precio = tarifa.PrecioUnitario;
+                    descuento = tarifa.PorcentajeDescuento;
+                }
+
                 precio ??= producto.PrecioUnitario;
                 codigoIva ??= producto.CodigoIva;
                 coste ??= producto.PrecioCompra;
@@ -326,7 +342,7 @@ internal static class ResolucionLineasFactura
             }
 
             resueltas.Add(new NuevaLinea(
-                descripcion, linea.Cantidad, precio.Value, codigoResuelto, porcentaje, linea.PorcentajeDescuento, linea.ProductoId, coste ?? 0m, porcentajeRecargo));
+                descripcion, linea.Cantidad, precio.Value, codigoResuelto, porcentaje, descuento, linea.ProductoId, coste ?? 0m, porcentajeRecargo));
         }
 
         return Resultado.Ok(resueltas);
