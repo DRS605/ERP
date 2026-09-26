@@ -70,6 +70,17 @@ insertó), que rellena un trigger.
 **Única excepción: la baja de la empresa** (`DELETE /cuenta`). Declara el borrado en su transacción
 (`BorradoEmpresa.EjecutarAsync`, parámetro local `app.borrado_empresa`) y solo para esa empresa.
 
+### Analítica y presupuestos (fase 4)
+
+| Tabla | Regla |
+|---|---|
+| `contabilidad.imputacion_analitica` | FK real al apunte (diferida). Coherente con su apunte (cuenta, fecha, asiento y empresa); lo imputado no lo supera ni cambia de signo. Cada reparto secundario suma cero. Solo a centros y partidas del propio grupo. No se toca si su periodo analítico está cerrado. |
+| `contabilidad.linea_clave_reparto` | Los porcentajes de cada clave suman exactamente 100. |
+| `contabilidad.periodo_analitico` | Los periodos de una empresa no se solapan. |
+| `contabilidad.presupuesto_contable` y sus líneas | Un importe por mes y ninguno negativo; un presupuesto aprobado no se modifica ni se borra. |
+
+Detalle en [modulos/analitica.md](modulos/analitica.md).
+
 ## 4. Restricciones sobre importes y estados
 
 - Factura: número ≥ 1, ejercicio = año de la fecha, número completo coherente con prefijo, ejercicio y
@@ -79,6 +90,7 @@ insertó), que rellena un trigger.
 - Línea de factura: cantidad > 0, precios y porcentajes válidos, **base = cantidad × precio × (1 −
   descuento)** y cuotas = base × tipo, todo redondeado a céntimos.
 - Apunte: importes no negativos y en el debe **o** en el haber.
+- Factura con IGIC: sin recargo de equivalencia. Tipos de IGIC del catálogo: sin recargo.
 
 Para que la línea guardada reproduzca su base, el dominio redondea ahora cantidad, precio y porcentajes a
 la precisión de su columna **antes** de calcular (antes, 2,0004 uds × 100 € daba 200,04 € de base pero se

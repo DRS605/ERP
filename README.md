@@ -13,6 +13,7 @@ factura en menos de cinco minutos sin leer un manual**.
 - **API First** (OpenAPI/Swagger).
 - **Multiempresa** desde el diseño (`empresa_id` obligatorio y Row-Level Security forzada, probada con un rol sin privilegios).
 - **Garantías en la base de datos**: facturas emitidas y asientos inalterables, numeración sin huecos, importes coherentes ([`docs/garantias-base-datos.md`](docs/garantias-base-datos.md)).
+- **Analítica en dos dimensiones** (centro × partida) con reglas, repartos, campañas y presupuestos ([`docs/modulos/analitica.md`](docs/modulos/analitica.md)); **IGIC** y **prorrata** ([`docs/modulos/impuestos-indirectos.md`](docs/modulos/impuestos-indirectos.md)).
 - Seguridad y permisos por diseño. Auditoría de operaciones críticas.
 - Tests automáticos desde el primer día. **Un módulo se termina por completo antes de empezar el siguiente.**
 

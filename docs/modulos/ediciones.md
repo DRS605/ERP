@@ -16,7 +16,7 @@ auditoría e importación de datos.
 |---|---|---|---|
 | Start | `start` | Autónomos y microempresas | Solo la base |
 | Gestión | `gestion` | Pyme comercial o de servicios | Ventas, Compras, Inventario, Divisas, Aprobaciones, Integraciones |
-| Finanzas | `finanzas` | Empresas con contabilidad propia, asesorías | Contabilidad, Inmovilizado, Tesorería avanzada |
+| Finanzas | `finanzas` | Empresas con contabilidad propia, asesorías | Contabilidad, Inmovilizado, Analítica y presupuestos, Tesorería avanzada |
 | Gestión y finanzas | `gestion_finanzas` | Pyme completa | Gestión + Finanzas |
 | Completa | `completa` | Industria y proyectos | Todo, incluidos Producción, Personal y Proyectos |
 
@@ -34,6 +34,7 @@ Cualquier módulo se puede añadir suelto sobre una edición (por ejemplo, Start
 | Proyectos | `proyectos` | Personal |
 | Contabilidad | `contabilidad` | — |
 | Inmovilizado | `inmovilizado` | Contabilidad |
+| Analítica y presupuestos (centros, partidas, reglas, repartos, campañas, presupuestos) | `analitica` | Contabilidad |
 | Tesorería avanzada (remesas SEPA, confirming, Norma 43, previsión) | `tesoreria_avanzada` | — |
 | Divisas | `divisas` | — |
 | Aprobaciones | `aprobaciones` | — |
@@ -76,3 +77,5 @@ la clásica tiene la sección **Ajustes → Plan contratado** para cambiar edici
 ## Pendiente
 
 - Enlazar el cambio de plan con la facturación de la suscripción (hoy lo cambia quien tenga `empresa.ajustes`).
+
+La fiscalidad indirecta (IVA o IGIC según el territorio, prorrata, modelos 303 y 420) es parte de la base: está en todas las ediciones. Ver [impuestos-indirectos.md](impuestos-indirectos.md).

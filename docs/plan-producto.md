@@ -15,9 +15,9 @@ Referencia: lo que un comprador de pyme española espera de Holded, Odoo, Busine
 | Ventas | ✅ Presupuesto → pedido → albarán → factura, carta de porte, **tarifas de precios** con descuentos por producto/familia, escalado y vigencia | **Comisiones** de comerciales, **rappels** |
 | Compras | ✅ Solicitud → pedido → albarán → factura, buzón de facturas | Tarifas de proveedor, anticipos a proveedor |
 | Inventario y producción | ✅ Multialmacén, ubicaciones, lotes y series, montaje, órdenes de fabricación | Inventario por recuento con ajuste, reservas, valoración FIFO (revisar) |
-| Contabilidad | ✅ PGC, asientos, mayor, balances, cierre, cuentas anuales, modelo 200, inmovilizado | **Analítica** (centros de coste), **presupuestos contables**, periodificaciones, **prorrata** de IVA, consolidación de grupo |
+| Contabilidad | ✅ PGC, asientos, mayor, balances, cierre, cuentas anuales, modelo 200, inmovilizado, **analítica** (centros × partidas, reglas, repartos, campañas), **presupuestos** con seguimiento, **prorrata** | Periodificaciones, consolidación de grupo, asiento de regularización de la prorrata |
 | Tesorería | ✅ Cobros y pagos, Norma 43, SEPA (19/34, pain.001/008), confirming, previsión, riesgo, **anticipos** y **reclamación de impagados** | Factura de anticipo automática, cartera de efectos (pagarés), sincronización bancaria PSD2 |
-| Impuestos | ✅ 303, 130, 390, 347, 111, 190, 349, SII (XML), REAGP, OSS, criterio de caja, ISP | **IGIC** (Canarias), **TicketBAI/Batuz** (País Vasco), Intrastat, envío SII |
+| Impuestos | ✅ 303, 130, 390, 347, 111, 190, 349, SII (XML), REAGP, OSS, criterio de caja, ISP, **IGIC y modelo 420**, **prorrata general y especial** | Modelo 425, **TicketBAI/Batuz** (País Vasco), IPSI, Intrastat, envío SII |
 | Plataforma | ✅ Multiempresa y grupos, roles y permisos, 2FA, auditoría, webhooks, API, importación | **Ediciones y módulos** (✅ hecho), portal de cliente, menú por plan |
 
 ## 2. Garantías de integridad traídas de Clon
@@ -60,6 +60,6 @@ autofactura) y ventas (albarán con palés).
 | 1 | Ediciones y módulos contratables | ✅ |
 | 2 | Menú de la interfaz por plan ✅ · tarifas de precios y descuentos ✅ · anticipos y reclamación de impagados ✅ | ✅ |
 | 3 | Garantías de integridad en la BD (puntos 1-5 de §2) | ✅ |
-| 4 | Analítica y presupuestos contables · prorrata · IGIC | 🔜 |
+| 4 | Analítica (inspirada en Hispatec) y presupuestos contables · prorrata · IGIC — ver [analitica.md](modulos/analitica.md) e [impuestos-indirectos.md](modulos/impuestos-indirectos.md) | ✅ |
 | 5 | Módulo `agro` (§3) | 🔜 |
 | 6 | Migración desde Hispatec (esquema ya analizado en Clon: `docs/hispatec/`) | 🔜 |

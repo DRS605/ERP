@@ -146,6 +146,14 @@
     .panel { background: var(--surface); border:1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); overflow:hidden; }
     .panel + .panel { margin-top: 18px; }
     .panel-head { display:flex; align-items:center; justify-content:space-between; padding: 16px 20px; border-bottom: 1px solid var(--line); }
+    /* Texto, formularios y rejillas sueltos dentro de un panel: el mismo margen que las celdas de las tablas. */
+    .panel > :not(.panel-head):not(table):not(.tabla-tools) { margin-left: 20px !important; margin-right: 20px !important; }
+    .panel > .panel-head + :not(table):not(.tabla-tools) { margin-top: 16px !important; }
+    .panel > :not(.panel-head):not(table):not(.tabla-tools):last-child { margin-bottom: 18px !important; }
+    .panel > input, .panel > select, .panel > textarea { width: calc(100% - 40px) !important; }
+    /* Paneles en rejilla: sin el desfase vertical del segundo, y con separación respecto a lo de antes y después. */
+    .grid2 > .panel + .panel { margin-top: 0; }
+    .grid2 + .panel, .panel + .grid2, .grid2 + .grid2 { margin-top: 18px; }
     .panel-head h2 { font-size: 15px; margin:0; letter-spacing:-.01em; }
     table { width:100%; border-collapse: collapse; }
     th, td { text-align:left; padding: 13px 20px; font-size: 13.5px; }
@@ -422,6 +430,7 @@
     ICON.pagos = '<svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18"/></svg>';
     ICON.prevision = '<svg viewBox="0 0 24 24"><path d="M4 19V5M4 19h16"/><path d="M7 15l4-5 3 3 5-7"/></svg>';
     ICON.personal = '<svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.5 3-5.5 6.5-5.5s6.5 2 6.5 5.5"/><path d="M16 5.5a3 3 0 0 1 0 5.6"/><path d="M18 14.5c2.4.6 4 2.4 4 5"/></svg>';
+    ICON.analitica = '<svg viewBox="0 0 24 24"><path d="M21 12A9 9 0 1 1 12 3v9z"/><path d="M15 3.5A9 9 0 0 1 20.5 9H15z"/></svg>';
     ICON.proyectos = '<svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M8 13h8M8 16h5"/></svg>';
     ICON.aprobaciones = '<svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>';
     ICON.integraciones = '<svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>';
@@ -438,13 +447,14 @@
       { t:"item", k:"informes", l:"Informes" },
       { t:"item", k:"gestion", l:"Análisis de gestión" },
       { t:"item", k:"contabilidad", l:"Contabilidad" },
+      { t:"grupo", k:"analitica", l:"Analítica", items:[["analitica","Resultados por centro"],["analiticapend","Pendientes de imputar"],["analiticamaestros","Centros, partidas y reglas"],["presupuestoscont","Presupuestos"]] },
       { t:"item", k:"inmovilizado", l:"Inmovilizado" },
       { t:"item", k:"divisas", l:"Divisas" },
       { t:"item", k:"aprobaciones", l:"Aprobaciones" },
       { t:"item", k:"integraciones", l:"API y webhooks" },
       { t:"item", k:"ajustes", l:"Ajustes" },
     ];
-    const TITULOS = { impagados:"Impagados y reclamaciones", anticipos:"Anticipos de clientes", inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", gestion:"Análisis de gestión", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", divisas:"Divisas y tipos de cambio", aprobaciones:"Aprobaciones y control de firmas", integraciones:"API pública y webhooks", ajustes:"Ajustes" };
+    const TITULOS = { analitica:"Analítica · resultados", analiticapend:"Analítica · pendientes de imputar", analiticamaestros:"Analítica · centros, partidas y reglas", presupuestoscont:"Presupuestos contables", impagados:"Impagados y reclamaciones", anticipos:"Anticipos de clientes", inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", gestion:"Análisis de gestión", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", divisas:"Divisas y tipos de cambio", aprobaciones:"Aprobaciones y control de firmas", integraciones:"API pública y webhooks", ajustes:"Ajustes" };
     // Plan contratado de la empresa activa (lo devuelve /empresas/{id}/seleccionar).
     let plan = null;
     // Vista → módulo contratable que necesita. Las vistas que no están aquí son de la base.
@@ -452,8 +462,8 @@
       solicitudes:"compras", pedidos:"compras", conciliacion:"tesoreria_avanzada", inventario:"inventario",
       produccion:"produccion", personal:"personal", proyectos:"proyectos", prevision:"tesoreria_avanzada",
       contabilidad:"contabilidad", inmovilizado:"inmovilizado", divisas:"divisas", aprobaciones:"aprobaciones",
-      integraciones:"integraciones" };
-    const NOMBRE_MODULO = { ventas:"Ventas", compras:"Compras", inventario:"Inventario", produccion:"Producción",
+      integraciones:"integraciones", analitica:"analitica", analiticapend:"analitica", analiticamaestros:"analitica", presupuestoscont:"analitica" };
+    const NOMBRE_MODULO = { analitica:"Analítica y presupuestos", ventas:"Ventas", compras:"Compras", inventario:"Inventario", produccion:"Producción",
       personal:"Personal", proyectos:"Proyectos", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado",
       tesoreria_avanzada:"Tesorería avanzada", divisas:"Divisas", aprobaciones:"Aprobaciones", integraciones:"Integraciones" };
     // Sin plan en el token (tokens antiguos) no se oculta nada.
@@ -498,7 +508,7 @@
     }
     async function activarEmpresa(emp){
       const sel=await api("/empresas/"+emp.id+"/seleccionar",{method:"POST"});
-      token=sel.token; empresa=emp; plan={ edicion: sel.edicion||null, modulos: new Set(sel.modulos||[]) }; arrancar();
+      token=sel.token; empresa=emp; plan={ edicion: sel.edicion||null, modulos: new Set(sel.modulos||[]) }; await cargarImpuestos(); arrancar();
     }
     async function modalEmpresas(){
       const lista=await api("/empresas");
@@ -562,7 +572,7 @@
       document.getElementById("viewTitle").textContent=TITULOS[k]||k;
       if(!contratado(k)){ const m=NOMBRE_MODULO[MODULO_VISTA[k]]||MODULO_VISTA[k];
         view(panel("No incluido en tu plan",`<p class="muted" style="margin:0 0 14px">Esta pantalla forma parte del módulo <strong>${m}</strong>, que tu plan no incluye.</p><button class="btn small" onclick="ir('ajustes')">Ver planes en Ajustes →</button>`)); return; }
-      ({impagados:vImpagados,anticipos:vAnticipos,inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:vPedidosVenta,clientes:vClientes,productos:vProductos,familias:vFamilias,gastos:vGastos,solicitudes:vSolicitudes,pedidos:vPedidos,inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,gestion:vGestion,contabilidad:vContabilidad,inmovilizado:vInmovilizado,divisas:vDivisas,aprobaciones:vAprobaciones,integraciones:vIntegraciones,ajustes:vAjustes}[k])();
+      ({analitica:vAnalitica,analiticapend:vAnaliticaPend,analiticamaestros:vAnaliticaMaestros,presupuestoscont:vPresupuestosCont,impagados:vImpagados,anticipos:vAnticipos,inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:vPedidosVenta,clientes:vClientes,productos:vProductos,familias:vFamilias,gastos:vGastos,solicitudes:vSolicitudes,pedidos:vPedidos,inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,gestion:vGestion,contabilidad:vContabilidad,inmovilizado:vInmovilizado,divisas:vDivisas,aprobaciones:vAprobaciones,integraciones:vIntegraciones,ajustes:vAjustes}[k])();
     }
     const view = h => { document.getElementById("view").innerHTML=h; try{ mejorarTablas(); }catch(e){} };
 
@@ -910,7 +920,7 @@
       const editando=src&&src.id;
       _facLineas=(src&&src.lineas&&src.lineas.length)
         ? src.lineas.map(l=>({descripcion:l.descripcion,cantidad:l.cantidad,precio:l.precioUnitario,iva:l.codigoIva,dto:l.porcentajeDescuento||0}))
-        : [{descripcion:"",cantidad:1,precio:0,iva:"IVA21",dto:0}];
+        : [{descripcion:"",cantidad:1,precio:0,iva:IMP.general,dto:0}];
       abrir(editando?"Editar presupuesto":"Nuevo presupuesto",`<div class="grid2"><div><label>Cliente</label><select id="f_cli">${opts}</select></div><div><label>Validez</label><select id="f_validez"><option value="15">15 días</option><option value="30" selected>30 días</option><option value="60">60 días</option><option value="90">90 días</option></select></div></div>
         <label style="margin-top:16px">Líneas</label>
         <div id="f_lineas">${facLineasHtml()}</div>
@@ -1568,7 +1578,7 @@
           toast("Recepción registrada (albarán).","ok"); vPedidos(); });
     }
     function modalFacturarPedido(id){
-      const iva=["IVA21","IVA10","IVA4","IVA0"].map(c=>`<option value="${c}"${c==="IVA21"?" selected":""}>${c.replace("IVA","")+" %"}</option>`).join("");
+      const iva=ivaOpciones();
       abrir("Facturar pedido",`<p class="muted" style="margin:0 0 12px">Se generará el gasto con IVA soportado (y el asiento si la contabilidad está en modo Completo).</p>
         <div class="grid2"><div><label>IVA</label><select id="fac_iva">${iva}</select></div><div><label>Retención IRPF (%)</label><input id="fac_irpf" type="number" step="0.01" value="0"/></div></div>`,
         async()=>{ await api(`/compras/pedidos/${id}/facturar`,{method:"POST",body:JSON.stringify({codigoIva:val("fac_iva"),porcentajeIrpf:Number(val("fac_irpf")||0)})});
@@ -1849,7 +1859,7 @@
       const cs=await api("/clientes"); _cacheCli=cs;
       if(!cs.length){ alert("Primero crea un cliente."); return; }
       const opts=cs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join("");
-      _facLineas=[{descripcion:"",cantidad:1,precio:0,iva:"IVA21",dto:0}];
+      _facLineas=[{descripcion:"",cantidad:1,precio:0,iva:IMP.general,dto:0}];
       abrir("Nuevo pedido de venta",`<label>Cliente</label><select id="pv_cli">${opts}</select>
         <label style="margin-top:16px">Líneas</label>
         <div id="f_lineas">${facLineasHtml()}</div>
@@ -2076,7 +2086,7 @@
     function modalValidarRecibida(id){
       const f=_cacheRecibidas.find(x=>x.id===id)||{};
       const opts=_cacheProvRec.map(p=>`<option value="${p.id}"${p.id===f.proveedorId?" selected":""}>${p.nombre}</option>`).join("");
-      const iva=["IVA21","IVA10","IVA4","IVA0"].map(c=>`<option value="${c}"${(f.codigoIva||"IVA21")===c?" selected":""}>${c.replace("IVA","")+" %"}</option>`).join("");
+      const iva=ivaOpciones(f.codigoIva);
       abrir("Revisar factura recibida",`
         <p class="muted" style="margin:0 0 12px">Confirma o corrige los datos antes de contabilizar.</p>
         <label>Proveedor</label>
@@ -2257,8 +2267,133 @@
       const total=`<tr><td colspan="3" class="right"><strong>Totales</strong></td><td class="num"><strong>${eur(libro.totalBase)}</strong></td><td class="num"><strong>${eur(libro.totalCuota)}</strong></td></tr>`;
       const cuerpo=libro.asientos.length?`<table><thead><tr><th>Fecha</th><th>Documento</th><th>Cliente</th><th class="num">Base</th><th class="num">Cuota IVA</th></tr></thead><tbody>${filas}${total}</tbody></table>`:vacio("informes","Sin movimientos en el periodo","Emite facturas para ver aquí tu libro de IVA repercutido.");
       const panelLibro=panel(`Libro de IVA repercutido · ${anio}`,cuerpo,`<button class="btn small ghost" onclick="descargarCsv()">↓ Exportar CSV (gestoría)</button>`);
-      view(panelGraficos+(benef?panelBeneficio(benef,anio):"")+(benef&&benef.porProducto.length?panelRanking(benef,anio):"")+(resumen?panelResumen(resumen,anio):"")+((m111||m190)?panelRetenciones(m111,m190,anio):"")+(m349?panelIntracomunitarias(m349,anio):"")+(anual?panelAnual(anual,anio):"")+panelLibro);
+      const m420=IMP.siglas==="IGIC"?await api(`/impuestos/modelo-420?anio=${anio}&trimestre=${trimSel}`).catch(()=>null):null;
+      view(panelGraficos+(benef?panelBeneficio(benef,anio):"")+(benef&&benef.porProducto.length?panelRanking(benef,anio):"")+(m420?panel420(m420,anio):"")+(resumen?panelResumen(resumen,anio):"")+((m111||m190)?panelRetenciones(m111,m190,anio):"")+(m349?panelIntracomunitarias(m349,anio):"")+(anual?panelAnual(anual,anio):"")+panelLibro);
     }
+
+    /* ---------- Analítica: centros × partidas, reglas, repartos y presupuestos ---------- */
+    let _an={centros:[],partidas:[],claves:[],periodos:[]}, _anDim="Centro", _anPeriodo="";
+    async function anCargar(){ const [c,p,k,pe]=await Promise.all([api("/contabilidad/analitica/centros"),api("/contabilidad/analitica/partidas"),api("/contabilidad/analitica/claves"),api("/contabilidad/analitica/periodos")]); _an={centros:c,partidas:p,claves:k,periodos:pe}; }
+    const anNombre=(lista,id)=>{ const x=lista.find(e=>e.id===id); return x?`${x.codigo} · ${x.nombre}`:"—"; };
+    const anOpc=(lista,sel,vacio)=>(vacio!==undefined?`<option value="">${vacio}</option>`:"")+lista.filter(e=>e.activo!==false&&e.activa!==false).map(e=>`<option value="${e.id}"${e.id===sel?" selected":""}>${e.codigo} · ${e.nombre}</option>`).join("");
+    const pct=n=>n==null?"—":String(n).replace(".",",")+" %";
+    function anRango(){ const a=new Date().getFullYear(); const p=_an.periodos.find(x=>x.id===_anPeriodo); return p?{desde:p.desde,hasta:p.hasta}:{desde:`${a}-01-01`,hasta:`${a}-12-31`}; }
+    async function vAnalitica(){
+      view('<div class="muted">Cargando…</div>');
+      await anCargar(); const r=anRango();
+      const q=_anPeriodo?`periodoId=${_anPeriodo}`:`desde=${r.desde}&hasta=${r.hasta}`;
+      const [inf,ejec]=await Promise.all([api(`/contabilidad/analitica/informe?${q}&dimension=${_anDim}`),api("/contabilidad/analitica/ejecuciones")]);
+      const filas=inf.filas.map(f=>`<tr><td style="padding-left:${12+f.nivel*20}px">${f.nivel?'<span class="muted">└ </span>':''}<strong>${f.codigo}</strong> ${f.nombre}</td><td class="num">${eur(f.ingresos)}</td><td class="num">${eur(f.gastos)}</td><td class="num"><strong>${eur(f.resultado)}</strong></td><td class="num muted">${pct(f.margenPorcentaje)}</td></tr>`).join("");
+      const tabla=inf.filas.length?`<table><thead><tr><th>${_anDim==="Centro"?"Centro":"Partida"}</th><th class="num">Ingresos</th><th class="num">Gastos</th><th class="num">Resultado</th><th class="num">Margen</th></tr></thead><tbody>${filas}
+        <tr><td><strong>Total</strong></td><td class="num"><strong>${eur(inf.totalIngresos)}</strong></td><td class="num"><strong>${eur(inf.totalGastos)}</strong></td><td class="num"><strong>${eur(inf.resultado)}</strong></td><td></td></tr></tbody></table>`
+        :vacio("analitica","Sin gastos ni ingresos en el periodo","Crea centros y reglas en «Centros, partidas y reglas» y contabiliza en modo Completo.");
+      const periodos=`<select onchange="_anPeriodo=this.value;vAnalitica()" style="width:auto"><option value="">Año ${new Date().getFullYear()}</option>${_an.periodos.map(p=>`<option value="${p.id}"${p.id===_anPeriodo?" selected":""}>${p.codigo} · ${p.nombre}${p.cerrado?" (cerrado)":""}</option>`).join("")}</select>`;
+      const dims=["Centro","Partida"].map(d=>`<button class="btn small ${d===_anDim?'':'ghost'}" onclick="_anDim='${d}';vAnalitica()">Por ${d.toLowerCase()}</button>`).join(" ");
+      const nota=`<p class="muted" style="font-size:12.5px;margin:0 0 12px">Imputado el <strong>${pct(inf.porcentajeImputado)}</strong> de los gastos e ingresos del periodo. Cada centro suma lo de sus centros hijos. Lo que falta está en <em>Sin asignar</em> y en «Pendientes de imputar».</p>`;
+      const filasE=ejec.map(e=>`<tr><td class="muted">${fdate(e.creadoEn)}</td><td>${e.tipo==="RepartoSecundario"?"Reparto secundario":"Imputación de pendientes"}</td><td>${e.descripcion}</td><td class="muted">${fdate(e.desde)} – ${fdate(e.hasta)}</td><td class="right"><button class="btn small secondary" onclick="anDeshacer('${e.id}')">Deshacer</button></td></tr>`).join("");
+      view(panel("Cuenta de resultados analítica",nota+tabla,`${periodos} ${dims} <button class="btn small" onclick="anImputarPendientes()">Imputar pendientes</button> <button class="btn small secondary" onclick="modalReparto()">Reparto secundario</button>`)
+        +panel("Procesos ejecutados",ejec.length?`<table><thead><tr><th>Fecha</th><th>Proceso</th><th>Descripción</th><th>Periodo</th><th></th></tr></thead><tbody>${filasE}</tbody></table>`:'<p class="muted" style="margin:0">Aún no se ha ejecutado ningún proceso.</p>'));
+    }
+    async function anImputarPendientes(){ try{ const r=anRango(); const e=await api("/contabilidad/analitica/imputar-pendientes",{method:"POST",body:JSON.stringify(r)});
+      toast(e.imputaciones?`${e.imputaciones} apuntes imputados con las reglas${e.sinRegla?` · ${e.sinRegla} sin regla`:""}.`:"No había apuntes pendientes con regla aplicable.",e.imputaciones?"ok":""); vAnalitica(); }catch(e){ toast(e.message,"err"); } }
+    async function anDeshacer(id){ if(!confirm("¿Deshacer el proceso? Se borran las imputaciones que generó."))return; try{ await api("/contabilidad/analitica/ejecuciones/"+id,{method:"DELETE"}); toast("Proceso deshecho.","ok"); vAnalitica(); }catch(e){ toast(e.message,"err"); } }
+    function modalReparto(){ const r=anRango();
+      if(!_an.claves.length){ toast("Primero crea una clave de reparto.","err"); return; }
+      abrir("Reparto secundario",`<p class="muted" style="margin:0 0 12px">Traspasa lo imputado a un centro (por ejemplo, Administración) a otros centros con una clave, cuenta a cuenta. El centro de origen queda a cero y el proceso se puede deshacer.</p>
+        <div class="grid2"><div><label>Centro de origen</label><select id="rp_ori">${anOpc(_an.centros)}</select></div><div><label>Clave de reparto</label><select id="rp_cla">${anOpc(_an.claves)}</select></div></div>
+        <div class="grid2"><div><label>Desde</label><input id="rp_des" type="date" value="${r.desde}"/></div><div><label>Hasta</label><input id="rp_has" type="date" value="${r.hasta}"/></div></div>`,
+        async()=>{ const e=await api("/contabilidad/analitica/repartos",{method:"POST",body:JSON.stringify({centroOrigenId:val("rp_ori"),claveRepartoId:val("rp_cla"),desde:val("rp_des"),hasta:val("rp_has")})}); toast("Reparto realizado.","ok"); vAnalitica(); }); }
+    async function vAnaliticaPend(){
+      view('<div class="muted">Cargando…</div>');
+      await anCargar(); const r=anRango();
+      const lista=await api(`/contabilidad/analitica/pendientes?desde=${r.desde}&hasta=${r.hasta}`);
+      const filas=lista.map(a=>`<tr><td class="muted">${fdate(a.fecha)}</td><td class="mono">${a.numeroAsiento}</td><td class="mono">${a.cuentaCodigo}</td><td>${a.concepto||""}</td><td class="num">${eur(a.importe)}</td><td class="num"><strong>${eur(a.pendiente)}</strong></td><td class="muted">${a.reglaAplicable?`Regla: ${a.reglaAplicable}`:""}</td><td class="right"><button class="btn small secondary" onclick="modalImputar('${a.apunteId}',${a.importe})">Imputar</button></td></tr>`).join("");
+      view(panel(`Pendientes de imputar · ${fdate(r.desde)} – ${fdate(r.hasta)}`,lista.length?`<p class="muted" style="margin:0 0 12px">Apuntes de gastos (6) e ingresos (7) con importe sin imputar. Si tienen regla aplicable, «Imputar pendientes» los asigna de golpe.</p><table><thead><tr><th>Fecha</th><th>Asiento</th><th>Cuenta</th><th>Concepto</th><th class="num">Importe</th><th class="num">Pendiente</th><th></th><th></th></tr></thead><tbody>${filas}</tbody></table>`
+        :'<p class="muted" style="margin:0">No hay nada pendiente: todo está imputado.</p>',`<button class="btn small" onclick="anImputarPendientes().then(vAnaliticaPend)">Imputar pendientes con reglas</button>`));
+    }
+    function modalImputar(apunteId,importe){
+      if(!_an.centros.length){ toast("Primero crea algún centro.","err"); return; }
+      const fila=i=>`<div class="grid2"><div><select id="im_c${i}">${anOpc(_an.centros,null,i?"—":undefined)}</select></div><div class="grid2"><div><select id="im_p${i}">${anOpc(_an.partidas,null,"Sin partida")}</select></div><div><input id="im_x${i}" type="number" step="0.01" placeholder="%" value="${i?"":"100"}"/></div></div></div>`;
+      abrir(`Imputar apunte · ${eur(importe)}`,`<p class="muted" style="margin:0 0 12px">Reparte el apunte entre centros por porcentaje (lo que no llegue a 100 % queda pendiente).</p>${[0,1,2].map(fila).join("")}`,
+        async()=>{ const lineas=[0,1,2].map(i=>({centroId:val("im_c"+i),partidaId:val("im_p"+i)||null,porcentaje:Number(val("im_x"+i)||0)})).filter(l=>l.centroId&&l.porcentaje>0);
+          await api(`/contabilidad/analitica/apuntes/${apunteId}`,{method:"PUT",body:JSON.stringify({lineas})}); toast("Apunte imputado.","ok"); vAnaliticaPend(); }); }
+    async function vAnaliticaMaestros(){
+      view('<div class="muted">Cargando…</div>');
+      await anCargar(); const reglas=await api("/contabilidad/analitica/reglas");
+      const hijos=pid=>_an.centros.filter(c=>(c.padreId||null)===pid).sort((a,b)=>a.codigo.localeCompare(b.codigo));
+      const arbol=(pid,n)=>hijos(pid).map(c=>`<tr><td style="padding-left:${12+n*20}px">${n?'<span class="muted">└ </span>':''}<strong class="mono">${c.codigo}</strong></td><td>${c.nombre}</td><td class="muted">${c.tipo}</td><td>${c.activo?'<span class="pill ok">Activo</span>':'<span class="pill wait">Inactivo</span>'}</td></tr>`+arbol(c.id,n+1)).join("");
+      const pCentros=panel("Centros (dónde)",_an.centros.length?`<table><thead><tr><th>Código</th><th>Nombre</th><th>Tipo</th><th></th></tr></thead><tbody>${arbol(null,0)}</tbody></table>`:'<p class="muted" style="margin:0">Crea los centros de coste, departamentos, fincas o proyectos donde quieres ver resultados. Pueden tener subcentros.</p>',`<button class="btn small" onclick="modalCentro()">+ Centro</button>`);
+      const pPartidas=panel("Partidas (qué)",_an.partidas.length?`<table><thead><tr><th>Código</th><th>Nombre</th><th>Naturaleza</th></tr></thead><tbody>${_an.partidas.map(p=>`<tr><td class="mono"><strong>${p.codigo}</strong></td><td>${p.nombre}</td><td class="muted">${p.naturaleza}</td></tr>`).join("")}</tbody></table>`:'<p class="muted" style="margin:0">Opcional: la naturaleza analítica del coste (mano de obra, fitosanitarios, energía…). Sin partidas, el análisis se hace por cuenta contable.</p>',`<button class="btn small" onclick="modalPartida()">+ Partida</button>`);
+      const pClaves=panel("Claves de reparto",_an.claves.length?`<table><thead><tr><th>Código</th><th>Nombre</th><th>Reparto</th></tr></thead><tbody>${_an.claves.map(k=>`<tr><td class="mono"><strong>${k.codigo}</strong></td><td>${k.nombre}</td><td class="muted">${k.reparto.map(r=>`${anNombre(_an.centros,r.centroId).split(" · ")[0]} ${pct(r.porcentaje)}`).join(" · ")}</td></tr>`).join("")}</tbody></table>`:'<p class="muted" style="margin:0">Porcentajes para repartir un importe entre centros (por superficie, por horas…). Suman 100 %.</p>',`<button class="btn small" onclick="modalClave()">+ Clave</button>`);
+      const criterios=r=>[r.prefijoCuenta?`cuenta ${r.prefijoCuenta}…`:null,r.terceroId?"tercero concreto":null,r.actividadNegocioId?"actividad":null,r.familia?`familia ${r.familia}`:null,r.vigenteDesde||r.vigenteHasta?`vigencia ${fdate(r.vigenteDesde)||"…"}–${fdate(r.vigenteHasta)||"…"}`:null].filter(Boolean).join(", ");
+      const pReglas=panel("Reglas de asignación",reglas.length?`<table><thead><tr><th>Regla</th><th>Si…</th><th>Entonces</th><th></th></tr></thead><tbody>${reglas.map(r=>`<tr><td><strong>${r.descripcion}</strong>${r.prioridad?` <small class="muted">prioridad ${r.prioridad}</small>`:""}</td><td class="muted">${criterios(r)}</td><td>${r.centroId?anNombre(_an.centros,r.centroId):"clave "+anNombre(_an.claves,r.claveRepartoId)}${r.partidaId?` · ${anNombre(_an.partidas,r.partidaId)}`:""}</td><td class="right"><button class="btn small secondary" onclick="anBorrarRegla('${r.id}')">Borrar</button></td></tr>`).join("")}</tbody></table>`:'<p class="muted" style="margin:0">Las reglas imputan solas al contabilizar. Gana la de mayor prioridad y, a igualdad, la más concreta (tercero antes que cuenta).</p>',`<button class="btn small" onclick="modalRegla()">+ Regla</button>`);
+      const pPeriodos=panel("Periodos analíticos (campañas)",_an.periodos.length?`<table><thead><tr><th>Código</th><th>Nombre</th><th>Desde</th><th>Hasta</th><th></th></tr></thead><tbody>${_an.periodos.map(p=>`<tr><td class="mono"><strong>${p.codigo}</strong></td><td>${p.nombre}</td><td class="muted">${fdate(p.desde)}</td><td class="muted">${fdate(p.hasta)}</td><td class="right"><button class="btn small secondary" onclick="anCerrarPeriodo('${p.id}',${!p.cerrado})">${p.cerrado?"Reabrir":"Cerrar"}</button></td></tr>`).join("")}</tbody></table>`:'<p class="muted" style="margin:0">Ejercicios de gestión distintos del fiscal, como una campaña de septiembre a agosto. Cerrado, sus imputaciones no se pueden cambiar.</p>',`<button class="btn small" onclick="modalPeriodo()">+ Periodo</button>`);
+      view(pCentros+pPartidas+pClaves+pReglas+pPeriodos);
+    }
+    const tiposCentro=["CentroCoste","Proyecto","Departamento","Campana","Finca","Otro"];
+    function modalCentro(){ abrir("Nuevo centro",`<div class="grid2"><div><label>Código</label><input id="ce_cod" placeholder="ADM"/></div><div><label>Nombre</label><input id="ce_nom" placeholder="Administración"/></div></div>
+        <div class="grid2"><div><label>Tipo</label><select id="ce_tipo">${tiposCentro.map(t=>`<option>${t}</option>`).join("")}</select></div><div><label>Depende de</label><select id="ce_pad">${anOpc(_an.centros,null,"— Ninguno —")}</select></div></div>`,
+      async()=>{ await api("/contabilidad/analitica/centros",{method:"POST",body:JSON.stringify({codigo:val("ce_cod"),nombre:val("ce_nom"),tipo:val("ce_tipo"),padreId:val("ce_pad")||null})}); toast("Centro creado.","ok"); vAnaliticaMaestros(); }); }
+    function modalPartida(){ abrir("Nueva partida",`<div class="grid2"><div><label>Código</label><input id="pa_cod" placeholder="FITO"/></div><div><label>Nombre</label><input id="pa_nom" placeholder="Fitosanitarios"/></div></div>
+        <div class="grid2"><div><label>Naturaleza</label><select id="pa_nat"><option>Gasto</option><option>Ingreso</option></select></div><div><label>Depende de</label><select id="pa_pad">${anOpc(_an.partidas,null,"— Ninguna —")}</select></div></div>`,
+      async()=>{ await api("/contabilidad/analitica/partidas",{method:"POST",body:JSON.stringify({codigo:val("pa_cod"),nombre:val("pa_nom"),naturaleza:val("pa_nat"),padreId:val("pa_pad")||null})}); toast("Partida creada.","ok"); vAnaliticaMaestros(); }); }
+    function modalClave(){ if(!_an.centros.length){ toast("Primero crea algún centro.","err"); return; }
+      const fila=i=>`<div class="grid2"><div><select id="cl_c${i}">${anOpc(_an.centros,null,"—")}</select></div><div><input id="cl_p${i}" type="number" step="0.01" placeholder="%"/></div></div>`;
+      abrir("Nueva clave de reparto",`<div class="grid2"><div><label>Código</label><input id="cl_cod" placeholder="SUP"/></div><div><label>Nombre</label><input id="cl_nom" placeholder="Por superficie"/></div></div><label>Centros y porcentajes (suman 100)</label>${[0,1,2,3,4].map(fila).join("")}`,
+      async()=>{ const reparto=[0,1,2,3,4].map(i=>({centroId:val("cl_c"+i),porcentaje:Number(val("cl_p"+i)||0)})).filter(r=>r.centroId&&r.porcentaje>0);
+        await api("/contabilidad/analitica/claves",{method:"POST",body:JSON.stringify({codigo:val("cl_cod"),nombre:val("cl_nom"),reparto})}); toast("Clave creada.","ok"); vAnaliticaMaestros(); }); }
+    async function modalRegla(){ if(!_an.centros.length){ toast("Primero crea algún centro.","err"); return; }
+      const [provs,clis]=await Promise.all([api("/proveedores").catch(()=>[]),api("/clientes").catch(()=>[])]);
+      const terceros=`<option value="">— Cualquiera —</option>`+provs.map(p=>`<option value="${p.id}">Proveedor · ${p.nombre}</option>`).join("")+clis.map(c=>`<option value="${c.id}">Cliente · ${c.nombre}</option>`).join("");
+      abrir("Nueva regla",`<label>Descripción</label><input id="rg_des" placeholder="Servicios de administración"/>
+        <div class="grid2"><div><label>Si la cuenta empieza por</label><input id="rg_cta" placeholder="62"/></div><div><label>y el tercero es</label><select id="rg_ter">${terceros}</select></div></div>
+        <div class="grid2"><div><label>Vigente desde</label><input id="rg_vd" type="date"/></div><div><label>hasta</label><input id="rg_vh" type="date"/></div></div>
+        <div class="grid2"><div><label>Imputar al centro</label><select id="rg_cen">${anOpc(_an.centros,null,"— o usar una clave —")}</select></div><div><label>o repartir con la clave</label><select id="rg_cla">${anOpc(_an.claves,null,"—")}</select></div></div>
+        <div class="grid2"><div><label>Partida</label><select id="rg_par">${anOpc(_an.partidas,null,"Sin partida")}</select></div><div><label>Prioridad</label><input id="rg_pri" type="number" value="0"/></div></div>`,
+      async()=>{ await api("/contabilidad/analitica/reglas",{method:"POST",body:JSON.stringify({descripcion:val("rg_des"),prefijoCuenta:val("rg_cta")||null,terceroId:val("rg_ter")||null,vigenteDesde:val("rg_vd")||null,vigenteHasta:val("rg_vh")||null,centroId:val("rg_cen")||null,claveRepartoId:val("rg_cla")||null,partidaId:val("rg_par")||null,prioridad:Number(val("rg_pri")||0)})}); toast("Regla creada.","ok"); vAnaliticaMaestros(); }); }
+    async function anBorrarRegla(id){ if(!confirm("¿Borrar la regla? Lo ya imputado no cambia."))return; await api("/contabilidad/analitica/reglas/"+id,{method:"DELETE"}); vAnaliticaMaestros(); }
+    function modalPeriodo(){ const a=new Date().getFullYear(); abrir("Nuevo periodo analítico",`<div class="grid2"><div><label>Código</label><input id="pe_cod" placeholder="C${a}-${String(a+1).slice(2)}"/></div><div><label>Nombre</label><input id="pe_nom" placeholder="Campaña ${a}/${a+1}"/></div></div>
+        <div class="grid2"><div><label>Desde</label><input id="pe_des" type="date" value="${a}-09-01"/></div><div><label>Hasta</label><input id="pe_has" type="date" value="${a+1}-08-31"/></div></div>`,
+      async()=>{ await api("/contabilidad/analitica/periodos",{method:"POST",body:JSON.stringify({codigo:val("pe_cod"),nombre:val("pe_nom"),desde:val("pe_des"),hasta:val("pe_has")})}); toast("Periodo creado.","ok"); vAnaliticaMaestros(); }); }
+    async function anCerrarPeriodo(id,cerrar){ try{ await api(`/contabilidad/analitica/periodos/${id}/cierre`,{method:"PUT",body:JSON.stringify({cerrado:cerrar})}); vAnaliticaMaestros(); }catch(e){ toast(e.message,"err"); } }
+
+    async function vPresupuestosCont(){
+      view('<div class="muted">Cargando…</div>');
+      await anCargar(); const lista=await api("/contabilidad/presupuestos");
+      const filas=lista.map(p=>`<tr><td class="mono"><strong>${p.codigo}</strong></td><td>${p.nombre}</td><td class="muted">${fdate(p.desde)} – ${fdate(p.hasta)}</td><td>${p.estado==="Aprobado"?'<span class="pill ok">Aprobado</span>':'<span class="pill wait">Borrador</span>'}</td><td class="num">${eur(p.totalIngresos)}</td><td class="num">${eur(p.totalGastos)}</td><td class="num"><strong>${eur(p.resultado)}</strong></td>
+        <td class="right"><button class="btn small" onclick="verSeguimiento('${p.id}')">Seguimiento</button> ${p.estado==="Borrador"?`<button class="btn small secondary" onclick="aprobarPresupuesto('${p.id}')">Aprobar</button>`:""} <button class="btn small secondary" onclick="copiarPresupuesto('${p.id}','${p.codigo}')">Copiar</button></td></tr>`).join("");
+      view(panel("Presupuestos contables",lista.length?`<table><thead><tr><th>Código</th><th>Nombre</th><th>Periodo</th><th>Estado</th><th class="num">Ingresos</th><th class="num">Gastos</th><th class="num">Resultado</th><th></th></tr></thead><tbody>${filas}</tbody></table>`
+        :'<p class="muted" style="margin:0">Presupuesta por cuenta (o grupo: «62» es todo el subgrupo), y si quieres por centro. Puedes partir del real del año pasado con un incremento.</p>',
+        `<button class="btn small" onclick="modalPresupuesto()">+ Nuevo</button> <button class="btn small secondary" onclick="modalPresupuestoReal()">Generar desde el real</button>`)+'<div id="seguimiento"></div>');
+    }
+    function modalPresupuesto(){ const a=new Date().getFullYear();
+      abrir("Nuevo presupuesto",`<div class="grid2"><div><label>Código</label><input id="ps_cod" placeholder="P${a+1}"/></div><div><label>Nombre</label><input id="ps_nom" placeholder="Presupuesto ${a+1}"/></div></div>
+        <div class="grid2"><div><label>Primer mes</label><input id="ps_des" type="month" value="${a+1}-01"/></div><div><label>Meses</label><input id="ps_mes" type="number" value="12" min="1" max="24"/></div></div>
+        <label>Líneas: una por renglón, «cuenta; total anual; centro (código, opcional)»</label><textarea id="ps_lin" rows="6" placeholder="62; 24000&#10;629; 6000; ADM&#10;705; 120000"></textarea>`,
+      async()=>{ const lineas=val("ps_lin").split("\n").map(x=>x.split(";").map(y=>y.trim())).filter(x=>x[0]).map(([cta,total,cen])=>({cuentaCodigo:cta,total:Number((total||"0").replace(",",".")),centroId:cen?(_an.centros.find(c=>c.codigo===cen.toUpperCase())||{}).id||null:null}));
+        await api("/contabilidad/presupuestos",{method:"POST",body:JSON.stringify({codigo:val("ps_cod"),nombre:val("ps_nom"),desde:val("ps_des")+"-01",meses:Number(val("ps_mes")),lineas})}); toast("Presupuesto creado.","ok"); vPresupuestosCont(); }); }
+    function modalPresupuestoReal(){ const a=new Date().getFullYear();
+      abrir("Generar desde el real",`<div class="grid2"><div><label>Código</label><input id="pr_cod" placeholder="P${a+1}"/></div><div><label>Nombre</label><input id="pr_nom" placeholder="Presupuesto ${a+1}"/></div></div>
+        <div class="grid2"><div><label>Primer mes del presupuesto</label><input id="pr_des" type="month" value="${a+1}-01"/></div><div><label>Meses</label><input id="pr_mes" type="number" value="12" min="1" max="24"/></div></div>
+        <div class="grid2"><div><label>Tomar el real desde</label><input id="pr_ori" type="month" value="${a}-01"/></div><div><label>Incremento (%)</label><input id="pr_inc" type="number" step="0.1" value="0"/></div></div>
+        <label style="display:flex;gap:8px;align-items:center;font-weight:500"><input id="pr_cen" type="checkbox" style="width:auto"/> Por centro y partida (con lo imputado en la analítica)</label>`,
+      async()=>{ await api("/contabilidad/presupuestos/desde-real",{method:"POST",body:JSON.stringify({codigo:val("pr_cod"),nombre:val("pr_nom"),desde:val("pr_des")+"-01",meses:Number(val("pr_mes")),origenDesde:val("pr_ori")+"-01",incrementoPorcentaje:Number(val("pr_inc")||0),porCentro:document.getElementById("pr_cen").checked})}); toast("Presupuesto generado.","ok"); vPresupuestosCont(); }); }
+    async function aprobarPresupuesto(id){ if(!confirm("Aprobado, el presupuesto queda congelado. ¿Aprobar?"))return; try{ await api(`/contabilidad/presupuestos/${id}/aprobar`,{method:"POST"}); vPresupuestosCont(); }catch(e){ toast(e.message,"err"); } }
+    function copiarPresupuesto(id,codigo){ abrir(`Copiar ${codigo}`,`<div class="grid2"><div><label>Código de la copia</label><input id="cp_cod" value="${codigo}-V2"/></div><div><label>Incremento (%)</label><input id="cp_inc" type="number" step="0.1" value="0"/></div></div><label>Nombre</label><input id="cp_nom" value="${codigo} (versión 2)"/>`,
+      async()=>{ await api(`/contabilidad/presupuestos/${id}/copiar`,{method:"POST",body:JSON.stringify({codigo:val("cp_cod"),nombre:val("cp_nom"),incrementoPorcentaje:Number(val("cp_inc")||0)})}); toast("Copia creada en borrador.","ok"); vPresupuestosCont(); }); }
+    async function verSeguimiento(id,hasta){
+      const s=await api(`/contabilidad/presupuestos/${id}/seguimiento${hasta?`?hasta=${hasta}`:""}`);
+      const filas=s.lineas.map(l=>`<tr><td class="mono"><strong>${l.cuentaCodigo}</strong></td><td class="muted">${l.centroId?anNombre(_an.centros,l.centroId):"—"}</td><td class="muted">${l.naturaleza}</td><td class="num">${eur(l.presupuestoAcumulado)}</td><td class="num">${eur(l.realAcumulado)}</td><td class="num"><span class="pill ${l.favorable?'ok':'neg'}">${eur(l.desviacion)}</span></td><td class="num muted">${pct(l.porcentajeEjecucion)}</td></tr>`).join("");
+      const fin=s.hastaSeguimiento.slice(0,7);
+      document.getElementById("seguimiento").innerHTML=panel(`Seguimiento ${s.codigo} · hasta ${fdate(s.hastaSeguimiento)} (${s.mesesTranscurridos} meses)`,
+        `<table><thead><tr><th>Cuenta</th><th>Centro</th><th>Tipo</th><th class="num">Presupuesto</th><th class="num">Real</th><th class="num">Desviación</th><th class="num">Ejecución</th></tr></thead><tbody>${filas}
+         <tr><td colspan="3"><strong>Resultado</strong></td><td class="num"><strong>${eur(s.resultadoPresupuesto)}</strong></td><td class="num"><strong>${eur(s.resultadoReal)}</strong></td><td class="num"><strong>${eur(s.resultadoReal-s.resultadoPresupuesto)}</strong></td><td></td></tr></tbody></table>
+         ${s.avisos.map(a=>`<p class="pill part" style="display:block;margin-top:8px;white-space:normal">${a}</p>`).join("")}
+         <p class="muted" style="font-size:12px;margin:12px 0 0">Verde: se gasta menos o se ingresa más de lo previsto. Sin centro, el real sale de la contabilidad; con centro, de lo imputado en la analítica.</p>`,
+        `<input type="month" value="${fin}" style="width:auto" onchange="verSeguimiento('${id}',this.value+'-28')"/>`);
+      document.getElementById("seguimiento").scrollIntoView({behavior:"smooth"});
+    }
+
     /* ---------- Divisas y tipos de cambio ---------- */
     let _divisasCat=[], _difLineas=[];
     async function vDivisas(){
@@ -2667,6 +2802,18 @@
       return [1,2,3,4].map(t=>`<button class="btn small ${t===trimSel?'':'ghost'}" onclick="verTrimestre(${t})">${t}T</button>`).join(" ");
     }
     async function verTrimestre(t){ trimSel=t; await vInformes(); }
+    function panel420(m,anio){
+      const filas=m.devengado.map(d=>`<tr><td>${d.codigo}</td><td class="num muted">${String(d.porcentaje).replace(".",",")} %</td><td class="num">${eur(d.base)}</td><td class="num">${eur(d.cuota)}</td></tr>`).join("");
+      const signo=m.resultado>0.005?'A ingresar':(m.resultado<-0.005?'A compensar':'Sin cuota');
+      const cuerpo=`<table><thead><tr><th>Tipo</th><th class="num">%</th><th class="num">Base</th><th class="num">Cuota IGIC</th></tr></thead><tbody>${filas||'<tr><td colspan="4" class="muted">Sin facturas con IGIC en el trimestre.</td></tr>'}
+        <tr><td colspan="3"><strong>IGIC devengado</strong></td><td class="num"><strong>${eur(m.devengadoCuota)}</strong></td></tr>
+        <tr><td colspan="3" class="muted">IGIC soportado (gastos)</td><td class="num">${eur(m.soportadoCuota)}</td></tr>
+        <tr><td colspan="3" class="muted">IGIC deducible${m.porcentajeProrrata<100?` (prorrata ${m.porcentajeProrrata} %)`:''}</td><td class="num">${eur(m.deducibleCuota)}</td></tr>
+        ${Math.abs(m.regularizacionProrrata)>0.005?`<tr><td colspan="3" class="muted">Regularización de la prorrata</td><td class="num">${eur(m.regularizacionProrrata)}</td></tr>`:''}
+        <tr><td colspan="3"><strong>Resultado</strong> <span class="pill ${m.resultado>0.005?'neg':'ok'}">${signo}</span></td><td class="num"><strong>${eur(Math.abs(m.resultado))}</strong></td></tr></tbody></table>
+        <p class="muted" style="font-size:12px;margin:14px 0 0">Borrador del modelo 420 (Agencia Tributaria Canaria) para preparar la declaración; no es un envío oficial.</p>`;
+      return panel(`Modelo 420 · IGIC · ${trimSel}T ${anio}`,cuerpo,selTrim(anio));
+    }
     function panelResumen(r,anio){
       const c3=r.modelo303, c1=r.modelo130;
       const signo303=c3.resultado>0.005?'A ingresar':(c3.resultado<-0.005?'A compensar':'Sin cuota');
@@ -2674,9 +2821,12 @@
       const signo130=c1.resultado>0.005?'A ingresar':'Sin pago';
       const cls130=c1.resultado>0.005?'neg':'ok';
       const fila=(l,v,fuerte)=>`<tr><td class="${fuerte?'':'muted'}">${l}</td><td class="num">${fuerte?'<strong>':''}${eur(v)}${fuerte?'</strong>':''}</td></tr>`;
+      const conProrrata=(c3.porcentajeProrrata??100)<100 || Math.abs(c3.regularizacionProrrata||0)>0.005;
       const t303=`<table><tbody>
         ${fila('IVA repercutido (facturas)',c3.ivaDevengadoCuota)}
-        ${fila('IVA soportado (gastos)',c3.ivaDeducibleCuota)}
+        ${conProrrata?fila('IVA soportado (gastos)',c3.ivaSoportadoCuota):''}
+        ${fila(conProrrata?`IVA deducible (prorrata ${c3.porcentajeProrrata} %)`:'IVA soportado (gastos)',c3.ivaDeducibleCuota)}
+        ${Math.abs(c3.regularizacionProrrata||0)>0.005?fila('Regularización de la prorrata',c3.regularizacionProrrata):''}
         <tr><td><strong>Resultado</strong> <span class="pill ${cls303}">${signo303}</span></td><td class="num"><strong>${eur(Math.abs(c3.resultado))}</strong></td></tr>
         </tbody></table>`;
       const t130=`<table><tbody>
@@ -2725,8 +2875,43 @@
       try{ panelPlantilla=await panelPlantillaHtml(); }catch(e){ panelPlantilla=""; }
       let panelPlan="";
       try{ panelPlan=await panelPlanHtml(); }catch(e){ panelPlan=""; }
-      view(panelPlan+panelSeries+panelAsig+panelPlantilla+panelFormas+panelRiesgo+panelImport+panelValoracion+panelCobroHtml()+panelUsuarios+panelSeguridad+panelDatosHtml()+panelAudit);
+      let panelFiscal="";
+      try{ panelFiscal=await panelFiscalHtml(); }catch(e){ panelFiscal=""; }
+      view(panelPlan+panelFiscal+panelSeries+panelAsig+panelPlantilla+panelFormas+panelRiesgo+panelImport+panelValoracion+panelCobroHtml()+panelUsuarios+panelSeguridad+panelDatosHtml()+panelAudit);
     }
+    /* ---------- Fiscalidad: territorio (IVA / IGIC) y prorrata ---------- */
+    async function panelFiscalHtml(){
+      const anio=new Date().getFullYear();
+      const pr=await api(`/impuestos/prorrata?ejercicio=${anio}`).catch(()=>null);
+      const reg=pr&&pr.regimen?pr.regimen:"";
+      const opt=(v,t,sel)=>`<option value="${v}"${v===sel?" selected":""}>${t}</option>`;
+      const datos=pr?`<table style="margin-top:12px"><tbody>
+          <tr><td class="muted">Ventas con derecho a deducir</td><td class="num">${eur(pr.baseConDerecho)}</td></tr>
+          <tr><td class="muted">Ventas exentas sin derecho</td><td class="num">${eur(pr.baseSinDerecho)}</td></tr>
+          <tr><td><strong>Porcentaje definitivo ${anio}</strong> <small class="muted">(redondeado al alza)</small></td><td class="num"><strong>${pr.porcentajeDefinitivo} %</strong></td></tr>
+          ${reg?`<tr><td class="muted">Deducido con el provisional (${pr.porcentajeProvisional} %)</td><td class="num">${eur(pr.deducibleProvisional)}</td></tr>
+          <tr><td class="muted">Deducible con el definitivo</td><td class="num">${eur(pr.deducibleDefinitivo)}</td></tr>
+          <tr><td><strong>Regularización en el 4T</strong></td><td class="num"><strong>${eur(pr.regularizacion)}</strong></td></tr>`:""}
+        </tbody></table>${pr.aviso?`<p class="pill part" style="display:block;margin-top:10px;white-space:normal">${pr.aviso}</p>`:""}`:"";
+      const cuerpo=`<div class="grid2"><div>
+          <label>Territorio fiscal</label><select id="fi_terr">${opt("Comun","Península y Baleares (IVA)",IMP.territorio)}${opt("Canarias","Canarias (IGIC)",IMP.territorio)}</select>
+          <p class="muted" style="font-size:12px">Decide el impuesto de tus facturas (${IMP.siglas} ahora), los tipos disponibles y la autoliquidación (303 o 420).</p>
+          <button class="btn small" onclick="guardarTerritorio()">Guardar territorio</button></div>
+        <div><label>Prorrata ${anio}</label><div class="grid2"><div><select id="fi_reg">${opt("","Sin prorrata (se deduce todo)",reg)}${opt("General","General",reg)}${opt("Especial","Especial",reg)}</select></div>
+          <div><input id="fi_pct" type="number" min="0" max="100" step="1" value="${pr?pr.porcentajeProvisional:100}" title="Porcentaje provisional"/></div></div>
+          <p class="muted" style="font-size:12px">Para empresas con ventas exentas sin derecho a deducir. El porcentaje provisional suele ser el definitivo del año anterior.</p>
+          <button class="btn small" onclick="guardarProrrata(${anio})">Guardar prorrata</button></div></div>${datos}`;
+      return panel("Fiscalidad",cuerpo);
+    }
+    async function guardarTerritorio(){ try{
+      await api("/empresas/actual/territorio-fiscal",{method:"PUT",body:JSON.stringify({territorioFiscal:val("fi_terr")})});
+      await api("/tipos-iva"); await cargarImpuestos(); toast(`Territorio guardado: se factura con ${IMP.siglas}.`,"ok"); ir("ajustes");
+    }catch(e){ toast(e.message,"err"); } }
+    async function guardarProrrata(anio){ try{
+      const reg=val("fi_reg")||null;
+      await api(`/impuestos/prorrata/${anio}`,{method:"PUT",body:JSON.stringify({regimen:reg,porcentajeProvisional:Number(val("fi_pct")||100)})});
+      toast(reg?"Prorrata guardada.":"Prorrata quitada.","ok"); ir("ajustes");
+    }catch(e){ toast(e.message,"err"); } }
     async function panelPlanHtml(){
       const [actual, cat]=await Promise.all([api("/empresas/actual/plan"), api("/planes")]);
       const activos=new Set(actual.modulosActivos||[]);
@@ -3034,7 +3219,18 @@
     function cerrarModal(){ document.getElementById("modalBg").style.display="none"; modalSave=null; }
     async function guardarModal(){ if(modalSave){ try{ await modalSave(); cerrarModal(); }catch(e){ alert(e.message); } } }
     const val=id=>document.getElementById(id).value;
-    const ivaSel=id=>`<select id="${id}"><option value="IVA21">IVA 21%</option><option value="IVA10">IVA 10%</option><option value="IVA4">IVA 4%</option><option value="IVA0">Exento</option></select>`;
+    // Tipos del impuesto de la empresa (IVA, o IGIC en Canarias), cargados del catálogo al elegir empresa.
+    let IMP={siglas:"IVA",general:"IVA21",territorio:"Comun",tipos:[{codigo:"IVA21",porcentaje:21,nombre:"IVA general (21%)"},{codigo:"IVA10",porcentaje:10,nombre:"IVA reducido (10%)"},{codigo:"IVA4",porcentaje:4,nombre:"IVA superreducido (4%)"},{codigo:"IVA0",porcentaje:0,nombre:"Exento"}]};
+    async function cargarImpuestos(){ try{
+      const emp=await api("/empresas/actual"); const igic=emp.territorioFiscal==="Canarias"; const cat=await api("/tipos-iva");
+      const tipos=cat.filter(t=>t.activo && (t.impuesto||"Iva")===(igic?"Igic":"Iva"))
+        .map(t=>({codigo:t.codigo,porcentaje:t.repercute?t.porcentaje:0,nombre:t.nombre,ordinario:t.clase==="Ordinario"}))
+        .sort((a,b)=>(b.ordinario-a.ordinario)||(b.porcentaje-a.porcentaje)||a.codigo.localeCompare(b.codigo));
+      IMP={siglas:igic?"IGIC":"IVA",general:igic?"IGIC7":"IVA21",territorio:emp.territorioFiscal||"Comun",tipos:tipos.length?tipos:IMP.tipos};
+    }catch(e){} }
+    const ivaPct=c=>(IMP.tipos.find(t=>t.codigo===c)||{porcentaje:0}).porcentaje;
+    const ivaOpciones=sel=>IMP.tipos.map(t=>`<option value="${t.codigo}"${t.codigo===(sel||IMP.general)?" selected":""}>${t.nombre}</option>`).join("");
+    const ivaSel=(id,sel)=>`<select id="${id}">${ivaOpciones(sel)}</select>`;
 
     function rellenar(campos){ for(const k in campos){ const el=document.getElementById(k); if(el&&campos[k]!=null) el.value=campos[k]; } }
     let _cacheCli=[], _cacheProv=[], _cacheProd=[];
@@ -3192,8 +3388,9 @@
       const opts=`<option value="">— Sin proveedor —</option>`+provs.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join("");
       abrir("Nuevo gasto",`<label>Concepto</label><input id="g_conc" placeholder="Ej. Alquiler, suministros…"/>
         <div class="grid2"><div><label>Proveedor</label><select id="g_prov">${opts}</select></div><div><label>Base (€)</label><input id="g_base" type="number" value="0"/></div></div>
-        <div class="grid2"><div><label>IVA</label>${ivaSel("g_iva")}</div><div><label>Forma de pago</label>${formaPagoSel("g_forma")}</div></div>`,
-        async()=>{ const _g=await api("/gastos",{method:"POST",body:JSON.stringify({concepto:val("g_conc"),proveedorId:val("g_prov")||null,baseImponible:Number(val("g_base")),codigoIva:val("g_iva"),formaPagoId:val("g_forma")||null})}); if(_g&&_g.avisoRiesgo) toast(_g.avisoRiesgo,"err"); vGastos(); }); }
+        <div class="grid2"><div><label>${IMP.siglas}</label>${ivaSel("g_iva")}</div><div><label>Forma de pago</label>${formaPagoSel("g_forma")}</div></div>
+        <label>Afectación (solo si aplicas prorrata especial)</label><select id="g_afec"><option value="Comun">Uso común (se aplica el porcentaje)</option><option value="ConDerecho">Solo operaciones con derecho a deducir (100 %)</option><option value="SinDerecho">Solo operaciones exentas (no se deduce)</option></select>`,
+        async()=>{ const _g=await api("/gastos",{method:"POST",body:JSON.stringify({concepto:val("g_conc"),proveedorId:val("g_prov")||null,baseImponible:Number(val("g_base")),codigoIva:val("g_iva"),formaPagoId:val("g_forma")||null,afectacion:val("g_afec")})}); if(_g&&_g.avisoRiesgo) toast(_g.avisoRiesgo,"err"); vGastos(); }); }
     async function modalFactura(src){ const [cs,series,formas]=await Promise.all([api("/clientes"),api("/series").catch(()=>[]),api("/formas-pago").catch(()=>[])]); _cacheCli=cs; _cacheFormasPago=formas;
       const opts=cs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join("");
       const prefijos=[...new Set(["FA",...series.map(s=>s.prefijo)])];
@@ -3201,7 +3398,7 @@
       const vencSel=`<select id="f_venc"><option value="0">Contado</option><option value="15">15 días</option><option value="30">30 días</option><option value="60">60 días</option><option value="90">90 días</option></select>`;
       _facLineas = (src&&src.lineas&&src.lineas.length)
         ? src.lineas.map(l=>({descripcion:l.descripcion,cantidad:l.cantidad,precio:l.precioUnitario,iva:l.codigoIva,dto:l.porcentajeDescuento||0}))
-        : [{descripcion:"",cantidad:1,precio:0,iva:"IVA21",dto:0}];
+        : [{descripcion:"",cantidad:1,precio:0,iva:IMP.general,dto:0}];
       abrir(src?"Nueva factura (copia)":"Nueva factura",`<div class="grid2"><div><label>Cliente</label><select id="f_cli" onchange="ajustarRecargoCliente()">${opts}</select></div><div><label>Vencimiento</label>${vencSel}</div></div>
         <div class="grid2">${serieBox}<div><label>Forma de pago</label>${formaPagoSel("f_forma")}</div></div>
         <p class="muted" style="font-size:12px;margin:2px 0 0">Si eliges una forma de pago, manda sobre el vencimiento de arriba (y puede marcar la factura como pagada).</p>
@@ -3217,26 +3414,25 @@
       if(src&&src.clienteId){ const sel=document.getElementById("f_cli"); if([...sel.options].some(o=>o.value===src.clienteId)) sel.value=src.clienteId; }
       ajustarRecargoCliente(); facTotal(); }
     let _facLineas=[];
-    const IVAPCT={IVA21:21,IVA10:10,IVA4:4,IVA0:0};
     function facLineasHtml(){ return _facLineas.map((l,i)=>`<div class="row" style="align-items:end">
       <div style="flex:2"><input placeholder="Descripción" value="${(l.descripcion||'').replace(/"/g,'&quot;')}" oninput="_facLineas[${i}].descripcion=this.value"/></div>
       <div><label>Cant.</label><input type="number" step="0.001" value="${l.cantidad}" oninput="_facLineas[${i}].cantidad=Number(this.value);facTotal()"/></div>
       <div><label>Precio €</label><input type="number" step="0.01" value="${l.precio}" oninput="_facLineas[${i}].precio=Number(this.value);facTotal()"/></div>
       <div><label>Dto %</label><input type="number" step="0.01" value="${l.dto||0}" oninput="_facLineas[${i}].dto=Number(this.value);facTotal()"/></div>
-      <div><label>IVA</label><select onchange="_facLineas[${i}].iva=this.value;facTotal()">${Object.keys(IVAPCT).map(c=>`<option value="${c}"${c===l.iva?' selected':''}>${c==='IVA0'?'Exento':'IVA '+IVAPCT[c]+'%'}</option>`).join("")}</select></div>
+      <div><label>${IMP.siglas}</label><select onchange="_facLineas[${i}].iva=this.value;facTotal()">${ivaOpciones(l.iva)}</select></div>
       <div><button class="btn small secondary" onclick="facQuitarLinea(${i})" ${_facLineas.length<=1?'disabled':''}>✕</button></div>
     </div>`).join(""); }
     function facRefrescar(){ document.getElementById("f_lineas").innerHTML=facLineasHtml(); facTotal(); }
-    function facAnadirLinea(){ _facLineas.push({descripcion:"",cantidad:1,precio:0,iva:"IVA21",dto:0}); facRefrescar(); }
+    function facAnadirLinea(){ _facLineas.push({descripcion:"",cantidad:1,precio:0,iva:IMP.general,dto:0}); facRefrescar(); }
     function facQuitarLinea(i){ if(_facLineas.length<=1)return; _facLineas.splice(i,1); facRefrescar(); }
     function facTotal(){ const el=document.getElementById("f_total"); if(!el)return;
-      let base=0,iva=0; _facLineas.forEach(l=>{ const b=(l.cantidad||0)*(l.precio||0)*(1-((l.dto||0)/100)); base+=b; iva+=b*(IVAPCT[l.iva]||0)/100; });
-      el.textContent=`Base ${eur(base)} · IVA ${eur(iva)} · Total ${eur(base+iva)}`; }
+      let base=0,iva=0; _facLineas.forEach(l=>{ const b=(l.cantidad||0)*(l.precio||0)*(1-((l.dto||0)/100)); base+=b; iva+=b*ivaPct(l.iva)/100; });
+      el.textContent=`Base ${eur(base)} · ${IMP.siglas} ${eur(iva)} · Total ${eur(base+iva)}`; }
     async function duplicarFactura(id){ try{ const f=await api("/facturas/"+id); modalFactura(f); }catch(e){ toast(e.message,"err"); } }
     function ajustarRecargoCliente(){ const sel=document.getElementById("f_cli"), chk=document.getElementById("f_recargo"); if(!sel||!chk)return;
       const c=_cacheCli.find(x=>x.id===sel.value); chk.checked=!!(c&&c.recargoEquivalencia); }
     async function modalRectificar(id){ const f=await api("/facturas/"+id);
-      const l=f.lineas[0]||{descripcion:"",cantidad:1,precioUnitario:0,codigoIva:"IVA21"};
+      const l=f.lineas[0]||{descripcion:"",cantidad:1,precioUnitario:0,codigoIva:IMP.general};
       abrir(`Rectificar ${f.numeroCompleto}`,`<p class="muted" style="margin:0 0 14px">Se emitirá una <strong>factura rectificativa (R1)</strong> para ${f.clienteNombre}, con su propia numeración y encadenada en VeriFactu. La original quedará marcada como <em>rectificada</em>.</p>
         <label>Motivo de la rectificación</label><input id="rc_motivo" placeholder="Ej. Error en el importe, descuento no aplicado…"/>
         <label style="margin-top:16px">Importe corregido</label>
