@@ -15,13 +15,13 @@ public sealed record CuentaDto(Guid Id, string Codigo, string Nombre, int Grupo)
     public static CuentaDto Desde(Cuenta c) => new(c.Id, c.Codigo, c.Nombre, c.Grupo);
 }
 
-public sealed record ApunteDto(string CuentaCodigo, string? Concepto, decimal Debe, decimal Haber);
+public sealed record ApunteDto(string CuentaCodigo, string? Concepto, decimal Debe, decimal Haber, Guid Id = default);
 
 public sealed record AsientoDto(Guid Id, int Ejercicio, int Numero, DateOnly Fecha, string Concepto,
     string Origen, decimal Total, IReadOnlyList<ApunteDto> Apuntes)
 {
     public static AsientoDto Desde(Asiento a) => new(a.Id, a.Ejercicio, a.Numero, a.Fecha, a.Concepto,
-        a.Origen, a.TotalDebe, a.Apuntes.Select(p => new ApunteDto(p.CuentaCodigo, p.Concepto, p.Debe, p.Haber)).ToList());
+        a.Origen, a.TotalDebe, a.Apuntes.Select(p => new ApunteDto(p.CuentaCodigo, p.Concepto, p.Debe, p.Haber, p.Id)).ToList());
 }
 
 /// <summary>Línea del libro mayor de una cuenta.</summary>
@@ -251,7 +251,11 @@ public sealed class CambiarModoContabilidad
 // --------------------------------------------------------------------------------------------
 
 /// <summary>Datos de una línea al crear un asiento manual.</summary>
-public sealed record LineaAsientoComando(string CuentaCodigo, decimal Debe, decimal Haber, string? Concepto = null);
+/// <remarks>
+/// En los gastos (6) e ingresos (7) se puede indicar el centro y la partida analíticos; si no, se
+/// aplican las reglas analíticas.
+/// </remarks>
+public sealed record LineaAsientoComando(string CuentaCodigo, decimal Debe, decimal Haber, string? Concepto = null, Guid? CentroId = null, Guid? PartidaId = null);
 
 /// <summary>Crea un asiento manual.</summary>
 public sealed record CrearAsientoComando(DateOnly Fecha, string Concepto, IReadOnlyList<LineaAsientoComando> Lineas);
@@ -262,11 +266,17 @@ public sealed class CrearAsiento
     private readonly IUnidadDeTrabajoContabilidad _unidad;
     private readonly IReloj _reloj;
 
-    public CrearAsiento(IRepositorioAsientos asientos, IUnidadDeTrabajoContabilidad unidad, IReloj reloj)
+    private readonly IRepositorioAnalitica? _analitica;
+    private readonly ImputadorAnalitico? _imputador;
+
+    public CrearAsiento(IRepositorioAsientos asientos, IUnidadDeTrabajoContabilidad unidad, IReloj reloj,
+        IRepositorioAnalitica? analitica = null, ImputadorAnalitico? imputador = null)
     {
         _asientos = asientos;
         _unidad = unidad;
         _reloj = reloj;
+        _analitica = analitica;
+        _imputador = imputador;
     }
 
     public async Task<Resultado<AsientoDto>> EjecutarAsync(Guid empresaId, CrearAsientoComando comando, CancellationToken ct = default)
@@ -291,8 +301,62 @@ public sealed class CrearAsiento
         }
 
         _asientos.Agregar(asiento.Valor);
+        var analitica = await ImputarAsync(empresaId, asiento.Valor, comando.Lineas ?? [], ct).ConfigureAwait(false);
+        if (analitica is not null)
+        {
+            return Resultado.Fallo<AsientoDto>(analitica);
+        }
+
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return Resultado.Ok(AsientoDto.Desde(asiento.Valor));
+    }
+
+    /// <summary>Imputa en analítica: al centro/partida de la línea si se indican; si no, con las reglas.</summary>
+    private async Task<Error?> ImputarAsync(Guid empresaId, Asiento asiento, IReadOnlyList<LineaAsientoComando> lineas, CancellationToken ct)
+    {
+        if (_analitica is null || _imputador is null)
+        {
+            return null;
+        }
+
+        var apuntes = ImputadorAnalitico.ApuntesDe(asiento, null, null, null).ToDictionary(a => a.ApunteId);
+        var porReglas = new List<ApunteAnalitico>();
+        for (var i = 0; i < lineas.Count && i < asiento.Apuntes.Count; i++)
+        {
+            var linea = lineas[i];
+            if (!apuntes.TryGetValue(asiento.Apuntes[i].Id, out var apunte))
+            {
+                if (linea.CentroId is not null)
+                {
+                    return Error.Validacion("asiento.analitica_cuenta", $"Solo los gastos (6) y los ingresos (7) llevan centro analítico (la cuenta {linea.CuentaCodigo} no).");
+                }
+
+                continue;
+            }
+
+            if (linea.CentroId is not { } centroId)
+            {
+                porReglas.Add(apunte);
+                continue;
+            }
+
+            var centro = await _analitica.CentroAsync(centroId, ct).ConfigureAwait(false);
+            if (centro is not { Activo: true })
+            {
+                return Error.Validacion("asiento.analitica_centro", "El centro analítico no existe o está inactivo.");
+            }
+
+            if (linea.PartidaId is { } p && await _analitica.PartidaAsync(p, ct).ConfigureAwait(false) is not { } partida)
+            {
+                return Error.Validacion("asiento.analitica_partida", "La partida analítica no existe.");
+            }
+
+            _analitica.Agregar(ImputacionAnalitica.DeApunte(empresaId, apunte.ApunteId, asiento.Id, asiento.Fecha, apunte.CuentaCodigo,
+                centroId, linea.PartidaId, apunte.Importe, OrigenImputacion.Manual));
+        }
+
+        await _imputador.ImputarAsync(empresaId, porReglas, OrigenImputacion.Regla, null, ct).ConfigureAwait(false);
+        return null;
     }
 }
 

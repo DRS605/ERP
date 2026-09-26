@@ -75,12 +75,14 @@ public sealed class PosterDocumento
     private readonly IReloj _reloj;
 
     private readonly IDeduccionImpuesto _deduccion;
+    private readonly ImputadorAnalitico? _imputador;
 
     public PosterDocumento(IRepositorioAsientos asientos, IRepositorioCuentas cuentas, IResolverCuentas resolver, IUnidadDeTrabajoContabilidad unidad, IReloj reloj,
-        IDeduccionImpuesto? deduccion = null)
+        IDeduccionImpuesto? deduccion = null, ImputadorAnalitico? imputador = null)
     {
         _asientos = asientos; _cuentas = cuentas; _resolver = resolver; _unidad = unidad; _reloj = reloj;
         _deduccion = deduccion ?? DeduccionTotal.Instancia;
+        _imputador = imputador;
     }
 
     /// <summary>Genera el asiento del documento con su fecha de registro. No guarda (lo hace el llamador).</summary>
@@ -120,6 +122,22 @@ public sealed class PosterDocumento
     }
 
     public void Agregar(Asiento asiento) => _asientos.Agregar(asiento);
+
+    /// <summary>
+    /// Añade el asiento del documento y lo imputa en analítica con las reglas (cuenta, tercero,
+    /// actividad y familia del documento). Los apuntes sin regla quedan pendientes de imputar.
+    /// </summary>
+    public async Task AgregarAsync(Asiento asiento, DocumentoPendiente doc, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(asiento);
+        ArgumentNullException.ThrowIfNull(doc);
+        _asientos.Agregar(asiento);
+        if (_imputador is not null)
+        {
+            await _imputador.ImputarAsync(doc.EmpresaId, ImputadorAnalitico.ApuntesDe(asiento, doc.TerceroId, doc.ActividadNegocioId, doc.Familia),
+                OrigenImputacion.Regla, null, ct).ConfigureAwait(false);
+        }
+    }
 
     public Task GuardarAsync(CancellationToken ct) => _unidad.GuardarCambiosAsync(ct);
 
@@ -206,7 +224,7 @@ public sealed class EncolarDocumento : IColaContabilizacion
             var asiento = await _poster.ConstruirAsync(pendiente, ct).ConfigureAwait(false);
             if (asiento.EsCorrecto)
             {
-                _poster.Agregar(asiento.Valor);
+                await _poster.AgregarAsync(asiento.Valor, pendiente, ct).ConfigureAwait(false);
                 pendiente.MarcarContabilizado(asiento.Valor.Id);
             }
         }
@@ -367,7 +385,7 @@ public sealed class ContabilizarPendientes
                 return Resultado.Fallo<int>(asiento.Error);
             }
 
-            _poster.Agregar(asiento.Valor);
+            await _poster.AgregarAsync(asiento.Valor, doc, ct).ConfigureAwait(false);
             doc.MarcarContabilizado(asiento.Valor.Id);
             contabilizados++;
         }

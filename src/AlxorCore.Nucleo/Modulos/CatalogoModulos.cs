@@ -31,6 +31,7 @@ public static class CatalogoModulos
     public const string Personal = "personal";
     public const string Contabilidad = "contabilidad";
     public const string Inmovilizado = "inmovilizado";
+    public const string Analitica = "analitica";
     public const string TesoreriaAvanzada = "tesoreria_avanzada";
     public const string Divisas = "divisas";
     public const string Aprobaciones = "aprobaciones";
@@ -55,6 +56,7 @@ public static class CatalogoModulos
         new(Proyectos, "Proyectos", "Imputación de mano de obra, materiales y gastos; presupuesto frente a real.", [Personal]),
         new(Contabilidad, "Contabilidad", "Partida doble: plan contable, asientos, mayor, balances, cierre y cuentas anuales.", []),
         new(Inmovilizado, "Inmovilizado", "Amortización contable y fiscal, bajas y enajenaciones.", [Contabilidad]),
+        new(Analitica, "Analítica y presupuestos", "Centros y partidas analíticas, reglas y claves de reparto, repartos de costes indirectos, periodos (campañas) y presupuestos con seguimiento.", [Contabilidad]),
         new(TesoreriaAvanzada, "Tesorería avanzada", "Remesas SEPA, transferencias, confirming, conciliación Norma 43 y previsión.", []),
         new(Divisas, "Divisas", "Tipos de cambio y documentos en otras monedas.", []),
         new(Aprobaciones, "Aprobaciones", "Circuitos de aprobación de documentos.", []),
@@ -66,12 +68,12 @@ public static class CatalogoModulos
         new(EdicionStart, "Start", "Facturación, gastos, cobros y pagos, libros de IVA y exportación para la gestoría.", []),
         new(EdicionGestion, "Gestión", "Start más el ciclo comercial completo: ventas, compras e inventario.",
             [Ventas, Compras, Inventario, Divisas, Aprobaciones, Integraciones]),
-        new(EdicionFinanzas, "Finanzas", "Start más contabilidad completa, inmovilizado y tesorería avanzada.",
-            [Contabilidad, Inmovilizado, TesoreriaAvanzada]),
+        new(EdicionFinanzas, "Finanzas", "Start más contabilidad completa, inmovilizado, analítica con presupuestos y tesorería avanzada.",
+            [Contabilidad, Inmovilizado, Analitica, TesoreriaAvanzada]),
         new(EdicionGestionFinanzas, "Gestión y finanzas", "Gestión y Finanzas juntas.",
-            [Ventas, Compras, Inventario, Divisas, Aprobaciones, Integraciones, Contabilidad, Inmovilizado, TesoreriaAvanzada]),
+            [Ventas, Compras, Inventario, Divisas, Aprobaciones, Integraciones, Contabilidad, Inmovilizado, Analitica, TesoreriaAvanzada]),
         new(EdicionCompleta, "Completa", "Todos los módulos, incluidos producción y proyectos.",
-            [Ventas, Compras, Inventario, Divisas, Aprobaciones, Integraciones, Contabilidad, Inmovilizado, TesoreriaAvanzada,
+            [Ventas, Compras, Inventario, Divisas, Aprobaciones, Integraciones, Contabilidad, Inmovilizado, Analitica, TesoreriaAvanzada,
              Produccion, Personal, Proyectos]),
     ];
 

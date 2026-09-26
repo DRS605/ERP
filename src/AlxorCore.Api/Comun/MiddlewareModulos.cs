@@ -16,6 +16,8 @@ public static class RutasModulos
         new (string Prefijo, string Modulo)[]
         {
             ("/contabilidad/inmovilizado", CatalogoModulos.Inmovilizado),
+            ("/contabilidad/analitica", CatalogoModulos.Analitica),
+            ("/contabilidad/presupuestos", CatalogoModulos.Analitica),
             ("/contabilidad", CatalogoModulos.Contabilidad),
             ("/pedidos-venta", CatalogoModulos.Ventas),
             ("/presupuestos", CatalogoModulos.Ventas),

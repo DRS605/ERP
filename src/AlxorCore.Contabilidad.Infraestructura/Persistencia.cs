@@ -32,6 +32,20 @@ public sealed class ContabilidadDbContext : DbContextEmpresaBase, IUnidadDeTraba
 
     public DbSet<Inmovilizado> Inmovilizados => Set<Inmovilizado>();
 
+    public DbSet<CentroAnalitico> CentrosAnaliticos => Set<CentroAnalitico>();
+
+    public DbSet<PartidaAnalitica> PartidasAnaliticas => Set<PartidaAnalitica>();
+
+    public DbSet<ClaveReparto> ClavesReparto => Set<ClaveReparto>();
+
+    public DbSet<ReglaAnalitica> ReglasAnaliticas => Set<ReglaAnalitica>();
+
+    public DbSet<PeriodoAnalitico> PeriodosAnaliticos => Set<PeriodoAnalitico>();
+
+    public DbSet<ImputacionAnalitica> ImputacionesAnaliticas => Set<ImputacionAnalitica>();
+
+    public DbSet<EjecucionAnalitica> EjecucionesAnaliticas => Set<EjecucionAnalitica>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Esquema);

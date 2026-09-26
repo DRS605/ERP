@@ -33,6 +33,13 @@ public static class RegistroServicios
         servicios.AddScoped<IRepositorioDocumentosPendientes, RepositorioDocumentosPendientes>();
         servicios.AddScoped<IRepositorioReglasContabilizacion, RepositorioReglasContabilizacion>();
 
+        // Analítica: centros y partidas (del grupo), claves de reparto, reglas, periodos e imputaciones.
+        servicios.AddScoped<IRepositorioAnalitica, RepositorioAnalitica>();
+        servicios.AddScoped<ImputadorAnalitico>();
+        servicios.AddScoped<MaestrosAnaliticos>();
+        servicios.AddScoped<ImputacionesAnaliticas>();
+        servicios.AddScoped<InformeAnalitico>();
+
         servicios.AddScoped<ListarCuentas>();
         servicios.AddScoped<CrearAsiento>();
         servicios.AddScoped<ListarDiario>();

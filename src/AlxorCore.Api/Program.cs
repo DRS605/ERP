@@ -253,6 +253,7 @@ app.MapearProyectos();
 app.MapearTesoreria();
 app.MapearCobranza();
 app.MapearImpuestosIndirectos();
+app.MapearAnalitica();
 app.MapearDocumentos();
 app.MapearInformes();
 app.MapearAuditoria();
