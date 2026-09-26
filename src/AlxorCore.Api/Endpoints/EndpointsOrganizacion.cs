@@ -52,6 +52,23 @@ public static class EndpointsOrganizacion
             .WithSummary("Fija el control de riesgo de la empresa (avisar o bloquear al superar el límite).")
             .RequierePermiso(Permisos.EmpresaAjustes);
 
+        empresas.MapGet("/actual/plan", PlanAsync)
+            .WithSummary("Plan contratado de la empresa: edición, módulos adicionales y módulos activos.")
+            .RequireAuthorization();
+
+        empresas.MapPut("/actual/plan", CambiarPlanAsync)
+            .WithSummary("Cambia la edición y los módulos adicionales. Se aplica al volver a seleccionar la empresa.")
+            .RequierePermiso(Permisos.EmpresaAjustes);
+
+        rutas.MapGet("/planes", () => Results.Ok(new
+            {
+                ediciones = AlxorCore.Nucleo.Modulos.CatalogoModulos.Ediciones,
+                modulos = AlxorCore.Nucleo.Modulos.CatalogoModulos.Modulos,
+            }))
+            .WithTags("Organización")
+            .WithSummary("Catálogo de ediciones y módulos contratables.")
+            .AllowAnonymous();
+
         empresas.MapPut("/actual/plantilla", PlantillaAsync)
             .WithSummary("Configura la plantilla de documentos (datos de cabecera, contacto, color, pie y logotipo).")
             .RequierePermiso(Permisos.EmpresaAjustes);
@@ -222,6 +239,26 @@ public static class EndpointsOrganizacion
     }
 
     private static async Task<IResult> MetodoValoracionAsync(MetodoValoracionComando comando, IContextoEmpresa contexto, ActualizarMetodoValoracion caso, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        return (await caso.EjecutarAsync(contexto.EmpresaId.Value, comando, ct).ConfigureAwait(false)).AOk();
+    }
+
+    private static async Task<IResult> PlanAsync(IContextoEmpresa contexto, ConsultarPlan caso, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        return (await caso.EjecutarAsync(contexto.EmpresaId.Value, ct).ConfigureAwait(false)).AOk();
+    }
+
+    private static async Task<IResult> CambiarPlanAsync(CambiarPlanComando comando, IContextoEmpresa contexto, CambiarPlan caso, CancellationToken ct)
     {
         if (contexto.EmpresaId is null)
         {

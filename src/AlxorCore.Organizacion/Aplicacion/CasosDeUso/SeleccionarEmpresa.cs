@@ -44,15 +44,16 @@ public sealed class SeleccionarEmpresa
             return Resultado.Fallo<ResultadoSeleccionEmpresa>(rol.Error);
         }
 
-        var grupoId = await _empresas.ObtenerGrupoIdAsync(empresaId, ct).ConfigureAwait(false);
-        if (grupoId is null)
+        var empresa = await _empresas.ObtenerPorIdAsync(empresaId, ct).ConfigureAwait(false);
+        if (empresa is null || empresa.GrupoId == Guid.Empty)
         {
             return Resultado.Fallo<ResultadoSeleccionEmpresa>(
                 Error.NoEncontrado("empresa.sin_grupo", "La empresa no tiene grupo asignado."));
         }
 
         var permisos = rol.Valor.PermisosConcedidos.ToList();
-        var alcance = new AlcanceEmpresa(empresaId, grupoId.Value, rol.Valor.Codigo, permisos);
+        var plan = empresa.Plan;
+        var alcance = new AlcanceEmpresa(empresaId, empresa.GrupoId, rol.Valor.Codigo, permisos, plan.Edicion, plan.ModulosActivos);
         var token = _tokens.GenerarToken(usuario, alcance);
 
         return Resultado.Ok(new ResultadoSeleccionEmpresa(
@@ -60,6 +61,8 @@ public sealed class SeleccionarEmpresa
             token.ExpiraEn,
             empresaId,
             rol.Valor.Codigo,
-            permisos));
+            permisos,
+            plan.Edicion,
+            plan.ModulosActivos));
     }
 }

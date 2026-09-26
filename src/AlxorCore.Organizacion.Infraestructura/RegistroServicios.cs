@@ -62,6 +62,8 @@ public static class RegistroServicios
         servicios.AddScoped<ActualizarPlantillaDocumento>();
         servicios.AddScoped<ActualizarMetodoValoracion>();
         servicios.AddScoped<ActualizarControlRiesgo>();
+        servicios.AddScoped<ConsultarPlan>();
+        servicios.AddScoped<CambiarPlan>();
         servicios.AddScoped<ListarMisEmpresas>();
         servicios.AddScoped<ObtenerEmpresa>();
         servicios.AddScoped<SeleccionarEmpresa>();

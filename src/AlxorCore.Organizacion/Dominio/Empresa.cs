@@ -1,5 +1,6 @@
 using AlxorCore.Nucleo.Comun;
 using AlxorCore.Nucleo.Dominio;
+using AlxorCore.Nucleo.Modulos;
 using AlxorCore.Nucleo.Resultados;
 using AlxorCore.Nucleo.Tiempo;
 using AlxorCore.Organizacion.Dominio.Eventos;
@@ -67,6 +68,18 @@ public sealed class Empresa : RaizAgregado<Guid>
 
     /// <summary>Cómo actúa ante el exceso de límite de riesgo de un tercero (avisar o bloquear).</summary>
     public ControlRiesgo ControlRiesgo { get; private set; } = ControlRiesgo.Aviso;
+
+    /// <summary>Edición contratada (ver <see cref="CatalogoModulos"/>). Decide qué módulos puede usar la empresa.</summary>
+    public string Edicion { get; private set; } = CatalogoModulos.EdicionPorDefecto;
+
+    /// <summary>Módulos contratados aparte de la edición.</summary>
+    public string[] ModulosAdicionales { get; private set; } = [];
+
+    /// <summary>Plan resuelto: edición, adicionales y módulos activos.</summary>
+    public PlanEmpresa Plan =>
+        CatalogoModulos.Resolver(Edicion, ModulosAdicionales) is { EsCorrecto: true } r
+            ? r.Valor
+            : CatalogoModulos.Resolver(CatalogoModulos.EdicionStart, []).Valor;
 
     // --- Plantilla de documentos (lo que aparece en facturas, tickets y presupuestos) ---
 
@@ -208,6 +221,28 @@ public sealed class Empresa : RaizAgregado<Guid>
         ArgumentNullException.ThrowIfNull(reloj);
         MetodoValoracion = metodo;
         ActualizadoEn = reloj.AhoraUtc;
+    }
+
+    /// <summary>
+    /// Cambia el plan contratado: edición y módulos adicionales. Se valida contra el catálogo
+    /// (códigos existentes y dependencias completas). Los datos de los módulos que dejan de estar
+    /// contratados no se borran: vuelven a estar disponibles si se contratan de nuevo.
+    /// </summary>
+    public Resultado CambiarPlan(string? edicion, IEnumerable<string>? adicionales, IReloj reloj)
+    {
+        ArgumentNullException.ThrowIfNull(reloj);
+        var plan = CatalogoModulos.Resolver(edicion, adicionales);
+        if (plan.EsFallo)
+        {
+            return Resultado.Fallo(plan.Error);
+        }
+
+        var anterior = Plan;
+        Edicion = plan.Valor.Edicion;
+        ModulosAdicionales = [.. plan.Valor.ModulosAdicionales];
+        ActualizadoEn = reloj.AhoraUtc;
+        RegistrarEvento(new PlanEmpresaCambiado(Id, anterior.Edicion, Edicion, [.. plan.Valor.ModulosActivos], reloj.AhoraUtc));
+        return Resultado.Ok();
     }
 
     /// <summary>Fija el control de riesgo de la empresa (avisar o bloquear al superar el límite).</summary>

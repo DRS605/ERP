@@ -204,6 +204,8 @@ app.UseStaticFiles();
 app.UseRateLimiter();
 
 app.UseAuthentication();
+// Plan contratado: antes que la autorización por permisos, para que el motivo del 403 sea claro.
+app.UseMiddleware<AlxorCore.Api.Comun.MiddlewareModulos>();
 app.UseAuthorization();
 
 // Salud: liveness (sin comprobaciones) y readiness (comprueba la base de datos).

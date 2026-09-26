@@ -1,0 +1,74 @@
+# Ediciones y módulos contratables
+
+ALXOR Core se vende por **ediciones** y **módulos sueltos**. Así se puede ofrecer solo la gestión a
+una empresa generalista, solo las finanzas a una asesoría, o todo junto, con el mismo producto.
+
+## Base (incluida siempre)
+
+Identidad y usuarios, empresa y series, clientes y proveedores, productos e impuestos, facturas y
+tickets (incluidas las recurrentes), gastos y buzón de facturas de proveedor, cobros y pagos,
+documentos (PDF y correo), informes (panel, libros de IVA, modelos AEAT, exportación a la gestoría),
+auditoría e importación de datos.
+
+## Ediciones
+
+| Edición | Código | Para quién | Módulos |
+|---|---|---|---|
+| Start | `start` | Autónomos y microempresas | Solo la base |
+| Gestión | `gestion` | Pyme comercial o de servicios | Ventas, Compras, Inventario, Divisas, Aprobaciones, Integraciones |
+| Finanzas | `finanzas` | Empresas con contabilidad propia, asesorías | Contabilidad, Inmovilizado, Tesorería avanzada |
+| Gestión y finanzas | `gestion_finanzas` | Pyme completa | Gestión + Finanzas |
+| Completa | `completa` | Industria y proyectos | Todo, incluidos Producción, Personal y Proyectos |
+
+Cualquier módulo se puede añadir suelto sobre una edición (por ejemplo, Start + Contabilidad).
+
+## Módulos y dependencias
+
+| Módulo | Código | Necesita |
+|---|---|---|
+| Ventas (presupuestos, pedidos, albaranes, cartas de porte) | `ventas` | — |
+| Compras (solicitudes, pedidos, albaranes) | `compras` | — |
+| Inventario | `inventario` | — |
+| Producción | `produccion` | Inventario |
+| Personal (tarifa por hora para imputar mano de obra) | `personal` | — |
+| Proyectos | `proyectos` | Personal |
+| Contabilidad | `contabilidad` | — |
+| Inmovilizado | `inmovilizado` | Contabilidad |
+| Tesorería avanzada (remesas SEPA, confirming, Norma 43, previsión) | `tesoreria_avanzada` | — |
+| Divisas | `divisas` | — |
+| Aprobaciones | `aprobaciones` | — |
+| Integraciones (API pública y webhooks) | `integraciones` | — |
+
+Un plan al que le falta una dependencia se **rechaza** (no se añade sola, porque es de pago):
+*"Producción necesita Inventario."*
+
+## Cómo se aplica
+
+- El plan se guarda en la empresa (`organizacion.empresa.edicion` y `modulos_adicionales`). La base
+  de datos solo admite ediciones y módulos del catálogo (restricciones `CHECK`).
+- Al **seleccionar la empresa**, el token incluye `edicion` y un claim `modulo` por módulo activo.
+  La respuesta de selección los devuelve también, para que la interfaz muestre solo lo contratado.
+- `MiddlewareModulos` rechaza con **403 `modulo.no_contratado`** las rutas de módulos no contratados:
+  *"Tu plan (Gestión) no incluye el módulo Contabilidad. Puedes contratarlo en Ajustes → Plan."*
+  El mapa de rutas está en `RutasModulos`.
+- **Guardián:** el test `ModulosEndpointsTests.Toda_ruta_esta_clasificada` falla si una ruta nueva no
+  está asignada a la base o a un módulo.
+- Cambiar de plan **no borra datos**. Lo de un módulo que se deja de contratar vuelve a verse si se
+  contrata de nuevo.
+- Las empresas existentes y las nuevas tienen la edición **Completa** por defecto, para que nadie
+  pierda nada.
+
+## API
+
+| Método | Ruta | Permiso |
+|---|---|---|
+| `GET` | `/planes` | Público (catálogo de ediciones y módulos, sirve para la página de precios) |
+| `GET` | `/empresas/actual/plan` | Autenticado con empresa |
+| `PUT` | `/empresas/actual/plan` `{ edicion, modulosAdicionales }` | `empresa.ajustes` |
+
+El cambio de plan se aplica a los tokens nuevos: la interfaz vuelve a seleccionar la empresa.
+
+## Pendiente
+
+- Menú de la interfaz filtrado por los módulos del token.
+- Enlazar el cambio de plan con la facturación de la suscripción (hoy lo cambia quien tenga `empresa.ajustes`).

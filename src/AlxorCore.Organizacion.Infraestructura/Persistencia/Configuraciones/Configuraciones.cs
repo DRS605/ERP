@@ -44,6 +44,11 @@ internal sealed class ConfiguracionEmpresa : IEntityTypeConfiguration<Empresa>
         builder.Property(e => e.IdentificadorAcreedor).HasColumnName("identificador_acreedor").HasMaxLength(35);
         builder.Property(e => e.MetodoValoracion).HasColumnName("metodo_valoracion").HasMaxLength(20).HasConversion<string>().IsRequired();
         builder.Property(e => e.ControlRiesgo).HasColumnName("control_riesgo").HasMaxLength(20).HasConversion<string>().IsRequired();
+        builder.Property(e => e.Edicion).HasColumnName("edicion").HasMaxLength(30).IsRequired()
+            .HasDefaultValue(AlxorCore.Nucleo.Modulos.CatalogoModulos.EdicionPorDefecto);
+        builder.Property(e => e.ModulosAdicionales).HasColumnName("modulos_adicionales").HasColumnType("text[]").IsRequired()
+            .HasDefaultValueSql("'{}'::text[]");
+        builder.Ignore(e => e.Plan);
         builder.Property(e => e.Telefono).HasColumnName("telefono").HasMaxLength(40);
         builder.Property(e => e.Web).HasColumnName("web").HasMaxLength(120);
         builder.Property(e => e.EmailContacto).HasColumnName("email_contacto").HasMaxLength(254);

@@ -10,3 +10,7 @@ public sealed record MembresiaCreada(Guid MembresiaId, Guid UsuarioId, Guid Empr
 
 /// <summary>Se ha creado una serie de numeración.</summary>
 public sealed record SerieCreada(Guid SerieId, Guid EmpresaId, string Prefijo, int Ejercicio, DateTimeOffset OcurridoEn) : IEventoDominio;
+
+/// <summary>Ha cambiado el plan contratado de una empresa (edición y módulos activos).</summary>
+public sealed record PlanEmpresaCambiado(
+    Guid EmpresaId, string EdicionAnterior, string EdicionNueva, IReadOnlyList<string> ModulosActivos, DateTimeOffset OcurridoEn) : IEventoDominio;

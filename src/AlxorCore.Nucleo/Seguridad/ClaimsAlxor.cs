@@ -14,4 +14,10 @@ public static class ClaimsAlxor
 
     /// <summary>Permiso concedido (puede aparecer varias veces, uno por permiso).</summary>
     public const string Permiso = "permiso";
+
+    /// <summary>Edición contratada por la empresa activa. Si falta, el token no restringe módulos.</summary>
+    public const string Edicion = "edicion";
+
+    /// <summary>Módulo contratado (puede aparecer varias veces, uno por módulo).</summary>
+    public const string Modulo = "modulo";
 }

@@ -168,6 +168,7 @@ dotnet ef migrations add <Nombre> \
 | **Informes** (dashboard, libros de IVA, gestoría, beneficio) | ✅ Terminado |
 | **Auditoría** (registro de quién hizo qué y cuándo) | ✅ Terminado |
 | **Cuenta / RGPD** (exportación y borrado de datos, páginas legales) | ✅ Terminado |
+| **Ediciones y módulos** (Start, Gestión, Finanzas, Gestión y finanzas, Completa; módulos sueltos; 403 claro si no está contratado) | ✅ Terminado |
 
 **MVP completo**: los módulos están terminados (dominio · API · persistencia · tests · docs). El
 desarrollo ha avanzado **módulo a módulo**, cada uno entregado por completo antes del siguiente.
@@ -183,3 +184,6 @@ desarrollo ha avanzado **módulo a módulo**, cada uno entregado por completo an
 6. `GET /informes/dashboard`, `GET /informes/libro-iva`, `GET /informes/libro-iva/csv`.
 
 Documentación por módulo en [`docs/modulos/`](docs/modulos/).
+
+Plan de producto (ediciones, comparación con ERP generalistas, garantías de datos y vertical agrícola):
+[`docs/plan-producto.md`](docs/plan-producto.md).

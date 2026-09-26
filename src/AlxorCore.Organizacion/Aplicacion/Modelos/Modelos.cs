@@ -47,4 +47,13 @@ public sealed record ResultadoSeleccionEmpresa(
     DateTimeOffset ExpiraEn,
     Guid EmpresaId,
     string RolCodigo,
-    IReadOnlyCollection<string> Permisos);
+    IReadOnlyCollection<string> Permisos,
+    string Edicion,
+    IReadOnlyCollection<string> Modulos);
+
+/// <summary>Plan contratado de la empresa: edición, módulos añadidos aparte y módulos activos.</summary>
+public sealed record PlanDto(string Edicion, IReadOnlyList<string> ModulosAdicionales, IReadOnlyList<string> ModulosActivos)
+{
+    public static PlanDto Desde(AlxorCore.Nucleo.Modulos.PlanEmpresa plan) =>
+        new(plan.Edicion, plan.ModulosAdicionales, plan.ModulosActivos);
+}
