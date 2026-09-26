@@ -445,10 +445,23 @@
       { t:"item", k:"ajustes", l:"Ajustes" },
     ];
     const TITULOS = { inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", gestion:"Análisis de gestión", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", divisas:"Divisas y tipos de cambio", aprobaciones:"Aprobaciones y control de firmas", integraciones:"API pública y webhooks", ajustes:"Ajustes" };
+    // Plan contratado de la empresa activa (lo devuelve /empresas/{id}/seleccionar).
+    let plan = null;
+    // Vista → módulo contratable que necesita. Las vistas que no están aquí son de la base.
+    const MODULO_VISTA = { presupuestos:"ventas", pedidosventa:"ventas", remesas:"tesoreria_avanzada",
+      solicitudes:"compras", pedidos:"compras", conciliacion:"tesoreria_avanzada", inventario:"inventario",
+      produccion:"produccion", personal:"personal", proyectos:"proyectos", prevision:"tesoreria_avanzada",
+      contabilidad:"contabilidad", inmovilizado:"inmovilizado", divisas:"divisas", aprobaciones:"aprobaciones",
+      integraciones:"integraciones" };
+    const NOMBRE_MODULO = { ventas:"Ventas", compras:"Compras", inventario:"Inventario", produccion:"Producción",
+      personal:"Personal", proyectos:"Proyectos", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado",
+      tesoreria_avanzada:"Tesorería avanzada", divisas:"Divisas", aprobaciones:"Aprobaciones", integraciones:"Integraciones" };
+    // Sin plan en el token (tokens antiguos) no se oculta nada.
+    const contratado = k => !plan || !plan.edicion || !MODULO_VISTA[k] || plan.modulos.has(MODULO_VISTA[k]);
     function renderNav() {
-      return NAV.map(n => {
+      return NAV.filter(n => n.t === "item" ? contratado(n.k) : n.items.some(([k]) => contratado(k))).map(n => {
         if (n.t === "item") return `<a class="navitem" data-k="${n.k}" onclick="ir('${n.k}')">${ICON[n.k]}<span>${n.l}</span></a>`;
-        const links = n.items.map(([k,l]) => `<a class="navsub" data-k="${k}" onclick="ir('${k}')"><span>${l}</span></a>`).join("");
+        const links = n.items.filter(([k]) => contratado(k)).map(([k,l]) => `<a class="navsub" data-k="${k}" onclick="ir('${k}')"><span>${l}</span></a>`).join("");
         return `<div class="navgroup" data-g="${n.k}"><div class="navhead" onclick="toggleGrupo('${n.k}')">${ICON[n.k]}<span>${n.l}</span><svg class="chev" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6"/></svg></div><div class="subnav">${links}</div></div>`;
       }).join("");
     }
@@ -485,7 +498,7 @@
     }
     async function activarEmpresa(emp){
       const sel=await api("/empresas/"+emp.id+"/seleccionar",{method:"POST"});
-      token=sel.token; empresa=emp; arrancar();
+      token=sel.token; empresa=emp; plan={ edicion: sel.edicion||null, modulos: new Set(sel.modulos||[]) }; arrancar();
     }
     async function modalEmpresas(){
       const lista=await api("/empresas");
@@ -547,6 +560,8 @@
     function ir(k){ closeMenu(); if(vista==="tpv" && k!=="tpv" && typeof tpvParar==="function") tpvParar(); vista=k;
       document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("active",a.dataset.k===k));
       document.getElementById("viewTitle").textContent=TITULOS[k]||k;
+      if(!contratado(k)){ const m=NOMBRE_MODULO[MODULO_VISTA[k]]||MODULO_VISTA[k];
+        view(panel("No incluido en tu plan",`<p class="muted" style="margin:0 0 14px">Esta pantalla forma parte del módulo <strong>${m}</strong>, que tu plan no incluye.</p><button class="btn small" onclick="ir('ajustes')">Ver planes en Ajustes →</button>`)); return; }
       ({inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:vPedidosVenta,clientes:vClientes,productos:vProductos,familias:vFamilias,gastos:vGastos,solicitudes:vSolicitudes,pedidos:vPedidos,inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,gestion:vGestion,contabilidad:vContabilidad,inmovilizado:vInmovilizado,divisas:vDivisas,aprobaciones:vAprobaciones,integraciones:vIntegraciones,ajustes:vAjustes}[k])();
     }
     const view = h => { document.getElementById("view").innerHTML=h; try{ mejorarTablas(); }catch(e){} };
@@ -2660,7 +2675,40 @@
       try{ panelValoracion=await panelValoracionHtml(); }catch(e){ panelValoracion=""; }
       let panelPlantilla="";
       try{ panelPlantilla=await panelPlantillaHtml(); }catch(e){ panelPlantilla=""; }
-      view(panelSeries+panelAsig+panelPlantilla+panelFormas+panelRiesgo+panelImport+panelValoracion+panelCobroHtml()+panelUsuarios+panelSeguridad+panelDatosHtml()+panelAudit);
+      let panelPlan="";
+      try{ panelPlan=await panelPlanHtml(); }catch(e){ panelPlan=""; }
+      view(panelPlan+panelSeries+panelAsig+panelPlantilla+panelFormas+panelRiesgo+panelImport+panelValoracion+panelCobroHtml()+panelUsuarios+panelSeguridad+panelDatosHtml()+panelAudit);
+    }
+    async function panelPlanHtml(){
+      const [actual, cat]=await Promise.all([api("/empresas/actual/plan"), api("/planes")]);
+      const activos=new Set(actual.modulosActivos||[]);
+      const ed=cat.ediciones.find(e=>e.codigo===actual.edicion);
+      const opciones=cat.ediciones.map(e=>`<option value="${e.codigo}" ${e.codigo===actual.edicion?"selected":""}>${e.nombre} — ${e.descripcion}</option>`).join("");
+      const mods=cat.modulos.map(m=>{ const enEd=(cat.ediciones.find(e=>e.codigo===actual.edicion)?.modulos||[]).includes(m.codigo);
+        const req=m.requiere.length?` <small class="muted">(necesita ${m.requiere.map(r=>NOMBRE_MODULO[r]||r).join(", ")})</small>`:"";
+        return `<label style="display:flex;gap:8px;align-items:flex-start;margin:6px 0;font-weight:500"><input type="checkbox" class="pl_mod" value="${m.codigo}" ${activos.has(m.codigo)?"checked":""} ${enEd?"disabled":""} style="width:auto;margin-top:3px"/>
+          <span><strong>${m.nombre}</strong>${enEd?' <span class="pill ok">en tu edición</span>':""}${req}<br><small class="muted">${m.descripcion}</small></span></label>`; }).join("");
+      const cuerpo=`<p class="muted" style="margin:0 0 12px">Tu edición es <strong>${ed?ed.nombre:actual.edicion}</strong>. La base (facturación, gastos, cobros y pagos, libros de IVA e informes) va siempre incluida. Puedes cambiar de edición o añadir módulos sueltos.</p>
+        <label>Edición</label><select id="pl_edicion" onchange="planEdicionCambiada()">${opciones}</select>
+        <div style="margin-top:12px">${mods}</div>
+        <button class="btn small" style="margin-top:12px" onclick="guardarPlan()">Guardar plan</button>`;
+      return panel("Plan contratado",cuerpo);
+    }
+    async function planEdicionCambiada(){
+      const cat=await api("/planes"); const ed=cat.ediciones.find(e=>e.codigo===val("pl_edicion"));
+      document.querySelectorAll(".pl_mod").forEach(c=>{ const enEd=(ed?.modulos||[]).includes(c.value); c.disabled=enEd; if(enEd) c.checked=true; });
+    }
+    async function guardarPlan(){
+      try{
+        const ed=val("pl_edicion");
+        const adicionales=[...document.querySelectorAll(".pl_mod")].filter(c=>c.checked && !c.disabled).map(c=>c.value);
+        await api("/empresas/actual/plan",{method:"PUT",body:JSON.stringify({edicion:ed,modulosAdicionales:adicionales})});
+        // El plan va en el token: se vuelve a seleccionar la empresa para aplicarlo.
+        const sel=await api("/empresas/"+empresa.id+"/seleccionar",{method:"POST"});
+        token=sel.token; plan={ edicion: sel.edicion||null, modulos: new Set(sel.modulos||[]) };
+        document.getElementById("nav").innerHTML=renderNav();
+        toast("Plan actualizado.","ok"); ir("ajustes");
+      }catch(e){ toast(e.message,"err"); }
     }
     async function panelSeguridadHtml(){
       const e=await api("/auth/2fa").catch(()=>({activo:false,codigosRecuperacionPendientes:0}));

@@ -41,7 +41,7 @@ export function ProveedorAuth({ children }: { children: ReactNode }) {
       const sel = await api.post<SeleccionRespuesta>(`/empresas/${emp.id}/seleccionar`);
       const u = sesion.usuario ?? usuario;
       if (!u) throw new Error("Sesión no iniciada.");
-      sesion.guardar({ token: sel.token, usuario: u, empresa: emp });
+      sesion.guardar({ token: sel.token, usuario: u, empresa: emp, plan: { edicion: sel.edicion ?? null, modulos: sel.modulos ?? [] } });
       setUsuario(u);
       setEmpresa(emp);
     }

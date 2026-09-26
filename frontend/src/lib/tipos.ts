@@ -21,6 +21,10 @@ export interface LoginRespuesta {
 
 export interface SeleccionRespuesta {
   token: string;
+  /** Edición contratada; null en tokens sin plan. */
+  edicion?: string | null;
+  /** Módulos contratados activos. */
+  modulos?: string[];
 }
 
 export interface Cliente {

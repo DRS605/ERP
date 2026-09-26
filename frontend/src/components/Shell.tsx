@@ -1,13 +1,16 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { useState } from "react";
 import { useAuth } from "../lib/auth";
+import { contratado } from "../lib/plan";
+import { sesion } from "../lib/sesion";
 
-const NAV: { a: string; etiqueta: string }[] = [
+/** Menú. `modulo`: módulo contratable que necesita (sin él, es de la base). */
+const NAV: { a: string; etiqueta: string; modulo?: string }[] = [
   { a: "/inicio", etiqueta: "Inicio" },
   { a: "/clientes", etiqueta: "Clientes" },
   { a: "/actividades", etiqueta: "Actividades" },
   { a: "/facturas", etiqueta: "Facturas" },
-  { a: "/cartas-porte", etiqueta: "Cartas de porte" },
+  { a: "/cartas-porte", etiqueta: "Cartas de porte", modulo: "ventas" },
   { a: "/tipos-iva", etiqueta: "Tipos de IVA" },
 ];
 
@@ -34,7 +37,7 @@ export function Shell() {
           {abierto && <strong style={{ color: "var(--navy)" }}>ALXOR Core</strong>}
         </div>
         <nav style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          {NAV.map((n) => (
+          {NAV.filter((n) => contratado(n.modulo, sesion.plan)).map((n) => (
             <NavLink
               key={n.a}
               to={n.a}

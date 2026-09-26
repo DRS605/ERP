@@ -7,6 +7,8 @@ interface SesionGuardada {
   token: string;
   usuario: Usuario;
   empresa: Empresa;
+  /** Plan de la empresa activa (edición y módulos). Sin edición no se restringe nada. */
+  plan?: { edicion: string | null; modulos: string[] };
 }
 
 let actual: SesionGuardada | null = leer();
@@ -29,6 +31,9 @@ export const sesion = {
   },
   get empresa(): Empresa | null {
     return actual?.empresa ?? null;
+  },
+  get plan(): { edicion: string | null; modulos: string[] } | null {
+    return actual?.plan ?? null;
   },
   guardar(datos: SesionGuardada) {
     actual = datos;
