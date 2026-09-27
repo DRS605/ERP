@@ -98,6 +98,7 @@ public sealed class AlbaranVenta : RaizAgregadoEmpresa<Guid>
 
         AnuladoEn = reloj.AhoraUtc;
         MotivoAnulacion = string.IsNullOrWhiteSpace(motivo) ? null : motivo.Trim()[..Math.Min(motivo.Trim().Length, 200)];
+        RegistrarEvento(new AlbaranVentaAnulado(Id, EmpresaId, NumeroCompleto, MotivoAnulacion, reloj.AhoraUtc));
         return Resultado.Ok();
     }
 
@@ -117,6 +118,7 @@ public sealed class AlbaranVenta : RaizAgregadoEmpresa<Guid>
             albaran._lineas.Add(new LineaAlbaranVenta(Guid.NewGuid(), l.LineaPedidoId, l.ProductoId, l.Descripcion?.Trim() ?? string.Empty, l.Cantidad));
         }
 
+        albaran.RegistrarEvento(new AlbaranVentaEmitido(albaran.Id, empresaId, pedidoId, clienteId, reloj.AhoraUtc));
         return Resultado.Ok(albaran);
     }
 }

@@ -277,4 +277,63 @@ public sealed class IntragrupoTests : IClassFixture<FabricaApiPruebas>
         c.Correspondencias.Should().BeEmpty();
         Cuenta(c, "552", l => l.Consolidado).Should().Be(1_000m);
     }
+
+    private sealed record LineaCompraResp(Guid Id, decimal Cantidad, decimal PrecioUnitario, decimal CantidadRecibida);
+    private sealed record PedidoCompraResp(Guid Id, string Estado, Guid? ProveedorId, Guid? AlbaranVentaOrigenId, List<LineaCompraResp> Lineas);
+    private sealed record AlbaranCompraResp(Guid Id, Guid? AlmacenId, bool Anulado);
+    private sealed record ExistenciaResp(Guid ProductoId, decimal Cantidad);
+    private sealed record LineaPvResp(Guid Id);
+    private sealed record PedidoVentaResp(Guid Id, List<LineaPvResp> Lineas);
+
+    [Fact]
+    public async Task El_albaran_a_otra_empresa_del_grupo_da_entrada_en_su_almacen_y_se_deshace_al_anularlo()
+    {
+        var g = await GrupoAsync();
+        (await g.Api.PutAsJsonAsync("/empresas/actual/plan", new { Edicion = "completa" })).EnsureSuccessStatusCode();
+        var naranja = (await (await g.Api.PostAsJsonAsync("/productos", new { Nombre = "Naranja", PrecioUnitario = 1.2m, Tipo = "Bien", Unidad = "kg" }))
+            .Content.ReadFromJsonAsync<IdResp>())!.Id;
+
+        // B tiene un almacén (el único activo: ahí entra el traspaso).
+        await SeleccionarAsync(g.Api, g.B);
+        (await g.Api.PutAsJsonAsync("/empresas/actual/plan", new { Edicion = "completa" })).EnsureSuccessStatusCode();
+        await SeleccionarAsync(g.Api, g.B);
+        var almacen = await IdAsync(g.Api, "/inventario/almacenes", new { Codigo = "CENTRAL", Nombre = "Almacén central" });
+
+        // A entrega 100 kg a B contra su pedido de venta.
+        await SeleccionarAsync(g.Api, g.A);
+        var pv = (await (await g.Api.PostAsJsonAsync("/pedidos-venta", new
+        {
+            ClienteId = g.ClienteB, Lineas = new[] { new { Descripcion = "Naranja", Cantidad = 100m, PrecioUnitario = 1.25m, ProductoId = naranja, PorcentajeDescuento = 4m } },
+        })).Content.ReadFromJsonAsync<PedidoVentaResp>())!;
+        (await g.Api.PostAsync(new Uri($"/pedidos-venta/{pv.Id}/confirmar", UriKind.Relative), null)).EnsureSuccessStatusCode();
+        var albaran = await IdAsync(g.Api, $"/pedidos-venta/{pv.Id}/entregar", new { Lineas = new[] { new { LineaPedidoId = pv.Lineas[0].Id, Cantidad = 100m } } });
+
+        // En B: pedido de compra recibido (proveedor = A, precio neto 1,20) y los 100 kg en el almacén.
+        await SeleccionarAsync(g.Api, g.B);
+        var pc = (await g.Api.GetFromJsonAsync<List<PedidoCompraResp>>("/compras/pedidos"))!.Single(p => p.AlbaranVentaOrigenId == albaran);
+        pc.Estado.Should().Be("Recibido");
+        pc.ProveedorId.Should().NotBeNull();
+        pc.Lineas.Single().Should().Match<LineaCompraResp>(l => l.Cantidad == 100m && l.CantidadRecibida == 100m && l.PrecioUnitario == 1.2m);
+        (await g.Api.GetFromJsonAsync<List<AlbaranCompraResp>>($"/compras/pedidos/{pc.Id}/albaranes"))!.Single().AlmacenId.Should().Be(almacen);
+        (await g.Api.GetFromJsonAsync<List<ExistenciaResp>>($"/inventario/stock/almacen/{almacen}"))!.Single(e => e.ProductoId == naranja).Cantidad.Should().Be(100m);
+
+        // No se factura desde compras: la factura llega a la bandeja.
+        var fact = await g.Api.PostAsJsonAsync($"/compras/pedidos/{pc.Id}/facturar", new { });
+        fact.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await fact.Content.ReadFromJsonAsync<ProblemaResp>())!.Codigo.Should().Be("pedido.intragrupo");
+
+        // Ni se anula su albarán desde B: se deshace desde el albarán de venta de A.
+        var albCompra = (await g.Api.GetFromJsonAsync<List<AlbaranCompraResp>>($"/compras/pedidos/{pc.Id}/albaranes"))!.Single();
+        var anulB = await g.Api.PostAsJsonAsync($"/compras/pedidos/{pc.Id}/albaranes/{albCompra.Id}/anular", new { Motivo = "Prueba" });
+        anulB.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await anulB.Content.ReadFromJsonAsync<ProblemaResp>())!.Codigo.Should().Be("albaran.intragrupo");
+
+        // A anula su albarán: en B la recepción se anula, la mercancía sale del almacén y el pedido se cancela.
+        await SeleccionarAsync(g.Api, g.A);
+        (await g.Api.PostAsJsonAsync($"/pedidos-venta/{pv.Id}/albaranes/{albaran}/anular", new { Motivo = "No salió" })).EnsureSuccessStatusCode();
+        await SeleccionarAsync(g.Api, g.B);
+        (await g.Api.GetFromJsonAsync<List<PedidoCompraResp>>("/compras/pedidos"))!.Single(p => p.Id == pc.Id).Estado.Should().Be("Cancelado");
+        (await g.Api.GetFromJsonAsync<List<AlbaranCompraResp>>($"/compras/pedidos/{pc.Id}/albaranes"))!.Single().Anulado.Should().BeTrue();
+        (await g.Api.GetFromJsonAsync<List<ExistenciaResp>>($"/inventario/stock/almacen/{almacen}"))!.Where(e => e.ProductoId == naranja).Sum(e => e.Cantidad).Should().Be(0m);
+    }
 }

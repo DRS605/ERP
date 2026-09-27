@@ -103,8 +103,33 @@ prestamista y 5133 en la prestataria.
 - Las ventas, compras y saldos de clientes y proveedores entre empresas ya se eliminan solos: no hace falta
   emparejarlos.
 
-## 6. Pendiente
+## 6. Traspaso de existencias
+
+Cuando una empresa entrega mercancía a otra del grupo (albarán de venta a un cliente enlazado), la receptora recibe
+la mercancía sola:
+
+1. Se crea en la receptora un **pedido de compra confirmado**:
+   - proveedor: el enlazado con la empresa de origen;
+   - líneas: las del albarán, al precio del pedido de venta con su descuento aplicado (precio neto).
+2. Se registra su **albarán de recepción**, con la referencia «Albarán N de …».
+3. Hay **entrada en el almacén** activo de la receptora con el código más bajo. Si no tiene almacén, se registra el
+   albarán sin movimiento de existencias.
+4. El pedido lleva la marca **Traspaso intragrupo**. No se factura desde compras (409 `pedido.intragrupo`): la factura
+   llega a la bandeja de facturas recibidas cuando la emisora factura (§ 2).
+5. Es **idempotente**: un albarán de venta solo genera un pedido (índice único `ux_pedido_compra_albaran_origen`).
+
+Al **anular el albarán de venta** en la empresa de origen:
+
+- en la receptora se anula el albarán de compra;
+- la mercancía sale del almacén;
+- el pedido se cancela.
+
+Si la receptora ya ha consumido esas existencias, la anulación se rechaza (`albaran.existencias_usadas`) y no se
+deshace nada. El albarán de compra del traspaso no se anula desde la receptora (409 `albaran.intragrupo`).
+
+## 7. Pendiente
 
 - Patrimonio de socios externos y eliminación inversión-patrimonio neto (la consolidación da el resultado atribuido,
   no la eliminación de la participación en el capital).
-- Albarán de compra nacido del albarán de venta intragrupo, con traspaso de existencias entre empresas.
+- Traspaso a un almacén elegido por la receptora (hoy entra en el de código más bajo) y traspasos parciales por
+  líneas.

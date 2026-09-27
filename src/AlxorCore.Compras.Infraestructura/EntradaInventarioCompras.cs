@@ -1,6 +1,7 @@
 using AlxorCore.Catalogo.Aplicacion;
 using AlxorCore.Compras.Aplicacion;
 using AlxorCore.Inventario.Aplicacion;
+using AlxorCore.Nucleo.Resultados;
 
 namespace AlxorCore.Compras.Infraestructura;
 
@@ -39,5 +40,17 @@ internal sealed class EntradaInventarioCompras : IEntradaInventarioCompras
         await _movimientos.EntradaAsync(empresaId,
             new MovimientoComando(productoId, almacenId, cantidadBase, ubicacionId, fecha, "Recepción de compra", referencia, string.IsNullOrWhiteSpace(lote) ? null : lote.Trim(), costeBase), ct)
             .ConfigureAwait(false);
+    }
+
+    public async Task<Resultado> RegistrarSalidaAsync(Guid empresaId, Guid productoId, Guid almacenId, Guid? proveedorId, decimal cantidad, string? referencia, DateOnly fecha,
+        CancellationToken ct = default)
+    {
+        var producto = await _productos.ObtenerAsync(productoId, ct).ConfigureAwait(false);
+        var factor = (producto is not null && producto.FactorCompra > 0m) ? producto.FactorCompra : 1m;
+        var ubicacionId = await _ubicaciones.ResolverAsync(empresaId, productoId, almacenId, proveedorId, ct).ConfigureAwait(false);
+        var r = await _movimientos.SalidaAsync(empresaId,
+            new MovimientoComando(productoId, almacenId, Math.Round(cantidad * factor, 3, MidpointRounding.AwayFromZero), ubicacionId, fecha, "Anulación de recepción", referencia), ct)
+            .ConfigureAwait(false);
+        return r.EsFallo ? Resultado.Fallo(r.Error) : Resultado.Ok();
     }
 }

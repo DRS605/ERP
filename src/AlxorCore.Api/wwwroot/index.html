@@ -1621,16 +1621,31 @@
       const ps=await api("/compras/pedidos");
       const acc=p=>{
         const b=[];
+        const recibido=p.lineas.some(l=>l.cantidadRecibida>0);
+        if(p.albaranVentaOrigenId){ if(recibido) b.push(`<button class="btn small secondary" onclick="modalAlbaranesCompra('${p.id}')">Albaranes</button>`); return b.join(" "); }
+        if(recibido) b.push(`<button class="btn small secondary" onclick="modalAlbaranesCompra('${p.id}')">Albaranes</button>`);
         if((p.estado==="Borrador"||p.estado==="Confirmado")&&p.lineas.every(l=>!l.cantidadRecibida&&!l.cantidadFacturada)) b.push(`<button class="btn small secondary" onclick="editarPedidoCompra('${p.id}')">Editar</button>`);
         if(p.estado==="Borrador") b.push(`<button class="btn small secondary" onclick="accionPedido('${p.id}','confirmar')">Confirmar</button>`);
         if(p.estado==="Confirmado"||p.estado==="Recibido"){ b.push(`<button class="btn small secondary" onclick="modalRecibir('${p.id}')">Recibir</button>`); b.push(`<button class="btn small" style="width:auto;margin:0;padding:9px 14px" onclick="modalFacturarPedido('${p.id}')">Facturar</button>`); }
         if(p.estado!=="Facturado"&&p.estado!=="Cancelado") b.push(`<button class="btn small ghost" onclick="accionPedido('${p.id}','cancelar')" title="Cancelar">✕</button>`);
         return b.join(" ");
       };
-      const filas=ps.map(p=>`<tr><td><strong>${p.proveedorTexto}</strong><div class="muted" style="font-size:12px">Pedido nº ${p.numeroCompleto} · ${fdate(p.fecha)} · ${p.lineas.length} línea(s)${p.recibidoCompleto?' · recibido':''}</div></td><td class="num">${eur(p.total)}</td><td class="right">${estadoPillCompra(p.estado)}</td><td class="right" style="white-space:nowrap">${acc(p)}</td></tr>`).join("");
+      const filas=ps.map(p=>`<tr><td><strong>${p.proveedorTexto}</strong><div class="muted" style="font-size:12px">Pedido nº ${p.numeroCompleto} · ${fdate(p.fecha)} · ${p.lineas.length} línea(s)${p.recibidoCompleto?' · recibido':''}</div>${p.albaranVentaOrigenId?`<span class="pill" style="font-size:10px" title="Lo generó el albarán de venta de otra empresa del grupo; la factura llega a la bandeja de facturas recibidas">Traspaso intragrupo</span>`:''}</td><td class="num">${eur(p.total)}</td><td class="right">${estadoPillCompra(p.estado)}</td><td class="right" style="white-space:nowrap">${acc(p)}</td></tr>`).join("");
       const tabla=ps.length?`<table><thead><tr><th>Proveedor</th><th class="num">Total</th><th class="right">Estado</th><th class="right">Acciones</th></tr></thead><tbody>${filas}</tbody></table>`
         :vacio("compras","Sin pedidos de compra","Crea un pedido a proveedor (o conviértelo desde una solicitud aprobada).",`<button class="btn small" onclick="modalPedido()">+ Nuevo pedido</button>`);
       view(panel("Pedidos de compra",tabla,`<button class="btn small" onclick="modalPedido()">+ Nuevo pedido</button>`));
+    }
+    async function modalAlbaranesCompra(id){
+      const [p,als]=await Promise.all([api("/compras/pedidos/"+id),api(`/compras/pedidos/${id}/albaranes`)]);
+      const filas=als.map(a=>`<tr><td><strong>${agEsc(a.numeroCompleto)}</strong>${a.referencia?`<div class="muted" style="font-size:12px">${agEsc(a.referencia)}</div>`:''}</td><td class="muted">${fdate(a.fecha)}</td><td class="muted" style="font-size:12px">${a.lineas.map(l=>`${agEsc(l.descripcion)} × ${Number(l.cantidad).toLocaleString("es-ES")}`).join("<br>")}</td>
+        <td class="right">${a.anulado?`<span class="pill" title="${agEsc(a.motivoAnulacion||'')}">Anulado</span>`:(p.albaranVentaOrigenId||p.estado==="Facturado"?'':`<button class="btn small ghost" onclick="anularAlbaranCompra('${id}','${a.id}')">Anular</button>`)}</td></tr>`).join("");
+      abrir("Albaranes del pedido "+p.numeroCompleto,(p.albaranVentaOrigenId?`<p class="muted" style="margin:0 0 10px">Traspaso de otra empresa del grupo: se anula anulando su albarán de venta en la empresa de origen.</p>`:`<p class="muted" style="margin:0 0 10px">Anular un albarán saca del almacén lo que entró y deja la cantidad otra vez pendiente de recibir.</p>`)
+        +(als.length?`<table><thead><tr><th>Albarán</th><th>Fecha</th><th>Líneas</th><th class="right"></th></tr></thead><tbody>${filas}</tbody></table>`:'<p class="muted">Sin albaranes.</p>'),null);
+      document.getElementById("modalOk").style.display="none";
+    }
+    async function anularAlbaranCompra(pedidoId,albaranId){
+      const motivo=prompt("Motivo de la anulación del albarán:"); if(motivo===null) return;
+      try{ await api(`/compras/pedidos/${pedidoId}/albaranes/${albaranId}/anular`,{method:"POST",body:JSON.stringify({motivo})}); toast("Albarán anulado.","ok"); cerrarModal(); vPedidos(); }catch(e){ toast(e.message,"err"); }
     }
     async function editarPedidoCompra(id){
       const p=await api("/compras/pedidos/"+id);

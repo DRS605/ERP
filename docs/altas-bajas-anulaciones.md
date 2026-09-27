@@ -57,6 +57,7 @@ son **del grupo**: los usan documentos de cualquiera de sus empresas, que la RLS
 | Efectos de cartera | — | — | Anular si no tiene cobros ni pagos vivos |
 | Palés (agro) | Reabrir si está cerrado | — | **Anular la expedición**: vuelve a cerrado |
 | Albaranes de venta | — | — | Anular si el pedido no está facturado: lo servido vuelve a quedar pendiente |
+| Albaranes de compra | — | — | Anular si el pedido no está facturado: sale del almacén lo que entró (si sigue allí) y vuelve a quedar pendiente de recibir; el de un traspaso intragrupo se anula desde el albarán de venta de origen |
 | Cartas de porte (pantalla nueva: alta, PDF, anular) | — | — | Anular con motivo (el número queda usado) |
 | Movimientos de almacén, ajustes de partida, envases | — | — | Se corrigen con el movimiento contrario |
 

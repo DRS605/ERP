@@ -52,6 +52,8 @@ public sealed class LineaPedido
 
     internal void Recibir(decimal cantidad) => CantidadRecibida = Math.Round(CantidadRecibida + cantidad, 3, MidpointRounding.AwayFromZero);
 
+    internal void DeshacerRecepcion(decimal cantidad) => CantidadRecibida = Math.Max(0m, Math.Round(CantidadRecibida - cantidad, 3, MidpointRounding.AwayFromZero));
+
     internal void Facturar() => CantidadFacturada = Cantidad;
 }
 
@@ -100,6 +102,47 @@ public sealed class PedidoCompra : RaizAgregadoEmpresa<Guid>
     public string NumeroCompleto => Serie is { Length: > 0 } ? $"{Serie}{Ejercicio}/{Numero:D5}" : Numero.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
     public Guid? SolicitudOrigenId { get; private set; }
+
+    /// <summary>Empresa del grupo que vende (traspaso intragrupo): el pedido nace de su albarán de venta.</summary>
+    public Guid? EmpresaOrigenId { get; private set; }
+
+    /// <summary>Albarán de venta de la empresa del grupo del que nace este pedido (traspaso de existencias).</summary>
+    public Guid? AlbaranVentaOrigenId { get; private set; }
+
+    /// <summary>Marca el pedido como traspaso desde otra empresa del grupo (solo en borrador).</summary>
+    public Resultado MarcarTraspasoIntragrupo(Guid empresaOrigenId, Guid albaranVentaId)
+    {
+        if (Estado is not EstadoPedido.Borrador)
+        {
+            return Resultado.Fallo(Error.Conflicto("pedido.estado", "Solo un pedido en borrador se marca como traspaso."));
+        }
+
+        EmpresaOrigenId = empresaOrigenId;
+        AlbaranVentaOrigenId = albaranVentaId;
+        return Resultado.Ok();
+    }
+
+    /// <summary>Deshace una recepción (se anuló su albarán). Un pedido facturado no se toca.</summary>
+    public Resultado DeshacerRecepcion(IReadOnlyList<(Guid LineaId, decimal Cantidad)> recepciones)
+    {
+        ArgumentNullException.ThrowIfNull(recepciones);
+        if (Estado is EstadoPedido.Facturado)
+        {
+            return Resultado.Fallo(Error.Conflicto("pedido.facturado", "El pedido ya está facturado: no se deshace su recepción."));
+        }
+
+        foreach (var (lineaId, cantidad) in recepciones)
+        {
+            _lineas.SingleOrDefault(l => l.Id == lineaId)?.DeshacerRecepcion(cantidad);
+        }
+
+        if (Estado is EstadoPedido.Recibido && _lineas.All(l => l.CantidadRecibida == 0m))
+        {
+            Estado = EstadoPedido.Confirmado;
+        }
+
+        return Resultado.Ok();
+    }
 
     public EstadoPedido Estado { get; private set; }
 
@@ -250,6 +293,12 @@ public sealed class PedidoCompra : RaizAgregadoEmpresa<Guid>
         if (Estado is not (EstadoPedido.Confirmado or EstadoPedido.Recibido))
         {
             return Resultado.Fallo<decimal>(Error.Conflicto("pedido.no_confirmado", "Confirma el pedido antes de facturarlo."));
+        }
+
+        if (AlbaranVentaOrigenId is not null)
+        {
+            return Resultado.Fallo<decimal>(Error.Conflicto("pedido.intragrupo",
+                "Es un traspaso de otra empresa del grupo: su factura llega a la bandeja de facturas recibidas; contabilízala allí."));
         }
 
         foreach (var l in _lineas)

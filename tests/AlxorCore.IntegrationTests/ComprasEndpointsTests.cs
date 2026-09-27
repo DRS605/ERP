@@ -133,13 +133,24 @@ public sealed class ComprasEndpointsTests : IClassFixture<FabricaApiPruebas>
             Lineas = new[] { new { LineaPedidoId = pedido.Lineas[0].Id, Cantidad = 30m } },
         });
         recibir.StatusCode.Should().Be(HttpStatusCode.Created);
-        (await recibir.Content.ReadFromJsonAsync<AlbaranResp>())!.Numero.Should().Be(1);
+        var albaran = (await recibir.Content.ReadFromJsonAsync<AlbaranResp>())!;
+        albaran.Numero.Should().Be(1);
 
         var stock = await cliente.GetFromJsonAsync<List<ExistenciaResp>>($"/inventario/stock/producto/{producto}");
         var existencia = stock!.Single(s => s.AlmacenId == almacen.Id && s.UbicacionId == ubiProv.Id);
         existencia.Cantidad.Should().Be(30m);
         // No debe haber caído en la ubicación general.
         stock.Should().NotContain(s => s.UbicacionId == ubiGeneral.Id);
+
+        // Anular el albarán: la mercancía sale del almacén y la línea vuelve a quedar pendiente de recibir.
+        (await cliente.PostAsJsonAsync($"/compras/pedidos/{pedido.Id}/albaranes/{albaran.Id}/anular", new { Motivo = "Albarán equivocado" }))
+            .StatusCode.Should().Be(HttpStatusCode.OK);
+        (await cliente.GetFromJsonAsync<List<ExistenciaResp>>($"/inventario/stock/producto/{producto}"))!.Sum(s => s.Cantidad).Should().Be(0m);
+        var tras = (await cliente.GetFromJsonAsync<PedidoResp>($"/compras/pedidos/{pedido.Id}"))!;
+        tras.Estado.Should().Be("Confirmado");
+        tras.Lineas[0].CantidadRecibida.Should().Be(0m);
+        (await cliente.PostAsJsonAsync($"/compras/pedidos/{pedido.Id}/albaranes/{albaran.Id}/anular", new { Motivo = "Otra vez" }))
+            .StatusCode.Should().Be(HttpStatusCode.Conflict, "un albarán anulado no se vuelve a anular");
     }
 
     private sealed record ProductoRespC(Guid Id, string Nombre);

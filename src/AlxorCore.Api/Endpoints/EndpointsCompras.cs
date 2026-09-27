@@ -29,6 +29,12 @@ public static class EndpointsCompras
         var ped = rutas.MapGroup("/compras/pedidos").WithTags("Compras · Pedidos");
         ped.MapGet("", ListarPedidosAsync).WithSummary("Lista los pedidos de compra.").RequierePermiso(Permisos.CompraLeer);
         ped.MapGet("/{id:guid}", ObtenerPedidoAsync).WithSummary("Obtiene un pedido.").RequierePermiso(Permisos.CompraLeer);
+        ped.MapPost("/{id:guid}/albaranes/{albaranId:guid}/anular", async (Guid id, Guid albaranId, AnularAlbaranPeticion? peticion, IContextoEmpresa contexto, AnularAlbaranCompra caso, CancellationToken ct) =>
+                contexto.EmpresaId is { } e
+                    ? (await caso.EjecutarAsync(e, id, albaranId, peticion?.Motivo, ct).ConfigureAwait(false)).AOk()
+                    : ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero.")))
+            .WithSummary("Anula un albarán de recepción: lo recibido vuelve a quedar pendiente y sale del almacén (si las existencias siguen ahí).")
+            .RequierePermiso(Permisos.CompraGestionar);
         ped.MapGet("/{id:guid}/albaranes", AlbaranesAsync).WithSummary("Albaranes de recepción del pedido.").RequierePermiso(Permisos.CompraLeer);
         ped.MapPost("", CrearPedidoAsync).WithSummary("Crea un pedido de compra (opcionalmente desde una solicitud).").RequierePermiso(Permisos.CompraGestionar);
         ped.MapPut("/{id:guid}", async (Guid id, CrearPedidoComando cmd, CrearPedido caso, CancellationToken ct) =>

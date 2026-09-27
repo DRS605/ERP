@@ -42,7 +42,8 @@ public sealed class PublicadorEventosIntegraciones : IPublicadorEventos
             _log.LogInformation("Evento de dominio: {Evento}", evento.GetType().Name);
 
             // Facturas a empresas del grupo: su espejo en la bandeja de la receptora (tras confirmar la factura).
-            if (empresaId is { } emisora && evento is AlxorCore.Facturacion.Dominio.FacturaEmitida or AlxorCore.Facturacion.Dominio.FacturaAnulada)
+            if (empresaId is { } emisora && evento is AlxorCore.Facturacion.Dominio.FacturaEmitida or AlxorCore.Facturacion.Dominio.FacturaAnulada
+                    or AlxorCore.Facturacion.Dominio.AlbaranVentaEmitido or AlxorCore.Facturacion.Dominio.AlbaranVentaAnulado)
             {
                 await _servicios.GetRequiredService<OperacionesIntragrupo>().ProcesarEventoAsync(emisora, evento, ct).ConfigureAwait(false);
             }

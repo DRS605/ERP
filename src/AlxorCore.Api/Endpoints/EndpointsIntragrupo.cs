@@ -80,6 +80,21 @@ public static class EndpointsIntragrupo
             .WithSummary("Vuelve a dejar la factura en la bandeja de la empresa del grupo a la que se emitió (si no llegó; es idempotente).")
             .RequierePermiso(Permisos.FacturaEmitir);
 
+        g.MapPost("/albaranes/{id:guid}/traspasar", async (Guid id, IContextoEmpresa contexto, OperacionesIntragrupo op, CancellationToken ct) =>
+            {
+                if (contexto.EmpresaId is not { } empresa)
+                {
+                    return SinEmpresa();
+                }
+
+                var r = await op.TraspasarAlbaranAsync(empresa, id, ct).ConfigureAwait(false);
+                return r.EsFallo ? ResultadosHttp.AProblema(r.Error)
+                    : r.Valor is null ? ResultadosHttp.AProblema(Error.Validacion("intragrupo.no_intragrupo", "El cliente del albarán no está enlazado con otra empresa del grupo."))
+                    : Results.Ok(new { PedidoCompraId = r.Valor });
+            })
+            .WithSummary("Vuelve a enviar el traspaso de un albarán de venta a la empresa del grupo (pedido y recepción en su almacén; es idempotente).")
+            .RequierePermiso(Permisos.FacturaEmitir);
+
         g.MapPost("/facturas/{id:guid}/liquidar", async (Guid id, LiquidarIntragrupoPeticion? peticion, IContextoEmpresa contexto, ClaimsPrincipal usuario,
                 OperacionesIntragrupo op, CancellationToken ct) =>
                 contexto.EmpresaId is not { } empresa || usuario.ObtenerUsuarioId() is not { } u

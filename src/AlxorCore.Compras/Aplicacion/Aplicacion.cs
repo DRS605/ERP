@@ -23,20 +23,21 @@ public sealed record LineaPedidoDto(Guid Id, Guid? ProductoId, string Descripcio
     decimal Importe, decimal CantidadRecibida, decimal CantidadFacturada, decimal PendienteRecibir);
 
 public sealed record PedidoDto(Guid Id, string Estado, int Ejercicio, int Numero, string NumeroCompleto, Guid? ProveedorId, string ProveedorTexto, DateOnly Fecha,
-    Guid? SolicitudOrigenId, decimal Total, bool RecibidoCompleto, IReadOnlyList<LineaPedidoDto> Lineas)
+    Guid? SolicitudOrigenId, decimal Total, bool RecibidoCompleto, IReadOnlyList<LineaPedidoDto> Lineas, Guid? EmpresaOrigenId = null, Guid? AlbaranVentaOrigenId = null)
 {
     public static PedidoDto Desde(PedidoCompra p) => new(p.Id, p.Estado.ToString(), p.Ejercicio, p.Numero, p.NumeroCompleto, p.ProveedorId, p.ProveedorTexto,
         p.Fecha, p.SolicitudOrigenId, p.Total, p.RecibidoCompleto,
         p.Lineas.Select(l => new LineaPedidoDto(l.Id, l.ProductoId, l.Descripcion, l.Cantidad, l.PrecioUnitario, l.Importe,
-            l.CantidadRecibida, l.CantidadFacturada, l.PendienteRecibir)).ToList());
+            l.CantidadRecibida, l.CantidadFacturada, l.PendienteRecibir)).ToList(), p.EmpresaOrigenId, p.AlbaranVentaOrigenId);
 }
 
 public sealed record LineaAlbaranDto(Guid LineaPedidoId, Guid? ProductoId, string Descripcion, decimal Cantidad);
 
-public sealed record AlbaranDto(Guid Id, Guid PedidoId, int Numero, string NumeroCompleto, DateOnly Fecha, string? Referencia, IReadOnlyList<LineaAlbaranDto> Lineas)
+public sealed record AlbaranDto(Guid Id, Guid PedidoId, int Numero, string NumeroCompleto, DateOnly Fecha, string? Referencia, IReadOnlyList<LineaAlbaranDto> Lineas,
+    Guid? AlmacenId = null, bool Anulado = false, string? MotivoAnulacion = null)
 {
     public static AlbaranDto Desde(AlbaranCompra a) => new(a.Id, a.PedidoId, a.Numero, a.NumeroCompleto, a.Fecha, a.Referencia,
-        a.Lineas.Select(l => new LineaAlbaranDto(l.LineaPedidoId, l.ProductoId, l.Descripcion, l.Cantidad)).ToList());
+        a.Lineas.Select(l => new LineaAlbaranDto(l.LineaPedidoId, l.ProductoId, l.Descripcion, l.Cantidad)).ToList(), a.AlmacenId, a.AnuladoEn is not null, a.MotivoAnulacion);
 }
 
 // ---------------------------------------------------------------------------- Puertos
@@ -56,6 +57,7 @@ public interface IRepositorioPedidos
     Task<IReadOnlyList<PedidoDto>> ListarAsync(Guid empresaId, CancellationToken ct = default);
     Task<PedidoDto?> ObtenerDtoAsync(Guid id, CancellationToken ct = default);
     Task<int> SiguienteNumeroAsync(Guid empresaId, int ejercicio, Guid? proveedorId, CancellationToken ct = default);
+    Task<PedidoCompra?> PorAlbaranVentaOrigenAsync(Guid empresaId, Guid albaranVentaId, CancellationToken ct = default) => Task.FromResult<PedidoCompra?>(null);
 }
 
 public interface IRepositorioAlbaranes
@@ -63,6 +65,8 @@ public interface IRepositorioAlbaranes
     void Agregar(AlbaranCompra albaran);
     Task<IReadOnlyList<AlbaranDto>> ListarPorPedidoAsync(Guid empresaId, Guid pedidoId, CancellationToken ct = default);
     Task<int> SiguienteNumeroAsync(Guid empresaId, int ejercicio, CancellationToken ct = default);
+    Task<AlbaranCompra?> ObtenerPorIdAsync(Guid id, CancellationToken ct = default) => Task.FromResult<AlbaranCompra?>(null);
+    Task<IReadOnlyList<AlbaranCompra>> DePedidoAsync(Guid pedidoId, CancellationToken ct = default) => Task.FromResult<IReadOnlyList<AlbaranCompra>>([]);
 }
 
 public interface IUnidadDeTrabajoCompras : IUnidadDeTrabajo;
@@ -76,6 +80,10 @@ public interface IEntradaInventarioCompras
 {
     Task RegistrarEntradaAsync(Guid empresaId, Guid productoId, Guid almacenId, Guid? proveedorId,
         decimal cantidad, string? referencia, DateOnly fecha, string? lote, decimal costeUnitarioCompra, CancellationToken ct = default);
+
+    /// <summary>Salida del almacén al anular una recepción (deshace la entrada; falla si ya no hay esas existencias).</summary>
+    Task<Resultado> RegistrarSalidaAsync(Guid empresaId, Guid productoId, Guid almacenId, Guid? proveedorId, decimal cantidad, string? referencia, DateOnly fecha,
+        CancellationToken ct = default) => Task.FromResult(Resultado.Ok());
 }
 
 // ---------------------------------------------------------------------------- Comandos
@@ -388,7 +396,8 @@ public sealed class RecibirMercancia
             return (r.LineaPedidoId, lp.ProductoId, lp.Descripcion, r.Cantidad);
         }).ToList();
 
-        var albaran = AlbaranCompra.Crear(empresaId, pedidoId, numero, fecha, comando.Referencia, lineasAlbaran, _reloj, serie);
+        var albaran = AlbaranCompra.Crear(empresaId, pedidoId, numero, fecha, comando.Referencia, lineasAlbaran, _reloj, serie,
+            _inventario is not null ? comando.AlmacenId : null);
         if (albaran.EsFallo)
         {
             return Resultado.Fallo<AlbaranDto>(albaran.Error);
@@ -416,6 +425,175 @@ public sealed class RecibirMercancia
         }
 
         return Resultado.Ok(AlbaranDto.Desde(albaran.Valor));
+    }
+}
+
+/// <summary>
+/// Caso de uso: anular un albarán de compra (la recepción no se hizo o se registró mal). Lo recibido vuelve a quedar
+/// pendiente en el pedido y, si entró en un almacén, sale de él. Si las existencias ya se han usado, no se anula.
+/// </summary>
+public sealed class AnularAlbaranCompra
+{
+    private readonly IRepositorioPedidos _pedidos;
+    private readonly IRepositorioAlbaranes _albaranes;
+    private readonly IUnidadDeTrabajoCompras _unidad;
+    private readonly IReloj _reloj;
+    private readonly IEntradaInventarioCompras? _inventario;
+
+    public AnularAlbaranCompra(IRepositorioPedidos pedidos, IRepositorioAlbaranes albaranes, IUnidadDeTrabajoCompras unidad, IReloj reloj, IEntradaInventarioCompras? inventario = null)
+    {
+        _pedidos = pedidos; _albaranes = albaranes; _unidad = unidad; _reloj = reloj; _inventario = inventario;
+    }
+
+    public Task<Resultado<AlbaranDto>> EjecutarAsync(Guid empresaId, Guid? pedidoId, Guid albaranId, string? motivo, CancellationToken ct = default) =>
+        EjecutarAsync(empresaId, pedidoId, albaranId, motivo, desdeTraspaso: false, ct);
+
+    /// <param name="desdeTraspaso">La anulación viene del albarán de venta de origen (traspaso intragrupo).</param>
+    public async Task<Resultado<AlbaranDto>> EjecutarAsync(Guid empresaId, Guid? pedidoId, Guid albaranId, string? motivo, bool desdeTraspaso, CancellationToken ct = default)
+    {
+        var albaran = await _albaranes.ObtenerPorIdAsync(albaranId, ct).ConfigureAwait(false);
+        if (albaran is null || (pedidoId is { } p && albaran.PedidoId != p))
+        {
+            return Resultado.Fallo<AlbaranDto>(Error.NoEncontrado("albaran.no_encontrado", "El albarán no existe en ese pedido."));
+        }
+
+        var pedido = await _pedidos.ObtenerPorIdAsync(albaran.PedidoId, ct).ConfigureAwait(false);
+        if (pedido is null)
+        {
+            return Resultado.Fallo<AlbaranDto>(Error.NoEncontrado("pedido.no_encontrado", "No se encontró el pedido."));
+        }
+
+        if (pedido.AlbaranVentaOrigenId is not null && !desdeTraspaso)
+        {
+            return Resultado.Fallo<AlbaranDto>(Error.Conflicto("albaran.intragrupo",
+                "Este albarán es un traspaso de otra empresa del grupo: se anula anulando su albarán de venta en la empresa de origen."));
+        }
+
+        var anulado = albaran.Anular(motivo, _reloj);
+        if (anulado.EsFallo)
+        {
+            return Resultado.Fallo<AlbaranDto>(anulado.Error);
+        }
+
+        var deshecho = pedido.DeshacerRecepcion(albaran.Lineas.Select(l => (l.LineaPedidoId, l.Cantidad)).ToList());
+        if (deshecho.EsFallo)
+        {
+            return Resultado.Fallo<AlbaranDto>(deshecho.Error);
+        }
+
+        // Salida del almacén de lo que entró; si una falla (ya no hay existencias), se deshacen las anteriores.
+        if (albaran.AlmacenId is { } almacen && _inventario is not null)
+        {
+            var fecha = DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
+            var referencia = $"Anulación del albarán {albaran.NumeroCompleto}";
+            var hechas = new List<(Guid Producto, decimal Cantidad)>();
+            foreach (var l in albaran.Lineas.Where(l => l.ProductoId is not null))
+            {
+                var r = await _inventario.RegistrarSalidaAsync(empresaId, l.ProductoId!.Value, almacen, pedido.ProveedorId, l.Cantidad, referencia, fecha, ct).ConfigureAwait(false);
+                if (r.EsFallo)
+                {
+                    foreach (var (producto, cantidad) in hechas)
+                    {
+                        await _inventario.RegistrarEntradaAsync(empresaId, producto, almacen, pedido.ProveedorId, cantidad, referencia, fecha, null,
+                            pedido.Lineas.First(x => x.ProductoId == producto).PrecioUnitario, CancellationToken.None).ConfigureAwait(false);
+                    }
+
+                    return Resultado.Fallo<AlbaranDto>(Error.Conflicto("albaran.existencias_usadas",
+                        $"No se puede anular: ya no están en el almacén las existencias de «{l.Descripcion}» ({r.Error.Mensaje})."));
+                }
+
+                hechas.Add((l.ProductoId.Value, l.Cantidad));
+            }
+        }
+
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(AlbaranDto.Desde(albaran));
+    }
+}
+
+/// <summary>Línea de un traspaso entre empresas del grupo.</summary>
+public sealed record LineaTraspaso(Guid? ProductoId, string Descripcion, decimal Cantidad, decimal PrecioUnitario);
+
+/// <summary>Traspaso de mercancía que otra empresa del grupo ha entregado a esta (su albarán de venta).</summary>
+public sealed record DatosTraspaso(Guid EmpresaOrigenId, string EmpresaOrigenNombre, Guid AlbaranVentaId, string NumeroAlbaranVenta, Guid? ProveedorId,
+    DateOnly Fecha, Guid? AlmacenId, IReadOnlyList<LineaTraspaso> Lineas);
+
+/// <summary>
+/// Traspaso de existencias entre empresas del grupo: el albarán de venta de una empresa a otra del grupo genera en la
+/// receptora su pedido de compra (confirmado) y el albarán de recepción, con la entrada en su almacén. El pedido no se
+/// factura desde compras: la factura llega a la bandeja de facturas recibidas. Es idempotente por albarán de origen.
+/// </summary>
+public sealed class TraspasoIntragrupoCompras
+{
+    private readonly CrearPedido _crear;
+    private readonly RecibirMercancia _recibir;
+    private readonly AnularAlbaranCompra _anular;
+    private readonly IRepositorioPedidos _pedidos;
+    private readonly IRepositorioAlbaranes _albaranes;
+    private readonly IUnidadDeTrabajoCompras _unidad;
+
+    public TraspasoIntragrupoCompras(CrearPedido crear, RecibirMercancia recibir, AnularAlbaranCompra anular, IRepositorioPedidos pedidos,
+        IRepositorioAlbaranes albaranes, IUnidadDeTrabajoCompras unidad)
+    {
+        _crear = crear; _recibir = recibir; _anular = anular; _pedidos = pedidos; _albaranes = albaranes; _unidad = unidad;
+    }
+
+    public async Task<Resultado<PedidoDto>> RecibirAsync(Guid empresaId, DatosTraspaso datos, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(datos);
+        if (await _pedidos.PorAlbaranVentaOrigenAsync(empresaId, datos.AlbaranVentaId, ct).ConfigureAwait(false) is { } existente)
+        {
+            return Resultado.Ok(PedidoDto.Desde(existente));
+        }
+
+        var creado = await _crear.EjecutarAsync(empresaId, new CrearPedidoComando(datos.EmpresaOrigenNombre,
+            datos.Lineas.Select(l => new LineaPedidoComando(l.Descripcion, l.Cantidad, l.PrecioUnitario, l.ProductoId)).ToList(), datos.ProveedorId, datos.Fecha), ct).ConfigureAwait(false);
+        if (creado.EsFallo)
+        {
+            return creado;
+        }
+
+        var pedido = (await _pedidos.ObtenerPorIdAsync(creado.Valor.Id, ct).ConfigureAwait(false))!;
+        var marcado = pedido.MarcarTraspasoIntragrupo(datos.EmpresaOrigenId, datos.AlbaranVentaId);
+        var confirmado = marcado.EsCorrecto ? pedido.Confirmar() : marcado;
+        if (confirmado.EsFallo)
+        {
+            return Resultado.Fallo<PedidoDto>(confirmado.Error);
+        }
+
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        var recibido = await _recibir.EjecutarAsync(empresaId, pedido.Id, new RecibirMercanciaComando(
+            pedido.Lineas.Select(l => new RecepcionLineaComando(l.Id, l.Cantidad)).ToList(), datos.Fecha, $"Albarán {datos.NumeroAlbaranVenta} de {datos.EmpresaOrigenNombre}",
+            datos.AlmacenId), ct).ConfigureAwait(false);
+        return recibido.EsFallo ? Resultado.Fallo<PedidoDto>(recibido.Error) : Resultado.Ok(PedidoDto.Desde(pedido));
+    }
+
+    /// <summary>El albarán de venta de origen se anuló: se anulan los albaranes de compra del traspaso y se cancela el pedido.</summary>
+    public async Task<Resultado<PedidoDto?>> AnularAsync(Guid empresaId, Guid albaranVentaId, string motivo, CancellationToken ct = default)
+    {
+        var pedido = await _pedidos.PorAlbaranVentaOrigenAsync(empresaId, albaranVentaId, ct).ConfigureAwait(false);
+        if (pedido is null)
+        {
+            return Resultado.Ok<PedidoDto?>(null);
+        }
+
+        foreach (var a in (await _albaranes.DePedidoAsync(pedido.Id, ct).ConfigureAwait(false)).Where(a => a.AnuladoEn is null))
+        {
+            var r = await _anular.EjecutarAsync(empresaId, pedido.Id, a.Id, motivo, desdeTraspaso: true, ct).ConfigureAwait(false);
+            if (r.EsFallo)
+            {
+                return Resultado.Fallo<PedidoDto?>(r.Error);
+            }
+        }
+
+        var cancelado = pedido.Cancelar();
+        if (cancelado.EsFallo)
+        {
+            return Resultado.Fallo<PedidoDto?>(cancelado.Error);
+        }
+
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok<PedidoDto?>(PedidoDto.Desde(pedido));
     }
 }
 

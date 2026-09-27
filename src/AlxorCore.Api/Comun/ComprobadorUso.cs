@@ -84,6 +84,7 @@ public static class ReferenciasRegistros
                 ("inventario.movimiento_inventario.almacen_id", "movimientos"),
                 ("inventario.ubicacion_defecto.almacen_id", "ubicaciones por defecto de artículos"),
                 ("produccion.orden_fabricacion.almacen_id", "órdenes de fabricación"),
+                ("compras.albaran_compra.almacen_id", "albaranes de compra"),
             ],
             [TiposRegistro.Ubicacion] =
             [

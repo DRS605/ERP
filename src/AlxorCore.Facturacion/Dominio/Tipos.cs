@@ -58,6 +58,12 @@ public sealed record NuevaLinea(
     decimal CosteUnitario = 0m,
     decimal PorcentajeRecargo = 0m);
 
+/// <summary>Se ha emitido un albarán de venta (entrega de mercancía).</summary>
+public sealed record AlbaranVentaEmitido(Guid AlbaranId, Guid EmpresaId, Guid PedidoId, Guid ClienteId, DateTimeOffset OcurridoEn) : IEventoDominio;
+
+/// <summary>Se ha anulado un albarán de venta.</summary>
+public sealed record AlbaranVentaAnulado(Guid AlbaranId, Guid EmpresaId, string NumeroCompleto, string? Motivo, DateTimeOffset OcurridoEn) : IEventoDominio;
+
 /// <summary>Se ha anulado una factura emitida.</summary>
 public sealed record FacturaAnulada(Guid FacturaId, Guid EmpresaId, string NumeroCompleto, string Motivo, DateTimeOffset OcurridoEn) : IEventoDominio;
 
