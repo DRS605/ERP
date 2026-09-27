@@ -347,6 +347,16 @@ public sealed class AgroEndpointsTests : IClassFixture<FabricaApiPruebas>
         var adelante = (await e.Api.GetFromJsonAsync<TrazaResp>($"/agro/trazabilidad/adelante?recepcionId={r.Id}"))!;
         adelante.Destinos.Single().Should().Match<DestinoResp>(d => d.Sscc == pale.Sscc && d.Estado == "Expedido" && d.ClienteId == cliente && d.Kilos == 5_000m);
 
+        // La expedición se anula (el palé vuelve cerrado con sus kilos) y se vuelve a expedir sin contar dos veces.
+        var vuelta = await OkAsync<PaleResp>(await e.Api.PostAsync(new Uri($"/agro/pales/{pale.Id}/anular-expedicion", UriKind.Relative), null));
+        vuelta.Estado.Should().Be("Cerrado");
+        vuelta.Kilos.Should().Be(5_000m);
+        (await e.Api.GetFromJsonAsync<TrazaResp>($"/agro/trazabilidad/adelante?recepcionId={r.Id}"))!.Destinos.Single()
+            .Should().Match<DestinoResp>(d => d.Estado == "Cerrado" && d.Kilos == 5_000m);
+        var otra = await OkAsync<List<PaleResp>>(await e.Api.PostAsJsonAsync("/agro/expediciones", new { PaleIds = new[] { pale.Id }, ClienteId = cliente, Referencia = "ALB-78" }));
+        otra.Single().Kilos.Should().Be(5_000m);
+        (await e.Api.GetFromJsonAsync<TrazaResp>($"/agro/trazabilidad/adelante?recepcionId={r.Id}"))!.Destinos.Single().Kilos.Should().Be(5_000m);
+
         // Con la salida ya expedida, el parte no se anula; y la base de datos no deja tocar el palé expedido.
         (await ProblemaAsync(await e.Api.PostAsync(new Uri($"/agro/partes/{parte.Id}/anular", UriKind.Relative), null), HttpStatusCode.Conflict))
             .Codigo.Should().Be("parte.salidas_usadas");
@@ -485,5 +495,36 @@ public sealed class AgroEndpointsTests : IClassFixture<FabricaApiPruebas>
         (await MayorAsync("472")).Should().Be((300m, 300m, 2L), "el contraasiento deja la 472 a cero");
         var proveedor = await MayorAsync("40");
         proveedor.Debe.Should().Be(proveedor.Haber, "la deuda con el agricultor desaparece");
+    }
+
+    [Fact]
+    public async Task Los_maestros_agro_se_modifican_y_solo_se_eliminan_sin_uso()
+    {
+        var e = await EscenarioAsync();
+
+        // Sin uso todavía: se modifican libremente.
+        (await e.Api.PutAsJsonAsync($"/agro/categorias/{e.Primera}", new { Codigo = "1A", Nombre = "Primera categoría", Orden = 2 })).StatusCode.Should().Be(HttpStatusCode.OK);
+        var libre = await IdAsync(e.Api, "/agro/categorias", new { Codigo = "SOBRA", Nombre = "Sobra", Orden = 9 });
+        (await e.Api.DeleteAsync(new Uri($"/agro/categorias/{libre}", UriKind.Relative))).StatusCode.Should().Be(HttpStatusCode.OK);
+        var tarifa = await IdAsync(e.Api, "/agro/tarifas", new { Recurso = "ManoObra", Categoria = "PEON", TipoHora = "Normal", CosteUnitario = 12m, Desde = new DateOnly(Anio, 1, 1) });
+        (await e.Api.PutAsJsonAsync($"/agro/tarifas/{tarifa}", new { Recurso = "ManoObra", Categoria = "PEON", TipoHora = "Normal", CosteUnitario = 13m, Desde = new DateOnly(Anio, 1, 1) }))
+            .StatusCode.Should().Be(HttpStatusCode.OK);
+        (await e.Api.DeleteAsync(new Uri($"/agro/tarifas/{tarifa}", UriKind.Relative))).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // Con una recepción, la campaña, el agricultor y la parcela ya están en uso.
+        await RecibirAsync(e, Dia);
+        (await ProblemaAsync(await e.Api.DeleteAsync(new Uri($"/agro/campanas/{e.Campana}", UriKind.Relative)), HttpStatusCode.Conflict)).Codigo.Should().Be("campana.en_uso");
+        (await ProblemaAsync(await e.Api.DeleteAsync(new Uri($"/agro/agricultores/{e.Agricultor}", UriKind.Relative)), HttpStatusCode.Conflict)).Codigo.Should().Be("agricultor.en_uso");
+        (await ProblemaAsync(await e.Api.DeleteAsync(new Uri($"/agro/parcelas/{e.Parcela}", UriKind.Relative)), HttpStatusCode.Conflict)).Codigo.Should().Be("parcela.en_uso");
+
+        // Una campaña con movimientos solo se amplía.
+        (await ProblemaAsync(await e.Api.PutAsJsonAsync($"/agro/campanas/{e.Campana}", new { Nombre = "Corta", Desde = new DateOnly(Anio, 6, 1), Hasta = new DateOnly(Anio, 12, 31) }), HttpStatusCode.Conflict))
+            .Codigo.Should().Be("campana.en_uso");
+        (await e.Api.PutAsJsonAsync($"/agro/campanas/{e.Campana}", new { Nombre = "Campaña ampliada", Desde = new DateOnly(Anio - 1, 12, 1), Hasta = new DateOnly(Anio, 12, 31) }))
+            .StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // Una campaña vacía se elimina.
+        var vacia = await IdAsync(e.Api, "/agro/campanas", new { Codigo = $"{Anio + 1}", Nombre = "Siguiente", Desde = new DateOnly(Anio + 1, 1, 1), Hasta = new DateOnly(Anio + 1, 12, 31) });
+        (await e.Api.DeleteAsync(new Uri($"/agro/campanas/{vacia}", UriKind.Relative))).StatusCode.Should().Be(HttpStatusCode.OK);
     }
 }

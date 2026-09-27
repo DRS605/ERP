@@ -29,6 +29,11 @@ public static class EndpointsCobranza
                 Results.Ok(await caso.EjecutarAsync(clienteId, ct).ConfigureAwait(false)))
             .WithSummary("Lista los anticipos (de un cliente o todos) con su disponible.")
             .RequierePermiso(Permisos.FacturaLeer);
+        anticipos.MapPost("/{id:guid}/anular", async (Guid id, AnularAnticipo caso, CancellationToken ct) =>
+                (await caso.EjecutarAsync(id, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Anula un anticipo sin nada aplicado (registrado por error o devuelto).")
+            .RequierePermiso(Permisos.CobroRegistrar);
+
         anticipos.MapPost("/{id:guid}/aplicar", AplicarAnticipoAsync)
             .WithSummary("Aplica un anticipo a una factura del mismo cliente (genera el cobro de la factura).")
             .RequierePermiso(Permisos.CobroRegistrar);

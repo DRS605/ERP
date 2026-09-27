@@ -50,6 +50,14 @@ public static class EndpointsMigracion
             })
             .WithSummary("Da de alta un efecto de cobro o de pago.")
             .RequierePermiso(Permisos.CobroRegistrar);
+        cartera.MapPost("/{id:guid}/anular", async (Guid id, PeticionAnularEfecto? peticion, GestionCartera gestion, CancellationToken ct) =>
+                (await gestion.AnularAsync(id, peticion?.Motivo, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Anula un efecto dado de alta por error o saldado fuera de ALXOR (sin cobros ni pagos vivos).").RequierePermiso(Permisos.CobroRegistrar);
+
+        cartera.MapGet("/{id:guid}/saldo", async (Guid id, GestionCartera gestion, CancellationToken ct) =>
+                (await gestion.SaldoAsync(id, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Saldo de un efecto con sus cobros o pagos.").RequierePermiso(Permisos.FacturaLeer);
+
         cartera.MapPost("/{id:guid}/movimientos", async (Guid id, MovimientoCarteraComando comando, IContextoEmpresa c, GestionCartera gestion, CancellationToken ct) =>
                 c.EmpresaId is { } e ? (await gestion.LiquidarAsync(e, id, comando, ct).ConfigureAwait(false)).AOk() : SinEmpresa())
             .WithSummary("Cobra o paga (total o parcialmente) un efecto de cartera.")
@@ -70,4 +78,7 @@ public static class EndpointsMigracion
     }
 
     private static IResult SinEmpresa() => ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+
+    /// <summary>Motivo de la anulación de un efecto.</summary>
+    public sealed record PeticionAnularEfecto(string? Motivo);
 }

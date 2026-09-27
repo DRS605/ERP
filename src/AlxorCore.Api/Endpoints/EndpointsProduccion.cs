@@ -17,6 +17,8 @@ public static class EndpointsProduccion
         g.MapGet("", ListarAsync).WithSummary("Lista las órdenes de fabricación.").RequierePermiso(Permisos.ProduccionLeer);
         g.MapGet("/{id:guid}", ObtenerAsync).WithSummary("Obtiene una orden de fabricación.").RequierePermiso(Permisos.ProduccionLeer);
         g.MapPost("", CrearAsync).WithSummary("Crea una orden de fabricación (planifica la lista de materiales).").RequierePermiso(Permisos.ProduccionGestionar);
+        g.MapPut("/{id:guid}", async (Guid id, CrearOrdenComando cmd, DecidirOrden caso, CancellationToken ct) =>
+            (await caso.ModificarAsync(id, cmd, ct).ConfigureAwait(false)).AOk()).WithSummary("Modifica cantidad, almacén y fecha de una orden planificada.").RequierePermiso(Permisos.ProduccionGestionar);
         g.MapPost("/{id:guid}/iniciar", IniciarAsync).WithSummary("Inicia la fabricación.").RequierePermiso(Permisos.ProduccionGestionar);
         g.MapPost("/{id:guid}/terminar", TerminarAsync).WithSummary("Termina la orden: consume componentes y produce el artículo.").RequierePermiso(Permisos.ProduccionGestionar);
         g.MapPost("/{id:guid}/cancelar", CancelarAsync).WithSummary("Cancela la orden.").RequierePermiso(Permisos.ProduccionGestionar);

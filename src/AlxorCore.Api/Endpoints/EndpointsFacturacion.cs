@@ -72,6 +72,14 @@ public static class EndpointsFacturacion
             .WithSummary("Actualiza una factura recurrente.")
             .RequierePermiso(Permisos.FacturaEmitir);
 
+        recurrentes.MapDelete("/{id:guid}", async (Guid id, EliminarFacturaRecurrente caso, CancellationToken ct) =>
+            {
+                var r = await caso.EjecutarAsync(id, ct).ConfigureAwait(false);
+                return r.EsCorrecto ? Results.NoContent() : ResultadosHttp.AProblema(r.Error);
+            })
+            .WithSummary("Elimina una factura periódica que aún no ha emitido facturas (si ya emitió, páusala).")
+            .RequierePermiso(Permisos.FacturaEmitir);
+
         recurrentes.MapPost("/{id:guid}/estado", CambiarEstadoRecurrenteAsync)
             .WithSummary("Activa o pausa una factura recurrente.")
             .RequierePermiso(Permisos.FacturaEmitir);

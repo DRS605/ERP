@@ -320,6 +320,33 @@ public sealed class ListarPrevisiones
 }
 
 /// <summary>Caso de uso: eliminar una previsión.</summary>
+public sealed class ActualizarPrevision
+{
+    private readonly IRepositorioPrevisiones _repo;
+    private readonly IUnidadDeTrabajoTesoreria _unidad;
+
+    public ActualizarPrevision(IRepositorioPrevisiones repo, IUnidadDeTrabajoTesoreria unidad) { _repo = repo; _unidad = unidad; }
+
+    public async Task<Resultado<PrevisionDto>> EjecutarAsync(Guid id, CrearPrevisionComando comando, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(comando);
+        var prevision = await _repo.ObtenerAsync(id, ct).ConfigureAwait(false);
+        if (prevision is null)
+        {
+            return Resultado.Fallo<PrevisionDto>(Error.NoEncontrado("prevision.no_encontrada", "No se encontró la previsión."));
+        }
+
+        var r = prevision.Actualizar(comando.Sentido, comando.Concepto, comando.Importe, comando.Fecha);
+        if (r.EsFallo)
+        {
+            return Resultado.Fallo<PrevisionDto>(r.Error);
+        }
+
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(PrevisionDto.Desde(prevision));
+    }
+}
+
 public sealed class EliminarPrevision
 {
     private readonly IRepositorioPrevisiones _repo;

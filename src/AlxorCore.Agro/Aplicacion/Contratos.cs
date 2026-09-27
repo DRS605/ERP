@@ -30,6 +30,7 @@ public interface IRepositorioAgro
     Task<IReadOnlyList<Parcela>> ParcelasAsync(Guid empresaId, Guid? agricultorId, CancellationToken ct = default);
     Task<Parcela?> ParcelaAsync(Guid id, CancellationToken ct = default);
     Task<IReadOnlyList<Categoria>> CategoriasAsync(Guid empresaId, CancellationToken ct = default);
+    Task<Categoria?> CategoriaAsync(Guid id, CancellationToken ct = default);
     Task<IReadOnlyList<ArticuloCampana>> ArticulosCampanaAsync(Guid campanaId, CancellationToken ct = default);
     Task<IReadOnlyList<PrecioLiquidacion>> PreciosAsync(Guid campanaId, CancellationToken ct = default);
     Task<PrecioLiquidacion?> PrecioAsync(Guid id, CancellationToken ct = default);
@@ -51,6 +52,7 @@ public interface IRepositorioAgro
     Task<IReadOnlyList<Partida>> PartidasConSaldoAsync(Guid empresaId, CancellationToken ct = default);
     Task<IReadOnlyList<SaldoPartida>> SaldosAsync(IReadOnlyCollection<Guid> partidaIds, CancellationToken ct = default);
     Task<IReadOnlyList<SaldoPartida>> ContenidoPaleAsync(Guid paleId, CancellationToken ct = default);
+    Task<IReadOnlyList<MovimientoPartida>> MovimientosDePaleAsync(Guid paleId, CancellationToken ct = default);
     Task<IReadOnlyList<MovimientoPartida>> MovimientosAsync(IReadOnlyCollection<Guid> partidaIds, CancellationToken ct = default);
 
     /// <summary>¿Alguna de las partidas tiene movimientos aparte de su entrada?</summary>

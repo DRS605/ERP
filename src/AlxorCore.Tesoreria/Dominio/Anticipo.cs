@@ -11,6 +11,9 @@ public enum EstadoAnticipo
     Disponible = 1,
     Parcial = 2,
     Aplicado = 3,
+
+    /// <summary>Registrado por error o devuelto al cliente: ya no se puede aplicar.</summary>
+    Anulado = 4,
 }
 
 /// <summary>Aplicación de (parte de) un anticipo a una factura. Genera un cobro de esa factura.</summary>
@@ -87,7 +90,30 @@ public sealed class Anticipo : RaizAgregadoEmpresa<Guid>
 
     public decimal Disponible => Redondeo.Dos(Importe - Aplicado);
 
-    public EstadoAnticipo Estado => Aplicado == 0 ? EstadoAnticipo.Disponible : Disponible == 0 ? EstadoAnticipo.Aplicado : EstadoAnticipo.Parcial;
+    /// <summary>Cuándo se anuló (anticipo registrado por error o devuelto); null si está vivo.</summary>
+    public DateTimeOffset? AnuladoEn { get; private set; }
+
+    public EstadoAnticipo Estado => AnuladoEn is not null ? EstadoAnticipo.Anulado
+        : Aplicado == 0 ? EstadoAnticipo.Disponible : Disponible == 0 ? EstadoAnticipo.Aplicado : EstadoAnticipo.Parcial;
+
+    /// <summary>Anula el anticipo: solo si no hay nada aplicado (si lo hay, anula antes esos cobros).</summary>
+    public Resultado Anular(IReloj reloj)
+    {
+        ArgumentNullException.ThrowIfNull(reloj);
+        if (AnuladoEn is not null)
+        {
+            return Resultado.Fallo(Error.Conflicto("anticipo.ya_anulado", "El anticipo ya está anulado."));
+        }
+
+        if (Aplicado != 0m)
+        {
+            return Resultado.Fallo(Error.Conflicto("anticipo.aplicado",
+                $"Hay {Redondeo.Formatear(Aplicado)} € aplicados a facturas: anula antes esos cobros (Cobros → Cobros de la factura)."));
+        }
+
+        AnuladoEn = reloj.AhoraUtc;
+        return Resultado.Ok();
+    }
 
     public static Resultado<Anticipo> Registrar(
         Guid empresaId, Guid clienteId, decimal importe, DateOnly fecha, string? concepto, string? metodo, IReloj reloj)
@@ -120,6 +146,11 @@ public sealed class Anticipo : RaizAgregadoEmpresa<Guid>
     /// </summary>
     public Resultado<decimal> ValidarAplicacion(Guid? clienteFactura, decimal importe)
     {
+        if (AnuladoEn is not null)
+        {
+            return Resultado.Fallo<decimal>(Error.Conflicto("anticipo.anulado", "El anticipo está anulado."));
+        }
+
         if (clienteFactura != ClienteId)
         {
             return Resultado.Fallo<decimal>(Error.Validacion("anticipo.otro_cliente", "El anticipo es de otro cliente: solo se aplica a sus facturas."));

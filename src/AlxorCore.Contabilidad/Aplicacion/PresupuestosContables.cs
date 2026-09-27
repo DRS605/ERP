@@ -12,6 +12,8 @@ public interface IRepositorioPresupuestosContables
     Task<PresupuestoContable?> ObtenerAsync(Guid id, CancellationToken ct = default);
 
     void Agregar(PresupuestoContable presupuesto);
+
+    void Eliminar(PresupuestoContable presupuesto);
 }
 
 public sealed record LineaPresupuestoDto(
@@ -106,6 +108,25 @@ public sealed class GestionPresupuestosContables
 
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return Resultado.Ok(PresupuestoContableDto.De(p));
+    }
+
+    /// <summary>Elimina un presupuesto en borrador (uno aprobado es la referencia del seguimiento: se copia, no se borra).</summary>
+    public async Task<Resultado> EliminarAsync(Guid id, CancellationToken ct = default)
+    {
+        var p = await _presupuestos.ObtenerAsync(id, ct).ConfigureAwait(false);
+        if (p is null)
+        {
+            return Resultado.Fallo(Error.NoEncontrado("presupuesto.no_encontrado", "El presupuesto no existe."));
+        }
+
+        if (p.Estado == EstadoPresupuesto.Aprobado)
+        {
+            return Resultado.Fallo(Error.Conflicto("presupuesto.aprobado", "Un presupuesto aprobado no se elimina: es la referencia del seguimiento. Cópialo para hacer otra versión."));
+        }
+
+        _presupuestos.Eliminar(p);
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok();
     }
 
     /// <summary>Copia un presupuesto (una versión nueva, en borrador), con un incremento opcional.</summary>

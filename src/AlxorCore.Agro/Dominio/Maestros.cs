@@ -111,6 +111,34 @@ public sealed class Campana : RaizAgregadoEmpresa<Guid>
 
     public bool Contiene(DateOnly fecha) => fecha >= Desde && fecha <= Hasta;
 
+    /// <summary>
+    /// Cambia nombre y fechas. Si la campaña ya tiene movimientos (<paramref name="enUso"/>), solo se puede ampliar:
+    /// estrecharla dejaría recepciones o liquidaciones fuera de su campaña.
+    /// </summary>
+    public Resultado Actualizar(string? nombre, DateOnly desde, DateOnly hasta, bool enUso)
+    {
+        if (string.IsNullOrWhiteSpace(nombre))
+        {
+            return Resultado.Fallo(Error.Validacion("campana.nombre_vacio", "El nombre es obligatorio."));
+        }
+
+        if (hasta < desde)
+        {
+            return Resultado.Fallo(Error.Validacion("campana.fechas", "La campaña termina antes de empezar."));
+        }
+
+        if (enUso && (desde > Desde || hasta < Hasta))
+        {
+            return Resultado.Fallo(Error.Conflicto("campana.en_uso",
+                "La campaña ya tiene movimientos: solo se puede ampliar (adelantar el inicio o retrasar el final)."));
+        }
+
+        Nombre = nombre.Trim();
+        Desde = desde;
+        Hasta = hasta;
+        return Resultado.Ok();
+    }
+
     public static Resultado<Campana> Crear(Guid empresaId, string? codigo, string? nombre, DateOnly desde, DateOnly hasta)
     {
         var error = ReglasAgro.CodigoNombre(ref codigo, ref nombre, "campana");
@@ -332,6 +360,25 @@ public sealed class Categoria : RaizAgregadoEmpresa<Guid>
 
     public int Orden { get; private set; }
 
+    /// <summary>Cambia nombre y orden; que sea destrío o no solo mientras no se ha usado (cambiaría liquidaciones).</summary>
+    public Resultado Actualizar(string? nombre, bool esDestrio, int orden, bool enUso)
+    {
+        if (string.IsNullOrWhiteSpace(nombre))
+        {
+            return Resultado.Fallo(Error.Validacion("categoria.nombre_vacio", "El nombre es obligatorio."));
+        }
+
+        if (enUso && esDestrio != EsDestrio)
+        {
+            return Resultado.Fallo(Error.Conflicto("categoria.en_uso", "La categoría ya se ha usado: no se puede cambiar si es destrío."));
+        }
+
+        Nombre = nombre.Trim();
+        EsDestrio = esDestrio;
+        Orden = orden;
+        return Resultado.Ok();
+    }
+
     public static Resultado<Categoria> Crear(Guid empresaId, string? codigo, string? nombre, bool esDestrio, int orden)
     {
         var error = ReglasAgro.CodigoNombre(ref codigo, ref nombre, "categoria");
@@ -547,6 +594,34 @@ public sealed class TarifaCoste : RaizAgregadoEmpresa<Guid>
     public decimal CosteUnitario { get; private set; }
 
     public bool Vigente(DateOnly fecha) => fecha >= Desde && (Hasta is null || fecha <= Hasta);
+
+    /// <summary>
+    /// Cambia vigencia y coste. Si ya valoró partes (<paramref name="enUso"/>), el coste y el inicio no cambian (los
+    /// partes validados conservan su coste): solo se cierra la vigencia para dar paso a una tarifa nueva.
+    /// </summary>
+    public Resultado Actualizar(DateOnly desde, DateOnly? hasta, decimal coste, bool enUso)
+    {
+        if (hasta is { } h && h < desde)
+        {
+            return Resultado.Fallo(Error.Validacion("tarifa.fechas", "La vigencia termina antes de empezar."));
+        }
+
+        if (coste < 0m)
+        {
+            return Resultado.Fallo(Error.Validacion("tarifa.coste", "El coste no puede ser negativo."));
+        }
+
+        if (enUso && (desde != Desde || coste != CosteUnitario))
+        {
+            return Resultado.Fallo(Error.Conflicto("tarifa.en_uso",
+                "La tarifa ya valoró partes: solo se puede cerrar su vigencia. Para otro coste, ciérrala y crea una nueva."));
+        }
+
+        Desde = desde;
+        Hasta = hasta;
+        CosteUnitario = coste;
+        return Resultado.Ok();
+    }
 
     public static Resultado<TarifaCoste> Crear(Guid empresaId, RecursoCoste recurso, string? categoria, TipoHora tipoHora, DateOnly desde, DateOnly? hasta, decimal coste)
     {

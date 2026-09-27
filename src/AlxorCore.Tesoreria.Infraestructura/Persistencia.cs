@@ -28,6 +28,8 @@ public sealed class TesoreriaDbContext : DbContextEmpresaBase, IUnidadDeTrabajoT
 
     public DbSet<EfectoCartera> Cartera => Set<EfectoCartera>();
 
+    public DbSet<AnulacionEfecto> AnulacionesCartera => Set<AnulacionEfecto>();
+
     public DbSet<Reclamacion> Reclamaciones => Set<Reclamacion>();
 
     public DbSet<ConfiguracionReclamaciones> ConfiguracionesReclamacion => Set<ConfiguracionReclamaciones>();
@@ -103,6 +105,29 @@ internal sealed class RepositorioCartera : IRepositorioCartera
 
     public Task<EfectoCartera?> PorOrigenAsync(Guid empresaId, string origen, string origenReferencia, CancellationToken ct = default) =>
         _ctx.Cartera.SingleOrDefaultAsync(e => e.EmpresaId == empresaId && e.Origen == origen && e.OrigenReferencia == origenReferencia, ct);
+
+    public void Agregar(AnulacionEfecto anulacion) => _ctx.AnulacionesCartera.Add(anulacion);
+
+    public async Task<IReadOnlySet<Guid>> AnuladosAsync(IReadOnlyCollection<Guid> efectoIds, CancellationToken ct = default) =>
+        (await _ctx.AnulacionesCartera.AsNoTracking().Where(a => efectoIds.Contains(a.EfectoId)).Select(a => a.EfectoId).ToListAsync(ct).ConfigureAwait(false)).ToHashSet();
+}
+
+internal sealed class ConfiguracionAnulacionEfecto : IEntityTypeConfiguration<AnulacionEfecto>
+{
+    public void Configure(EntityTypeBuilder<AnulacionEfecto> builder)
+    {
+        builder.ToTable("anulacion_efecto_cartera");
+        builder.HasKey(a => a.Id);
+        builder.Property(a => a.Id).HasColumnName("id").ValueGeneratedNever();
+        builder.Property(a => a.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        builder.Property(a => a.EfectoId).HasColumnName("efecto_id").IsRequired();
+        builder.Property(a => a.Fecha).HasColumnName("fecha").IsRequired();
+        builder.Property(a => a.Motivo).HasColumnName("motivo").HasMaxLength(EfectoCartera.LongitudTexto).IsRequired();
+        builder.Property(a => a.CreadoEn).HasColumnName("creado_en").IsRequired();
+        builder.HasOne<EfectoCartera>().WithMany().HasForeignKey(a => a.EfectoId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(a => a.EfectoId).IsUnique().HasDatabaseName("ux_anulacion_efecto_cartera");
+        builder.Ignore(a => a.EventosDominio);
+    }
 }
 
 internal sealed class ConfiguracionPrevision : IEntityTypeConfiguration<PrevisionTesoreria>
@@ -242,6 +267,7 @@ internal sealed class ConfiguracionAnticipo : IEntityTypeConfiguration<Anticipo>
         builder.Property(a => a.Concepto).HasColumnName("concepto").HasMaxLength(Anticipo.LongitudMaximaConcepto).IsRequired();
         builder.Property(a => a.Metodo).HasColumnName("metodo").HasMaxLength(60);
         builder.Property(a => a.CreadoEn).HasColumnName("creado_en").IsRequired();
+        builder.Property(a => a.AnuladoEn).HasColumnName("anulado_en");
         builder.OwnsMany(a => a.Aplicaciones, ap =>
         {
             ap.ToTable("aplicacion_anticipo");

@@ -28,6 +28,14 @@ public static class EndpointsDivisas
             .WithSummary("Registra o actualiza el tipo de cambio de una divisa en una fecha.")
             .RequierePermiso(Permisos.EmpresaAjustes);
 
+        tc.MapDelete("/{id:guid}", async (Guid id, EliminarTipoCambio caso, CancellationToken ct) =>
+            {
+                var r = await caso.EjecutarAsync(id, ct).ConfigureAwait(false);
+                return r.EsCorrecto ? Results.NoContent() : ResultadosHttp.AProblema(r.Error);
+            })
+            .WithSummary("Elimina un tipo de cambio (los documentos emitidos conservan su tasa). Para corregirlo, regístralo de nuevo en la misma fecha.")
+            .RequierePermiso(Permisos.EmpresaAjustes);
+
         rutas.MapGet("/divisas/convertir", ConvertirAsync)
             .WithTags("Divisas")
             .WithSummary("Convierte un importe en divisa a euros a una fecha (tasa vigente).")

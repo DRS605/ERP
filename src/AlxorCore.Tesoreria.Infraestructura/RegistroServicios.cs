@@ -48,6 +48,8 @@ public static class RegistroServicios
         servicios.AddScoped<AlxorCore.Nucleo.Aplicacion.IConsultaRiesgo, ConsultaRiesgo>();
         servicios.AddScoped<ConsultarSaldo>();
         servicios.AddScoped<AnularMovimiento>();
+        servicios.AddScoped<ActualizarPrevision>();
+        servicios.AddScoped<AnularAnticipo>();
         servicios.AddScoped<CrearPrevision>();
         servicios.AddScoped<ListarPrevisiones>();
         servicios.AddScoped<EliminarPrevision>();

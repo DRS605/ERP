@@ -441,7 +441,7 @@
       { t:"item", k:"inicio", l:"Inicio" },
       { t:"grupo", k:"ventas", l:"Ventas", items:[["presupuestos","Presupuestos"],["pedidosventa","Pedidos de venta"],["facturas","Facturas"],["tpv","TPV · Tickets"],["recurrentes","Periódicas"],["clientes","Clientes"],["cobros","Cobros"],["cartera","Efectos de cartera"],["impagados","Impagados"],["anticipos","Anticipos"],["remesas","Remesas SEPA"]] },
       { t:"grupo", k:"compras", l:"Compras", items:[["solicitudes","Solicitudes"],["pedidos","Pedidos de compra"],["recepcion","Buzón de facturas"],["gastos","Gastos"],["proveedores","Proveedores"],["pagos","Pagos"],["conciliacion","Conciliación banco"]] },
-      { t:"grupo", k:"articulos", l:"Artículos", items:[["productos","Productos"],["familias","Familias"],["inventario","Inventario / Almacenes"],["produccion","Producción"]] },
+      { t:"grupo", k:"articulos", l:"Artículos", items:[["productos","Productos"],["familias","Familias"],["tarifas","Tarifas de precios"],["inventario","Inventario / Almacenes"],["produccion","Producción"]] },
       { t:"item", k:"personal", l:"Personal" },
       { t:"item", k:"proyectos", l:"Proyectos" },
       { t:"item", k:"prevision", l:"Previsión de tesorería" },
@@ -456,11 +456,11 @@
       { t:"item", k:"integraciones", l:"API y webhooks" },
       { t:"item", k:"ajustes", l:"Ajustes" },
     ];
-    const TITULOS = { cartera:"Efectos de cartera", agrorecepciones:"Agro · recepciones de fruta", agropartidas:"Agro · partidas y palés", agroconfeccion:"Agro · confección", agroliquidaciones:"Agro · liquidaciones al agricultor", agrotrazabilidad:"Agro · trazabilidad", agroinforme:"Agro · informe de campaña", agromaestros:"Agro · campañas, agricultores y precios", analitica:"Analítica · resultados", analiticapend:"Analítica · pendientes de imputar", analiticamaestros:"Analítica · centros, partidas y reglas", presupuestoscont:"Presupuestos contables", impagados:"Impagados y reclamaciones", anticipos:"Anticipos de clientes", inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", gestion:"Análisis de gestión", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", divisas:"Divisas y tipos de cambio", aprobaciones:"Aprobaciones y control de firmas", integraciones:"API pública y webhooks", ajustes:"Ajustes" };
+    const TITULOS = { cartera:"Efectos de cartera", agrorecepciones:"Agro · recepciones de fruta", agropartidas:"Agro · partidas y palés", agroconfeccion:"Agro · confección", agroliquidaciones:"Agro · liquidaciones al agricultor", agrotrazabilidad:"Agro · trazabilidad", agroinforme:"Agro · informe de campaña", agromaestros:"Agro · campañas, agricultores y precios", analitica:"Analítica · resultados", analiticapend:"Analítica · pendientes de imputar", analiticamaestros:"Analítica · centros, partidas y reglas", presupuestoscont:"Presupuestos contables", impagados:"Impagados y reclamaciones", anticipos:"Anticipos de clientes", inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos",tarifas:"Tarifas de precios", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", gestion:"Análisis de gestión", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", divisas:"Divisas y tipos de cambio", aprobaciones:"Aprobaciones y control de firmas", integraciones:"API pública y webhooks", ajustes:"Ajustes" };
     // Plan contratado de la empresa activa (lo devuelve /empresas/{id}/seleccionar).
     let plan = null;
     // Vista → módulo contratable que necesita. Las vistas que no están aquí son de la base.
-    const MODULO_VISTA = { presupuestos:"ventas", pedidosventa:"ventas", remesas:"tesoreria_avanzada",
+    const MODULO_VISTA = { tarifas:"ventas", presupuestos:"ventas", pedidosventa:"ventas", remesas:"tesoreria_avanzada",
       solicitudes:"compras", pedidos:"compras", conciliacion:"tesoreria_avanzada", inventario:"inventario",
       produccion:"produccion", personal:"personal", proyectos:"proyectos", prevision:"tesoreria_avanzada",
       contabilidad:"contabilidad", inmovilizado:"inmovilizado", divisas:"divisas", aprobaciones:"aprobaciones",
@@ -575,7 +575,7 @@
       document.getElementById("viewTitle").textContent=TITULOS[k]||k;
       if(!contratado(k)){ const m=NOMBRE_MODULO[MODULO_VISTA[k]]||MODULO_VISTA[k];
         view(panel("No incluido en tu plan",`<p class="muted" style="margin:0 0 14px">Esta pantalla forma parte del módulo <strong>${m}</strong>, que tu plan no incluye.</p><button class="btn small" onclick="ir('ajustes')">Ver planes en Ajustes →</button>`)); return; }
-      ({cartera:vCartera,agrorecepciones:vAgroRecepciones,agropartidas:vAgroPartidas,agroconfeccion:vAgroConfeccion,agroliquidaciones:vAgroLiquidaciones,agrotrazabilidad:vAgroTrazabilidad,agroinforme:()=>vAgroInforme(),agromaestros:()=>vAgroMaestros(),analitica:vAnalitica,analiticapend:vAnaliticaPend,analiticamaestros:vAnaliticaMaestros,presupuestoscont:vPresupuestosCont,impagados:vImpagados,anticipos:vAnticipos,inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:vPedidosVenta,clientes:vClientes,productos:vProductos,familias:vFamilias,gastos:vGastos,solicitudes:vSolicitudes,pedidos:vPedidos,inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,gestion:vGestion,contabilidad:vContabilidad,inmovilizado:vInmovilizado,divisas:vDivisas,aprobaciones:vAprobaciones,integraciones:vIntegraciones,ajustes:vAjustes}[k])();
+      ({cartera:vCartera,agrorecepciones:vAgroRecepciones,agropartidas:vAgroPartidas,agroconfeccion:vAgroConfeccion,agroliquidaciones:vAgroLiquidaciones,agrotrazabilidad:vAgroTrazabilidad,agroinforme:()=>vAgroInforme(),agromaestros:()=>vAgroMaestros(),analitica:vAnalitica,analiticapend:vAnaliticaPend,analiticamaestros:vAnaliticaMaestros,presupuestoscont:vPresupuestosCont,impagados:vImpagados,anticipos:vAnticipos,inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:vPedidosVenta,clientes:vClientes,productos:vProductos,familias:vFamilias,tarifas:vTarifas,gastos:vGastos,solicitudes:vSolicitudes,pedidos:vPedidos,inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,gestion:vGestion,contabilidad:vContabilidad,inmovilizado:vInmovilizado,divisas:vDivisas,aprobaciones:vAprobaciones,integraciones:vIntegraciones,ajustes:vAjustes}[k])();
     }
     const view = h => { document.getElementById("view").innerHTML=h; try{ mejorarTablas(); }catch(e){} };
 
@@ -894,7 +894,7 @@
       view('<div class="muted">Cargando…</div>');
       const rs=await api("/facturas-recurrentes");
       const badge = a => a?'<span class="pill ok">Activa</span>':'<span class="pill wait">Pausada</span>';
-      const filas=rs.map(r=>`<tr><td><strong>${r.nombre}</strong></td><td>${r.clienteNombre}</td><td class="muted">${r.periodicidad}</td><td class="muted">${fdate(r.proximaEmision)}</td><td class="num"><strong>${eur(r.total)}</strong></td><td class="right">${badge(r.activa)}</td><td class="right"><button class="btn small secondary" onclick="toggleRecurrente('${r.id}',${!r.activa})">${r.activa?'Pausar':'Reanudar'}</button></td></tr>`).join("");
+      const filas=rs.map(r=>`<tr><td><strong>${r.nombre}</strong></td><td>${r.clienteNombre}</td><td class="muted">${r.periodicidad}</td><td class="muted">${fdate(r.proximaEmision)}</td><td class="num"><strong>${eur(r.total)}</strong></td><td class="right">${badge(r.activa)}</td><td class="right" style="white-space:nowrap"><button class="btn small secondary" onclick="modalRecurrente('${r.id}')">Editar</button> <button class="btn small secondary" onclick="toggleRecurrente('${r.id}',${!r.activa})">${r.activa?'Pausar':'Reanudar'}</button>${r.facturasGeneradas?"":` <button class="btn small ghost" onclick="eliminarMaestro('/facturas-recurrentes/${r.id}','la factura periódica «${agEsc(r.nombre).replace(/'/g,"")}»',vRecurrentes,false)" title="Eliminar">🗑</button>`}</td></tr>`).join("");
       const acciones=`<div style="display:flex;gap:10px;align-items:center"><button class="btn small ghost" onclick="procesarRecurrentes()">↻ Emitir vencidas</button><button class="btn small" onclick="modalRecurrente()">+ Nueva periódica</button></div>`;
       const cuerpo=rs.length?`<table><thead><tr><th>Concepto</th><th>Cliente</th><th>Cada</th><th>Próxima</th><th class="num">Importe</th><th class="right">Estado</th><th></th></tr></thead><tbody>${filas}</tbody></table>`
         :vacio("recurrentes","Sin facturación periódica todavía","Crea una suscripción o cuota y ALXOR emitirá la factura solo cuando toque.",`<button class="btn small" onclick="modalRecurrente()">+ Nueva periódica</button>`);
@@ -1229,6 +1229,41 @@
     }
     function varAtrHtml(nom,v){ return `<div class="var-atr" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px"><input class="va-nom" placeholder="Eje (Talla, Color…)" value="${nom||''}"/><input class="va-val" placeholder="Valor (M, Rojo…)" value="${v||''}"/></div>`; }
 
+    // ---- Tarifas de precios: precio o descuento por artículo o familia, por cantidad mínima y vigencia ----
+    async function vTarifas(){
+      view('<div class="muted">Cargando…</div>');
+      const [ts,prods,fams]=await Promise.all([api("/tarifas"),api("/productos").catch(()=>[]),api("/familias").catch(()=>[])]);
+      window._tarifas=ts; window._tarProds=prods; window._tarFams=fams;
+      const filas=ts.map(t=>`<tr><td class="mono"><strong>${agEsc(t.codigo)}</strong></td><td>${agEsc(t.nombre)}${t.activa?"":' <span class="pill wait">Inactiva</span>'}</td><td class="muted">${t.lineas.length} línea(s)</td>
+        <td class="right" style="white-space:nowrap"><button class="btn small secondary" onclick="modalTarifa('${t.id}')">Editar</button> <button class="btn small ghost" onclick="eliminarMaestro('/tarifas/${t.id}','la tarifa ${agEsc(t.codigo)}',vTarifas,false)" title="Eliminar">🗑</button></td></tr>`).join("");
+      view(panel("Tarifas de precios",ts.length?`<table><thead><tr><th>Código</th><th>Nombre</th><th>Contenido</th><th></th></tr></thead><tbody>${filas}</tbody></table>
+        <p class="muted" style="font-size:12px;margin:12px 0 0">Asigna la tarifa a cada cliente en su ficha. Al facturar se busca el precio del artículo (o de su familia) para la cantidad y la fecha; sin línea que aplique, se usa el precio del artículo.</p>`
+        :vacio("productos","Sin tarifas","Crea tarifas (mayoristas, hostelería…) con precios o descuentos por artículo o familia, y asígnalas a tus clientes.",`<button class="btn small" onclick="modalTarifa()">+ Nueva tarifa</button>`),
+        `<button class="btn small" onclick="modalTarifa()">+ Nueva tarifa</button>`));
+    }
+    function lineaTarifaHtml(l){
+      const prods=(window._tarProds||[]).map(p=>`<option value="p:${p.id}"${l&&l.productoId===p.id?" selected":""}>${agEsc(p.nombre)}</option>`).join("");
+      const fams=(window._tarFams||[]).map(f=>`<option value="f:${f.id}"${l&&l.familiaId===f.id?" selected":""}>Familia · ${agEsc(f.nombre)}</option>`).join("");
+      return `<div class="tar-lin" style="display:grid;grid-template-columns:2.2fr .8fr .9fr .8fr 1fr 1fr auto;gap:6px;margin-bottom:6px;align-items:center">
+        <select class="tl-obj">${prods}${fams}</select><input class="tl-min" type="number" step="0.001" placeholder="Cant. mín." value="${l?l.cantidadMinima:0}"/>
+        <input class="tl-pre" type="number" step="0.0001" placeholder="Precio" value="${l&&l.precio!=null?l.precio:""}"/><input class="tl-dto" type="number" step="0.01" placeholder="% dto" value="${l?l.porcentajeDescuento:0}"/>
+        <input class="tl-des" type="date" value="${l&&l.desde?l.desde:""}"/><input class="tl-has" type="date" value="${l&&l.hasta?l.hasta:""}"/>
+        <button class="btn small ghost" onclick="this.parentElement.remove()" title="Quitar">✕</button></div>`;
+    }
+    function modalTarifa(id){
+      const t=id?(window._tarifas||[]).find(x=>x.id===id):null;
+      abrir(t?`Tarifa ${t.codigo}`:"Nueva tarifa",`<div class="grid2"><div><label>Código</label><input id="ta_cod" value="${t?agEsc(t.codigo):""}" ${t?"disabled":""} placeholder="MAYOR"/></div><div><label>Nombre</label><input id="ta_nom" value="${t?agEsc(t.nombre):""}" placeholder="Mayoristas"/></div></div>
+        ${t?`<label style="display:flex;gap:8px;align-items:center;margin-top:8px"><input id="ta_act" type="checkbox" style="width:auto" ${t.activa?"checked":""}/> Activa</label>`:""}
+        <label style="margin-top:12px">Líneas <span class="muted" style="font-weight:400;font-size:12px">— artículo o familia · cantidad mínima · precio (vacío = el del artículo) · descuento · vigencia</span></label>
+        <div id="ta_lineas">${(t?t.lineas:[]).map(lineaTarifaHtml).join("")}</div>
+        <button class="btn small ghost" style="margin-top:4px" onclick="document.getElementById('ta_lineas').insertAdjacentHTML('beforeend',lineaTarifaHtml())">+ Añadir línea</button>`,
+        async()=>{ const lineas=[...document.querySelectorAll('#ta_lineas .tar-lin')].map(r=>{ const [tipo,oid]=r.querySelector('.tl-obj').value.split(":"); const pre=r.querySelector('.tl-pre').value;
+            return {productoId:tipo==="p"?oid:null,familiaId:tipo==="f"?oid:null,cantidadMinima:Number(r.querySelector('.tl-min').value||0),precio:pre===""?null:Number(pre),porcentajeDescuento:Number(r.querySelector('.tl-dto').value||0),desde:r.querySelector('.tl-des').value||null,hasta:r.querySelector('.tl-has').value||null}; });
+          if(t) await api("/tarifas/"+t.id,{method:"PUT",body:JSON.stringify({nombre:val("ta_nom"),activa:document.getElementById("ta_act").checked,lineas})});
+          else await api("/tarifas",{method:"POST",body:JSON.stringify({codigo:val("ta_cod"),nombre:val("ta_nom"),lineas})});
+          toast(t?"Tarifa guardada.":"Tarifa creada.","ok"); vTarifas(); });
+    }
+
     let _cacheFamilias=[];
     async function vFamilias() {
       view('<div class="muted">Cargando…</div>');
@@ -1309,9 +1344,9 @@
     function estadoPillProd(e){ const m={Planificada:"wait",EnCurso:"part",Terminada:"ok",Cancelada:"neg"}; return `<span class="pill ${m[e]||''}">${e}</span>`; }
     async function vProduccion(){
       view('<div class="muted">Cargando…</div>');
-      const ordenes=await api("/produccion/ordenes");
+      const ordenes=await api("/produccion/ordenes"); window._ordenes=ordenes;
       const acc=o=>{ const b=[];
-        if(o.estado==="Planificada"){ b.push(`<button class="btn small secondary" onclick="accionOrden('${o.id}','iniciar')">Iniciar</button>`); }
+        if(o.estado==="Planificada"){ b.push(`<button class="btn small secondary" onclick="modalOrden('${o.id}')">Editar</button>`); b.push(`<button class="btn small secondary" onclick="accionOrden('${o.id}','iniciar')">Iniciar</button>`); }
         if(o.estado==="Planificada"||o.estado==="EnCurso"){ b.push(`<button class="btn small" style="width:auto;margin:0;padding:9px 14px" onclick="accionOrden('${o.id}','terminar')">Terminar</button>`); b.push(`<button class="btn small ghost" onclick="accionOrden('${o.id}','cancelar')" title="Cancelar">✕</button>`); }
         return b.join(" "); };
       const filas=ordenes.map(o=>`<tr><td><strong>OF ${o.numero}/${o.ejercicio}</strong></td><td>${o.productoNombre}</td><td class="num">${numCant(o.cantidad)}</td><td class="muted">${fdate(o.fecha)}</td><td class="muted" style="font-size:12px">${o.componentes.length} componente(s)</td><td class="right">${estadoPillProd(o.estado)}</td><td class="right" style="white-space:nowrap">${acc(o)}</td></tr>`).join("");
@@ -1321,17 +1356,22 @@
     }
     async function accionOrden(id,accion){ if(accion==="cancelar"&&!confirm("¿Cancelar la orden?"))return;
       try{ await api(`/produccion/ordenes/${id}/${accion}`,{method:"POST"}); toast("Orden "+({iniciar:"iniciada",terminar:"terminada · stock actualizado",cancelar:"cancelada"}[accion])+".","ok"); vProduccion(); }catch(e){ toast(e.message,"err"); } }
-    async function modalOrden(){
+    async function modalOrden(id){
+      const o=id?(window._ordenes||[]).find(x=>x.id===id):null;
       const [prods,almacenes]=await Promise.all([api("/productos").catch(()=>[]),api("/inventario/almacenes").catch(()=>[])]);
       const compuestos=prods.filter(p=>p.esCompuesto);
       if(!compuestos.length){ toast("Primero define un artículo compuesto (con lista de materiales).","err"); return; }
       if(!almacenes.length){ toast("Crea un almacén primero.","err"); return; }
-      const prodOpts=compuestos.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join("");
-      const almOpts=almacenes.map(a=>`<option value="${a.id}">${a.codigo} · ${a.nombre}</option>`).join("");
-      abrir("Nueva orden de fabricación",`<label>Artículo a fabricar (compuesto)</label><select id="of_prod" onchange="ofEscandallo()">${prodOpts}</select>
-        <div class="grid2"><div><label>Cantidad</label><input id="of_cant" type="number" step="0.001" value="1" oninput="ofEscandallo()"/></div><div><label>Almacén</label><select id="of_alm">${almOpts}</select></div></div>
+      const prodOpts=compuestos.map(p=>`<option value="${p.id}"${o&&o.productoId===p.id?" selected":""}>${p.nombre}</option>`).join("");
+      const almOpts=almacenes.map(a=>`<option value="${a.id}"${o&&o.almacenId===a.id?" selected":""}>${a.codigo} · ${a.nombre}</option>`).join("");
+      abrir(o?`Editar OF ${o.numero}/${o.ejercicio}`:"Nueva orden de fabricación",`<label>Artículo a fabricar (compuesto)</label><select id="of_prod" onchange="ofEscandallo()" ${o?"disabled":""}>${prodOpts}</select>
+        <div class="grid2"><div><label>Cantidad</label><input id="of_cant" type="number" step="0.001" value="${o?o.cantidad:1}" oninput="ofEscandallo()"/></div><div><label>Almacén</label><select id="of_alm">${almOpts}</select></div></div>
+        ${o?`<label>Fecha</label><input id="of_fecha" type="date" value="${o.fecha}"/>`:""}
         <div id="of_esc" style="margin-top:12px"></div>`,
-        async()=>{ await api("/produccion/ordenes",{method:"POST",body:JSON.stringify({productoId:val("of_prod"),cantidad:Number(val("of_cant")||0),almacenId:val("of_alm")})}); toast("Orden creada.","ok"); vProduccion(); });
+        async()=>{ const body={productoId:val("of_prod"),cantidad:Number(val("of_cant")||0),almacenId:val("of_alm")};
+          if(o){ body.fecha=val("of_fecha")||null; await api("/produccion/ordenes/"+o.id,{method:"PUT",body:JSON.stringify(body)}); toast("Orden guardada.","ok"); }
+          else { await api("/produccion/ordenes",{method:"POST",body:JSON.stringify(body)}); toast("Orden creada.","ok"); }
+          vProduccion(); });
       ofEscandallo();
     }
     async function ofEscandallo(){ const cont=document.getElementById("of_esc"); if(!cont)return; const id=val("of_prod"), cant=Number(val("of_cant")||0);
@@ -1973,6 +2013,7 @@
         if(i.estado==="Activo"){
           b.push(`<button class="btn small ghost" onclick="modalEnajenar('${i.id}','${i.codigo}')">Vender</button>`);
           b.push(`<button class="btn small ghost" onclick="modalBaja('${i.id}','${i.codigo}')" title="Dar de baja">Baja</button>`);
+          if(!i.amortizacionAcumulada) b.push(`<button class="btn small ghost" onclick="eliminarMaestro('/contabilidad/inmovilizado/${i.id}','el bien ${i.codigo} (dado de alta por error)',vInmovilizado,false)" title="Eliminar (sin amortizaciones)">🗑</button>`);
         }
         return b.join(" ");
       };
@@ -2208,6 +2249,7 @@
       view('<div class="muted">Cargando…</div>');
       const hoy=new Date().toISOString().slice(0,10);
       const [fs,gs,previsiones]=await Promise.all([api("/facturas").catch(()=>[]),api("/gastos").catch(()=>[]),api("/tesoreria/previsiones").catch(()=>[])]);
+      window._previsiones=previsiones||[];
       const facs=fs.filter(f=>f.estado!=="Rectificada"&&f.estado!=="Anulada");
       const [sf,sg]=await Promise.all([
         Promise.all(facs.map(f=>api("/facturas/"+f.id+"/saldo").catch(()=>null))),
@@ -2216,7 +2258,7 @@
       const filas=[];
       facs.forEach((f,i)=>{ const s=sf[i]||{}; const pend=s.pendiente??f.total; if((s.estado||"Pendiente")!=="Liquidado"&&pend>0.001){ filas.push({fecha:f.fechaVencimiento,concepto:f.numeroCompleto+" · "+f.clienteNombre,tipo:"Cobro",in:pend,out:0,origen:"Factura",prevista:false,accion:`<button class="btn small secondary" onclick="event.stopPropagation();modalCobro('${f.id}','${f.numeroCompleto}',${pend})">Cobrar</button>`}); } });
       gs.forEach((g,i)=>{ const s=sg[i]||{}; const pend=s.pendiente??g.total; if((s.estado||"Pendiente")!=="Liquidado"&&pend>0.001){ filas.push({fecha:(g.fechaVencimiento||g.fecha),concepto:g.concepto+(g.proveedorTexto?" · "+g.proveedorTexto:""),tipo:"Pago",in:0,out:pend,origen:"Gasto",prevista:false,accion:`<button class="btn small secondary" onclick="event.stopPropagation();modalPagoGasto('${g.id}','${(g.concepto||'').replace(/'/g,'')}',${pend})">Pagar</button>`}); } });
-      (previsiones||[]).forEach(p=>{ const ing=p.sentido==="Ingreso"; filas.push({fecha:p.fecha,concepto:p.concepto,tipo:ing?"Ingreso previsto":"Gasto previsto",in:ing?p.importe:0,out:ing?0:p.importe,origen:"Previsión",prevista:true,accion:`<button class="btn small ghost" onclick="event.stopPropagation();borrarPrevision('${p.id}')" title="Eliminar previsión">✕</button>`}); });
+      (previsiones||[]).forEach(p=>{ const ing=p.sentido==="Ingreso"; filas.push({fecha:p.fecha,concepto:p.concepto,tipo:ing?"Ingreso previsto":"Gasto previsto",in:ing?p.importe:0,out:ing?0:p.importe,origen:"Previsión",prevista:true,accion:`<button class="btn small secondary" onclick="event.stopPropagation();modalPrevision('${p.id}')" title="Modificar previsión">Editar</button> <button class="btn small ghost" onclick="event.stopPropagation();borrarPrevision('${p.id}')" title="Eliminar previsión">✕</button>`}); });
       filas.sort((a,b)=>(a.fecha||'').localeCompare(b.fecha||''));
       let saldo=0,totIn=0,totOut=0,neto30=0;
       const lim30=new Date(Date.now()+30*864e5).toISOString().slice(0,10);
@@ -2233,11 +2275,12 @@
         :vacio("cobros","Sin vencimientos ni previsiones","Aquí verás tus cobros y pagos pendientes. También puedes añadir ingresos o gastos previstos para completar la previsión.",`<button class="btn small" onclick="modalPrevision()">+ Añadir previsión</button>`);
       view(kpis+panel("Previsión de tesorería",cuerpo,`<button class="btn small" onclick="modalPrevision()">+ Añadir previsión</button>`));
     }
-    function modalPrevision(){ const hoy=new Date().toISOString().slice(0,10);
-      abrir("Añadir previsión",`<div class="grid2"><div><label>Tipo</label><select id="pv_sent"><option value="Ingreso">Ingreso previsto</option><option value="Gasto">Gasto previsto</option></select></div><div><label>Fecha prevista</label><input id="pv_fecha" type="date" value="${hoy}"/></div></div>
-        <label>Concepto</label><input id="pv_conc" placeholder="Ej. Subvención, alquiler, préstamo…"/>
-        <label>Importe (€)</label><input id="pv_imp" type="number" step="0.01" value="0"/>`,
-        async()=>{ await api("/tesoreria/previsiones",{method:"POST",body:JSON.stringify({sentido:val("pv_sent"),concepto:val("pv_conc"),importe:Number(val("pv_imp")||0),fecha:val("pv_fecha")})}); toast("Previsión añadida.","ok"); vPrevision(); }); }
+    function modalPrevision(id){ const hoy=new Date().toISOString().slice(0,10); const p=id?(window._previsiones||[]).find(x=>x.id===id):null;
+      abrir(p?"Modificar previsión":"Añadir previsión",`<div class="grid2"><div><label>Tipo</label><select id="pv_sent"><option value="Ingreso"${p&&p.sentido==="Ingreso"?" selected":""}>Ingreso previsto</option><option value="Gasto"${p&&p.sentido==="Gasto"?" selected":""}>Gasto previsto</option></select></div><div><label>Fecha prevista</label><input id="pv_fecha" type="date" value="${p?p.fecha:hoy}"/></div></div>
+        <label>Concepto</label><input id="pv_conc" placeholder="Ej. Subvención, alquiler, préstamo…" value="${p?agEsc(p.concepto):""}"/>
+        <label>Importe (€)</label><input id="pv_imp" type="number" step="0.01" value="${p?p.importe:0}"/>`,
+        async()=>{ const body=JSON.stringify({sentido:val("pv_sent"),concepto:val("pv_conc"),importe:Number(val("pv_imp")||0),fecha:val("pv_fecha")});
+          await api(p?"/tesoreria/previsiones/"+p.id:"/tesoreria/previsiones",{method:p?"PUT":"POST",body}); toast(p?"Previsión guardada.":"Previsión añadida.","ok"); vPrevision(); }); }
     async function borrarPrevision(id){ if(!confirm("¿Eliminar esta previsión?"))return; try{ await api("/tesoreria/previsiones/"+id,{method:"DELETE"}); toast("Previsión eliminada.","ok"); vPrevision(); }catch(e){ toast(e.message,"err"); } }
     function modalPagoGasto(id,concepto,pend){ const hoy=new Date().toISOString().slice(0,10);
       abrir("Registrar pago · "+concepto,`<div class="grid2"><div><label>Importe (€)</label><input id="pg_imp" type="number" step="0.01" value="${pend}"/></div><div><label>Fecha</label><input id="pg_fecha" type="date" value="${hoy}"/></div></div><label>Método (opcional)</label><input id="pg_metodo" placeholder="Transferencia, efectivo…"/>`,
@@ -2307,12 +2350,17 @@
       view('<div class="muted">Cargando…</div>');
       const [lista, clientes]=await Promise.all([api("/anticipos"), api("/clientes")]);
       const nombre=Object.fromEntries(clientes.map(c=>[c.id,c.nombre]));
-      const filas=lista.map(a=>{ const pill=a.estado==="Aplicado"?'<span class="pill ok">Aplicado</span>':(a.estado==="Parcial"?'<span class="pill part">Parcial</span>':'<span class="pill wait">Disponible</span>');
-        const aplicar=a.disponible>0?`<button class="btn small secondary" onclick="modalAplicarAnticipo('${a.id}','${a.clienteId}',${a.disponible})">Aplicar a factura</button>`:"";
-        return `<tr><td class="muted">${fdate(a.fecha)}</td><td>${nombre[a.clienteId]||"—"}</td><td>${a.concepto}</td><td class="num">${eur(a.importe)}</td><td class="num">${eur(a.disponible)}</td><td>${pill}</td><td class="right">${aplicar}</td></tr>`;}).join("");
+      const filas=lista.map(a=>{ const pill=a.estado==="Anulado"?'<span class="pill neg">Anulado</span>':a.estado==="Aplicado"?'<span class="pill ok">Aplicado</span>':(a.estado==="Parcial"?'<span class="pill part">Parcial</span>':'<span class="pill wait">Disponible</span>');
+        const aplicar=a.estado!=="Anulado"&&a.disponible>0?`<button class="btn small secondary" onclick="modalAplicarAnticipo('${a.id}','${a.clienteId}',${a.disponible})">Aplicar a factura</button>`:"";
+        const anular=a.estado==="Disponible"?` <button class="btn small ghost" onclick="anularAnticipo('${a.id}')">Anular</button>`:"";
+        return `<tr><td class="muted">${fdate(a.fecha)}</td><td>${nombre[a.clienteId]||"—"}</td><td>${a.concepto}</td><td class="num">${eur(a.importe)}</td><td class="num">${eur(a.disponible)}</td><td>${pill}</td><td class="right" style="white-space:nowrap">${aplicar}${anular}</td></tr>`;}).join("");
       const cuerpo=lista.length?`<table><thead><tr><th>Fecha</th><th>Cliente</th><th>Concepto</th><th class="num">Importe</th><th class="num">Disponible</th><th>Estado</th><th></th></tr></thead><tbody>${filas}</tbody></table>`
         :'<p class="muted" style="margin:0">Aún no hay anticipos.</p>';
       view(panel("Anticipos",`<p class="muted" style="margin:0 0 12px">Dinero cobrado antes de facturar. Al aplicarlo a una factura del mismo cliente queda como cobro de esa factura.</p>`+cuerpo,`<button class="btn small" onclick="modalAnticipo()">+ Nuevo anticipo</button>`));
+    }
+    async function anularAnticipo(id){
+      if(!confirm("¿Anular este anticipo? Úsalo si se registró por error o se devolvió al cliente.")) return;
+      try{ await api(`/anticipos/${id}/anular`,{method:"POST"}); toast("Anticipo anulado.","ok"); vAnticipos(); } catch(e){ toast(e.message,"err"); }
     }
     async function modalAnticipo(){
       const clientes=await api("/clientes"); const hoy=new Date().toISOString().slice(0,10);
@@ -2406,38 +2454,58 @@
           await api(`/contabilidad/analitica/apuntes/${apunteId}`,{method:"PUT",body:JSON.stringify({lineas})}); toast("Apunte imputado.","ok"); vAnaliticaPend(); }); }
     async function vAnaliticaMaestros(){
       view('<div class="muted">Cargando…</div>');
-      await anCargar(); const reglas=await api("/contabilidad/analitica/reglas");
+      await anCargar(); const reglas=await api("/contabilidad/analitica/reglas"); _an.reglas=reglas;
       const hijos=pid=>_an.centros.filter(c=>(c.padreId||null)===pid).sort((a,b)=>a.codigo.localeCompare(b.codigo));
-      const arbol=(pid,n)=>hijos(pid).map(c=>`<tr><td style="padding-left:${12+n*20}px">${n?'<span class="muted">└ </span>':''}<strong class="mono">${c.codigo}</strong></td><td>${c.nombre}</td><td class="muted">${c.tipo}</td><td>${c.activo?'<span class="pill ok">Activo</span>':'<span class="pill wait">Inactivo</span>'}</td></tr>`+arbol(c.id,n+1)).join("");
-      const pCentros=panel("Centros (dónde)",_an.centros.length?`<table><thead><tr><th>Código</th><th>Nombre</th><th>Tipo</th><th></th></tr></thead><tbody>${arbol(null,0)}</tbody></table>`:'<p class="muted" style="margin:0">Crea los centros de coste, departamentos, fincas o proyectos donde quieres ver resultados. Pueden tener subcentros.</p>',`<button class="btn small" onclick="modalCentro()">+ Centro</button>`);
-      const pPartidas=panel("Partidas (qué)",_an.partidas.length?`<table><thead><tr><th>Código</th><th>Nombre</th><th>Naturaleza</th></tr></thead><tbody>${_an.partidas.map(p=>`<tr><td class="mono"><strong>${p.codigo}</strong></td><td>${p.nombre}</td><td class="muted">${p.naturaleza}</td></tr>`).join("")}</tbody></table>`:'<p class="muted" style="margin:0">Opcional: la naturaleza analítica del coste (mano de obra, fitosanitarios, energía…). Sin partidas, el análisis se hace por cuenta contable.</p>',`<button class="btn small" onclick="modalPartida()">+ Partida</button>`);
-      const pClaves=panel("Claves de reparto",_an.claves.length?`<table><thead><tr><th>Código</th><th>Nombre</th><th>Reparto</th></tr></thead><tbody>${_an.claves.map(k=>`<tr><td class="mono"><strong>${k.codigo}</strong></td><td>${k.nombre}</td><td class="muted">${k.reparto.map(r=>`${anNombre(_an.centros,r.centroId).split(" · ")[0]} ${pct(r.porcentaje)}`).join(" · ")}</td></tr>`).join("")}</tbody></table>`:'<p class="muted" style="margin:0">Porcentajes para repartir un importe entre centros (por superficie, por horas…). Suman 100 %.</p>',`<button class="btn small" onclick="modalClave()">+ Clave</button>`);
+      const arbol=(pid,n)=>hijos(pid).map(c=>`<tr><td style="padding-left:${12+n*20}px">${n?'<span class="muted">└ </span>':''}<strong class="mono">${c.codigo}</strong></td><td>${c.nombre}</td><td class="muted">${c.tipo}</td><td>${c.activo?'<span class="pill ok">Activo</span>':'<span class="pill wait">Inactivo</span>'}</td><td class="right" style="white-space:nowrap"><button class="btn small secondary" onclick="modalCentro('${c.id}')">Editar</button> <button class="btn small ghost" onclick="eliminarMaestro('/contabilidad/analitica/centros/${c.id}','el centro «${c.codigo}»',vAnaliticaMaestros,false)" title="Eliminar">🗑</button></td></tr>`+arbol(c.id,n+1)).join("");
+      const pCentros=panel("Centros (dónde)",_an.centros.length?`<table><thead><tr><th>Código</th><th>Nombre</th><th>Tipo</th><th></th><th></th></tr></thead><tbody>${arbol(null,0)}</tbody></table>`:'<p class="muted" style="margin:0">Crea los centros de coste, departamentos, fincas o proyectos donde quieres ver resultados. Pueden tener subcentros.</p>',`<button class="btn small" onclick="modalCentro()">+ Centro</button>`);
+      const pPartidas=panel("Partidas (qué)",_an.partidas.length?`<table><thead><tr><th>Código</th><th>Nombre</th><th>Naturaleza</th><th></th></tr></thead><tbody>${_an.partidas.map(p=>`<tr><td class="mono"><strong>${p.codigo}</strong>${p.activo?"":' <span class="pill wait">Inactiva</span>'}</td><td>${p.nombre}</td><td class="muted">${p.naturaleza}</td><td class="right" style="white-space:nowrap"><button class="btn small secondary" onclick="modalPartida('${p.id}')">Editar</button> <button class="btn small ghost" onclick="eliminarMaestro('/contabilidad/analitica/partidas/${p.id}','la partida «${p.codigo}»',vAnaliticaMaestros,false)" title="Eliminar">🗑</button></td></tr>`).join("")}</tbody></table>`:'<p class="muted" style="margin:0">Opcional: la naturaleza analítica del coste (mano de obra, fitosanitarios, energía…). Sin partidas, el análisis se hace por cuenta contable.</p>',`<button class="btn small" onclick="modalPartida()">+ Partida</button>`);
+      const pClaves=panel("Claves de reparto",_an.claves.length?`<table><thead><tr><th>Código</th><th>Nombre</th><th>Reparto</th><th></th></tr></thead><tbody>${_an.claves.map(k=>`<tr><td class="mono"><strong>${k.codigo}</strong>${k.activa?"":' <span class="pill wait">Inactiva</span>'}</td><td>${k.nombre}</td><td class="muted">${k.reparto.map(r=>`${anNombre(_an.centros,r.centroId).split(" · ")[0]} ${pct(r.porcentaje)}`).join(" · ")}</td><td class="right" style="white-space:nowrap"><button class="btn small secondary" onclick="modalClave('${k.id}')">Editar</button> <button class="btn small ghost" onclick="eliminarMaestro('/contabilidad/analitica/claves/${k.id}','la clave «${k.codigo}»',vAnaliticaMaestros,false)" title="Eliminar">🗑</button></td></tr>`).join("")}</tbody></table>`:'<p class="muted" style="margin:0">Porcentajes para repartir un importe entre centros (por superficie, por horas…). Suman 100 %.</p>',`<button class="btn small" onclick="modalClave()">+ Clave</button>`);
       const criterios=r=>[r.prefijoCuenta?`cuenta ${r.prefijoCuenta}…`:null,r.terceroId?"tercero concreto":null,r.actividadNegocioId?"actividad":null,r.familia?`familia ${r.familia}`:null,r.vigenteDesde||r.vigenteHasta?`vigencia ${fdate(r.vigenteDesde)||"…"}–${fdate(r.vigenteHasta)||"…"}`:null].filter(Boolean).join(", ");
-      const pReglas=panel("Reglas de asignación",reglas.length?`<table><thead><tr><th>Regla</th><th>Si…</th><th>Entonces</th><th></th></tr></thead><tbody>${reglas.map(r=>`<tr><td><strong>${r.descripcion}</strong>${r.prioridad?` <small class="muted">prioridad ${r.prioridad}</small>`:""}</td><td class="muted">${criterios(r)}</td><td>${r.centroId?anNombre(_an.centros,r.centroId):"clave "+anNombre(_an.claves,r.claveRepartoId)}${r.partidaId?` · ${anNombre(_an.partidas,r.partidaId)}`:""}</td><td class="right"><button class="btn small secondary" onclick="anBorrarRegla('${r.id}')">Borrar</button></td></tr>`).join("")}</tbody></table>`:'<p class="muted" style="margin:0">Las reglas imputan solas al contabilizar. Gana la de mayor prioridad y, a igualdad, la más concreta (tercero antes que cuenta).</p>',`<button class="btn small" onclick="modalReglaAnalitica()">+ Regla</button>`);
+      const pReglas=panel("Reglas de asignación",reglas.length?`<table><thead><tr><th>Regla</th><th>Si…</th><th>Entonces</th><th></th></tr></thead><tbody>${reglas.map(r=>`<tr><td><strong>${r.descripcion}</strong>${r.prioridad?` <small class="muted">prioridad ${r.prioridad}</small>`:""}</td><td class="muted">${criterios(r)}</td><td>${r.centroId?anNombre(_an.centros,r.centroId):"clave "+anNombre(_an.claves,r.claveRepartoId)}${r.partidaId?` · ${anNombre(_an.partidas,r.partidaId)}`:""}</td><td class="right" style="white-space:nowrap"><button class="btn small secondary" onclick="modalReglaAnalitica('${r.id}')">Editar</button> <button class="btn small ghost" onclick="anBorrarRegla('${r.id}')" title="Eliminar">🗑</button></td></tr>`).join("")}</tbody></table>`:'<p class="muted" style="margin:0">Las reglas imputan solas al contabilizar. Gana la de mayor prioridad y, a igualdad, la más concreta (tercero antes que cuenta).</p>',`<button class="btn small" onclick="modalReglaAnalitica()">+ Regla</button>`);
       const pPeriodos=panel("Periodos analíticos (campañas)",_an.periodos.length?`<table><thead><tr><th>Código</th><th>Nombre</th><th>Desde</th><th>Hasta</th><th></th></tr></thead><tbody>${_an.periodos.map(p=>`<tr><td class="mono"><strong>${p.codigo}</strong></td><td>${p.nombre}</td><td class="muted">${fdate(p.desde)}</td><td class="muted">${fdate(p.hasta)}</td><td class="right"><button class="btn small secondary" onclick="anCerrarPeriodo('${p.id}',${!p.cerrado})">${p.cerrado?"Reabrir":"Cerrar"}</button></td></tr>`).join("")}</tbody></table>`:'<p class="muted" style="margin:0">Ejercicios de gestión distintos del fiscal, como una campaña de septiembre a agosto. Cerrado, sus imputaciones no se pueden cambiar.</p>',`<button class="btn small" onclick="modalPeriodo()">+ Periodo</button>`);
       view(pCentros+pPartidas+pClaves+pReglas+pPeriodos);
     }
     const tiposCentro=["CentroCoste","Proyecto","Departamento","Campana","Finca","Otro"];
-    function modalCentro(){ abrir("Nuevo centro",`<div class="grid2"><div><label>Código</label><input id="ce_cod" placeholder="ADM"/></div><div><label>Nombre</label><input id="ce_nom" placeholder="Administración"/></div></div>
-        <div class="grid2"><div><label>Tipo</label><select id="ce_tipo">${tiposCentro.map(t=>`<option>${t}</option>`).join("")}</select></div><div><label>Depende de</label><select id="ce_pad">${anOpc(_an.centros,null,"— Ninguno —")}</select></div></div>`,
-      async()=>{ await api("/contabilidad/analitica/centros",{method:"POST",body:JSON.stringify({codigo:val("ce_cod"),nombre:val("ce_nom"),tipo:val("ce_tipo"),padreId:val("ce_pad")||null})}); toast("Centro creado.","ok"); vAnaliticaMaestros(); }); }
-    function modalPartida(){ abrir("Nueva partida",`<div class="grid2"><div><label>Código</label><input id="pa_cod" placeholder="FITO"/></div><div><label>Nombre</label><input id="pa_nom" placeholder="Fitosanitarios"/></div></div>
-        <div class="grid2"><div><label>Naturaleza</label><select id="pa_nat"><option>Gasto</option><option>Ingreso</option></select></div><div><label>Depende de</label><select id="pa_pad">${anOpc(_an.partidas,null,"— Ninguna —")}</select></div></div>`,
-      async()=>{ await api("/contabilidad/analitica/partidas",{method:"POST",body:JSON.stringify({codigo:val("pa_cod"),nombre:val("pa_nom"),naturaleza:val("pa_nat"),padreId:val("pa_pad")||null})}); toast("Partida creada.","ok"); vAnaliticaMaestros(); }); }
-    function modalClave(){ if(!_an.centros.length){ toast("Primero crea algún centro.","err"); return; }
-      const fila=i=>`<div class="grid2"><div><select id="cl_c${i}">${anOpc(_an.centros,null,"—")}</select></div><div><input id="cl_p${i}" type="number" step="0.01" placeholder="%"/></div></div>`;
-      abrir("Nueva clave de reparto",`<div class="grid2"><div><label>Código</label><input id="cl_cod" placeholder="SUP"/></div><div><label>Nombre</label><input id="cl_nom" placeholder="Por superficie"/></div></div><label>Centros y porcentajes (suman 100)</label>${[0,1,2,3,4].map(fila).join("")}`,
-      async()=>{ const reparto=[0,1,2,3,4].map(i=>({centroId:val("cl_c"+i),porcentaje:Number(val("cl_p"+i)||0)})).filter(r=>r.centroId&&r.porcentaje>0);
-        await api("/contabilidad/analitica/claves",{method:"POST",body:JSON.stringify({codigo:val("cl_cod"),nombre:val("cl_nom"),reparto})}); toast("Clave creada.","ok"); vAnaliticaMaestros(); }); }
-    async function modalReglaAnalitica(){ if(!_an.centros.length){ toast("Primero crea algún centro.","err"); return; }
+    const chkActivo=(id,activo)=>`<label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input id="${id}" type="checkbox" style="width:auto" ${activo===false?"":"checked"}/> Activo (desmárcalo para que deje de ofrecerse sin perder lo imputado)</label>`;
+    function modalCentro(id){ const c=id?_an.centros.find(x=>x.id===id):null;
+      abrir(c?"Editar centro":"Nuevo centro",`<div class="grid2"><div><label>Código</label><input id="ce_cod" placeholder="ADM" value="${c?agEsc(c.codigo):""}" ${c?"disabled":""}/></div><div><label>Nombre</label><input id="ce_nom" placeholder="Administración" value="${c?agEsc(c.nombre):""}"/></div></div>
+        <div class="grid2"><div><label>Tipo</label><select id="ce_tipo">${tiposCentro.map(t=>`<option${c&&c.tipo===t?" selected":""}>${t}</option>`).join("")}</select></div><div><label>Depende de</label><select id="ce_pad">${anOpc(_an.centros.filter(x=>!c||x.id!==c.id),c?c.padreId:null,"— Ninguno —")}</select></div></div>${c?chkActivo("ce_act",c.activo):""}`,
+      async()=>{ const body={codigo:val("ce_cod"),nombre:val("ce_nom"),tipo:val("ce_tipo"),padreId:val("ce_pad")||null};
+        if(c){ body.activo=document.getElementById("ce_act").checked; await api("/contabilidad/analitica/centros/"+c.id,{method:"PUT",body:JSON.stringify(body)}); }
+        else await api("/contabilidad/analitica/centros",{method:"POST",body:JSON.stringify(body)});
+        toast(c?"Centro guardado.":"Centro creado.","ok"); vAnaliticaMaestros(); }); }
+    function modalPartida(id){ const p=id?_an.partidas.find(x=>x.id===id):null;
+      abrir(p?"Editar partida":"Nueva partida",`<div class="grid2"><div><label>Código</label><input id="pa_cod" placeholder="FITO" value="${p?agEsc(p.codigo):""}" ${p?"disabled":""}/></div><div><label>Nombre</label><input id="pa_nom" placeholder="Fitosanitarios" value="${p?agEsc(p.nombre):""}"/></div></div>
+        <div class="grid2"><div><label>Naturaleza</label><select id="pa_nat" ${p?"disabled":""}><option${p&&p.naturaleza==="Gasto"?" selected":""}>Gasto</option><option${p&&p.naturaleza==="Ingreso"?" selected":""}>Ingreso</option></select></div><div><label>Depende de</label><select id="pa_pad">${anOpc(_an.partidas.filter(x=>!p||x.id!==p.id),p?p.padreId:null,"— Ninguna —")}</select></div></div>${p?chkActivo("pa_act",p.activo):""}`,
+      async()=>{ const body={codigo:val("pa_cod"),nombre:val("pa_nom"),naturaleza:val("pa_nat"),padreId:val("pa_pad")||null};
+        if(p){ body.activo=document.getElementById("pa_act").checked; await api("/contabilidad/analitica/partidas/"+p.id,{method:"PUT",body:JSON.stringify(body)}); }
+        else await api("/contabilidad/analitica/partidas",{method:"POST",body:JSON.stringify(body)});
+        toast(p?"Partida guardada.":"Partida creada.","ok"); vAnaliticaMaestros(); }); }
+    function modalClave(id){ if(!_an.centros.length){ toast("Primero crea algún centro.","err"); return; }
+      const k=id?_an.claves.find(x=>x.id===id):null; const n=Math.max(5,(k?k.reparto.length:0)+1);
+      const fila=i=>{ const r=k?k.reparto[i]:null; return `<div class="grid2"><div><select id="cl_c${i}">${anOpc(_an.centros,r?r.centroId:null,"—")}</select></div><div><input id="cl_p${i}" type="number" step="0.01" placeholder="%" value="${r?r.porcentaje:""}"/></div></div>`; };
+      const idx=[...Array(n).keys()];
+      abrir(k?"Editar clave de reparto":"Nueva clave de reparto",`<div class="grid2"><div><label>Código</label><input id="cl_cod" placeholder="SUP" value="${k?agEsc(k.codigo):""}" ${k?"disabled":""}/></div><div><label>Nombre</label><input id="cl_nom" placeholder="Por superficie" value="${k?agEsc(k.nombre):""}"/></div></div><label>Centros y porcentajes (suman 100)</label>${idx.map(fila).join("")}${k?chkActivo("cl_act",k.activa):""}`,
+      async()=>{ const reparto=idx.map(i=>({centroId:val("cl_c"+i),porcentaje:Number(val("cl_p"+i)||0)})).filter(r=>r.centroId&&r.porcentaje>0);
+        const body={codigo:val("cl_cod"),nombre:val("cl_nom"),reparto};
+        if(k){ body.activa=document.getElementById("cl_act").checked; await api("/contabilidad/analitica/claves/"+k.id,{method:"PUT",body:JSON.stringify(body)}); }
+        else await api("/contabilidad/analitica/claves",{method:"POST",body:JSON.stringify(body)});
+        toast(k?"Clave guardada.":"Clave creada.","ok"); vAnaliticaMaestros(); }); }
+    async function modalReglaAnalitica(id){ if(!_an.centros.length){ toast("Primero crea algún centro.","err"); return; }
+      const rg=id?(_an.reglas||[]).find(x=>x.id===id):null;
       const [provs,clis]=await Promise.all([api("/proveedores").catch(()=>[]),api("/clientes").catch(()=>[])]);
       const terceros=`<option value="">— Cualquiera —</option>`+provs.map(p=>`<option value="${p.id}">Proveedor · ${p.nombre}</option>`).join("")+clis.map(c=>`<option value="${c.id}">Cliente · ${c.nombre}</option>`).join("");
-      abrir("Nueva regla",`<label>Descripción</label><input id="rg_des" placeholder="Servicios de administración"/>
+      abrir(rg?"Editar regla":"Nueva regla",`<label>Descripción</label><input id="rg_des" placeholder="Servicios de administración"/>
         <div class="grid2"><div><label>Si la cuenta empieza por</label><input id="rg_cta" placeholder="62"/></div><div><label>y el tercero es</label><select id="rg_ter">${terceros}</select></div></div>
         <div class="grid2"><div><label>Vigente desde</label><input id="rg_vd" type="date"/></div><div><label>hasta</label><input id="rg_vh" type="date"/></div></div>
         <div class="grid2"><div><label>Imputar al centro</label><select id="rg_cen">${anOpc(_an.centros,null,"— o usar una clave —")}</select></div><div><label>o repartir con la clave</label><select id="rg_cla">${anOpc(_an.claves,null,"—")}</select></div></div>
         <div class="grid2"><div><label>Partida</label><select id="rg_par">${anOpc(_an.partidas,null,"Sin partida")}</select></div><div><label>Prioridad</label><input id="rg_pri" type="number" value="0"/></div></div>`,
-      async()=>{ await api("/contabilidad/analitica/reglas",{method:"POST",body:JSON.stringify({descripcion:val("rg_des"),prefijoCuenta:val("rg_cta")||null,terceroId:val("rg_ter")||null,vigenteDesde:val("rg_vd")||null,vigenteHasta:val("rg_vh")||null,centroId:val("rg_cen")||null,claveRepartoId:val("rg_cla")||null,partidaId:val("rg_par")||null,prioridad:Number(val("rg_pri")||0)})}); toast("Regla creada.","ok"); vAnaliticaMaestros(); }); }
+      async()=>{ const body=JSON.stringify({descripcion:val("rg_des"),prefijoCuenta:val("rg_cta")||null,terceroId:val("rg_ter")||null,vigenteDesde:val("rg_vd")||null,vigenteHasta:val("rg_vh")||null,centroId:val("rg_cen")||null,claveRepartoId:val("rg_cla")||null,partidaId:val("rg_par")||null,prioridad:Number(val("rg_pri")||0)});
+        if(rg) await api("/contabilidad/analitica/reglas/"+rg.id,{method:"PUT",body}); else await api("/contabilidad/analitica/reglas",{method:"POST",body});
+        toast(rg?"Regla guardada.":"Regla creada.","ok"); vAnaliticaMaestros(); });
+      if(rg){ const set=(i,v)=>{ const e=document.getElementById(i); if(e&&v!=null) e.value=v; };
+        set("rg_des",rg.descripcion); set("rg_cta",rg.prefijoCuenta); set("rg_ter",rg.terceroId); set("rg_vd",rg.vigenteDesde); set("rg_vh",rg.vigenteHasta);
+        set("rg_cen",rg.centroId); set("rg_cla",rg.claveRepartoId); set("rg_par",rg.partidaId); set("rg_pri",rg.prioridad); } }
     async function anBorrarRegla(id){ if(!confirm("¿Borrar la regla? Lo ya imputado no cambia."))return; await api("/contabilidad/analitica/reglas/"+id,{method:"DELETE"}); vAnaliticaMaestros(); }
     function modalPeriodo(){ const a=new Date().getFullYear(); abrir("Nuevo periodo analítico",`<div class="grid2"><div><label>Código</label><input id="pe_cod" placeholder="C${a}-${String(a+1).slice(2)}"/></div><div><label>Nombre</label><input id="pe_nom" placeholder="Campaña ${a}/${a+1}"/></div></div>
         <div class="grid2"><div><label>Desde</label><input id="pe_des" type="date" value="${a}-09-01"/></div><div><label>Hasta</label><input id="pe_has" type="date" value="${a+1}-08-31"/></div></div>`,
@@ -2448,10 +2516,18 @@
       view('<div class="muted">Cargando…</div>');
       await anCargar(); const lista=await api("/contabilidad/presupuestos");
       const filas=lista.map(p=>`<tr><td class="mono"><strong>${p.codigo}</strong></td><td>${p.nombre}</td><td class="muted">${fdate(p.desde)} – ${fdate(p.hasta)}</td><td>${p.estado==="Aprobado"?'<span class="pill ok">Aprobado</span>':'<span class="pill wait">Borrador</span>'}</td><td class="num">${eur(p.totalIngresos)}</td><td class="num">${eur(p.totalGastos)}</td><td class="num"><strong>${eur(p.resultado)}</strong></td>
-        <td class="right"><button class="btn small" onclick="verSeguimiento('${p.id}')">Seguimiento</button> ${p.estado==="Borrador"?`<button class="btn small secondary" onclick="aprobarPresupuesto('${p.id}')">Aprobar</button>`:""} <button class="btn small secondary" onclick="copiarPresupuesto('${p.id}','${p.codigo}')">Copiar</button></td></tr>`).join("");
+        <td class="right"><button class="btn small" onclick="verSeguimiento('${p.id}')">Seguimiento</button> ${p.estado==="Borrador"?`<button class="btn small secondary" onclick="editarLineasPresupuesto('${p.id}')">Editar</button> <button class="btn small secondary" onclick="aprobarPresupuesto('${p.id}')">Aprobar</button>`:""} <button class="btn small secondary" onclick="copiarPresupuesto('${p.id}','${p.codigo}')">Copiar</button>${p.estado==="Borrador"?` <button class="btn small ghost" onclick="eliminarMaestro('/contabilidad/presupuestos/${p.id}','el presupuesto ${p.codigo}',vPresupuestosCont,false)" title="Eliminar">🗑</button>`:""}</td></tr>`).join("");
       view(panel("Presupuestos contables",lista.length?`<table><thead><tr><th>Código</th><th>Nombre</th><th>Periodo</th><th>Estado</th><th class="num">Ingresos</th><th class="num">Gastos</th><th class="num">Resultado</th><th></th></tr></thead><tbody>${filas}</tbody></table>`
         :'<p class="muted" style="margin:0">Presupuesta por cuenta (o grupo: «62» es todo el subgrupo), y si quieres por centro. Puedes partir del real del año pasado con un incremento.</p>',
         `<button class="btn small" onclick="modalPresupuestoCont()">+ Nuevo</button> <button class="btn small secondary" onclick="modalPresupuestoReal()">Generar desde el real</button>`)+'<div id="seguimiento"></div>');
+    }
+    async function editarLineasPresupuesto(id){
+      const p=await api("/contabilidad/presupuestos/"+id);
+      const texto=p.lineas.map(l=>{ const c=l.centroId?(_an.centros.find(x=>x.id===l.centroId)||{}).codigo:""; return `${l.cuentaCodigo}; ${String(l.total).replace(".",",")}${c?"; "+c:""}`; }).join("\n");
+      abrir(`Editar ${p.codigo} · ${agEsc(p.nombre)}`,`<p class="muted" style="margin:0 0 10px">Una línea por renglón: «cuenta; total del periodo; centro (código, opcional)». El total se reparte a partes iguales entre los meses; se sustituyen todas las líneas.</p>
+        <textarea id="pe_lin" rows="10">${agEsc(texto)}</textarea>`,
+        async()=>{ const lineas=val("pe_lin").split("\n").map(x=>x.split(";").map(y=>y.trim())).filter(x=>x[0]).map(([cta,total,cen])=>({cuentaCodigo:cta,total:Number((total||"0").replace(",",".")),centroId:cen?(_an.centros.find(c=>c.codigo===cen.toUpperCase())||{}).id||null:null}));
+          await api(`/contabilidad/presupuestos/${id}/lineas`,{method:"PUT",body:JSON.stringify({lineas})}); toast("Presupuesto guardado.","ok"); vPresupuestosCont(); });
     }
     function modalPresupuestoCont(){ const a=new Date().getFullYear();
       abrir("Nuevo presupuesto",`<div class="grid2"><div><label>Código</label><input id="ps_cod" placeholder="P${a+1}"/></div><div><label>Nombre</label><input id="ps_nom" placeholder="Presupuesto ${a+1}"/></div></div>
@@ -2488,12 +2564,13 @@
       const [cat,tipos]=await Promise.all([api("/divisas").catch(()=>[]),api("/tipos-cambio").catch(()=>[])]);
       _divisasCat=cat;
       const hoy=new Date().toISOString().slice(0,10);
-      const filasTc=tipos.length?tipos.map(t=>`<tr><td><strong class="mono">${t.divisa}</strong></td><td class="muted">${fdate(t.fecha)}</td><td class="num">${t.tasaEur} €</td></tr>`).join("")
-        :`<tr><td colspan="3" class="muted">Aún no hay tipos de cambio. Añade uno para poder facturar o valorar en divisa.</td></tr>`;
+      window._tiposCambio=tipos;
+      const filasTc=tipos.length?tipos.map(t=>`<tr><td><strong class="mono">${t.divisa}</strong></td><td class="muted">${fdate(t.fecha)}</td><td class="num">${t.tasaEur} €</td><td class="right" style="white-space:nowrap"><button class="btn small secondary" onclick="modalTipoCambio('${t.id}')">Modificar</button> <button class="btn small ghost" onclick="eliminarMaestro('/tipos-cambio/${t.id}','el tipo de cambio ${t.divisa} del ${fdate(t.fecha)}',vDivisas,false)" title="Eliminar">🗑</button></td></tr>`).join("")
+        :`<tr><td colspan="4" class="muted">Aún no hay tipos de cambio. Añade uno para poder facturar o valorar en divisa.</td></tr>`;
       const opcNoEur=cat.filter(d=>d.codigo!=="EUR").map(d=>`<option value="${d.codigo}">${d.codigo} · ${d.nombre}</option>`).join("");
       const panelTc=panel("Tipos de cambio",
         `<p class="muted" style="margin:0 0 12px">La moneda funcional es el <strong>euro</strong>. La tasa es cuántos euros vale <strong>una unidad</strong> de la divisa (p. ej. USD 0,92 ⇒ 1 USD = 0,92 €). Al convertir a una fecha se usa la tasa más reciente anterior o igual.</p>
-         <table><thead><tr><th>Divisa</th><th>Fecha</th><th class="num">Tasa (€/ud)</th></tr></thead><tbody>${filasTc}</tbody></table>`,
+         <table><thead><tr><th>Divisa</th><th>Fecha</th><th class="num">Tasa (€/ud)</th><th></th></tr></thead><tbody>${filasTc}</tbody></table>`,
         `<button class="btn small" onclick="modalTipoCambio()">+ Tipo de cambio</button>`);
       const panelConv=panel("Conversor",
         `<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">
@@ -2510,12 +2587,12 @@
       view(panelTc+panelConv+panelDif);
       _difLineas=[]; difAnadir();
     }
-    function modalTipoCambio(){
-      const hoy=new Date().toISOString().slice(0,10);
-      const opc=_divisasCat.filter(d=>d.codigo!=="EUR").map(d=>`<option value="${d.codigo}">${d.codigo} · ${d.nombre}</option>`).join("");
-      abrir("Nuevo tipo de cambio",
-        `<div class="grid2"><div><label>Divisa</label><select id="tc_div">${opc}</select></div><div><label>Fecha</label><input id="tc_fecha" type="date" value="${hoy}"/></div></div>
-         <label style="margin-top:10px">Tasa (euros por 1 unidad de la divisa)</label><input id="tc_tasa" type="number" step="0.000001" placeholder="Ej. 0,92"/>`,
+    function modalTipoCambio(id){
+      const hoy=new Date().toISOString().slice(0,10); const t=id?(window._tiposCambio||[]).find(x=>x.id===id):null;
+      const opc=_divisasCat.filter(d=>d.codigo!=="EUR").map(d=>`<option value="${d.codigo}"${t&&t.divisa===d.codigo?" selected":""}>${d.codigo} · ${d.nombre}</option>`).join("");
+      abrir(t?"Modificar tipo de cambio":"Nuevo tipo de cambio",
+        `<div class="grid2"><div><label>Divisa</label><select id="tc_div" ${t?"disabled":""}>${opc}</select></div><div><label>Fecha</label><input id="tc_fecha" type="date" value="${t?t.fecha:hoy}" ${t?"disabled":""}/></div></div>
+         <label style="margin-top:10px">Tasa (euros por 1 unidad de la divisa)</label><input id="tc_tasa" type="number" step="0.000001" placeholder="Ej. 0,92" value="${t?t.tasaEur:""}"/>`,
         async()=>{ await api("/tipos-cambio",{method:"POST",body:JSON.stringify({divisa:val("tc_div"),fecha:val("tc_fecha"),tasaEur:Number(val("tc_tasa"))})}); toast("Tipo de cambio guardado.","ok"); vDivisas(); });
     }
     async function convertirDivisa(){
@@ -2939,8 +3016,9 @@
       const filas=series.sort((a,b)=>b.ejercicio-a.ejercicio||(a.prefijo<b.prefijo?-1:1)).map(s=>{
         const prox=`${s.prefijo}${s.ejercicio}/${String(s.siguienteNumero).padStart(6,"0")}`;
         const def=s.prefijo==="FA"?'<span class="pill part" style="margin-left:8px">Por defecto</span>':"";
-        return `<tr><td><strong class="mono">${s.prefijo}</strong>${def}</td><td class="muted">${s.tipoDocumento}</td><td class="muted">${s.ejercicio}</td><td class="num mono">${prox}</td></tr>`;}).join("");
-      const cuerpo=series.length?`<table><thead><tr><th>Serie</th><th>Documento</th><th>Ejercicio</th><th class="num">Próximo número</th></tr></thead><tbody>${filas}</tbody></table>`
+        const borrar=s.siguienteNumero<=1?`<button class="btn small ghost" onclick="eliminarMaestro('/series/${s.id}','la serie ${s.prefijo} ${s.ejercicio}',vAjustes,false)" title="Eliminar (aún no ha numerado nada)">🗑</button>`:"";
+        return `<tr><td><strong class="mono">${s.prefijo}</strong>${def}</td><td class="muted">${s.tipoDocumento}</td><td class="muted">${s.ejercicio}</td><td class="num mono">${prox}</td><td class="right">${borrar}</td></tr>`;}).join("");
+      const cuerpo=series.length?`<table><thead><tr><th>Serie</th><th>Documento</th><th>Ejercicio</th><th class="num">Próximo número</th><th></th></tr></thead><tbody>${filas}</tbody></table>`
         :vacio("ajustes","Aún no hay series propias","La serie <b>FA</b> se crea sola al emitir tu primera factura. Crea más series (p. ej. <b>R</b> para rectificativas o <b>T</b> para tickets) cuando las necesites.",`<button class="btn small" onclick="modalSerie()">+ Nueva serie</button>`);
       const intro=`<p class="muted" style="margin:0 0 16px">Cada serie numera sus facturas de forma <strong>correlativa y sin huecos</strong>, y reinicia el contador cada ejercicio. Al emitir una factura podrás elegir en qué serie va.</p>`;
       const panelSeries=panel("Series de facturación",intro+cuerpo,`<button class="btn small" onclick="modalSerie()">+ Nueva serie</button>`);
@@ -3375,7 +3453,7 @@
       const fp=partidas.map(p=>`<tr><td class="mono"><strong>${p.codigo}</strong></td><td>${agEsc(agProd(p.productoId))}${p.calibre?` <small class="muted">cal. ${agEsc(p.calibre)}</small>`:""}</td><td class="muted">${p.origen==="Recepcion"?agEsc(agNombre(_ag.agricultores,p.agricultorId)):"Confección"}</td><td class="muted">${fdate(p.fecha)}</td><td class="num muted">${kg(p.kilosIniciales)}</td><td class="num"><strong>${kg(p.saldo)}</strong></td><td class="num">${p.costeKg!=null?eurKg(p.costeKg):'<span class="muted">—</span>'}</td>
         <td class="right" style="white-space:nowrap">${p.origen==="Recepcion"?`<button class="btn small secondary" onclick="modalAgroClasificar('${p.id}','${p.codigo}')">Clasificar</button> `:""}<button class="btn small ghost" onclick="modalAgroAjuste('${p.id}','${p.codigo}')">Ajustar</button> <button class="btn small ghost" onclick="vAgroTraza('atras-partida','${p.id}')">Trazar</button></td></tr>`).join("");
       const fpal=pales.filter(p=>p.estado!=="Expedido"||p.kilos>0).slice(0,60).map(p=>`<tr><td class="mono"><strong>${p.sscc}</strong></td><td>${agEstado(p.estado)}</td><td class="num"><strong>${kg(p.kilos)}</strong></td><td class="muted">${p.contenido.map(c=>`${c.partida} (${kg(c.kilos)})`).join(", ")}</td><td class="muted">${p.estado==="Expedido"?`${agEsc(agNombre(_ag.clientes,p.clienteId))} ${fdate(p.fechaExpedicion)} ${agEsc(p.referenciaExpedicion||"")}`:""}</td>
-        <td class="right" style="white-space:nowrap">${p.estado==="Abierto"?`<button class="btn small secondary" onclick="modalAgroPaletizar('${p.id}','${p.sscc}')">Paletizar</button> <button class="btn small ghost" onclick="agAccion(()=>api('/agro/pales/${p.id}/cerrar',{method:'POST'}),'Palé cerrado.',vAgroPartidas)">Cerrar</button>`:(p.estado==="Cerrado"?`<button class="btn small ghost" onclick="agAccion(()=>api('/agro/pales/${p.id}/reabrir',{method:'POST'}),null,vAgroPartidas)">Reabrir</button>`:`<button class="btn small ghost" onclick="vAgroTraza('atras','${p.sscc}')">Trazar</button>`)}</td></tr>`).join("");
+        <td class="right" style="white-space:nowrap">${p.estado==="Abierto"?`<button class="btn small secondary" onclick="modalAgroPaletizar('${p.id}','${p.sscc}')">Paletizar</button> <button class="btn small ghost" onclick="agAccion(()=>api('/agro/pales/${p.id}/cerrar',{method:'POST'}),'Palé cerrado.',vAgroPartidas)">Cerrar</button>`:(p.estado==="Cerrado"?`<button class="btn small ghost" onclick="agAccion(()=>api('/agro/pales/${p.id}/reabrir',{method:'POST'}),null,vAgroPartidas)">Reabrir</button>`:`<button class="btn small ghost" onclick="vAgroTraza('atras','${p.sscc}')">Trazar</button> <button class="btn small ghost" onclick="if(confirm('¿Anular la expedición de este palé? Vuelve a quedar cerrado en el almacén.'))agAccion(()=>api('/agro/pales/${p.id}/anular-expedicion',{method:'POST'}),'Expedición anulada.',vAgroPartidas)">Anular salida</button>`)}</td></tr>`).join("");
       view(panel("Partidas en almacén",partidas.length?`<table><thead><tr><th>Partida</th><th>Producto</th><th>Origen</th><th>Fecha</th><th class="num">Iniciales</th><th class="num">Disponible</th><th class="num">Coste</th><th></th></tr></thead><tbody>${fp}</tbody></table>`:'<p class="muted" style="margin:0">Sin existencias. Las partidas nacen al confirmar una recepción o validar un parte de confección.</p>')
         +panel("Palés (SSCC)",pales.length?`<table><thead><tr><th>SSCC</th><th>Estado</th><th class="num">Kilos</th><th>Contenido</th><th>Expedición</th><th></th></tr></thead><tbody>${fpal}</tbody></table>`:'<p class="muted" style="margin:0">Cada palé lleva un SSCC GS1 de 18 dígitos (con el prefijo de empresa configurado en Maestros agro).</p>',
           agBotones(`<button class="btn small" onclick="agAccion(()=>api('/agro/pales',{method:'POST',body:'{}'}),'Palé creado.',vAgroPartidas)">+ Palé</button>`,`<button class="btn small secondary" onclick="modalAgroExpedir()">Expedir</button>`)));
@@ -3523,27 +3601,29 @@
     async function vAgroMaestros(campanaId){
       view('<div class="muted">Cargando…</div>'); await agCargar();
       const [conceptos,tarifas,config,proveedores]=await Promise.all([api("/agro/conceptos"),api("/agro/tarifas"),api("/agro/configuracion"),api("/proveedores")]);
-      window._agProveedores=proveedores;
+      window._agProveedores=proveedores; window._agTarifas=tarifas;
       campanaId=campanaId||agCampanaActual();
       const [articulos,precios]=campanaId?await Promise.all([api(`/agro/campanas/${campanaId}/articulos`),api(`/agro/campanas/${campanaId}/precios`)]):[[],[]];
-      const pCamp=panel("Campañas",_ag.campanas.length?`<table><thead><tr><th>Código</th><th>Nombre</th><th>Desde</th><th>Hasta</th></tr></thead><tbody>${_ag.campanas.map(c=>`<tr><td class="mono"><strong>${agEsc(c.codigo)}</strong></td><td>${agEsc(c.nombre)}</td><td class="muted">${fdate(c.desde)}</td><td class="muted">${fdate(c.hasta)}</td></tr>`).join("")}</tbody></table>`:'<p class="muted" style="margin:0">La campaña agrícola (por ejemplo, de septiembre a agosto) agrupa recepciones, precios y liquidaciones.</p>',`<button class="btn small" onclick="modalAgroCampana()">+ Campaña</button>`);
-      const pAgr=panel("Agricultores",_ag.agricultores.length?`<table><thead><tr><th>Agricultor</th><th>Régimen</th><th>Impuesto</th><th class="num">Retención</th><th>Autofacturación</th><th>Parcelas</th><th></th></tr></thead><tbody>${_ag.agricultores.map(a=>`<tr><td><strong>${agEsc(a.nombre)}</strong>${a.bloqueado?` <span class="pill neg" title="${agEsc(a.motivoBloqueo)}">bloqueado</span>`:""}</td><td>${a.regimen==="Reagp"?"REAGP":"General"}</td><td class="mono">${a.codigoImpuesto}</td><td class="num">${pct(a.porcentajeRetencion)}</td><td>${a.autofacturacionDesde?`desde ${fdate(a.autofacturacionDesde)}`:'<span class="pill wait">sin autorizar</span>'}</td><td class="muted">${_ag.parcelas.filter(p=>p.agricultorId===a.id).map(p=>agEsc(p.codigo)).join(", ")||"—"}</td>
-        <td class="right" style="white-space:nowrap"><button class="btn small secondary" onclick="modalAgroParcela('${a.id}')">+ Parcela</button> <button class="btn small ghost" onclick="modalAgroAgricultor('${a.id}')">Editar</button></td></tr>`).join("")}</tbody></table>`:'<p class="muted" style="margin:0">Un agricultor es un proveedor con su ficha agrícola: régimen (REAGP o general), retención y la fecha en que autorizó la autofacturación.</p>',`<button class="btn small" onclick="modalAgroAgricultor()">+ Agricultor</button>`);
-      const pCat=panel("Categorías de clasificación",_ag.categorias.length?`<table><thead><tr><th>Código</th><th>Nombre</th><th></th></tr></thead><tbody>${_ag.categorias.map(c=>`<tr><td class="mono"><strong>${agEsc(c.codigo)}</strong></td><td>${agEsc(c.nombre)}</td><td class="muted">${c.esDestrio?"destrío":""}</td></tr>`).join("")}</tbody></table>`:'<p class="muted" style="margin:0">Extra, 1ª, 2ª, destrío…</p>',`<button class="btn small" onclick="modalAgroCategoria()">+ Categoría</button>`);
+      window._agPrecios=precios;
+      const pCamp=panel("Campañas",_ag.campanas.length?`<table><thead><tr><th>Código</th><th>Nombre</th><th>Desde</th><th>Hasta</th><th></th></tr></thead><tbody>${_ag.campanas.map(c=>`<tr><td class="mono"><strong>${agEsc(c.codigo)}</strong></td><td>${agEsc(c.nombre)}</td><td class="muted">${fdate(c.desde)}</td><td class="muted">${fdate(c.hasta)}</td><td class="right" style="white-space:nowrap"><button class="btn small secondary" onclick="modalAgroCampana('${c.id}')">Editar</button> <button class="btn small ghost" onclick="eliminarMaestro('/agro/campanas/${c.id}','la campaña ${agEsc(c.codigo)}',()=>vAgroMaestros(),false)" title="Eliminar">🗑</button></td></tr>`).join("")}</tbody></table>`:'<p class="muted" style="margin:0">La campaña agrícola (por ejemplo, de septiembre a agosto) agrupa recepciones, precios y liquidaciones.</p>',`<button class="btn small" onclick="modalAgroCampana()">+ Campaña</button>`);
+      const pAgr=panel("Agricultores",_ag.agricultores.length?`<table><thead><tr><th>Agricultor</th><th>Régimen</th><th>Impuesto</th><th class="num">Retención</th><th>Autofacturación</th><th>Parcelas</th><th></th></tr></thead><tbody>${_ag.agricultores.map(a=>`<tr><td><strong>${agEsc(a.nombre)}</strong>${a.bloqueado?` <span class="pill neg" title="${agEsc(a.motivoBloqueo)}">bloqueado</span>`:""}</td><td>${a.regimen==="Reagp"?"REAGP":"General"}</td><td class="mono">${a.codigoImpuesto}</td><td class="num">${pct(a.porcentajeRetencion)}</td><td>${a.autofacturacionDesde?`desde ${fdate(a.autofacturacionDesde)}`:'<span class="pill wait">sin autorizar</span>'}</td><td>${_ag.parcelas.filter(p=>p.agricultorId===a.id).map(p=>`<a style="cursor:pointer;color:var(--accent);font-weight:600" title="Editar parcela" onclick="modalAgroParcela('${a.id}','${p.id}')">${agEsc(p.codigo)}</a>`).join(", ")||'<span class="muted">—</span>'}</td>
+        <td class="right" style="white-space:nowrap"><button class="btn small secondary" onclick="modalAgroParcela('${a.id}')">+ Parcela</button> <button class="btn small ghost" onclick="modalAgroAgricultor('${a.id}')">Editar</button> <button class="btn small ghost" onclick="eliminarMaestro('/agro/agricultores/${a.id}','la ficha agrícola de ${agEsc(a.nombre)}',()=>vAgroMaestros(),false)" title="Eliminar">🗑</button></td></tr>`).join("")}</tbody></table>`:'<p class="muted" style="margin:0">Un agricultor es un proveedor con su ficha agrícola: régimen (REAGP o general), retención y la fecha en que autorizó la autofacturación.</p>',`<button class="btn small" onclick="modalAgroAgricultor()">+ Agricultor</button>`);
+      const pCat=panel("Categorías de clasificación",_ag.categorias.length?`<table><thead><tr><th>Código</th><th>Nombre</th><th></th><th></th></tr></thead><tbody>${_ag.categorias.map(c=>`<tr><td class="mono"><strong>${agEsc(c.codigo)}</strong></td><td>${agEsc(c.nombre)}</td><td class="muted">${c.esDestrio?"destrío":""}</td><td class="right" style="white-space:nowrap"><button class="btn small secondary" onclick="modalAgroCategoria('${c.id}')">Editar</button> <button class="btn small ghost" onclick="eliminarMaestro('/agro/categorias/${c.id}','la categoría ${agEsc(c.codigo)}',()=>vAgroMaestros(),false)" title="Eliminar">🗑</button></td></tr>`).join("")}</tbody></table>`:'<p class="muted" style="margin:0">Extra, 1ª, 2ª, destrío…</p>',`<button class="btn small" onclick="modalAgroCategoria()">+ Categoría</button>`);
       const selC=_ag.campanas.length?`<select onchange="vAgroMaestros(this.value)" style="width:auto">${agOpc(_ag.campanas,campanaId,undefined,c=>c.codigo)}</select> `:"";
-      const pPre=panel("Artículos y precios de la campaña",campanaId?`<table><thead><tr><th>Artículo</th><th>Se liquida</th><th>Precios (€/kg)</th></tr></thead><tbody>${articulos.map(a=>`<tr><td><strong>${agEsc(agProd(a.productoId))}</strong></td><td>${a.metodo==="PorClasificacion"?"Por clasificación":"Por periodo"}</td><td class="muted">${precios.filter(p=>p.productoId===a.productoId).map(p=>`${p.categoriaId?agEsc(agNombre(_ag.categorias,p.categoriaId))+" ":""}${fdate(p.desde)}–${fdate(p.hasta)}: <strong>${eurKg(p.precioKg)}</strong>`).join("<br>")||"sin precios"}</td></tr>`).join("")||'<tr><td colspan="3" class="muted">Indica cómo se liquida cada artículo en la campaña.</td></tr>'}</tbody></table>`:'<p class="muted" style="margin:0">Crea antes una campaña.</p>',
+      const pPre=panel("Artículos y precios de la campaña",campanaId?`<table><thead><tr><th>Artículo</th><th>Se liquida</th><th>Precios (€/kg)</th></tr></thead><tbody>${articulos.map(a=>`<tr><td><strong>${agEsc(agProd(a.productoId))}</strong></td><td>${a.metodo==="PorClasificacion"?"Por clasificación":"Por periodo"}</td><td class="muted">${precios.filter(p=>p.productoId===a.productoId).map(p=>`${p.categoriaId?agEsc(agNombre(_ag.categorias,p.categoriaId))+" ":""}${fdate(p.desde)}–${fdate(p.hasta)}: <strong>${eurKg(p.precioKg)}</strong> <a style="cursor:pointer" title="Modificar" onclick="modalAgroPrecio('${campanaId}','${p.id}')">✎</a> <a style="cursor:pointer" title="Eliminar" onclick="eliminarMaestro('/agro/precios/${p.id}','este precio',()=>vAgroMaestros('${campanaId}'),false)">🗑</a>`).join("<br>")||"sin precios"}</td></tr>`).join("")||'<tr><td colspan="3" class="muted">Indica cómo se liquida cada artículo en la campaña.</td></tr>'}</tbody></table>`:'<p class="muted" style="margin:0">Crea antes una campaña.</p>',
         campanaId?agBotones(selC,`<button class="btn small secondary" onclick="modalAgroArticulo('${campanaId}')">Método</button>`,`<button class="btn small" onclick="modalAgroPrecio('${campanaId}')">+ Precio</button>`):"");
       const pCon=panel("Descuentos de liquidación",conceptos.length?`<table><thead><tr><th>Código</th><th>Concepto</th><th>Tipo</th><th class="num">Valor</th><th></th></tr></thead><tbody>${conceptos.map(c=>`<tr><td class="mono"><strong>${agEsc(c.codigo)}</strong></td><td>${agEsc(c.nombre)}</td><td class="muted">${({PorKilo:"€ por kilo",PorcentajeBruto:"% del bruto",Fijo:"Fijo"})[c.tipo]}</td><td class="num">${Number(c.valor).toLocaleString("es-ES",{maximumFractionDigits:6})}${c.tipo==="PorcentajeBruto"?" %":(c.tipo==="PorKilo"?" €/kg":" €")}</td><td class="right"><button class="btn small ghost" onclick="agAccion(()=>api('/agro/conceptos/${c.id}/activo',{method:'PUT',body:JSON.stringify({activo:${!c.activo}})}),null,()=>vAgroMaestros('${campanaId||""}'))">${c.activo?"Desactivar":"Activar"}</button></td></tr>`).join("")}</tbody></table>`:'<p class="muted" style="margin:0">Transporte, manipulación, comisión… Se restan del importe de la fruta.</p>',`<button class="btn small" onclick="modalAgroConcepto()">+ Descuento</button>`);
-      const pTar=panel("Tarifas de coste (confección)",tarifas.length?`<table><thead><tr><th>Recurso</th><th>Categoría</th><th>Hora</th><th>Vigencia</th><th class="num">Coste</th></tr></thead><tbody>${tarifas.map(t=>`<tr><td>${t.recurso==="ManoObra"?"Mano de obra":"Máquina"}</td><td class="mono"><strong>${agEsc(t.categoria)}</strong></td><td class="muted">${t.tipoHora}</td><td class="muted">${fdate(t.desde)} – ${t.hasta?fdate(t.hasta):"…"}</td><td class="num">${eur(t.costeUnitario)}${t.tipoHora==="Destajo"?"/pieza":"/h"}</td></tr>`).join("")}</tbody></table>`:'<p class="muted" style="margin:0">€/hora por categoría y tipo de hora (o €/pieza a destajo). Sin tarifa vigente, el parte no se valida: nunca se valora a cero por olvido.</p>',`<button class="btn small" onclick="modalAgroTarifa()">+ Tarifa</button>`);
+      const pTar=panel("Tarifas de coste (confección)",tarifas.length?`<table><thead><tr><th>Recurso</th><th>Categoría</th><th>Hora</th><th>Vigencia</th><th class="num">Coste</th><th></th></tr></thead><tbody>${tarifas.map(t=>`<tr><td>${t.recurso==="ManoObra"?"Mano de obra":"Máquina"}</td><td class="mono"><strong>${agEsc(t.categoria)}</strong></td><td class="muted">${t.tipoHora}</td><td class="muted">${fdate(t.desde)} – ${t.hasta?fdate(t.hasta):"…"}</td><td class="num">${eur(t.costeUnitario)}${t.tipoHora==="Destajo"?"/pieza":"/h"}</td><td class="right" style="white-space:nowrap"><button class="btn small secondary" onclick="modalAgroTarifa('${t.id}')">Editar</button> <button class="btn small ghost" onclick="eliminarMaestro('/agro/tarifas/${t.id}','la tarifa ${agEsc(t.categoria)}',()=>vAgroMaestros(),false)" title="Eliminar">🗑</button></td></tr>`).join("")}</tbody></table>`:'<p class="muted" style="margin:0">€/hora por categoría y tipo de hora (o €/pieza a destajo). Sin tarifa vigente, el parte no se valida: nunca se valora a cero por olvido.</p>',`<button class="btn small" onclick="modalAgroTarifa()">+ Tarifa</button>`);
       const pGs1=panel("Palés SSCC",`<div class="grid2"><div><label>Prefijo de empresa GS1</label><input id="gs_p" value="${agEsc(config.prefijoGs1)}"/></div><div><label>Dígito de extensión</label><input id="gs_e" type="number" min="0" max="9" value="${config.digitoExtension}"/></div></div><p class="muted" style="margin:8px 0 0">${config.prefijoGs1==="8400000"?"Es el prefijo de pruebas: pon el que te asigne GS1 España antes de etiquetar.":"Los SSCC se forman con extensión + prefijo + serie + dígito de control."}</p>`,
         `<button class="btn small" onclick="agAccion(()=>api('/agro/configuracion',{method:'PUT',body:JSON.stringify({prefijoGs1:val('gs_p'),digitoExtension:Number(val('gs_e'))})}),'Guardado.')">Guardar</button>`);
       view(pCamp+pAgr+pCat+pPre+pCon+pTar+pGs1);
     }
-    function modalAgroCampana(){
-      const a=new Date().getFullYear();
-      abrir("Nueva campaña",`<div class="grid2"><div><label>Código</label><input id="cm_c" value="${a}/${String(a+1).slice(2)}"/></div><div><label>Nombre</label><input id="cm_n" value="Campaña ${a}/${String(a+1).slice(2)}"/></div></div>
-        <div class="grid2"><div><label>Desde</label><input id="cm_d" type="date" value="${a}-09-01"/></div><div><label>Hasta</label><input id="cm_h" type="date" value="${a+1}-08-31"/></div></div>`,
-        async()=>{ await api("/agro/campanas",{method:"POST",body:JSON.stringify({codigo:val("cm_c"),nombre:val("cm_n"),desde:val("cm_d"),hasta:val("cm_h")})}); setTimeout(()=>vAgroMaestros()); });
+    function modalAgroCampana(id){
+      const a=new Date().getFullYear(); const c=id?_ag.campanas.find(x=>x.id===id):null;
+      abrir(c?"Editar campaña":"Nueva campaña",`<div class="grid2"><div><label>Código</label><input id="cm_c" value="${c?agEsc(c.codigo):`${a}/${String(a+1).slice(2)}`}" ${c?"disabled":""}/></div><div><label>Nombre</label><input id="cm_n" value="${c?agEsc(c.nombre):`Campaña ${a}/${String(a+1).slice(2)}`}"/></div></div>
+        <div class="grid2"><div><label>Desde</label><input id="cm_d" type="date" value="${c?c.desde:`${a}-09-01`}"/></div><div><label>Hasta</label><input id="cm_h" type="date" value="${c?c.hasta:`${a+1}-08-31`}"/></div></div>${c?'<p class="muted" style="margin:8px 0 0">Si ya tiene recepciones, solo se puede ampliar.</p>':""}`,
+        async()=>{ const body=JSON.stringify({codigo:val("cm_c"),nombre:val("cm_n"),desde:val("cm_d"),hasta:val("cm_h")});
+          await api(c?`/agro/campanas/${c.id}`:"/agro/campanas",{method:c?"PUT":"POST",body}); setTimeout(()=>vAgroMaestros()); });
     }
     function modalAgroAgricultor(id){
       const a=_ag.agricultores.find(x=>x.id===id); const prov=window._agProveedores||[];
@@ -3554,37 +3634,46 @@
         async()=>{ const cuerpo={proveedorId:a?a.proveedorId:val("ag_p"),regimen:val("ag_r"),codigoImpuesto:val("ag_i")||null,porcentajeRetencion:Number(val("ag_t")),autofacturacionDesde:val("ag_f")||null,motivoBloqueo:a?(val("ag_b")||null):null};
           await api(a?`/agro/agricultores/${a.id}`:"/agro/agricultores",{method:a?"PUT":"POST",body:JSON.stringify(cuerpo)}); setTimeout(()=>vAgroMaestros()); });
     }
-    function modalAgroParcela(agricultorId){
-      abrir("Nueva parcela",`<div class="grid2"><div><label>Código</label><input id="pa_c"/></div><div><label>Nombre</label><input id="pa_n"/></div></div>
-        <div class="grid2"><div><label>SIGPAC (prov:mun:agr:zona:pol:parc:rec)</label><input id="pa_s" placeholder="46:250:0:0:12:45:1"/></div><div><label>Superficie (ha)</label><input id="pa_h" type="number" step="0.0001"/></div></div>
-        <div class="grid2"><div><label>Cultivo</label><select id="pa_p">${agOpc(agKilos(),null,"—")}</select></div><div><label>Variedad</label><input id="pa_v"/></div></div>
-        <label>Centro analítico (para el coste por kilo)</label><input id="pa_ca" placeholder="Opcional: id del centro (finca) en Analítica"/>`,
-        async()=>{ await api(`/agro/agricultores/${agricultorId}/parcelas`,{method:"POST",body:JSON.stringify({codigo:val("pa_c"),nombre:val("pa_n"),referenciaSigpac:val("pa_s")||null,superficieHa:val("pa_h")?Number(val("pa_h")):null,productoId:val("pa_p")||null,variedad:val("pa_v")||null,centroAnaliticoId:val("pa_ca")||null,activa:true})}); setTimeout(()=>vAgroMaestros()); });
-      if(plan&&plan.modulos&&plan.modulos.has("analitica")) api("/contabilidad/analitica/centros").then(cs=>{ const el=document.getElementById("pa_ca"); if(el&&cs.length) el.outerHTML=`<select id="pa_ca">${agOpc(cs,null,"— Sin centro —",c=>`${c.codigo} · ${c.nombre}`)}</select>`; }).catch(()=>{});
+    function modalAgroParcela(agricultorId,id){
+      const p=id?_ag.parcelas.find(x=>x.id===id):null;
+      abrir(p?"Editar parcela":"Nueva parcela",`<div class="grid2"><div><label>Código</label><input id="pa_c" value="${p?agEsc(p.codigo):""}"/></div><div><label>Nombre</label><input id="pa_n" value="${p?agEsc(p.nombre):""}"/></div></div>
+        <div class="grid2"><div><label>SIGPAC (prov:mun:agr:zona:pol:parc:rec)</label><input id="pa_s" placeholder="46:250:0:0:12:45:1" value="${p?agEsc(p.referenciaSigpac||""):""}"/></div><div><label>Superficie (ha)</label><input id="pa_h" type="number" step="0.0001" value="${p&&p.superficieHa!=null?p.superficieHa:""}"/></div></div>
+        <div class="grid2"><div><label>Cultivo</label><select id="pa_p">${agOpc(agKilos(),p?p.productoId:null,"—")}</select></div><div><label>Variedad</label><input id="pa_v" value="${p?agEsc(p.variedad||""):""}"/></div></div>
+        <label>Centro analítico (para el coste por kilo)</label><input id="pa_ca" placeholder="Opcional: id del centro (finca) en Analítica" value="${p&&p.centroAnaliticoId?p.centroAnaliticoId:""}"/>
+        ${p?`<label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input id="pa_act" type="checkbox" style="width:auto" ${p.activa?"checked":""}/> Activa (desmárcala si ya no se cultiva)</label>
+        <p style="margin:12px 0 0"><button class="btn small ghost" onclick="cerrarModal();eliminarMaestro('/agro/parcelas/${p.id}','la parcela ${agEsc(p.codigo)}',()=>vAgroMaestros(),false)">🗑 Eliminar parcela</button></p>`:""}`,
+        async()=>{ const body=JSON.stringify({codigo:val("pa_c"),nombre:val("pa_n"),referenciaSigpac:val("pa_s")||null,superficieHa:val("pa_h")?Number(val("pa_h")):null,productoId:val("pa_p")||null,variedad:val("pa_v")||null,centroAnaliticoId:val("pa_ca")||null,activa:p?document.getElementById("pa_act").checked:true});
+          await api(p?`/agro/parcelas/${p.id}`:`/agro/agricultores/${agricultorId}/parcelas`,{method:p?"PUT":"POST",body}); setTimeout(()=>vAgroMaestros()); });
+      if(plan&&plan.modulos&&plan.modulos.has("analitica")) api("/contabilidad/analitica/centros").then(cs=>{ const el=document.getElementById("pa_ca"); if(el&&cs.length) el.outerHTML=`<select id="pa_ca">${agOpc(cs,p?p.centroAnaliticoId:null,"— Sin centro —",c=>`${c.codigo} · ${c.nombre}`)}</select>`; }).catch(()=>{});
     }
-    function modalAgroCategoria(){
-      abrir("Nueva categoría",`<div class="grid2"><div><label>Código</label><input id="ct_c"/></div><div><label>Nombre</label><input id="ct_n"/></div></div><div class="grid2"><div><label>Orden</label><input id="ct_o" type="number" value="${_ag.categorias.length+1}"/></div><div><label style="display:flex;gap:8px;align-items:center;margin-top:28px"><input id="ct_d" type="checkbox" style="width:auto"/> Es destrío</label></div></div>`,
-        async()=>{ await api("/agro/categorias",{method:"POST",body:JSON.stringify({codigo:val("ct_c"),nombre:val("ct_n"),orden:Number(val("ct_o")||0),esDestrio:document.getElementById("ct_d").checked})}); setTimeout(()=>vAgroMaestros()); });
+    function modalAgroCategoria(id){
+      const c=id?_ag.categorias.find(x=>x.id===id):null;
+      abrir(c?"Editar categoría":"Nueva categoría",`<div class="grid2"><div><label>Código</label><input id="ct_c" value="${c?agEsc(c.codigo):""}" ${c?"disabled":""}/></div><div><label>Nombre</label><input id="ct_n" value="${c?agEsc(c.nombre):""}"/></div></div><div class="grid2"><div><label>Orden</label><input id="ct_o" type="number" value="${c?c.orden:_ag.categorias.length+1}"/></div><div><label style="display:flex;gap:8px;align-items:center;margin-top:28px"><input id="ct_d" type="checkbox" style="width:auto" ${c&&c.esDestrio?"checked":""}/> Es destrío</label></div></div>`,
+        async()=>{ const body=JSON.stringify({codigo:val("ct_c"),nombre:val("ct_n"),orden:Number(val("ct_o")||0),esDestrio:document.getElementById("ct_d").checked});
+          await api(c?`/agro/categorias/${c.id}`:"/agro/categorias",{method:c?"PUT":"POST",body}); setTimeout(()=>vAgroMaestros()); });
     }
     function modalAgroArticulo(campanaId){
       abrir("Cómo se liquida",`<div class="grid2"><div><label>Artículo</label><select id="ac_p">${agOpc(agKilos())}</select></div><div><label>Método</label><select id="ac_m"><option value="PorClasificacion">Por clasificación (precio por categoría)</option><option value="PorPeriodo">Por periodo (un precio por fechas)</option></select></div></div>`,
         async()=>{ await api(`/agro/campanas/${campanaId}/articulos`,{method:"PUT",body:JSON.stringify({productoId:val("ac_p"),metodo:val("ac_m")})}); setTimeout(()=>vAgroMaestros(campanaId)); });
     }
-    function modalAgroPrecio(campanaId){
-      const c=_ag.campanas.find(x=>x.id===campanaId)||{};
-      abrir("Nuevo precio de liquidación",`<div class="grid2"><div><label>Artículo</label><select id="pr_p">${agOpc(agKilos())}</select></div><div><label>Categoría</label><select id="pr_c">${agOpc(_ag.categorias,null,"— Precio de periodo —")}</select></div></div>
-        <div class="grid2"><div><label>Desde</label><input id="pr_d" type="date" value="${c.desde||""}"/></div><div><label>Hasta</label><input id="pr_h" type="date" value="${c.hasta||""}"/></div></div><label>€/kg</label><input id="pr_x" type="number" step="0.000001"/>`,
-        async()=>{ await api(`/agro/campanas/${campanaId}/precios`,{method:"POST",body:JSON.stringify({productoId:val("pr_p"),categoriaId:val("pr_c")||null,desde:val("pr_d"),hasta:val("pr_h"),precioKg:Number(val("pr_x"))})}); setTimeout(()=>vAgroMaestros(campanaId)); });
+    function modalAgroPrecio(campanaId,id){
+      const c=_ag.campanas.find(x=>x.id===campanaId)||{}; const pr=id?(window._agPrecios||[]).find(x=>x.id===id):null;
+      abrir(pr?"Modificar precio de liquidación":"Nuevo precio de liquidación",`<div class="grid2"><div><label>Artículo</label><select id="pr_p" ${pr?"disabled":""}>${agOpc(agKilos(),pr?pr.productoId:null)}</select></div><div><label>Categoría</label><select id="pr_c" ${pr?"disabled":""}>${agOpc(_ag.categorias,pr?pr.categoriaId:null,"— Precio de periodo —")}</select></div></div>
+        <div class="grid2"><div><label>Desde</label><input id="pr_d" type="date" value="${pr?pr.desde:(c.desde||"")}"/></div><div><label>Hasta</label><input id="pr_h" type="date" value="${pr?pr.hasta:(c.hasta||"")}"/></div></div><label>€/kg</label><input id="pr_x" type="number" step="0.000001" value="${pr?pr.precioKg:""}"/>`,
+        async()=>{ const body=JSON.stringify({productoId:val("pr_p"),categoriaId:val("pr_c")||null,desde:val("pr_d"),hasta:val("pr_h"),precioKg:Number(val("pr_x"))});
+          await api(pr?`/agro/precios/${pr.id}`:`/agro/campanas/${campanaId}/precios`,{method:pr?"PUT":"POST",body}); setTimeout(()=>vAgroMaestros(campanaId)); });
     }
     function modalAgroConcepto(){
       abrir("Nuevo descuento",`<div class="grid2"><div><label>Código</label><input id="co_c"/></div><div><label>Concepto</label><input id="co_n" placeholder="Transporte"/></div></div><div class="grid2"><div><label>Tipo</label><select id="co_t"><option value="PorKilo">€ por kilo</option><option value="PorcentajeBruto">% del bruto</option><option value="Fijo">Importe fijo</option></select></div><div><label>Valor</label><input id="co_v" type="number" step="0.000001"/></div></div>`,
         async()=>{ await api("/agro/conceptos",{method:"POST",body:JSON.stringify({codigo:val("co_c"),nombre:val("co_n"),tipo:val("co_t"),valor:Number(val("co_v"))})}); setTimeout(()=>vAgroMaestros()); });
     }
-    function modalAgroTarifa(){
-      abrir("Nueva tarifa",`<div class="grid2"><div><label>Recurso</label><select id="ta_r"><option value="ManoObra">Mano de obra</option><option value="Maquina">Máquina</option></select></div><div><label>Categoría</label><input id="ta_c" placeholder="PEON / CALIBRADORA"/></div></div>
-        <div class="grid2"><div><label>Tipo de hora</label><select id="ta_t">${["Normal","Extra","Nocturna","Festiva","Destajo"].map(h=>`<option>${h}</option>`).join("")}</select></div><div><label>Coste (€/h, o €/pieza a destajo)</label><input id="ta_x" type="number" step="0.0001"/></div></div>
-        <div class="grid2"><div><label>Desde</label><input id="ta_d" type="date" value="${new Date().getFullYear()}-01-01"/></div><div><label>Hasta (opcional)</label><input id="ta_h" type="date"/></div></div>`,
-        async()=>{ await api("/agro/tarifas",{method:"POST",body:JSON.stringify({recurso:val("ta_r"),categoria:val("ta_c"),tipoHora:val("ta_t"),costeUnitario:Number(val("ta_x")),desde:val("ta_d"),hasta:val("ta_h")||null})}); setTimeout(()=>vAgroMaestros()); });
+    function modalAgroTarifa(id){
+      const t=id?(window._agTarifas||[]).find(x=>x.id===id):null; const dis=t?"disabled":"";
+      abrir(t?"Editar tarifa":"Nueva tarifa",`<div class="grid2"><div><label>Recurso</label><select id="ta_r" ${dis}><option value="ManoObra"${t&&t.recurso==="ManoObra"?" selected":""}>Mano de obra</option><option value="Maquina"${t&&t.recurso==="Maquina"?" selected":""}>Máquina</option></select></div><div><label>Categoría</label><input id="ta_c" placeholder="PEON / CALIBRADORA" value="${t?agEsc(t.categoria):""}" ${dis}/></div></div>
+        <div class="grid2"><div><label>Tipo de hora</label><select id="ta_t" ${dis}>${["Normal","Extra","Nocturna","Festiva","Destajo"].map(h=>`<option${t&&t.tipoHora===h?" selected":""}>${h}</option>`).join("")}</select></div><div><label>Coste (€/h, o €/pieza a destajo)</label><input id="ta_x" type="number" step="0.0001" value="${t?t.costeUnitario:""}"/></div></div>
+        <div class="grid2"><div><label>Desde</label><input id="ta_d" type="date" value="${t?t.desde:`${new Date().getFullYear()}-01-01`}"/></div><div><label>Hasta (opcional)</label><input id="ta_h" type="date" value="${t&&t.hasta?t.hasta:""}"/></div></div>${t?'<p class="muted" style="margin:8px 0 0">Si ya valoró partes, solo se puede cerrar su vigencia (Hasta).</p>':""}`,
+        async()=>{ const body=JSON.stringify({recurso:val("ta_r"),categoria:val("ta_c"),tipoHora:val("ta_t"),costeUnitario:Number(val("ta_x")),desde:val("ta_d"),hasta:val("ta_h")||null});
+          await api(t?`/agro/tarifas/${t.id}`:"/agro/tarifas",{method:t?"PUT":"POST",body}); setTimeout(()=>vAgroMaestros()); });
     }
 
 
@@ -3627,12 +3716,18 @@
     /* ---------------- Cartera de efectos (sin factura ni gasto en ALXOR) ---------------- */
     async function vCartera(){
       view('<div class="muted">Cargando…</div>');
-      const lista=await api("/cartera?pendientes=true");
-      const fila=e=>`<tr><td>${e.sentido==="Cobro"?'<span class="pill part">Cobro</span>':'<span class="pill wait">Pago</span>'}</td><td><strong>${agEsc(e.terceroNombre)}</strong></td><td class="muted">${agEsc(e.documento)}</td><td class="muted">${fdate(e.vencimiento)}</td><td class="num">${eur(e.importe)}</td><td class="num"><strong>${eur(e.pendiente)}</strong></td><td class="muted">${e.origen||""}</td><td class="right"><button class="btn small secondary" onclick="modalLiquidarEfecto('${e.id}',${e.pendiente},'${e.sentido}')">${e.sentido==="Cobro"?"Cobrar":"Pagar"}</button></td></tr>`;
+      const todos=document.getElementById("car_todos")?.checked; const lista=await api("/cartera?pendientes="+(todos?"false":"true"));
+      const fila=e=>`<tr><td>${e.sentido==="Cobro"?'<span class="pill part">Cobro</span>':'<span class="pill wait">Pago</span>'}</td><td><strong>${agEsc(e.terceroNombre)}</strong></td><td class="muted">${agEsc(e.documento)}</td><td class="muted">${fdate(e.vencimiento)}</td><td class="num">${eur(e.importe)}</td><td class="num"><strong>${eur(e.pendiente)}</strong></td><td class="muted">${e.origen||""}</td><td class="right" style="white-space:nowrap">${e.anulado?'<span class="pill neg">Anulado</span>':`${e.pendiente<e.importe?`<button class="btn small ghost" onclick="verMovimientos('/cartera/${e.id}/saldo','Movimientos de ${agEsc(e.documento).replace(/'/g,"")}',vCartera)">Movimientos</button> `:`<button class="btn small ghost" onclick="anularEfecto('${e.id}')">Anular</button> `}<button class="btn small secondary" onclick="modalLiquidarEfecto('${e.id}',${e.pendiente},'${e.sentido}')">${e.sentido==="Cobro"?"Cobrar":"Pagar"}</button>`}</td></tr>`;
       const cobros=lista.filter(e=>e.sentido==="Cobro"), pagos=lista.filter(e=>e.sentido==="Pago");
       const tot=l=>eur(l.reduce((s,e)=>s+e.pendiente,0));
       view(panel(`Efectos pendientes · a cobrar ${tot(cobros)} · a pagar ${tot(pagos)}`,lista.length?`<table><thead><tr><th></th><th>Tercero</th><th>Documento</th><th>Vencimiento</th><th class="num">Importe</th><th class="num">Pendiente</th><th>Origen</th><th></th></tr></thead><tbody>${lista.map(fila).join("")}</tbody></table>`
-        :'<p class="muted" style="margin:0">No hay efectos pendientes. Aquí aparece la cartera viva traída de otro ERP (por ejemplo, en la migración desde Hispatec): vencimientos que no tienen factura ni gasto en ALXOR.</p>'));
+        :'<p class="muted" style="margin:0">No hay efectos pendientes. Aquí aparece la cartera viva traída de otro ERP (por ejemplo, en la migración desde Hispatec): vencimientos que no tienen factura ni gasto en ALXOR.</p>',
+        `<label style="display:flex;gap:6px;align-items:center;font-size:13px"><input id="car_todos" type="checkbox" style="width:auto" ${todos?"checked":""} onchange="vCartera()"/> Ver también los liquidados</label>`));
+    }
+    async function anularEfecto(id){
+      const motivo=prompt("¿Anular este efecto? Indica el motivo (p. ej. «dado de alta por error» o «cobrado antes de la migración»):","");
+      if(motivo===null) return;
+      try{ await api(`/cartera/${id}/anular`,{method:"POST",body:JSON.stringify({motivo})}); toast("Efecto anulado.","ok"); vCartera(); } catch(e){ toast(e.message,"err"); }
     }
     function modalLiquidarEfecto(id,pendiente,sentido){
       abrir(sentido==="Cobro"?"Registrar cobro":"Registrar pago",`<div class="grid2"><div><label>Importe</label><input id="ef_i" type="number" step="0.01" value="${pendiente}"/></div><div><label>Fecha</label><input id="ef_f" type="date" value="${new Date().toISOString().slice(0,10)}"/></div></div><label>Método</label><input id="ef_m" placeholder="Transferencia"/>`,
@@ -3683,7 +3778,8 @@
       const cuenta=(el.value||"").trim();
       try{ await api("/contabilidad/subcuenta",{method:"PUT",body:JSON.stringify({tipo, terceroId, nombre, cuentaPreferida:cuenta||null})}); }catch(e){ toast(e.message,"err"); }
     }
-    async function modalCliente(c){ _cacheFormasPago=await api("/formas-pago").catch(()=>[]); abrir(c?"Editar cliente":"Nuevo cliente",`<label>Nombre</label><input id="c_nombre" placeholder="Nombre o razón social"/><div class="grid2"><div><label>NIF (opcional)</label><input id="c_nif"/></div><div><label>Email (opcional)</label><input id="c_email"/></div></div><label>IRPF por defecto (%)</label><input id="c_irpf" type="number" value="0"/>
+    let _cacheTarifas=[];
+    async function modalCliente(c){ [_cacheFormasPago,_cacheTarifas]=await Promise.all([api("/formas-pago").catch(()=>[]),api("/tarifas").catch(()=>[])]); abrir(c?"Editar cliente":"Nuevo cliente",`<label>Nombre</label><input id="c_nombre" placeholder="Nombre o razón social"/><div class="grid2"><div><label>NIF (opcional)</label><input id="c_nif"/></div><div><label>Email (opcional)</label><input id="c_email"/></div></div><label>IRPF por defecto (%)</label><input id="c_irpf" type="number" value="0"/>
       <label style="display:flex;align-items:center;gap:8px;margin-top:14px;font-weight:500;cursor:pointer"><input id="c_recargo" type="checkbox" style="width:auto"/> Cliente en recargo de equivalencia (minorista)</label>
       <label style="margin-top:14px">Domiciliación bancaria (opcional, para remesas SEPA)</label>
       <input id="c_iban" placeholder="IBAN del cliente (ES..)"/>
@@ -3700,8 +3796,11 @@
       <input id="c_tipo" placeholder="Ej. Nacional, Intracomunitario, Minorista"/>
       <label style="margin-top:14px">Cuenta contable (430…)</label><input id="c_cuenta" placeholder="—"/><div id="c_cuenta_hint" class="muted" style="font-size:12px;margin-top:4px"></div>
       <label style="margin-top:14px">Forma de pago habitual (opcional)</label>${formaPagoSel("c_forma",c&&c.formaPagoDefectoId)}
-      <label style="margin-top:14px">Límite de riesgo (€, opcional)</label><input id="c_riesgo" type="number" step="0.01" placeholder="Sin límite"/>`,
-      async()=>{ const r=val("c_riesgo"); const b=JSON.stringify({nombre:val("c_nombre"),nifFiscal:val("c_nif")||null,email:val("c_email")||null,porcentajeIrpfDefecto:Number(val("c_irpf")),recargoEquivalencia:document.getElementById("c_recargo").checked,iban:val("c_iban")||null,mandatoReferencia:val("c_mref")||null,mandatoFecha:val("c_mfecha")||null,nifIva:val("c_iva")||null,tipo:val("c_tipo")||null,formaPagoDefectoId:val("c_forma")||null,limiteRiesgo:r?Number(r):null,esAdministracionPublica:document.getElementById("c_aapp").checked,dir3OficinaContable:val("c_oc")||null,dir3OrganoGestor:val("c_og")||null,dir3UnidadTramitadora:val("c_ut")||null}); const resp=await api("/clientes"+(c?"/"+c.id:""),{method:c?"PUT":"POST",body:b}); await guardarSubcuentaCampo("Cliente", c?c.id:(resp&&resp.id), val("c_nombre"), "c_cuenta"); vClientes(); });
+      <label style="margin-top:14px">Límite de riesgo (€, opcional)</label><input id="c_riesgo" type="number" step="0.01" placeholder="Sin límite"/>
+      <label style="margin-top:14px">Tarifa de precios (opcional)</label><select id="c_tarifa"><option value="">— Precio del artículo —</option>${_cacheTarifas.filter(t=>t.activa||(c&&c.tarifaId===t.id)).map(t=>`<option value="${t.id}"${c&&c.tarifaId===t.id?" selected":""}>${agEsc(t.codigo)} · ${agEsc(t.nombre)}</option>`).join("")}</select>`,
+      async()=>{ const r=val("c_riesgo"); const b=JSON.stringify({nombre:val("c_nombre"),nifFiscal:val("c_nif")||null,email:val("c_email")||null,porcentajeIrpfDefecto:Number(val("c_irpf")),recargoEquivalencia:document.getElementById("c_recargo").checked,iban:val("c_iban")||null,mandatoReferencia:val("c_mref")||null,mandatoFecha:val("c_mfecha")||null,nifIva:val("c_iva")||null,tipo:val("c_tipo")||null,formaPagoDefectoId:val("c_forma")||null,limiteRiesgo:r?Number(r):null,esAdministracionPublica:document.getElementById("c_aapp").checked,dir3OficinaContable:val("c_oc")||null,dir3OrganoGestor:val("c_og")||null,dir3UnidadTramitadora:val("c_ut")||null}); const resp=await api("/clientes"+(c?"/"+c.id:""),{method:c?"PUT":"POST",body:b}); const cid=c?c.id:(resp&&resp.id);
+        if(cid&&(val("c_tarifa")||null)!==((c&&c.tarifaId)||null)) await api(`/clientes/${cid}/tarifa`,{method:"PUT",body:JSON.stringify({tarifaId:val("c_tarifa")||null})});
+        await guardarSubcuentaCampo("Cliente", cid, val("c_nombre"), "c_cuenta"); vClientes(); });
       if(c){ rellenar({c_nombre:c.nombre,c_nif:c.nifFiscal,c_email:c.email,c_irpf:c.porcentajeIrpfDefecto,c_iban:c.iban,c_mref:c.mandatoReferencia,c_mfecha:c.mandatoFecha,c_iva:c.nifIva,c_tipo:c.tipo,c_riesgo:c.limiteRiesgo,c_oc:c.dir3OficinaContable,c_og:c.dir3OrganoGestor,c_ut:c.dir3UnidadTramitadora}); document.getElementById("c_recargo").checked=!!c.recargoEquivalencia; document.getElementById("c_aapp").checked=!!c.esAdministracionPublica; document.getElementById("c_dir3").style.display=c.esAdministracionPublica?"block":"none"; }
       cargarSubcuentaCampo("Cliente", c?c.id:null, "c_cuenta"); }
     async function modalProveedor(pr){ _cacheFormasPago=await api("/formas-pago").catch(()=>[]); const fp=[["NoIndicada","Sin especificar"],["Transferencia","Transferencia"],["Domiciliacion","Domiciliación"],["Efectivo","Efectivo"],["Tarjeta","Tarjeta"],["Pagare","Pagaré"],["Confirming","Confirming"],["Otro","Otro"]].map(o=>`<option value="${o[0]}">${o[1]}</option>`).join("");
@@ -3868,17 +3967,23 @@
       abrir(`Anular ${numero}`,`<p class="muted" style="margin:0 0 14px">La factura <strong>no se borra</strong> (ley antifraude): pasará a estado <em>Anulada</em> y se generará un <strong>registro de anulación</strong> con su huella encadenada. Para corregir importes usa mejor una <em>rectificativa</em>.</p>
         <label>Motivo de la anulación</label><input id="an_motivo" placeholder="Ej. Factura duplicada, emitida por error…"/>`,
         async()=>{ await api("/facturas/"+id+"/anular",{method:"POST",body:JSON.stringify({motivo:val("an_motivo")})}); toast("Factura anulada.","ok"); vFacturas(); }); }
-    async function modalRecurrente(){ const cs=await api("/clientes");
+    function lineaRecHtml(l,i){ return `<div class="row rec-lin"><div><input class="rl-desc" placeholder="Descripción" value="${agEsc(l?.descripcion||"")}"/></div><div><label>Cant.</label><input class="rl-cant" type="number" value="${l?l.cantidad:1}"/></div><div><label>Precio €</label><input class="rl-prec" type="number" step="0.01" value="${l?l.precioUnitario:0}"/></div><div><label>IVA</label>${ivaSel("rl_iva"+i,l?l.codigoIva:undefined)}</div></div>`; }
+    async function modalRecurrente(id){ const [cs,r]=await Promise.all([api("/clientes"),id?api("/facturas-recurrentes/"+id):null]);
       if(!cs.length){ alert("Primero crea un cliente para poder facturarle de forma periódica."); return; }
-      const opts=cs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join("");
-      const per=`<select id="r_per"><option value="Semanal">Semanal</option><option value="Mensual" selected>Mensual</option><option value="Trimestral">Trimestral</option><option value="Semestral">Semestral</option><option value="Anual">Anual</option></select>`;
-      const hoy=new Date().toISOString().slice(0,10);
-      abrir("Nueva factura periódica",`<label>Nombre de la suscripción</label><input id="r_nom" placeholder='Ej. "Cuota mantenimiento web"'/>
-        <div class="grid2"><div><label>Cliente</label><select id="r_cli">${opts}</select></div><div><label>Se factura</label>${per}</div></div>
-        <div class="grid2"><div><label>Primera emisión</label><input id="r_fecha" type="date" value="${hoy}"/></div><div><label>IRPF (%)</label><input id="r_irpf" type="number" value="0"/></div></div>
-        <label style="margin-top:16px">Concepto a facturar</label>
-        <div class="row"><div><input id="r_desc" placeholder="Descripción"/></div><div><label>Cant.</label><input id="r_cant" type="number" value="1"/></div><div><label>Precio €</label><input id="r_prec" type="number" value="0"/></div><div><label>IVA</label>${ivaSel("r_iva")}</div></div>`,
-        async()=>{ await api("/facturas-recurrentes",{method:"POST",body:JSON.stringify({nombre:val("r_nom"),clienteId:val("r_cli"),periodicidad:val("r_per"),primeraEmision:val("r_fecha"),porcentajeIrpf:Number(val("r_irpf")),lineas:[{descripcion:val("r_desc"),cantidad:Number(val("r_cant")),precioUnitario:Number(val("r_prec")),codigoIva:val("r_iva")}]})}); vRecurrentes(); }); }
+      const opts=cs.map(c=>`<option value="${c.id}"${r&&r.clienteId===c.id?" selected":""}>${c.nombre}</option>`).join("");
+      const per=`<select id="r_per">${["Semanal","Mensual","Trimestral","Semestral","Anual"].map(p=>`<option value="${p}"${(r?r.periodicidad:"Mensual")===p?" selected":""}>${p}</option>`).join("")}</select>`;
+      const hoy=new Date().toISOString().slice(0,10); const lineas=r?r.lineas:[null]; window._recN=lineas.length;
+      abrir(r?"Editar factura periódica":"Nueva factura periódica",`<label>Nombre de la suscripción</label><input id="r_nom" placeholder='Ej. "Cuota mantenimiento web"' value="${r?agEsc(r.nombre):""}"/>
+        <div class="grid2"><div><label>Cliente</label><select id="r_cli" ${r?"disabled":""}>${opts}</select></div><div><label>Se factura</label>${per}</div></div>
+        <div class="grid2"><div><label>${r?"Próxima emisión":"Primera emisión"}</label><input id="r_fecha" type="date" value="${r?r.proximaEmision:hoy}"/></div><div><label>IRPF (%)</label><input id="r_irpf" type="number" value="${r?r.porcentajeIrpf:0}"/></div></div>
+        <label>Fecha de fin (opcional)</label><input id="r_fin" type="date" value="${r&&r.fechaFin?r.fechaFin:""}"/>
+        <label style="margin-top:16px">Conceptos a facturar</label><div id="r_lineas">${lineas.map(lineaRecHtml).join("")}</div>
+        <button class="btn small ghost" style="margin-top:4px" onclick="document.getElementById('r_lineas').insertAdjacentHTML('beforeend',lineaRecHtml(null,window._recN++))">+ Añadir concepto</button>`,
+        async()=>{ const lins=[...document.querySelectorAll('#r_lineas .rec-lin')].map(f=>({descripcion:f.querySelector('.rl-desc').value,cantidad:Number(f.querySelector('.rl-cant').value),precioUnitario:Number(f.querySelector('.rl-prec').value),codigoIva:f.querySelector('select').value})).filter(l=>l.descripcion.trim()&&l.cantidad>0);
+          if(!lins.length) throw new Error("Añade al menos un concepto.");
+          const body=JSON.stringify({nombre:val("r_nom"),clienteId:val("r_cli"),periodicidad:val("r_per"),primeraEmision:val("r_fecha"),fechaFin:val("r_fin")||null,porcentajeIrpf:Number(val("r_irpf")),lineas:lins});
+          await api(r?"/facturas-recurrentes/"+r.id:"/facturas-recurrentes",{method:r?"PUT":"POST",body}); toast(r?"Factura periódica guardada.":"Factura periódica creada.","ok"); vRecurrentes(); });
+    }
 
     // Atajos de teclado: ⌘K / Ctrl+K abre la búsqueda global; flechas y Enter dentro de ella.
     document.addEventListener("keydown",e=>{

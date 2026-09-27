@@ -37,6 +37,21 @@ public static class EndpointsAnalitica
             .WithSummary("Modifica un centro (nombre, tipo, padre, activo). El código no cambia.")
             .RequierePermiso(Permisos.ContabilidadGestionar);
 
+        g.MapDelete("/centros/{id:guid}", async (Guid id, MaestrosAnaliticos caso, CancellationToken ct) =>
+                (await caso.EliminarCentroAsync(id, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Elimina un centro sin imputaciones, reglas, claves ni presupuestos (si no, desactívalo).")
+            .RequierePermiso(Permisos.ContabilidadGestionar);
+
+        g.MapDelete("/partidas/{id:guid}", async (Guid id, MaestrosAnaliticos caso, CancellationToken ct) =>
+                (await caso.EliminarPartidaAsync(id, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Elimina una partida sin uso (si no, desactívala).")
+            .RequierePermiso(Permisos.ContabilidadGestionar);
+
+        g.MapDelete("/claves/{id:guid}", async (Guid id, MaestrosAnaliticos caso, CancellationToken ct) =>
+                (await caso.EliminarClaveAsync(id, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Elimina una clave de reparto sin reglas ni repartos (si no, desactívala).")
+            .RequierePermiso(Permisos.ContabilidadGestionar);
+
         g.MapGet("/partidas", async (MaestrosAnaliticos caso, CancellationToken ct) => Results.Ok(await caso.PartidasAsync(ct).ConfigureAwait(false)))
             .WithSummary("Partidas analíticas (qué: naturaleza del coste o del ingreso), en árbol.")
             .RequierePermiso(Permisos.ContabilidadLeer);

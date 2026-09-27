@@ -34,6 +34,7 @@ public static class RegistroServicios
 
         servicios.AddScoped<RegistrarTipoCambio>();
         servicios.AddScoped<ListarTiposCambio>();
+        servicios.AddScoped<EliminarTipoCambio>();
         servicios.AddScoped<ConvertirImporte>();
         servicios.AddScoped<CalcularDiferenciasCambio>();
 

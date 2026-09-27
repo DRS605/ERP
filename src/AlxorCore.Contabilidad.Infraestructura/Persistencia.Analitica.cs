@@ -211,6 +211,8 @@ internal sealed class RepositorioAnalitica : IRepositorioAnalitica
 
     public void Agregar(ClaveReparto clave) => _contexto.ClavesReparto.Add(clave);
 
+    public void EliminarMaestro(object maestro) => _contexto.Remove(maestro);
+
     public async Task<IReadOnlyList<ReglaAnalitica>> ReglasAsync(Guid empresaId, CancellationToken ct = default) =>
         await _contexto.ReglasAnaliticas.Where(r => r.EmpresaId == empresaId).ToListAsync(ct).ConfigureAwait(false);
 
@@ -349,4 +351,6 @@ internal sealed class RepositorioPresupuestosContables : IRepositorioPresupuesto
         _contexto.PresupuestosContables.SingleOrDefaultAsync(p => p.Id == id, ct);
 
     public void Agregar(PresupuestoContable presupuesto) => _contexto.PresupuestosContables.Add(presupuesto);
+
+    public void Eliminar(PresupuestoContable presupuesto) => _contexto.PresupuestosContables.Remove(presupuesto);
 }

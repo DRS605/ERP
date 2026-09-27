@@ -31,6 +31,8 @@ public interface IRepositorioTiposCambio
 
     void Agregar(TipoCambio tipoCambio);
 
+    void Eliminar(TipoCambio tipoCambio);
+
     Task<IReadOnlyList<TipoCambio>> ListarAsync(Guid empresaId, CancellationToken ct = default);
 }
 
@@ -89,6 +91,35 @@ public sealed class RegistrarTipoCambio
         _repositorio.Agregar(tipo.Valor);
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return Resultado.Ok(TipoCambioDto.Desde(tipo.Valor));
+    }
+}
+
+/// <summary>
+/// Caso de uso: eliminar un tipo de cambio mal introducido. Los documentos ya emitidos guardan su propia tasa, así que
+/// no cambian; las conversiones a partir de ahora usarán la tasa anterior más reciente.
+/// </summary>
+public sealed class EliminarTipoCambio
+{
+    private readonly IRepositorioTiposCambio _repositorio;
+    private readonly IUnidadDeTrabajoDivisas _unidadDeTrabajo;
+
+    public EliminarTipoCambio(IRepositorioTiposCambio repositorio, IUnidadDeTrabajoDivisas unidadDeTrabajo)
+    {
+        _repositorio = repositorio;
+        _unidadDeTrabajo = unidadDeTrabajo;
+    }
+
+    public async Task<Resultado> EjecutarAsync(Guid id, CancellationToken ct = default)
+    {
+        var tipo = await _repositorio.ObtenerPorIdAsync(id, ct).ConfigureAwait(false);
+        if (tipo is null)
+        {
+            return Resultado.Fallo(Error.NoEncontrado("tipocambio.no_encontrado", "El tipo de cambio no existe."));
+        }
+
+        _repositorio.Eliminar(tipo);
+        await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok();
     }
 }
 

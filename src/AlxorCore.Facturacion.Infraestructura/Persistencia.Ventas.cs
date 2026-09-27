@@ -165,6 +165,8 @@ internal sealed class ConfiguracionCartaPorte : IEntityTypeConfiguration<CartaPo
         builder.Property(c => c.Observaciones).HasColumnName("observaciones").HasMaxLength(CartaPorte.LongitudMaximaTexto);
         builder.Property(c => c.AlbaranId).HasColumnName("albaran_id");
         builder.Property(c => c.CreadoEn).HasColumnName("creado_en").IsRequired();
+        builder.Property(c => c.AnuladaEn).HasColumnName("anulada_en");
+        builder.Property(c => c.MotivoAnulacion).HasColumnName("motivo_anulacion").HasMaxLength(CartaPorte.LongitudMaximaTexto);
 
         builder.OwnsMany(c => c.Lineas, linea =>
         {
@@ -192,6 +194,8 @@ internal sealed class RepositorioCartasPorte : IRepositorioCartasPorte, IConsult
     public RepositorioCartasPorte(FacturacionDbContext contexto) => _contexto = contexto;
 
     public void Agregar(CartaPorte cartaPorte) => _contexto.CartasPorte.Add(cartaPorte);
+
+    public Task<CartaPorte?> ObtenerPorIdAsync(Guid id, CancellationToken ct = default) => _contexto.CartasPorte.SingleOrDefaultAsync(c => c.Id == id, ct);
 
     public async Task<int> SiguienteNumeroAsync(Guid empresaId, string? serie, int ejercicio, CancellationToken ct = default)
     {

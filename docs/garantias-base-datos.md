@@ -95,6 +95,11 @@ Detalle en [modulos/analitica.md](modulos/analitica.md).
 
 Detalle en [modulos/agro.md](modulos/agro.md).
 
+**Anulaciones (auditoría de altas y bajas):** un asiento o un movimiento de tesorería solo se anula una vez (índice
+único sobre `anula_asiento_id` / `anula_movimiento_id`); los movimientos de anulación llevan el importe en negativo
+(`CHECK`); la anulación de un efecto de cartera es un registro de solo inserción; un palé expedido solo vuelve a cerrado
+al anular la expedición. Ver [altas-bajas-anulaciones.md](altas-bajas-anulaciones.md).
+
 **Migración y cartera (fase 6):**
 - `migracion.correspondencia` y `migracion.ejecucion`: solo inserción, para que quede la traza de qué se trajo de dónde.
 - `tesoreria.efecto_cartera`: solo inserción, con importe positivo; se cobra o se paga con movimientos, sin

@@ -87,6 +87,11 @@ public static class EndpointsOrganizacion
             .WithSummary("Crea una serie de numeración.")
             .RequierePermiso(Permisos.EmpresaAjustes);
 
+        series.MapDelete("/{id:guid}", async (Guid id, EliminarSerie caso, CancellationToken ct) =>
+                (await caso.EjecutarAsync(id, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Elimina una serie que aún no ha numerado ningún documento.")
+            .RequierePermiso(Permisos.EmpresaAjustes);
+
         series.MapGet("/asignaciones", ListarAsignacionesAsync)
             .WithSummary("Lista las asignaciones de serie (empresa/cliente/proveedor por documento).")
             .RequireAuthorization();

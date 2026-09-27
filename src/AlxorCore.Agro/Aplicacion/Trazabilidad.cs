@@ -131,12 +131,14 @@ public sealed class TrazabilidadAgro
 
         var partidas = (await _repo.PartidasAsync(nodos.Keys.ToList(), ct).ConfigureAwait(false)).ToDictionary(p => p.Id);
         var movimientos = await _repo.MovimientosAsync(nodos.Keys.ToList(), ct).ConfigureAwait(false);
-        var expediciones = movimientos.Where(m => m.Tipo == TipoMovimientoPartida.Expedicion && m.PaleId is not null).ToList();
+        // La salida de cada expedición y, si se anuló, su vuelta (mismo tipo de documento): cuenta lo que salió de verdad.
+        var expediciones = movimientos.Where(m => m.DocumentoTipo == PalesAgro.DocumentoExpedicion && m.PaleId is not null).ToList();
         var enPale = movimientos.Where(m => m.PaleId is not null).GroupBy(m => (m.PaleId!.Value, m.PartidaId))
             .Select(g => (Pale: g.Key.Value, Partida: g.Key.PartidaId, Saldo: g.Sum(m => m.Kilos))).Where(x => x.Saldo > 0m).ToList();
         var pales = (await _repo.PalesAsync(expediciones.Select(m => m.PaleId!.Value).Concat(enPale.Select(x => x.Pale)).Distinct().ToList(), ct).ConfigureAwait(false))
             .ToDictionary(p => p.Id);
         var destinos = expediciones.GroupBy(m => (m.PaleId!.Value, m.PartidaId)).Select(g => (Pale: g.Key.Value, Partida: g.Key.PartidaId, Kilos: -g.Sum(m => m.Kilos)))
+            .Where(x => x.Kilos > 0m)
             .Concat(enPale.Select(x => (x.Pale, x.Partida, Kilos: x.Saldo)))
             .Select(x =>
             {

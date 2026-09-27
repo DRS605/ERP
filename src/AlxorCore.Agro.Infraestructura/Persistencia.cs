@@ -636,6 +636,8 @@ internal sealed class RepositorioAgro : IRepositorioAgro
     public async Task<IReadOnlyList<Categoria>> CategoriasAsync(Guid empresaId, CancellationToken ct = default) =>
         await _ctx.Set<Categoria>().Where(x => x.EmpresaId == empresaId).ToListAsync(ct).ConfigureAwait(false);
 
+    public Task<Categoria?> CategoriaAsync(Guid id, CancellationToken ct = default) => _ctx.Set<Categoria>().SingleOrDefaultAsync(x => x.Id == id, ct);
+
     public async Task<IReadOnlyList<ArticuloCampana>> ArticulosCampanaAsync(Guid campanaId, CancellationToken ct = default) =>
         await _ctx.Set<ArticuloCampana>().Where(x => x.CampanaId == campanaId).ToListAsync(ct).ConfigureAwait(false);
 
@@ -714,6 +716,9 @@ internal sealed class RepositorioAgro : IRepositorioAgro
             .Select(g => new { PartidaId = g.Key, Kilos = g.Sum(m => m.Kilos) }).ToListAsync(ct).ConfigureAwait(false);
         return filas.Select(f => new SaldoPartida(f.PartidaId, paleId, f.Kilos)).ToList();
     }
+
+    public async Task<IReadOnlyList<MovimientoPartida>> MovimientosDePaleAsync(Guid paleId, CancellationToken ct = default) =>
+        await _ctx.Set<MovimientoPartida>().Where(m => m.PaleId == paleId).ToListAsync(ct).ConfigureAwait(false);
 
     public async Task<IReadOnlyList<MovimientoPartida>> MovimientosAsync(IReadOnlyCollection<Guid> partidaIds, CancellationToken ct = default) =>
         partidaIds.Count == 0 ? [] : await _ctx.Set<MovimientoPartida>().Where(m => partidaIds.Contains(m.PartidaId)).ToListAsync(ct).ConfigureAwait(false);

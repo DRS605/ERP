@@ -79,6 +79,39 @@ public sealed class RegistrarAnticipo
 /// Caso de uso: aplicar un anticipo a una factura del mismo cliente. Registra un cobro de la factura
 /// (con las mismas reglas: sin sobrepago) y anota la aplicación en el anticipo, en la misma transacción.
 /// </summary>
+/// <summary>Caso de uso: anular un anticipo registrado por error o devuelto (sin nada aplicado).</summary>
+public sealed class AnularAnticipo
+{
+    private readonly IRepositorioAnticipos _anticipos;
+    private readonly IUnidadDeTrabajoTesoreria _unidad;
+    private readonly IReloj _reloj;
+
+    public AnularAnticipo(IRepositorioAnticipos anticipos, IUnidadDeTrabajoTesoreria unidad, IReloj reloj)
+    {
+        _anticipos = anticipos;
+        _unidad = unidad;
+        _reloj = reloj;
+    }
+
+    public async Task<Resultado<AnticipoDto>> EjecutarAsync(Guid id, CancellationToken ct = default)
+    {
+        var a = await _anticipos.ObtenerAsync(id, ct).ConfigureAwait(false);
+        if (a is null)
+        {
+            return Resultado.Fallo<AnticipoDto>(Error.NoEncontrado("anticipo.no_encontrado", "El anticipo no existe."));
+        }
+
+        var r = a.Anular(_reloj);
+        if (r.EsFallo)
+        {
+            return Resultado.Fallo<AnticipoDto>(r.Error);
+        }
+
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(AnticipoDto.Desde(a));
+    }
+}
+
 public sealed class AplicarAnticipo
 {
     private readonly IRepositorioAnticipos _anticipos;

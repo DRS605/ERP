@@ -30,6 +30,31 @@ public static class EndpointsAgro
 
     private static void MapearMaestros(RouteGroupBuilder g)
     {
+        g.MapPut("/campanas/{id:guid}", async (Guid id, DatosCampana datos, MaestrosAgro caso, CancellationToken ct) =>
+                (await caso.ActualizarCampanaAsync(id, datos, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Modifica nombre y fechas de una campaña (con movimientos, solo se amplía).").RequierePermiso(Permisos.AgroGestionar);
+        g.MapDelete("/campanas/{id:guid}", async (Guid id, MaestrosAgro caso, CancellationToken ct) =>
+                (await caso.EliminarCampanaAsync(id, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Elimina una campaña sin movimientos (con su configuración de artículos y precios).").RequierePermiso(Permisos.AgroGestionar);
+        g.MapPut("/categorias/{id:guid}", async (Guid id, DatosCategoria datos, MaestrosAgro caso, CancellationToken ct) =>
+                (await caso.ActualizarCategoriaAsync(id, datos, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Modifica nombre y orden de una categoría.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapDelete("/categorias/{id:guid}", async (Guid id, MaestrosAgro caso, CancellationToken ct) =>
+                (await caso.EliminarCategoriaAsync(id, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Elimina una categoría sin clasificaciones, partes ni liquidaciones.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapPut("/tarifas/{id:guid}", async (Guid id, DatosTarifa datos, MaestrosAgro caso, CancellationToken ct) =>
+                (await caso.ActualizarTarifaAsync(id, datos, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Modifica una tarifa de coste (si ya valoró partes, solo se cierra su vigencia).").RequierePermiso(Permisos.AgroGestionar);
+        g.MapDelete("/tarifas/{id:guid}", async (Guid id, MaestrosAgro caso, CancellationToken ct) =>
+                (await caso.EliminarTarifaAsync(id, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Elimina una tarifa de coste que no ha valorado partes.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapDelete("/parcelas/{id:guid}", async (Guid id, MaestrosAgro caso, CancellationToken ct) =>
+                (await caso.EliminarParcelaAsync(id, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Elimina una parcela sin recepciones.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapDelete("/agricultores/{id:guid}", async (Guid id, MaestrosAgro caso, CancellationToken ct) =>
+                (await caso.EliminarAgricultorAsync(id, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Elimina la ficha agrícola de un agricultor sin movimientos (si no, bloquéalo).").RequierePermiso(Permisos.AgroGestionar);
+
         g.MapGet("/campanas", (IContextoEmpresa c, MaestrosAgro m, CancellationToken ct) => ConEmpresa(c, async e => Results.Ok(await m.CampanasAsync(e, ct).ConfigureAwait(false))))
             .WithSummary("Campañas.").RequierePermiso(Permisos.AgroLeer);
         g.MapPost("/campanas", (DatosCampana d, IContextoEmpresa c, MaestrosAgro m, CancellationToken ct) => ConEmpresa(c, async e => Creado(await m.CrearCampanaAsync(e, d, ct).ConfigureAwait(false), "campanas")))
@@ -201,6 +226,8 @@ public static class EndpointsAgro
             .WithSummary("Cierra el palé (listo para expedir).").RequierePermiso(Permisos.AgroGestionar);
         g.MapPost("/pales/{id:guid}/reabrir", async (Guid id, PalesAgro p, CancellationToken ct) => (await p.ReabrirAsync(id, ct).ConfigureAwait(false)).AOk())
             .WithSummary("Reabre un palé cerrado que no ha salido.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapPost("/pales/{id:guid}/anular-expedicion", (Guid id, IContextoEmpresa c, PalesAgro p, CancellationToken ct) => ConEmpresa(c, async e => (await p.AnularExpedicionAsync(e, id, ct).ConfigureAwait(false)).AOk()))
+            .WithSummary("Anula la expedición de un palé (salió por error o volvió): queda cerrado con su contenido.").RequierePermiso(Permisos.AgroGestionar);
         g.MapPost("/expediciones", (DatosExpedicion d, IContextoEmpresa c, PalesAgro p, CancellationToken ct) => ConEmpresa(c, async e => (await p.ExpedirAsync(e, d, ct).ConfigureAwait(false)).AOk()))
             .WithSummary("Expide palés cerrados a un cliente.").RequierePermiso(Permisos.AgroGestionar);
 

@@ -67,6 +67,11 @@ public static class EndpointsTesoreria
             .WithTags("Tesorería").WithSummary("Añade un ingreso o gasto previsto.")
             .RequierePermiso(Permisos.CobroRegistrar);
 
+        rutas.MapPut("/tesoreria/previsiones/{id:guid}", async (Guid id, CrearPrevisionComando comando, ActualizarPrevision caso, CancellationToken ct) =>
+                (await caso.EjecutarAsync(id, comando, ct).ConfigureAwait(false)).AOk())
+            .WithTags("Tesorería").WithSummary("Modifica una previsión de tesorería.")
+            .RequierePermiso(Permisos.CobroRegistrar);
+
         rutas.MapDelete("/tesoreria/previsiones/{id:guid}", EliminarPrevisionAsync)
             .WithTags("Tesorería").WithSummary("Elimina una previsión.")
             .RequierePermiso(Permisos.CobroRegistrar);

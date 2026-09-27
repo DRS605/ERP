@@ -529,6 +529,37 @@ public sealed class PalesAgro
         return Resultado.Ok<IReadOnlyList<PaleDto>>(lista);
     }
 
+    /// <summary>Anula la expedición de un palé: devuelve sus kilos a las partidas (dentro del palé) y lo deja cerrado.</summary>
+    public async Task<Resultado<PaleDto>> AnularExpedicionAsync(Guid empresaId, Guid paleId, CancellationToken ct = default)
+    {
+        var pale = await _repo.PaleAsync(paleId, ct).ConfigureAwait(false);
+        if (pale is null)
+        {
+            return Resultado.Fallo<PaleDto>(Error.NoEncontrado("pale.no_encontrado", "El palé no existe."));
+        }
+
+        var salida = (await _repo.MovimientosDePaleAsync(paleId, ct).ConfigureAwait(false))
+            .Where(m => m.DocumentoTipo == DocumentoExpedicion).GroupBy(m => m.PartidaId)
+            .Select(g => (Partida: g.Key, Kilos: -g.Sum(m => m.Kilos))).Where(x => x.Kilos > 0m).ToList();
+        var r = pale.AnularExpedicion();
+        if (r.EsFallo)
+        {
+            return Resultado.Fallo<PaleDto>(r.Error);
+        }
+
+        foreach (var (partida, kilos) in salida)
+        {
+            _repo.Agregar(MovimientoPartida.Crear(empresaId, partida, Hoy, TipoMovimientoPartida.Anulacion, kilos, pale.Id, DocumentoExpedicion, pale.Id,
+                "Anulación de la expedición", _reloj).Valor);
+        }
+
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(await DtoAsync(pale, ct).ConfigureAwait(false));
+    }
+
+    /// <summary>Tipo de documento de los movimientos de una expedición (la salida y, si se anula, su vuelta).</summary>
+    public const string DocumentoExpedicion = "Expedicion";
+
     private async Task<Resultado> MoverAsync(Guid empresaId, Guid partidaId, decimal kilos, Guid? desdePaleId, Pale? hacia, DateOnly? fecha, CancellationToken ct)
     {
         if (hacia is { Estado: not EstadoPale.Abierto })
@@ -575,8 +606,8 @@ public sealed class PalesAgro
         if (p.Estado == EstadoPale.Expedido)
         {
             // Expedido: se muestra lo que llevaba al salir.
-            var salidas = (await _repo.MovimientosAsync(contenido.Select(c => c.PartidaId).ToList(), ct).ConfigureAwait(false))
-                .Where(m => m.PaleId == p.Id && m.Tipo == TipoMovimientoPartida.Expedicion)
+            var salidas = (await _repo.MovimientosDePaleAsync(p.Id, ct).ConfigureAwait(false))
+                .Where(m => m.DocumentoTipo == DocumentoExpedicion)
                 .GroupBy(m => m.PartidaId).Select(g => new SaldoPartida(g.Key, p.Id, -g.Sum(m => m.Kilos))).ToList();
             contenido = salidas;
         }

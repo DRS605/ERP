@@ -72,6 +72,8 @@ public interface IRepositorioInmovilizado
 {
     void Agregar(Inmovilizado inmovilizado);
 
+    void Eliminar(Inmovilizado inmovilizado);
+
     Task<Inmovilizado?> ObtenerAsync(Guid empresaId, Guid id, CancellationToken ct = default);
 
     Task<IReadOnlyList<Inmovilizado>> ListarAsync(Guid empresaId, CancellationToken ct = default);
@@ -322,6 +324,41 @@ public sealed class GenerarAmortizacion
 }
 
 /// <summary>Da de baja un inmovilizado (sin contraprestación) y genera su asiento de baja.</summary>
+/// <summary>
+/// Elimina un bien dado de alta por error: solo si aún no tiene ninguna dotación ni ajuste fiscal contabilizado
+/// (entonces no ha dejado rastro en la contabilidad). Uno ya amortizado se da de baja o se enajena.
+/// </summary>
+public sealed class EliminarInmovilizado
+{
+    private readonly IRepositorioInmovilizado _inmovilizados;
+    private readonly IUnidadDeTrabajoContabilidad _unidad;
+
+    public EliminarInmovilizado(IRepositorioInmovilizado inmovilizados, IUnidadDeTrabajoContabilidad unidad)
+    {
+        _inmovilizados = inmovilizados;
+        _unidad = unidad;
+    }
+
+    public async Task<Resultado> EjecutarAsync(Guid empresaId, Guid id, CancellationToken ct = default)
+    {
+        var inmo = await _inmovilizados.ObtenerAsync(empresaId, id, ct).ConfigureAwait(false);
+        if (inmo is null)
+        {
+            return Resultado.Fallo(Error.NoEncontrado("inmovilizado.no_encontrado", "El inmovilizado no existe."));
+        }
+
+        if (inmo.Dotaciones.Count > 0 || inmo.AjustesFiscales.Count > 0 || inmo.Estado != EstadoInmovilizado.Activo)
+        {
+            return Resultado.Fallo(Error.Conflicto("inmovilizado.en_uso",
+                "El bien ya tiene amortizaciones contabilizadas (o está de baja): no se elimina. Dalo de baja o enajénalo."));
+        }
+
+        _inmovilizados.Eliminar(inmo);
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok();
+    }
+}
+
 public sealed class DarDeBajaInmovilizado
 {
     private readonly IRepositorioInmovilizado _inmovilizados;

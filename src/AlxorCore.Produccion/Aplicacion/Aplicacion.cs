@@ -105,6 +105,15 @@ public sealed class DecidirOrden
     public Task<Resultado<OrdenFabricacionDto>> CancelarAsync(Guid empresaId, Guid id, CancellationToken ct = default)
         => CambiarAsync(id, o => o.Cancelar(), ct);
 
+    /// <summary>Modifica cantidad, almacén y fecha de una orden planificada (recalcula lo que consumirá).</summary>
+    public Task<Resultado<OrdenFabricacionDto>> ModificarAsync(Guid id, CrearOrdenComando comando, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(comando);
+        return CambiarAsync(id, o => comando.ProductoId != o.ProductoId
+            ? Resultado.Fallo(Error.Validacion("orden.cambio_producto", "El artículo de una orden no se cambia: cancélala y crea otra."))
+            : o.Modificar(comando.Cantidad, comando.AlmacenId, comando.Fecha ?? o.Fecha), ct);
+    }
+
     /// <summary>Termina la orden: consume componentes y produce el artículo (montaje), y marca la orden terminada.</summary>
     public async Task<Resultado<OrdenFabricacionDto>> TerminarAsync(Guid empresaId, Guid id, CancellationToken ct = default)
     {

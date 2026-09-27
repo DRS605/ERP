@@ -79,6 +79,8 @@ public interface IRepositorioFacturasRecurrentes
 {
     void Agregar(FacturaRecurrente recurrente);
 
+    void Eliminar(FacturaRecurrente recurrente);
+
     Task<FacturaRecurrente?> ObtenerPorIdAsync(Guid id, CancellationToken ct = default);
 
     /// <summary>Recurrencias vencidas (a emitir) de la empresa activa.</summary>
@@ -249,6 +251,38 @@ public sealed class ActualizarFacturaRecurrente
 }
 
 /// <summary>Caso de uso: activar o pausar una factura recurrente.</summary>
+/// <summary>Elimina una factura periódica que aún no ha emitido ninguna factura (si ya emitió, se pausa).</summary>
+public sealed class EliminarFacturaRecurrente
+{
+    private readonly IRepositorioFacturasRecurrentes _repositorio;
+    private readonly IUnidadDeTrabajoFacturacion _unidadDeTrabajo;
+
+    public EliminarFacturaRecurrente(IRepositorioFacturasRecurrentes repositorio, IUnidadDeTrabajoFacturacion unidadDeTrabajo)
+    {
+        _repositorio = repositorio;
+        _unidadDeTrabajo = unidadDeTrabajo;
+    }
+
+    public async Task<Resultado> EjecutarAsync(Guid id, CancellationToken ct = default)
+    {
+        var r = await _repositorio.ObtenerPorIdAsync(id, ct).ConfigureAwait(false);
+        if (r is null)
+        {
+            return Resultado.Fallo(Error.NoEncontrado("recurrente.no_encontrada", "La factura periódica no existe."));
+        }
+
+        if (r.FacturasGeneradas > 0)
+        {
+            return Resultado.Fallo(Error.Conflicto("recurrente.en_uso",
+                $"Ya ha emitido {r.FacturasGeneradas} factura(s): páusala para que no emita más y se conserva el histórico."));
+        }
+
+        _repositorio.Eliminar(r);
+        await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok();
+    }
+}
+
 public sealed class CambiarEstadoFacturaRecurrente
 {
     private readonly IRepositorioFacturasRecurrentes _repositorio;

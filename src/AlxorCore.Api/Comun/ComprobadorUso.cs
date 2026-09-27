@@ -89,6 +89,60 @@ public static class ReferenciasRegistros
                 ("inventario.movimiento_inventario.ubicacion_id", "movimientos"),
                 ("inventario.ubicacion_defecto.ubicacion_id", "artículos que la tienen por defecto"),
             ],
+            [TiposRegistro.CentroCoste] =
+            [
+                ("contabilidad.imputacion_analitica.centro_id", "imputaciones"),
+                ("contabilidad.regla_analitica.centro_id", "reglas de asignación"),
+                ("contabilidad.linea_clave_reparto.centro_id", "claves de reparto"),
+                ("contabilidad.linea_presupuesto.centro_id", "presupuestos"),
+                ("contabilidad.ejecucion_analitica.centro_origen_id", "repartos"),
+                ("contabilidad.centro_analitico.padre_id", "centros que cuelgan de él"),
+                ("agro.parte_confeccion.centro_analitico_id", "partes de confección"),
+                ("agro.parcela.centro_analitico_id", "parcelas"),
+            ],
+            [TiposRegistro.PartidaAnalitica] =
+            [
+                ("contabilidad.imputacion_analitica.partida_id", "imputaciones"),
+                ("contabilidad.regla_analitica.partida_id", "reglas de asignación"),
+                ("contabilidad.linea_presupuesto.partida_id", "presupuestos"),
+                ("contabilidad.partida_analitica.padre_id", "partidas que cuelgan de ella"),
+            ],
+            [TiposRegistro.ClaveReparto] =
+            [
+                ("contabilidad.regla_analitica.clave_reparto_id", "reglas de asignación"),
+                ("contabilidad.ejecucion_analitica.clave_reparto_id", "repartos"),
+            ],
+            [TiposRegistro.Campana] =
+            [
+                ("agro.recepcion.campana_id", "recepciones"),
+                ("agro.partida.campana_id", "partidas"),
+                ("agro.parte_confeccion.campana_id", "partes de confección"),
+                ("agro.liquidacion.campana_id", "liquidaciones"),
+            ],
+            [TiposRegistro.Categoria] =
+            [
+                ("agro.linea_clasificacion.categoria_id", "clasificaciones"),
+                ("agro.salida_parte.categoria_id", "partes de confección"),
+                ("agro.linea_liquidacion.categoria_id", "liquidaciones"),
+                ("agro.precio_liquidacion.categoria_id", "precios de liquidación"),
+            ],
+            [TiposRegistro.Parcela] =
+            [
+                ("agro.linea_recepcion.parcela_id", "recepciones"),
+                ("agro.partida.parcela_id", "partidas"),
+            ],
+            [TiposRegistro.Agricultor] =
+            [
+                ("agro.recepcion.agricultor_id", "recepciones"),
+                ("agro.partida.agricultor_id", "partidas"),
+                ("agro.liquidacion.agricultor_id", "liquidaciones"),
+                ("agro.movimiento_envase.agricultor_id", "movimientos de envases"),
+            ],
+            [TiposRegistro.TarifaCoste] =
+            [
+                ("agro.mano_obra_parte.tarifa_id", "partes de confección (mano de obra)"),
+                ("agro.maquina_parte.tarifa_id", "partes de confección (maquinaria)"),
+            ],
             [TiposRegistro.Gasto] =
             [
                 ("agro.liquidacion.gasto_id", "la autofactura de una liquidación agrícola"),
@@ -111,6 +165,10 @@ public static class ReferenciasRegistros
         "catalogo.historico_precio.producto_id",
         "catalogo.linea_tarifa.tarifa_id",
         "inventario.ubicacion.almacen_id",
+        "contabilidad.linea_clave_reparto.clave_reparto_id",
+        "agro.articulo_campana.campana_id",
+        "agro.precio_liquidacion.campana_id",
+        "agro.parcela.agricultor_id",
     ];
 }
 

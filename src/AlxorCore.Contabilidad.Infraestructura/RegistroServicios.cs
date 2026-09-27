@@ -57,6 +57,7 @@ public static class RegistroServicios
         // Inmovilizado y amortizaciones (contable + fiscal, impuesto diferido, baja y enajenación).
         servicios.AddScoped<IRepositorioInmovilizado, RepositorioInmovilizado>();
         servicios.AddScoped<CrearInmovilizado>();
+        servicios.AddScoped<EliminarInmovilizado>();
         servicios.AddScoped<ListarInmovilizados>();
         servicios.AddScoped<ObtenerCuadroAmortizacion>();
         servicios.AddScoped<GenerarAmortizacion>();

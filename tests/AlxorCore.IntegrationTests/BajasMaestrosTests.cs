@@ -157,6 +157,8 @@ public sealed class BajasMaestrosTests : IClassFixture<FabricaApiPruebas>
             [@"^almacen_id$"] = "almacen",
             [@"^ubicacion_id$"] = "ubicacion",
             [@"^tercero_id$"] = "tercero",
+            [@"^centro(_origen|_analitico)?_id$"] = "centro_coste",
+            [@"^clave_reparto_id$"] = "clave_reparto",
         };
         var columnas = await db.Database.SqlQueryRaw<string>("""
             SELECT table_schema || '.' || table_name || '.' || column_name AS "Value"

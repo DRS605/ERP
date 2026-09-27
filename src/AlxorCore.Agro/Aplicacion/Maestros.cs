@@ -1,4 +1,5 @@
 using AlxorCore.Agro.Dominio;
+using AlxorCore.Nucleo.Aplicacion;
 using AlxorCore.Nucleo.Resultados;
 using AlxorCore.Terceros.Aplicacion;
 
@@ -78,11 +79,158 @@ public sealed class MaestrosAgro
     private readonly IUnidadDeTrabajoAgro _unidad;
     private readonly IConsultaProveedores _proveedores;
 
-    public MaestrosAgro(IRepositorioAgro repo, IUnidadDeTrabajoAgro unidad, IConsultaProveedores proveedores)
+    private readonly IComprobadorUso? _uso;
+
+    public MaestrosAgro(IRepositorioAgro repo, IUnidadDeTrabajoAgro unidad, IConsultaProveedores proveedores, IComprobadorUso? uso = null)
     {
         _repo = repo;
         _unidad = unidad;
         _proveedores = proveedores;
+        _uso = uso;
+    }
+
+    private async Task<string?> UsoAsync(string tipo, Guid id, CancellationToken ct) =>
+        _uso is null ? null : await _uso.BuscarUsoAsync(tipo, id, ct).ConfigureAwait(false);
+
+    private async Task<Resultado<BajaDto>> EliminarAsync(object? entidad, Guid id, string tipo, string prefijo, string nombre, string alternativa,
+        Func<Task>? antes, CancellationToken ct)
+    {
+        if (entidad is null)
+        {
+            return Resultado.Fallo<BajaDto>(Error.NoEncontrado(prefijo + ".no_encontrado", $"No existe {nombre}."));
+        }
+
+        if (await UsoAsync(tipo, id, ct).ConfigureAwait(false) is { } uso)
+        {
+            return Resultado.Fallo<BajaDto>(Error.Conflicto(prefijo + Bajas.SufijoEnUso, $"No se puede eliminar {nombre} porque ya tiene {uso}. {alternativa}"));
+        }
+
+        if (antes is not null)
+        {
+            await antes().ConfigureAwait(false);
+        }
+
+        _repo.Eliminar(entidad);
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(new BajaDto(id, true, false));
+    }
+
+    // ------------------------------------------------------------------ Modificar y eliminar maestros
+    public async Task<Resultado<CampanaDto>> ActualizarCampanaAsync(Guid id, DatosCampana datos, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(datos);
+        var c = await _repo.CampanaAsync(id, ct).ConfigureAwait(false);
+        if (c is null)
+        {
+            return Resultado.Fallo<CampanaDto>(Error.NoEncontrado("campana.no_encontrada", "La campaña no existe."));
+        }
+
+        var otras = (await _repo.CampanasAsync(c.EmpresaId, ct).ConfigureAwait(false)).Where(x => x.Id != id);
+        if (otras.Any(e => e.Desde <= datos.Hasta && datos.Desde <= e.Hasta))
+        {
+            return Resultado.Fallo<CampanaDto>(Error.Conflicto("campana.solapada", "Las fechas se solapan con otra campaña."));
+        }
+
+        var r = c.Actualizar(datos.Nombre, datos.Desde, datos.Hasta, await UsoAsync(TiposRegistro.Campana, id, ct).ConfigureAwait(false) is not null);
+        if (r.EsFallo)
+        {
+            return Resultado.Fallo<CampanaDto>(r.Error);
+        }
+
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(CampanaDto.De(c));
+    }
+
+    /// <summary>Elimina una campaña sin recepciones, partidas, partes ni liquidaciones (con sus artículos y precios).</summary>
+    public async Task<Resultado<BajaDto>> EliminarCampanaAsync(Guid id, CancellationToken ct = default) =>
+        await EliminarAsync(await _repo.CampanaAsync(id, ct).ConfigureAwait(false), id, TiposRegistro.Campana, "campana", "la campaña",
+            "Una campaña con movimientos se conserva como histórico.", async () =>
+            {
+                foreach (var a in await _repo.ArticulosCampanaAsync(id, ct).ConfigureAwait(false))
+                {
+                    _repo.Eliminar(a);
+                }
+
+                foreach (var p in await _repo.PreciosAsync(id, ct).ConfigureAwait(false))
+                {
+                    _repo.Eliminar(p);
+                }
+            }, ct).ConfigureAwait(false);
+
+    public async Task<Resultado<CategoriaDto>> ActualizarCategoriaAsync(Guid id, DatosCategoria datos, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(datos);
+        var c = await _repo.CategoriaAsync(id, ct).ConfigureAwait(false);
+        if (c is null)
+        {
+            return Resultado.Fallo<CategoriaDto>(Error.NoEncontrado("categoria.no_encontrada", "La categoría no existe."));
+        }
+
+        var r = c.Actualizar(datos.Nombre, datos.EsDestrio, datos.Orden, await UsoAsync(TiposRegistro.Categoria, id, ct).ConfigureAwait(false) is not null);
+        if (r.EsFallo)
+        {
+            return Resultado.Fallo<CategoriaDto>(r.Error);
+        }
+
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(CategoriaDto.De(c));
+    }
+
+    public async Task<Resultado<BajaDto>> EliminarCategoriaAsync(Guid id, CancellationToken ct = default) =>
+        await EliminarAsync(await _repo.CategoriaAsync(id, ct).ConfigureAwait(false), id, TiposRegistro.Categoria, "categoria", "la categoría",
+            "Se conserva porque forma parte de clasificaciones o liquidaciones.", null, ct).ConfigureAwait(false);
+
+    public async Task<Resultado<TarifaDto>> ActualizarTarifaAsync(Guid id, DatosTarifa datos, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(datos);
+        var t = await _repo.TarifaAsync(id, ct).ConfigureAwait(false);
+        if (t is null)
+        {
+            return Resultado.Fallo<TarifaDto>(Error.NoEncontrado("tarifa.no_encontrada", "La tarifa no existe."));
+        }
+
+        var hasta = datos.Hasta ?? DateOnly.MaxValue;
+        var solapa = (await _repo.TarifasAsync(t.EmpresaId, ct).ConfigureAwait(false)).Any(x => x.Id != id &&
+            x.Recurso == t.Recurso && x.Categoria == t.Categoria && x.TipoHora == t.TipoHora &&
+            x.Desde <= hasta && datos.Desde <= (x.Hasta ?? DateOnly.MaxValue));
+        if (solapa)
+        {
+            return Resultado.Fallo<TarifaDto>(Error.Conflicto("tarifa.solapada", "Se solaparía con otra tarifa de esa categoría y tipo de hora."));
+        }
+
+        var r = t.Actualizar(datos.Desde, datos.Hasta, datos.CosteUnitario, await UsoAsync(TiposRegistro.TarifaCoste, id, ct).ConfigureAwait(false) is not null);
+        if (r.EsFallo)
+        {
+            return Resultado.Fallo<TarifaDto>(r.Error);
+        }
+
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(TarifaDto.De(t));
+    }
+
+    public async Task<Resultado<BajaDto>> EliminarTarifaAsync(Guid id, CancellationToken ct = default) =>
+        await EliminarAsync(await _repo.TarifaAsync(id, ct).ConfigureAwait(false), id, TiposRegistro.TarifaCoste, "tarifa", "la tarifa",
+            "Cierra su vigencia en lugar de eliminarla.", null, ct).ConfigureAwait(false);
+
+    public async Task<Resultado<BajaDto>> EliminarParcelaAsync(Guid id, CancellationToken ct = default) =>
+        await EliminarAsync(await _repo.ParcelaAsync(id, ct).ConfigureAwait(false), id, TiposRegistro.Parcela, "parcela", "la parcela",
+            "Se conserva por la trazabilidad de lo recolectado.", null, ct).ConfigureAwait(false);
+
+    /// <summary>Elimina la ficha agrícola (y sus parcelas sin uso) de un agricultor sin recepciones, envases ni liquidaciones.</summary>
+    public async Task<Resultado<BajaDto>> EliminarAgricultorAsync(Guid id, CancellationToken ct = default)
+    {
+        var a = await _repo.AgricultorAsync(id, ct).ConfigureAwait(false);
+        return await EliminarAsync(a, id, TiposRegistro.Agricultor, "agricultor", "el agricultor",
+            "Bloquéalo en su ficha para que no se le reciba fruta.", async () =>
+            {
+                foreach (var p in await _repo.ParcelasAsync(a!.EmpresaId, id, ct).ConfigureAwait(false))
+                {
+                    if (await UsoAsync(TiposRegistro.Parcela, p.Id, ct).ConfigureAwait(false) is null)
+                    {
+                        _repo.Eliminar(p);
+                    }
+                }
+            }, ct).ConfigureAwait(false);
     }
 
     // ------------------------------------------------------------------ Campañas

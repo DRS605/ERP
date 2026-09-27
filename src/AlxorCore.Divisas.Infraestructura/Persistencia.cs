@@ -58,6 +58,8 @@ internal sealed class RepositorioTiposCambio : IRepositorioTiposCambio, IConsult
     public Task<TipoCambio?> ObtenerPorIdAsync(Guid id, CancellationToken ct = default) =>
         _ctx.TiposCambio.SingleOrDefaultAsync(t => t.Id == id, ct);
 
+    public void Eliminar(TipoCambio tipoCambio) => _ctx.TiposCambio.Remove(tipoCambio);
+
     public Task<TipoCambio?> ObtenerPorDivisaFechaAsync(Guid empresaId, string divisa, DateOnly fecha, CancellationToken ct = default) =>
         _ctx.TiposCambio.SingleOrDefaultAsync(t => t.EmpresaId == empresaId && t.Divisa == divisa && t.Fecha == fecha, ct);
 

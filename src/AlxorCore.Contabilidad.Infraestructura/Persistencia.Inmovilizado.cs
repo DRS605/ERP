@@ -82,6 +82,8 @@ internal sealed class RepositorioInmovilizado : IRepositorioInmovilizado
 
     public void Agregar(Inmovilizado inmovilizado) => _contexto.Inmovilizados.Add(inmovilizado);
 
+    public void Eliminar(Inmovilizado inmovilizado) => _contexto.Inmovilizados.Remove(inmovilizado);
+
     public Task<Inmovilizado?> ObtenerAsync(Guid empresaId, Guid id, CancellationToken ct = default) =>
         _contexto.Inmovilizados.FirstOrDefaultAsync(i => i.Id == id && i.EmpresaId == empresaId, ct);
 

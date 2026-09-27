@@ -51,6 +51,7 @@ public static class RegistroServicios
         servicios.AddScoped<IConsultaFacturasRecurrentes>(sp => sp.GetRequiredService<RepositorioFacturasRecurrentes>());
         servicios.AddScoped<CrearFacturaRecurrente>();
         servicios.AddScoped<ActualizarFacturaRecurrente>();
+        servicios.AddScoped<EliminarFacturaRecurrente>();
         servicios.AddScoped<CambiarEstadoFacturaRecurrente>();
         servicios.AddScoped<ListarFacturasRecurrentes>();
         servicios.AddScoped<ObtenerFacturaRecurrente>();
@@ -82,6 +83,7 @@ public static class RegistroServicios
         servicios.AddScoped<IRepositorioCartasPorte>(sp => sp.GetRequiredService<RepositorioCartasPorte>());
         servicios.AddScoped<IConsultaCartasPorte>(sp => sp.GetRequiredService<RepositorioCartasPorte>());
         servicios.AddScoped<CrearCartaPorte>();
+        servicios.AddScoped<AnularCartaPorte>();
         servicios.AddScoped<ListarCartasPorte>();
         servicios.AddScoped<ObtenerCartaPorte>();
 

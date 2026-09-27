@@ -3,6 +3,7 @@ using System;
 using AlxorCore.Tesoreria.Infraestructura;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AlxorCore.Tesoreria.Infraestructura.Persistencia.Migraciones
 {
     [DbContext(typeof(TesoreriaDbContext))]
-    partial class TesoreriaDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260927083507_AnulacionAnticipos")]
+    partial class AnulacionAnticipos
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -71,43 +74,6 @@ namespace AlxorCore.Tesoreria.Infraestructura.Persistencia.Migraciones
                         .HasDatabaseName("ix_anticipo_empresa_cliente");
 
                     b.ToTable("anticipo", "tesoreria");
-                });
-
-            modelBuilder.Entity("AlxorCore.Tesoreria.Dominio.AnulacionEfecto", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<DateTimeOffset>("CreadoEn")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("creado_en");
-
-                    b.Property<Guid>("EfectoId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("efecto_id");
-
-                    b.Property<Guid>("EmpresaId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("empresa_id");
-
-                    b.Property<DateOnly>("Fecha")
-                        .HasColumnType("date")
-                        .HasColumnName("fecha");
-
-                    b.Property<string>("Motivo")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("motivo");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("EfectoId")
-                        .IsUnique()
-                        .HasDatabaseName("ux_anulacion_efecto_cartera");
-
-                    b.ToTable("anulacion_efecto_cartera", "tesoreria");
                 });
 
             modelBuilder.Entity("AlxorCore.Tesoreria.Dominio.ConfiguracionReclamaciones", b =>
@@ -401,15 +367,6 @@ namespace AlxorCore.Tesoreria.Infraestructura.Persistencia.Migraciones
                         });
 
                     b.Navigation("Aplicaciones");
-                });
-
-            modelBuilder.Entity("AlxorCore.Tesoreria.Dominio.AnulacionEfecto", b =>
-                {
-                    b.HasOne("AlxorCore.Tesoreria.Dominio.EfectoCartera", null)
-                        .WithMany()
-                        .HasForeignKey("EfectoId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
                 });
 #pragma warning restore 612, 618
         }

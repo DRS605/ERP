@@ -113,6 +113,24 @@ public sealed class CartaPorte : RaizAgregadoEmpresa<Guid>
 
     public DateTimeOffset CreadoEn { get; private set; }
 
+    /// <summary>Cuándo se anuló (el transporte no se hizo o se emitió por error); el número no se reutiliza.</summary>
+    public DateTimeOffset? AnuladaEn { get; private set; }
+
+    public string? MotivoAnulacion { get; private set; }
+
+    public Resultado Anular(string? motivo, IReloj reloj)
+    {
+        ArgumentNullException.ThrowIfNull(reloj);
+        if (AnuladaEn is not null)
+        {
+            return Resultado.Fallo(Error.Conflicto("cartaporte.ya_anulada", "La carta de porte ya está anulada."));
+        }
+
+        AnuladaEn = reloj.AhoraUtc;
+        MotivoAnulacion = string.IsNullOrWhiteSpace(motivo) ? null : motivo.Trim()[..Math.Min(motivo.Trim().Length, LongitudMaximaTexto)];
+        return Resultado.Ok();
+    }
+
     public IReadOnlyList<LineaCartaPorte> Lineas => _lineas;
 
     /// <summary>Total de bultos de la carta de porte.</summary>

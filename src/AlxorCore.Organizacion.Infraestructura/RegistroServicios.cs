@@ -73,6 +73,7 @@ public static class RegistroServicios
         servicios.AddScoped<ObtenerEmpresa>();
         servicios.AddScoped<SeleccionarEmpresa>();
         servicios.AddScoped<CrearSerie>();
+        servicios.AddScoped<EliminarSerie>();
         servicios.AddScoped<ListarSeries>();
         servicios.AddScoped<AsignarSerie>();
         servicios.AddScoped<EliminarAsignacionSerie>();

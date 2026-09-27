@@ -298,6 +298,21 @@ public sealed class Pale : RaizAgregadoEmpresa<Guid>
         ReferenciaExpedicion = string.IsNullOrWhiteSpace(referencia) ? null : referencia.Trim();
         return Resultado.Ok();
     }
+
+    /// <summary>Deshace la expedición (salió por error o volvió): el palé queda cerrado con su contenido, listo para expedir.</summary>
+    public Resultado AnularExpedicion()
+    {
+        if (Estado != EstadoPale.Expedido)
+        {
+            return Resultado.Fallo(Error.Conflicto("pale.no_expedido", "El palé no está expedido."));
+        }
+
+        Estado = EstadoPale.Cerrado;
+        ClienteId = null;
+        FechaExpedicion = null;
+        ReferenciaExpedicion = null;
+        return Resultado.Ok();
+    }
 }
 
 /// <summary>

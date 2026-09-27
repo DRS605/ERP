@@ -39,6 +39,10 @@ public interface IRepositorioSeries
 {
     void Agregar(SerieNumeracion serie);
 
+    Task<SerieNumeracion?> ObtenerAsync(Guid id, CancellationToken ct = default);
+
+    void Eliminar(SerieNumeracion serie);
+
     Task<IReadOnlyList<SerieNumeracion>> ListarAsync(Guid empresaId, CancellationToken ct = default);
 
     Task<bool> ExisteAsync(Guid empresaId, TipoDocumento tipo, int ejercicio, string prefijo, CancellationToken ct = default);

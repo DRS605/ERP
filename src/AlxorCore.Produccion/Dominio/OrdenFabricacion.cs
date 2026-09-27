@@ -132,6 +132,38 @@ public sealed class OrdenFabricacion : RaizAgregadoEmpresa<Guid>
         return Resultado.Ok(orden);
     }
 
+    /// <summary>Cambia cantidad, almacén y fecha de una orden aún planificada (recalcula los componentes).</summary>
+    public Resultado Modificar(decimal cantidad, Guid almacenId, DateOnly fecha)
+    {
+        if (Estado is not EstadoOrdenFabricacion.Planificada)
+        {
+            return Resultado.Fallo(Error.Conflicto("orden.no_modificable", "Solo se modifica una orden planificada (no iniciada)."));
+        }
+
+        if (cantidad <= 0m)
+        {
+            return Resultado.Fallo(Error.Validacion("orden.cantidad", "La cantidad a fabricar debe ser mayor que cero."));
+        }
+
+        if (fecha.Year != Ejercicio)
+        {
+            return Resultado.Fallo(Error.Validacion("orden.fecha_ejercicio", $"La fecha debe ser de {Ejercicio}, el ejercicio de su número."));
+        }
+
+        Cantidad = cantidad;
+        AlmacenId = almacenId;
+        Fecha = fecha;
+        var actuales = _componentes.Select(c => (c.ComponenteId, c.Nombre, c.CantidadUnitaria)).ToList();
+        _componentes.Clear();
+        foreach (var c in actuales)
+        {
+            _componentes.Add(new ComponentePlan(Guid.NewGuid(), c.ComponenteId, c.Nombre, c.CantidadUnitaria,
+                Math.Round(c.CantidadUnitaria * cantidad, 3, MidpointRounding.AwayFromZero)));
+        }
+
+        return Resultado.Ok();
+    }
+
     public Resultado Iniciar()
     {
         if (Estado is not EstadoOrdenFabricacion.Planificada)

@@ -32,6 +32,19 @@ public static class EndpointsInmovilizado
             .WithSummary("Genera la dotación de amortización del ejercicio y el impuesto diferido.")
             .RequierePermiso(Permisos.ContabilidadGestionar);
 
+        grupo.MapDelete("/{id:guid}", async (Guid id, IContextoEmpresa contexto, EliminarInmovilizado caso, CancellationToken ct) =>
+            {
+                if (contexto.EmpresaId is null)
+                {
+                    return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+                }
+
+                var r = await caso.EjecutarAsync(contexto.EmpresaId.Value, id, ct).ConfigureAwait(false);
+                return r.EsCorrecto ? Results.NoContent() : ResultadosHttp.AProblema(r.Error);
+            })
+            .WithSummary("Elimina un bien dado de alta por error (sin amortizaciones contabilizadas).")
+            .RequierePermiso(Permisos.ContabilidadGestionar);
+
         grupo.MapPost("/{id:guid}/baja", BajaAsync)
             .WithSummary("Da de baja un inmovilizado (sin contraprestación) y genera su asiento.")
             .RequierePermiso(Permisos.ContabilidadGestionar);

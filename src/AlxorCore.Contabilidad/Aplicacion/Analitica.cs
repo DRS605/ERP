@@ -1,4 +1,5 @@
 using AlxorCore.Contabilidad.Dominio;
+using AlxorCore.Nucleo.Aplicacion;
 using AlxorCore.Nucleo.Resultados;
 using AlxorCore.Nucleo.Tiempo;
 
@@ -36,6 +37,9 @@ public interface IRepositorioAnalitica
     Task<ClaveReparto?> ClaveAsync(Guid id, CancellationToken ct = default);
 
     void Agregar(ClaveReparto clave);
+
+    /// <summary>Elimina un maestro analítico (centro, partida o clave) ya comprobado que no se usa.</summary>
+    void EliminarMaestro(object maestro);
 
     Task<IReadOnlyList<ReglaAnalitica>> ReglasAsync(Guid empresaId, CancellationToken ct = default);
 
@@ -257,10 +261,41 @@ public sealed class MaestrosAnaliticos
     private readonly IRepositorioAnalitica _repo;
     private readonly IUnidadDeTrabajoContabilidad _unidad;
 
-    public MaestrosAnaliticos(IRepositorioAnalitica repo, IUnidadDeTrabajoContabilidad unidad)
+    private readonly IComprobadorUso? _uso;
+
+    public MaestrosAnaliticos(IRepositorioAnalitica repo, IUnidadDeTrabajoContabilidad unidad, IComprobadorUso? uso = null)
     {
         _repo = repo;
         _unidad = unidad;
+        _uso = uso;
+    }
+
+    public async Task<Resultado<BajaDto>> EliminarCentroAsync(Guid id, CancellationToken ct = default) =>
+        await EliminarAsync(await _repo.CentroAsync(id, ct).ConfigureAwait(false), id, TiposRegistro.CentroCoste, "centro_analitico", "el centro", ct).ConfigureAwait(false);
+
+    public async Task<Resultado<BajaDto>> EliminarPartidaAsync(Guid id, CancellationToken ct = default) =>
+        await EliminarAsync(await _repo.PartidaAsync(id, ct).ConfigureAwait(false), id, TiposRegistro.PartidaAnalitica, "partida_analitica", "la partida", ct).ConfigureAwait(false);
+
+    public async Task<Resultado<BajaDto>> EliminarClaveAsync(Guid id, CancellationToken ct = default) =>
+        await EliminarAsync(await _repo.ClaveAsync(id, ct).ConfigureAwait(false), id, TiposRegistro.ClaveReparto, "clave_reparto", "la clave de reparto", ct).ConfigureAwait(false);
+
+    /// <summary>Un maestro sin uso se elimina; uno usado se desactiva desde su ficha (sigue en los informes).</summary>
+    private async Task<Resultado<BajaDto>> EliminarAsync(object? maestro, Guid id, string tipo, string prefijo, string nombre, CancellationToken ct)
+    {
+        if (maestro is null)
+        {
+            return Resultado.Fallo<BajaDto>(Error.NoEncontrado(prefijo + ".no_encontrado", $"No existe {nombre}."));
+        }
+
+        if (_uso is not null && await _uso.BuscarUsoAsync(tipo, id, ct).ConfigureAwait(false) is { } uso)
+        {
+            return Resultado.Fallo<BajaDto>(Error.Conflicto(prefijo + Bajas.SufijoEnUso,
+                $"No se puede eliminar {nombre} porque ya tiene {uso}. Desactívalo en su ficha: deja de ofrecerse y se conserva en los informes."));
+        }
+
+        _repo.EliminarMaestro(maestro);
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(new BajaDto(id, true, false));
     }
 
     public async Task<IReadOnlyList<CentroAnaliticoDto>> CentrosAsync(CancellationToken ct = default) =>

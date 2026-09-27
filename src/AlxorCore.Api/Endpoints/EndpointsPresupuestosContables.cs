@@ -37,6 +37,13 @@ public static class EndpointsPresupuestosContables
                 (await caso.FijarLineasAsync(id, peticion.Lineas ?? [], ct).ConfigureAwait(false)).AOk())
             .WithSummary("Sustituye las líneas (solo en borrador).")
             .RequierePermiso(Permisos.ContabilidadGestionar);
+        g.MapDelete("/{id:guid}", async (Guid id, GestionPresupuestosContables caso, CancellationToken ct) =>
+            {
+                var r = await caso.EliminarAsync(id, ct).ConfigureAwait(false);
+                return r.EsCorrecto ? Results.NoContent() : ResultadosHttp.AProblema(r.Error);
+            })
+            .WithSummary("Elimina un presupuesto en borrador.")
+            .RequierePermiso(Permisos.ContabilidadGestionar);
         g.MapPost("/{id:guid}/aprobar", async (Guid id, GestionPresupuestosContables caso, CancellationToken ct) =>
                 (await caso.AprobarAsync(id, ct).ConfigureAwait(false)).AOk())
             .WithSummary("Aprueba el presupuesto: queda congelado como referencia del seguimiento.")

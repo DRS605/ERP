@@ -74,4 +74,27 @@ public sealed class PrevisionTesoreria : RaizAgregadoEmpresa<Guid>
 
         return Resultado.Ok(new PrevisionTesoreria(Guid.NewGuid(), empresaId, sentido, conceptoLimpio, Redondeo.Dos(importe), fecha, reloj.AhoraUtc));
     }
+
+    public Resultado Actualizar(SentidoPrevision sentido, string? concepto, decimal importe, DateOnly fecha)
+    {
+        var r = Crear(EmpresaId, sentido, concepto, importe, fecha, RelojFijo.Instancia);
+        if (r.EsFallo)
+        {
+            return Resultado.Fallo(r.Error);
+        }
+
+        Sentido = sentido;
+        Concepto = r.Valor.Concepto;
+        Importe = r.Valor.Importe;
+        Fecha = fecha;
+        return Resultado.Ok();
+    }
+
+    /// <summary>Reloj que no se usa (Crear solo lo necesita para la fecha de alta, que aquí no cambia).</summary>
+    private sealed class RelojFijo : IReloj
+    {
+        public static readonly RelojFijo Instancia = new();
+
+        public DateTimeOffset AhoraUtc => DateTimeOffset.UnixEpoch;
+    }
 }

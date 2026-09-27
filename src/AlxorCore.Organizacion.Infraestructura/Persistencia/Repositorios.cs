@@ -118,6 +118,10 @@ internal sealed class RepositorioSeries : IRepositorioSeries
 
     public void Agregar(SerieNumeracion serie) => _contexto.Series.Add(serie);
 
+    public Task<SerieNumeracion?> ObtenerAsync(Guid id, CancellationToken ct = default) => _contexto.Series.SingleOrDefaultAsync(s => s.Id == id, ct);
+
+    public void Eliminar(SerieNumeracion serie) => _contexto.Series.Remove(serie);
+
     public async Task<IReadOnlyList<SerieNumeracion>> ListarAsync(Guid empresaId, CancellationToken ct = default) =>
         await _contexto.Series.Where(s => s.EmpresaId == empresaId).OrderBy(s => s.Prefijo).ToListAsync(ct).ConfigureAwait(false);
 

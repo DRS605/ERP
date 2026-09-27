@@ -95,3 +95,46 @@ public sealed class EfectoCartera : RaizAgregadoEmpresa<Guid>
             string.IsNullOrWhiteSpace(origen) ? null : origen.Trim(), string.IsNullOrWhiteSpace(origenReferencia) ? null : origenReferencia.Trim(), reloj.AhoraUtc));
     }
 }
+
+/// <summary>
+/// Anulación de un efecto de cartera (dado de alta por error, o ya saldado fuera de ALXOR). El efecto es de solo
+/// inserción, así que la anulación es su propio registro, también inalterable y único por efecto.
+/// </summary>
+public sealed class AnulacionEfecto : RaizAgregadoEmpresa<Guid>
+{
+    private AnulacionEfecto(Guid id)
+        : base(id, Guid.Empty)
+    {
+        Motivo = null!;
+    }
+
+    private AnulacionEfecto(Guid id, Guid empresaId, Guid efectoId, DateOnly fecha, string motivo, DateTimeOffset ahora)
+        : base(id, empresaId)
+    {
+        EfectoId = efectoId;
+        Fecha = fecha;
+        Motivo = motivo;
+        CreadoEn = ahora;
+    }
+
+    public Guid EfectoId { get; private set; }
+
+    public DateOnly Fecha { get; private set; }
+
+    public string Motivo { get; private set; }
+
+    public DateTimeOffset CreadoEn { get; private set; }
+
+    public static Resultado<AnulacionEfecto> Crear(EfectoCartera efecto, string? motivo, IReloj reloj)
+    {
+        ArgumentNullException.ThrowIfNull(efecto);
+        ArgumentNullException.ThrowIfNull(reloj);
+        var texto = string.IsNullOrWhiteSpace(motivo) ? "Anulado" : motivo.Trim();
+        if (texto.Length > EfectoCartera.LongitudTexto)
+        {
+            texto = texto[..EfectoCartera.LongitudTexto];
+        }
+
+        return Resultado.Ok(new AnulacionEfecto(Guid.NewGuid(), efecto.EmpresaId, efecto.Id, DateOnly.FromDateTime(reloj.AhoraUtc.UtcDateTime), texto, reloj.AhoraUtc));
+    }
+}

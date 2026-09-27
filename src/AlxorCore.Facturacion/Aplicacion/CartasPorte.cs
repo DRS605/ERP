@@ -39,14 +39,14 @@ public sealed record CartaPorteDto(
     Guid? DestinatarioClienteId, string DestinatarioNombre, string? DestinatarioNif,
     string? TransportistaNombre, string? TransportistaNif, string? Matricula,
     string LugarOrigen, string LugarDestino, DateOnly? FechaCarga, string? Observaciones,
-    Guid? AlbaranId, int TotalBultos, decimal TotalPesoKg, IReadOnlyList<LineaCartaPorteDto> Lineas)
+    Guid? AlbaranId, int TotalBultos, decimal TotalPesoKg, IReadOnlyList<LineaCartaPorteDto> Lineas, bool Anulada = false, string? MotivoAnulacion = null)
 {
     public static CartaPorteDto Desde(CartaPorte c) => new(
         c.Id, c.NumeroCompleto, c.FechaExpedicion, c.RemitenteNombre, c.RemitenteNif,
         c.DestinatarioClienteId, c.DestinatarioNombre, c.DestinatarioNif,
         c.TransportistaNombre, c.TransportistaNif, c.Matricula,
         c.LugarOrigen, c.LugarDestino, c.FechaCarga, c.Observaciones,
-        c.AlbaranId, c.TotalBultos, c.TotalPesoKg, c.Lineas.Select(LineaCartaPorteDto.Desde).ToList());
+        c.AlbaranId, c.TotalBultos, c.TotalPesoKg, c.Lineas.Select(LineaCartaPorteDto.Desde).ToList(), c.AnuladaEn is not null, c.MotivoAnulacion);
 }
 
 /// <summary>Resumen de una carta de porte para listados.</summary>
@@ -56,6 +56,8 @@ public sealed record CartaPorteResumen(Guid Id, string NumeroCompleto, DateOnly 
 public interface IRepositorioCartasPorte
 {
     void Agregar(CartaPorte cartaPorte);
+
+    Task<CartaPorte?> ObtenerPorIdAsync(Guid id, CancellationToken ct = default);
 
     /// <summary>Siguiente número correlativo para la empresa/serie/ejercicio (máximo actual + 1).</summary>
     Task<int> SiguienteNumeroAsync(Guid empresaId, string? serie, int ejercicio, CancellationToken ct = default);
@@ -152,6 +154,39 @@ public sealed class CrearCartaPorte
 }
 
 /// <summary>Caso de uso: listar las cartas de porte de la empresa activa (más recientes primero).</summary>
+/// <summary>Caso de uso: anular una carta de porte (no se borra: su número queda usado).</summary>
+public sealed class AnularCartaPorte
+{
+    private readonly IRepositorioCartasPorte _repo;
+    private readonly IUnidadDeTrabajoFacturacion _unidad;
+    private readonly IReloj _reloj;
+
+    public AnularCartaPorte(IRepositorioCartasPorte repo, IUnidadDeTrabajoFacturacion unidad, IReloj reloj)
+    {
+        _repo = repo;
+        _unidad = unidad;
+        _reloj = reloj;
+    }
+
+    public async Task<Resultado<CartaPorteDto>> EjecutarAsync(Guid id, string? motivo, CancellationToken ct = default)
+    {
+        var c = await _repo.ObtenerPorIdAsync(id, ct).ConfigureAwait(false);
+        if (c is null)
+        {
+            return Resultado.Fallo<CartaPorteDto>(Error.NoEncontrado("cartaporte.no_encontrada", "La carta de porte no existe."));
+        }
+
+        var r = c.Anular(motivo, _reloj);
+        if (r.EsFallo)
+        {
+            return Resultado.Fallo<CartaPorteDto>(r.Error);
+        }
+
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(CartaPorteDto.Desde(c));
+    }
+}
+
 public sealed class ListarCartasPorte
 {
     private readonly IConsultaCartasPorte _consulta;

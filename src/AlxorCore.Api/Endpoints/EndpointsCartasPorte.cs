@@ -28,6 +28,11 @@ public static class EndpointsCartasPorte
             .WithSummary("Genera el PDF de la carta de porte.")
             .RequierePermiso(Permisos.FacturaLeer);
 
+        g.MapPost("/{id:guid}/anular", async (Guid id, PeticionAnularCarta? peticion, AnularCartaPorte caso, CancellationToken ct) =>
+                (await caso.EjecutarAsync(id, peticion?.Motivo, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Anula una carta de porte (el transporte no se hizo o se emitió por error).")
+            .RequierePermiso(Permisos.FacturaCrear);
+
         g.MapPost("", CrearAsync)
             .WithSummary("Crea una carta de porte (remitente = empresa; destinatario = cliente o datos libres).")
             .RequierePermiso(Permisos.FacturaCrear);
@@ -71,4 +76,7 @@ public static class EndpointsCartasPorte
             ? Results.File(r.Valor.Contenido, "application/pdf", r.Valor.NombreArchivo)
             : ResultadosHttp.AProblema(r.Error);
     }
+
+    /// <summary>Motivo de la anulación.</summary>
+    public sealed record PeticionAnularCarta(string? Motivo);
 }

@@ -189,6 +189,8 @@ internal sealed class RepositorioFacturasRecurrentes : IRepositorioFacturasRecur
 
     public void Agregar(FacturaRecurrente recurrente) => _contexto.FacturasRecurrentes.Add(recurrente);
 
+    public void Eliminar(FacturaRecurrente recurrente) => _contexto.FacturasRecurrentes.Remove(recurrente);
+
     public Task<FacturaRecurrente?> ObtenerPorIdAsync(Guid id, CancellationToken ct = default) =>
         _contexto.FacturasRecurrentes.SingleOrDefaultAsync(r => r.Id == id, ct);
 
