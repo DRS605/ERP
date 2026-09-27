@@ -45,7 +45,7 @@ public static class RutasModulos
     public static IReadOnlyList<string> Base { get; } =
     [
         "/auth", "/empresas", "/grupos", "/intragrupo", "/planes", "/usuarios", "/cuenta", "/series", "/formas-pago", "/actividades",
-        "/clientes", "/proveedores", "/productos", "/familias", "/tipos-iva", "/impuestos", "/tickets",
+        "/clientes", "/proveedores", "/productos", "/familias", "/conceptos-linea", "/tipos-iva", "/impuestos", "/tickets",
         "/facturas", "/facturas-recurrentes", "/gastos", "/recepcion", "/cobros", "/pagos", "/anticipos", "/impagados",
         "/informes", "/auditoria", "/importar", "/migracion", "/cartera", "/salud", "/swagger",
     ];

@@ -55,8 +55,25 @@ public sealed class LineaPedidoVenta
 
     public decimal CantidadFacturada { get; private set; }
 
-    /// <summary>Base imponible de la línea (con descuento aplicado).</summary>
-    public decimal Base => Redondeo.Dos(Cantidad * PrecioUnitario * (1m - PorcentajeDescuento / 100m));
+    /// <summary>Conceptos de línea aplicados.</summary>
+    public IReadOnlyList<ConceptoAplicado> Conceptos { get; private set; } = [];
+
+    public decimal ImporteConceptos { get; private set; }
+
+    public decimal CosteConceptos { get; private set; }
+
+    /// <summary>Importe de la línea con descuento, antes de conceptos.</summary>
+    public decimal BaseBruta => Redondeo.Dos(Cantidad * PrecioUnitario * (1m - PorcentajeDescuento / 100m));
+
+    /// <summary>Base imponible de la línea (con descuento y conceptos que cambian el importe).</summary>
+    public decimal Base => BaseBruta + ImporteConceptos;
+
+    internal void PonerConceptos(IReadOnlyList<ConceptoAplicado> conceptos)
+    {
+        Conceptos = conceptos.ToList();
+        ImporteConceptos = ConceptosLinea.SumaPrecio(Conceptos);
+        CosteConceptos = ConceptosLinea.SumaCoste(Conceptos);
+    }
 
     public decimal PendienteServir => Cantidad - CantidadServida;
 
@@ -123,6 +140,28 @@ public sealed class PedidoVenta : RaizAgregadoEmpresa<Guid>
     public IReadOnlyList<LineaPedidoVenta> Lineas => _lineas;
 
     public decimal Total => Redondeo.Dos(_lineas.Sum(l => l.Base));
+
+    /// <summary>Pone los conceptos de cada línea (en el orden de las líneas) mientras se puede modificar el pedido.</summary>
+    public Resultado PonerConceptos(IReadOnlyList<IReadOnlyList<ConceptoAplicado>> conceptos)
+    {
+        ArgumentNullException.ThrowIfNull(conceptos);
+        if (conceptos.Count != _lineas.Count)
+        {
+            return Resultado.Fallo(Error.Validacion("pedidoventa.conceptos", "Hay que dar los conceptos de cada línea."));
+        }
+
+        if (_lineas.Zip(conceptos).Any(x => x.First.BaseBruta + ConceptosLinea.SumaPrecio(x.Second) < 0m))
+        {
+            return Resultado.Fallo(Error.Validacion("pedidoventa.linea_negativa", "Los conceptos de línea no pueden dejar una línea con importe negativo."));
+        }
+
+        foreach (var (l, c) in _lineas.Zip(conceptos))
+        {
+            l.PonerConceptos(c);
+        }
+
+        return Resultado.Ok();
+    }
 
     public bool ServidoCompleto => _lineas.Count > 0 && _lineas.All(l => l.CantidadServida >= l.Cantidad);
 

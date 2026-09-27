@@ -33,6 +33,7 @@ public static class ReferenciasRegistros
                 ("contabilidad.documento_pendiente.tercero_id", "documentos pendientes de contabilizar"),
                 ("contabilidad.regla_analitica.tercero_id", "reglas de analítica"),
                 ("organizacion.asignacion_serie.tercero_id", "una serie de facturación asignada"),
+                ("catalogo.asignacion_concepto.tercero_id", "conceptos de línea que se le ponen solos"),
             ],
             [TiposRegistro.Proveedor] =
             [
@@ -47,10 +48,12 @@ public static class ReferenciasRegistros
                 ("contabilidad.documento_pendiente.tercero_id", "documentos pendientes de contabilizar"),
                 ("contabilidad.regla_analitica.tercero_id", "reglas de analítica"),
                 ("organizacion.asignacion_serie.tercero_id", "una serie de facturación asignada"),
+                ("catalogo.asignacion_concepto.tercero_id", "conceptos de línea que se le ponen solos"),
             ],
             [TiposRegistro.Producto] =
             [
                 ("facturacion.linea_factura.producto_id", "facturas"),
+                ("catalogo.asignacion_concepto.producto_id", "conceptos de línea que se le ponen solos"),
                 ("facturacion.linea_albaran_venta.producto_id", "albaranes de venta"),
                 ("facturacion.linea_pedido_venta.producto_id", "pedidos de venta"),
                 ("facturacion.linea_presupuesto.producto_id", "presupuestos"),

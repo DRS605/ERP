@@ -32,7 +32,11 @@ public sealed class LineaFactura : EntidadBase<Guid>
         PorcentajeIva = Redondeo.Dos(datos.PorcentajeIva);
         PorcentajeRecargo = Redondeo.Dos(datos.PorcentajeRecargo);
 
-        Base = Redondeo.Dos(Cantidad * PrecioUnitario * (1 - (PorcentajeDescuento / 100m)));
+        Conceptos = datos.Conceptos?.ToList() ?? [];
+        ImporteConceptos = ConceptosLinea.SumaPrecio(Conceptos);
+        CosteConceptos = ConceptosLinea.SumaCoste(Conceptos);
+
+        Base = CalcularBaseBruta(Cantidad, PrecioUnitario, PorcentajeDescuento) + ImporteConceptos;
         CuotaIva = Redondeo.Dos(Base * PorcentajeIva / 100m);
         CuotaRecargo = Redondeo.Dos(Base * PorcentajeRecargo / 100m);
     }
@@ -60,7 +64,21 @@ public sealed class LineaFactura : EntidadBase<Guid>
     /// <summary>Porcentaje de recargo de equivalencia (0 si no aplica).</summary>
     public decimal PorcentajeRecargo { get; private set; }
 
-    /// <summary>Base imponible de la línea (cantidad × precio − descuento).</summary>
+    /// <summary>Conceptos de línea aplicados (copia de cada concepto con su importe).</summary>
+    public IReadOnlyList<ConceptoAplicado> Conceptos { get; private set; } = [];
+
+    /// <summary>Suma de los conceptos que cambian el importe (forma parte de la base).</summary>
+    public decimal ImporteConceptos { get; private set; }
+
+    /// <summary>Suma de los conceptos que solo cambian el coste (no está en la factura).</summary>
+    public decimal CosteConceptos { get; private set; }
+
+    /// <summary>Importe de la línea antes de conceptos: cantidad × precio − descuento, redondeado como se guarda.</summary>
+    public static decimal CalcularBaseBruta(decimal cantidad, decimal precio, decimal porcentajeDescuento) =>
+        Redondeo.Dos(Math.Round(cantidad, 3, MidpointRounding.AwayFromZero) * Math.Round(precio, 4, MidpointRounding.AwayFromZero)
+            * (1 - (Redondeo.Dos(porcentajeDescuento) / 100m)));
+
+    /// <summary>Base imponible de la línea (cantidad × precio − descuento + conceptos que cambian el importe).</summary>
     public decimal Base { get; private set; }
 
     /// <summary>Cuota de IVA de la línea.</summary>
@@ -69,8 +87,8 @@ public sealed class LineaFactura : EntidadBase<Guid>
     /// <summary>Cuota de recargo de equivalencia de la línea (0 si no aplica).</summary>
     public decimal CuotaRecargo { get; private set; }
 
-    /// <summary>Coste total de la línea (coste unitario × cantidad).</summary>
-    public decimal CosteTotal => Redondeo.Dos(CosteUnitario * Cantidad);
+    /// <summary>Coste total de la línea (coste unitario × cantidad + conceptos de coste).</summary>
+    public decimal CosteTotal => Redondeo.Dos(CosteUnitario * Cantidad) + CosteConceptos;
 
     /// <summary>Margen comercial de la línea (base de venta − coste total).</summary>
     public decimal Margen => Redondeo.Dos(Base - CosteTotal);

@@ -99,6 +99,9 @@ internal sealed class ConfiguracionPedido : IEntityTypeConfiguration<PedidoCompr
             l.Property(x => x.CantidadRecibida).HasColumnName("cantidad_recibida").HasColumnType("numeric(14,3)").IsRequired();
             l.Property(x => x.CantidadFacturada).HasColumnName("cantidad_facturada").HasColumnType("numeric(14,3)").IsRequired();
             l.Property(x => x.LineaVentaOrigenId).HasColumnName("linea_venta_origen_id");
+            l.Property(x => x.Conceptos).ComoConceptos();
+            l.Property(x => x.ImporteConceptos).HasColumnName("importe_conceptos").HasColumnType("numeric(14,2)").HasDefaultValue(0m).IsRequired();
+            l.Property(x => x.CosteConceptos).HasColumnName("coste_conceptos").HasColumnType("numeric(14,2)").HasDefaultValue(0m).IsRequired();
         });
         builder.HasIndex(p => new { p.EmpresaId, p.Estado }).HasDatabaseName("ix_pedido_empresa_estado");
         builder.HasIndex(p => new { p.EmpresaId, p.Ejercicio, p.ProveedorId, p.Numero })

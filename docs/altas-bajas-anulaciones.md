@@ -35,6 +35,7 @@ son **del grupo**: los usan documentos de cualquiera de sus empresas, que la RLS
 | Almacenes · ubicaciones | ✅ | Eliminar sin movimientos · baja (almacén) | — |
 | Familias · formas de pago · tipos de IVA | ✅ | ✅ | — |
 | Tarifas de precios (pantalla nueva) | ✅ | Eliminar si ningún cliente la tiene | — |
+| Conceptos de línea | ✅ | Eliminar si ningún documento lo lleva; si no, baja (los documentos guardan su copia) | — |
 | Actividades de negocio (pantalla nueva, con visibilidad por usuario) | ✅ (renombrar, activar/desactivar) | Eliminar si nada la usa (sus reglas de visibilidad se borran con ella); si está en uso, se desactiva | — |
 | Series de numeración | — (el prefijo no cambia) | Eliminar si no ha numerado nada | — |
 | Tipos de cambio | ✅ (se vuelve a registrar) | ✅ (los documentos guardan su tasa) | — |

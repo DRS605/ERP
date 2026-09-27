@@ -1,3 +1,5 @@
+using AlxorCore.Catalogo.Aplicacion;
+using AlxorCore.Nucleo.Comun;
 using AlxorCore.Compras.Dominio;
 using AlxorCore.Nucleo.Aplicacion;
 using AlxorCore.Nucleo.Resultados;
@@ -20,7 +22,7 @@ public sealed record SolicitudDto(Guid Id, string Estado, string? ProveedorSuger
 }
 
 public sealed record LineaPedidoDto(Guid Id, Guid? ProductoId, string Descripcion, decimal Cantidad, decimal PrecioUnitario,
-    decimal Importe, decimal CantidadRecibida, decimal CantidadFacturada, decimal PendienteRecibir);
+    decimal Importe, decimal CantidadRecibida, decimal CantidadFacturada, decimal PendienteRecibir, IReadOnlyList<ConceptoAplicado>? Conceptos = null, decimal ImporteConceptos = 0m, decimal CosteConceptos = 0m, decimal CosteUnitarioEntrada = 0m);
 
 public sealed record PedidoDto(Guid Id, string Estado, int Ejercicio, int Numero, string NumeroCompleto, Guid? ProveedorId, string ProveedorTexto, DateOnly Fecha,
     Guid? SolicitudOrigenId, decimal Total, bool RecibidoCompleto, IReadOnlyList<LineaPedidoDto> Lineas, Guid? EmpresaOrigenId = null, Guid? PedidoVentaOrigenId = null)
@@ -28,7 +30,8 @@ public sealed record PedidoDto(Guid Id, string Estado, int Ejercicio, int Numero
     public static PedidoDto Desde(PedidoCompra p) => new(p.Id, p.Estado.ToString(), p.Ejercicio, p.Numero, p.NumeroCompleto, p.ProveedorId, p.ProveedorTexto,
         p.Fecha, p.SolicitudOrigenId, p.Total, p.RecibidoCompleto,
         p.Lineas.Select(l => new LineaPedidoDto(l.Id, l.ProductoId, l.Descripcion, l.Cantidad, l.PrecioUnitario, l.Importe,
-            l.CantidadRecibida, l.CantidadFacturada, l.PendienteRecibir)).ToList(), p.EmpresaOrigenId, p.PedidoVentaOrigenId);
+            l.CantidadRecibida, l.CantidadFacturada, l.PendienteRecibir, l.Conceptos, l.ImporteConceptos, l.CosteConceptos, l.CosteUnitarioEntrada)).ToList(),
+        p.EmpresaOrigenId, p.PedidoVentaOrigenId);
 }
 
 public sealed record LineaAlbaranDto(Guid LineaPedidoId, Guid? ProductoId, string Descripcion, decimal Cantidad);
@@ -104,9 +107,10 @@ public interface IEntradaInventarioCompras
 public sealed record LineaSolicitudComando(string Descripcion, decimal Cantidad);
 public sealed record CrearSolicitudComando(IReadOnlyList<LineaSolicitudComando> Lineas, string? ProveedorSugerido = null, string? Notas = null);
 
-public sealed record LineaPedidoComando(string Descripcion, decimal Cantidad, decimal PrecioUnitario, Guid? ProductoId = null);
+public sealed record LineaPedidoComando(string Descripcion, decimal Cantidad, decimal PrecioUnitario, Guid? ProductoId = null,
+    IReadOnlyList<ConceptoSolicitado>? Conceptos = null);
 public sealed record CrearPedidoComando(string? ProveedorTexto, IReadOnlyList<LineaPedidoComando> Lineas,
-    Guid? ProveedorId = null, DateOnly? Fecha = null, Guid? SolicitudOrigenId = null);
+    Guid? ProveedorId = null, DateOnly? Fecha = null, Guid? SolicitudOrigenId = null, IReadOnlyList<ConceptoSolicitado>? ConceptosDocumento = null);
 
 public sealed record RecepcionLineaComando(Guid LineaPedidoId, decimal Cantidad, string? Lote = null);
 
@@ -235,10 +239,32 @@ public sealed class CrearPedido
     private readonly IResolverSerie _resolverSerie;
     private readonly IUnidadDeTrabajoCompras _unidad;
     private readonly IReloj _reloj;
+    private readonly IResolverConceptos? _conceptos;
 
-    public CrearPedido(IRepositorioPedidos pedidos, IRepositorioSolicitudes solicitudes, IConsultaProveedores proveedores, IResolverSerie resolverSerie, IUnidadDeTrabajoCompras unidad, IReloj reloj)
+    public CrearPedido(IRepositorioPedidos pedidos, IRepositorioSolicitudes solicitudes, IConsultaProveedores proveedores, IResolverSerie resolverSerie, IUnidadDeTrabajoCompras unidad, IReloj reloj,
+        IResolverConceptos? conceptos = null)
     {
-        _pedidos = pedidos; _solicitudes = solicitudes; _proveedores = proveedores; _resolverSerie = resolverSerie; _unidad = unidad; _reloj = reloj;
+        _pedidos = pedidos; _solicitudes = solicitudes; _proveedores = proveedores; _resolverSerie = resolverSerie; _unidad = unidad; _reloj = reloj; _conceptos = conceptos;
+    }
+
+    /// <summary>Pone los conceptos de línea pedidos (o los automáticos del proveedor y el artículo) y los del documento.</summary>
+    private async Task<Error?> PonerConceptosAsync(PedidoCompra pedido, CrearPedidoComando comando, CancellationToken ct)
+    {
+        if (_conceptos is null)
+        {
+            return null;
+        }
+
+        var lineas = comando.Lineas ?? [];
+        var entrada = pedido.Lineas.Select((l, i) => new LineaConceptos(l.ProductoId, l.Cantidad, l.ImporteBruto, i < lineas.Count ? lineas[i].Conceptos : null)).ToList();
+        var r = await _conceptos.ResolverAsync(AmbitoConcepto.Compras, pedido.ProveedorId, entrada, comando.ConceptosDocumento, true, ct).ConfigureAwait(false);
+        if (r.EsFallo)
+        {
+            return r.Error;
+        }
+
+        var puestos = pedido.PonerConceptos(r.Valor);
+        return puestos.EsFallo ? puestos.Error : null;
     }
 
     public async Task<Resultado<PedidoDto>> EjecutarAsync(Guid empresaId, CrearPedidoComando comando, CancellationToken ct = default)
@@ -275,6 +301,11 @@ public sealed class CrearPedido
         if (pedido.EsFallo)
         {
             return Resultado.Fallo<PedidoDto>(pedido.Error);
+        }
+
+        if (await PonerConceptosAsync(pedido.Valor, comando, ct).ConfigureAwait(false) is { } errorConceptos)
+        {
+            return Resultado.Fallo<PedidoDto>(errorConceptos);
         }
 
         if (solicitud is not null)
@@ -318,6 +349,11 @@ public sealed class CrearPedido
         if (r.EsFallo)
         {
             return Resultado.Fallo<PedidoDto>(r.Error);
+        }
+
+        if (await PonerConceptosAsync(pedido, comando, ct).ConfigureAwait(false) is { } errorConceptos)
+        {
+            return Resultado.Fallo<PedidoDto>(errorConceptos);
         }
 
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
@@ -449,7 +485,7 @@ public sealed class RecibirMercancia
 
                 var lote = comando.Lineas!.First(x => x.LineaPedidoId == r.LineaPedidoId).Lote;
                 await _inventario.RegistrarEntradaAsync(empresaId, productoId, almacenId, pedido.ProveedorId,
-                    r.Cantidad, referencia, fecha, lote, lp.PrecioUnitario, ct).ConfigureAwait(false);
+                    r.Cantidad, referencia, fecha, lote, lp.CosteUnitarioEntrada, ct).ConfigureAwait(false);
             }
         }
 
@@ -524,7 +560,7 @@ public sealed class AnularAlbaranCompra
                     foreach (var (producto, cantidad) in hechas)
                     {
                         await _inventario.RegistrarEntradaAsync(empresaId, producto, almacen, pedido.ProveedorId, cantidad, referencia, fecha, null,
-                            pedido.Lineas.First(x => x.ProductoId == producto).PrecioUnitario, CancellationToken.None).ConfigureAwait(false);
+                            pedido.Lineas.First(x => x.ProductoId == producto).CosteUnitarioEntrada, CancellationToken.None).ConfigureAwait(false);
                     }
 
                     return Resultado.Fallo<AlbaranDto>(Error.Conflicto("albaran.existencias_usadas",

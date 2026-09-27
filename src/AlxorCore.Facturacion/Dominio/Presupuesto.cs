@@ -39,9 +39,22 @@ public sealed class LineaPresupuesto : EntidadBase<Guid>
         PorcentajeDescuento = datos.PorcentajeDescuento;
         CodigoIva = datos.CodigoIva;
         PorcentajeIva = datos.PorcentajeIva;
-        Base = Redondeo.Dos(Cantidad * PrecioUnitario * (1 - (PorcentajeDescuento / 100m)));
+        Conceptos = datos.Conceptos?.ToList() ?? [];
+        ImporteConceptos = ConceptosLinea.SumaPrecio(Conceptos);
+        CosteConceptos = ConceptosLinea.SumaCoste(Conceptos);
+        Base = Redondeo.Dos(Cantidad * PrecioUnitario * (1 - (PorcentajeDescuento / 100m))) + ImporteConceptos;
         CuotaIva = Redondeo.Dos(Base * PorcentajeIva / 100m);
     }
+
+    /// <summary>Conceptos de línea aplicados.</summary>
+    public IReadOnlyList<ConceptoAplicado> Conceptos { get; private set; } = [];
+
+    public decimal ImporteConceptos { get; private set; }
+
+    public decimal CosteConceptos { get; private set; }
+
+    /// <summary>Importe antes de conceptos.</summary>
+    public decimal BaseBruta => Base - ImporteConceptos;
 
     public Guid EmpresaId { get; private set; }
 

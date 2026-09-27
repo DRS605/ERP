@@ -8,5 +8,6 @@
     <ProjectReference Include="..\AlxorCore.Organizacion\AlxorCore.Organizacion.csproj" />
     <ProjectReference Include="..\AlxorCore.Terceros\AlxorCore.Terceros.csproj" />
     <ProjectReference Include="..\AlxorCore.Recepcion\AlxorCore.Recepcion.csproj" />
+    <ProjectReference Include="..\AlxorCore.Catalogo\AlxorCore.Catalogo.csproj" />
   </ItemGroup>
 </Project>

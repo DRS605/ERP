@@ -36,6 +36,8 @@ public sealed class CatalogoDbContext : DbContextEmpresaBase, IUnidadDeTrabajoCa
 
     public DbSet<Tarifa> Tarifas => Set<Tarifa>();
 
+    public DbSet<ConceptoLinea> ConceptosLinea => Set<ConceptoLinea>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Esquema);
@@ -526,4 +528,64 @@ internal sealed class RepositorioTarifas : IRepositorioTarifas
     public void Agregar(Tarifa tarifa) => _contexto.Tarifas.Add(tarifa);
 
     public void Eliminar(Tarifa tarifa) => _contexto.Tarifas.Remove(tarifa);
+}
+
+internal sealed class ConfiguracionConceptoLinea : IEntityTypeConfiguration<ConceptoLinea>
+{
+    public void Configure(EntityTypeBuilder<ConceptoLinea> builder)
+    {
+        builder.ToTable("concepto_linea");
+        builder.HasKey(c => c.Id);
+        builder.Property(c => c.Id).HasColumnName("id");
+        builder.Property(c => c.GrupoId).HasColumnName("grupo_id").IsRequired();
+        builder.Property(c => c.Codigo).HasColumnName("codigo").HasMaxLength(ConceptoLinea.LongitudMaximaCodigo).IsRequired();
+        builder.Property(c => c.Nombre).HasColumnName("nombre").HasMaxLength(ConceptoLinea.LongitudMaximaNombre).IsRequired();
+        builder.Property(c => c.TextoDocumento).HasColumnName("texto_documento").HasMaxLength(ConceptoLinea.LongitudMaximaNombre);
+        builder.Property(c => c.Ambito).HasColumnName("ambito").HasConversion<string>().HasMaxLength(10).IsRequired();
+        builder.Property(c => c.Efecto).HasColumnName("efecto").HasConversion<string>().HasMaxLength(10).IsRequired();
+        builder.Property(c => c.Sentido).HasColumnName("sentido").HasConversion<string>().HasMaxLength(10).IsRequired();
+        builder.Property(c => c.Calculo).HasColumnName("calculo").HasConversion<string>().HasMaxLength(12).IsRequired();
+        builder.Property(c => c.Valor).HasColumnName("valor").HasColumnType("numeric(14,4)").IsRequired();
+        builder.Property(c => c.Reparto).HasColumnName("reparto").HasConversion<string>().HasMaxLength(12).IsRequired();
+        builder.Property(c => c.Activo).HasColumnName("activo").IsRequired();
+        builder.Property(c => c.CreadoEn).HasColumnName("creado_en").IsRequired();
+        builder.Property(c => c.ActualizadoEn).HasColumnName("actualizado_en").IsRequired();
+
+        builder.OwnsMany(c => c.Asignaciones, a =>
+        {
+            a.ToTable("asignacion_concepto");
+            a.WithOwner().HasForeignKey("concepto_linea_id");
+            a.HasKey(x => x.Id);
+            a.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+            a.Property(x => x.TerceroId).HasColumnName("tercero_id");
+            a.Property(x => x.FamiliaId).HasColumnName("familia_id");
+            a.Property(x => x.ProductoId).HasColumnName("producto_id");
+            a.Property(x => x.Valor).HasColumnName("valor").HasColumnType("numeric(14,4)");
+            a.HasIndex("concepto_linea_id").HasDatabaseName("ix_asignacion_concepto_concepto");
+        });
+        builder.Navigation(c => c.Asignaciones).UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        builder.HasIndex(c => new { c.GrupoId, c.Codigo }).IsUnique().HasDatabaseName("ux_concepto_linea_grupo_codigo");
+        builder.Ignore(c => c.EventosDominio);
+    }
+}
+
+internal sealed class RepositorioConceptosLinea : IRepositorioConceptosLinea
+{
+    private readonly CatalogoDbContext _contexto;
+
+    public RepositorioConceptosLinea(CatalogoDbContext contexto) => _contexto = contexto;
+
+    public Task<ConceptoLinea?> ObtenerPorIdAsync(Guid id, CancellationToken ct = default) =>
+        _contexto.ConceptosLinea.SingleOrDefaultAsync(c => c.Id == id, ct);
+
+    public Task<bool> ExisteCodigoAsync(string codigo, CancellationToken ct = default) =>
+        _contexto.ConceptosLinea.AnyAsync(c => c.Codigo == codigo, ct);
+
+    public async Task<IReadOnlyList<ConceptoLinea>> ListarAsync(CancellationToken ct = default) =>
+        await _contexto.ConceptosLinea.OrderBy(c => c.Codigo).ToListAsync(ct).ConfigureAwait(false);
+
+    public void Agregar(ConceptoLinea concepto) => _contexto.ConceptosLinea.Add(concepto);
+
+    public void Eliminar(ConceptoLinea concepto) => _contexto.ConceptosLinea.Remove(concepto);
 }

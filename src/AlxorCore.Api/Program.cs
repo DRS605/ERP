@@ -74,6 +74,8 @@ builder.Services.AddScoped<AlxorCore.Agro.Aplicacion.IDocumentosExpedicion, Alxo
 builder.Services.AddSingleton<AlxorCore.Api.Comun.OperacionesIntragrupo>();
 builder.Services.AddSingleton<AlxorCore.Api.Comun.ConsolidacionGrupo>();
 builder.Services.AddScoped<AlxorCore.Api.Comun.Intrastat>();
+builder.Services.AddScoped<AlxorCore.Catalogo.Aplicacion.IUsoConceptosLinea, AlxorCore.Api.Comun.UsoConceptosLinea>();
+builder.Services.AddScoped<AlxorCore.Api.Comun.InformeConceptosLinea>();
 builder.Services.AddScoped<AlxorCore.Agro.Aplicacion.ICosteAnalitico, AlxorCore.Api.Comun.CosteAnaliticoContabilidad>();
 builder.Services.AgregarModuloAuditoria(builder.Configuration);
 builder.Services.AgregarModuloDivisas(builder.Configuration);
@@ -256,6 +258,7 @@ app.MapearTerceros();
 app.MapearActividades();
 app.MapearCatalogo();
 app.MapearTarifas();
+app.MapearConceptosLinea();
 app.MapearTiposIva();
 app.MapearFacturacion();
 app.MapearVentas();

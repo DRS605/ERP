@@ -174,7 +174,8 @@ public sealed class Intrastat
 
             foreach (var l in a.Lineas)
             {
-                var precio = pedido.Lineas.FirstOrDefault(x => x.Id == l.LineaPedidoId)?.PrecioUnitario ?? 0m;
+                var lp = pedido.Lineas.FirstOrDefault(x => x.Id == l.LineaPedidoId);
+                var precio = lp is null || lp.Cantidad == 0m ? 0m : lp.Importe / lp.Cantidad; // con los conceptos que cambian el importe
                 var (nc, origen, masa) = await MercanciaAsync(l.ProductoId, l.Cantidad, l.Descripcion, $"Albarán {a.NumeroCompleto}", avisos, ct).ConfigureAwait(false);
                 resultado.Add(new Movimiento(pais, null, "3", nc, origen ?? pais, masa, Redondeo.Dos(precio * l.Cantidad), proveedor?.NifIva, $"Albarán de compra {a.NumeroCompleto}"));
             }

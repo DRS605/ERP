@@ -49,7 +49,30 @@ public sealed class LineaPedido
     /// <summary>Línea del pedido de venta de la empresa del grupo de la que es espejo (traspaso intragrupo).</summary>
     public Guid? LineaVentaOrigenId { get; internal set; }
 
-    public decimal Importe => Redondeo.Dos(Cantidad * PrecioUnitario);
+    /// <summary>Importe de la línea antes de conceptos.</summary>
+    public decimal ImporteBruto => Redondeo.Dos(Cantidad * PrecioUnitario);
+
+    /// <summary>Conceptos de línea aplicados (copia de cada concepto con su importe).</summary>
+    public IReadOnlyList<ConceptoAplicado> Conceptos { get; private set; } = [];
+
+    /// <summary>Suma de los conceptos que cambian el importe a pagar al proveedor.</summary>
+    public decimal ImporteConceptos { get; private set; }
+
+    /// <summary>Suma de los conceptos que solo cambian el coste (portes a otro transportista, aranceles…).</summary>
+    public decimal CosteConceptos { get; private set; }
+
+    /// <summary>Importe de la línea (el que factura el proveedor): bruto + conceptos que cambian el importe.</summary>
+    public decimal Importe => ImporteBruto + ImporteConceptos;
+
+    /// <summary>Coste unitario con que entra en almacén: importe y conceptos de coste repartidos por unidad.</summary>
+    public decimal CosteUnitarioEntrada => Cantidad == 0m ? PrecioUnitario : Math.Round((Importe + CosteConceptos) / Cantidad, 4, MidpointRounding.AwayFromZero);
+
+    internal void PonerConceptos(IReadOnlyList<ConceptoAplicado> conceptos)
+    {
+        Conceptos = conceptos.ToList();
+        ImporteConceptos = ConceptosLinea.SumaPrecio(Conceptos);
+        CosteConceptos = ConceptosLinea.SumaCoste(Conceptos);
+    }
 
     public decimal PendienteRecibir => Cantidad - CantidadRecibida;
 
@@ -171,6 +194,33 @@ public sealed class PedidoCompra : RaizAgregadoEmpresa<Guid>
     public IReadOnlyList<LineaPedido> Lineas => _lineas;
 
     public decimal Total => Redondeo.Dos(_lineas.Sum(l => l.Importe));
+
+    /// <summary>Pone los conceptos de cada línea (en el orden de las líneas) mientras el pedido no tiene recepciones.</summary>
+    public Resultado PonerConceptos(IReadOnlyList<IReadOnlyList<ConceptoAplicado>> conceptos)
+    {
+        ArgumentNullException.ThrowIfNull(conceptos);
+        if (conceptos.Count != _lineas.Count)
+        {
+            return Resultado.Fallo(Error.Validacion("pedido.conceptos", "Hay que dar los conceptos de cada línea."));
+        }
+
+        if (_lineas.Any(l => l.CantidadRecibida > 0m || l.CantidadFacturada > 0m))
+        {
+            return Resultado.Fallo(Error.Conflicto("pedido.no_modificable", "Solo se cambian los conceptos de un pedido sin recepciones ni factura."));
+        }
+
+        if (_lineas.Zip(conceptos).Any(x => x.First.ImporteBruto + ConceptosLinea.SumaPrecio(x.Second) < 0m))
+        {
+            return Resultado.Fallo(Error.Validacion("pedido.linea_negativa", "Los conceptos de línea no pueden dejar una línea con importe negativo."));
+        }
+
+        foreach (var (l, c) in _lineas.Zip(conceptos))
+        {
+            l.PonerConceptos(c);
+        }
+
+        return Resultado.Ok();
+    }
 
     /// <summary>Todas las líneas se han recibido por completo.</summary>
     public bool RecibidoCompleto => _lineas.Count > 0 && _lineas.All(l => l.CantidadRecibida >= l.Cantidad);

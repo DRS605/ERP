@@ -415,6 +415,12 @@ public sealed class Factura : RaizAgregadoEmpresa<Guid>
             return Error.Validacion("factura.linea_precio", "El precio no puede ser negativo.");
         }
 
+        if (linea.PorcentajeDescuento is >= 0 and <= 100
+            && LineaFactura.CalcularBaseBruta(linea.Cantidad, linea.PrecioUnitario, linea.PorcentajeDescuento) + ConceptosLinea.SumaPrecio(linea.Conceptos) < 0m)
+        {
+            return Error.Validacion("factura.linea_negativa", "Los conceptos de línea no pueden dejar una línea con importe negativo.");
+        }
+
         if (linea.PorcentajeDescuento is < 0 or > 100)
         {
             return Error.Validacion("factura.linea_descuento", "El descuento debe estar entre 0 y 100.");

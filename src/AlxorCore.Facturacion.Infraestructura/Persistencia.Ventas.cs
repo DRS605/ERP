@@ -1,3 +1,4 @@
+using AlxorCore.Persistencia;
 using AlxorCore.Facturacion.Aplicacion;
 using AlxorCore.Facturacion.Dominio;
 using Microsoft.EntityFrameworkCore;
@@ -39,6 +40,11 @@ internal sealed class ConfiguracionPedidoVenta : IEntityTypeConfiguration<Pedido
             linea.Property(l => l.CodigoIva).HasColumnName("codigo_iva").HasMaxLength(10).IsRequired();
             linea.Property(l => l.CantidadServida).HasColumnName("cantidad_servida").HasColumnType("numeric(14,3)").IsRequired();
             linea.Property(l => l.CantidadFacturada).HasColumnName("cantidad_facturada").HasColumnType("numeric(14,3)").IsRequired();
+            linea.Property(l => l.Conceptos).ComoConceptos();
+            linea.Property(l => l.ImporteConceptos).HasColumnName("importe_conceptos").HasColumnType("numeric(14,2)").HasDefaultValue(0m).IsRequired();
+            linea.Property(l => l.CosteConceptos).HasColumnName("coste_conceptos").HasColumnType("numeric(14,2)").HasDefaultValue(0m).IsRequired();
+            linea.Ignore(l => l.BaseBruta);
+            linea.Ignore(l => l.Base);
         });
 
         builder.HasIndex(p => new { p.EmpresaId, p.Ejercicio, p.Numero }).IsUnique().HasDatabaseName("ux_pedido_venta_empresa_ejercicio_numero");

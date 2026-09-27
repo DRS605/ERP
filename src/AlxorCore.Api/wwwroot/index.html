@@ -436,31 +436,28 @@
     ICON.aprobaciones = '<svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>';
     ICON.integraciones = '<svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>';
     ICON.intragrupo = '<svg viewBox="0 0 24 24"><rect x="2" y="9" width="8" height="12" rx="1"/><rect x="14" y="3" width="8" height="18" rx="1"/><path d="M10 13h4M12 11l2 2-2 2"/></svg>';
+    ICON.tesoreria = '<svg viewBox="0 0 24 24"><path d="M3 10l9-6 9 6"/><path d="M5 10v8M9.5 10v8M14.5 10v8M19 10v8"/><path d="M3 21h18"/></svg>';
+    ICON.logistica = '<svg viewBox="0 0 24 24"><path d="M2 7h11v9H2z"/><path d="M13 10h4l3 3v3h-7"/><circle cx="6" cy="18" r="1.8"/><circle cx="17" cy="18" r="1.8"/></svg>';
+    ICON.conceptoslinea = '<svg viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></svg>';
     ICON.actividades = '<svg viewBox="0 0 24 24"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg>';
 
     // Menú agrupado en carpetas: Ventas, Compras y Artículos.
     const NAV = [
       { t:"item", k:"inicio", l:"Inicio" },
-      { t:"grupo", k:"ventas", l:"Ventas", items:[["presupuestos","Presupuestos"],["pedidosventa","Pedidos de venta"],["facturas","Facturas"],["tpv","TPV · Tickets"],["recurrentes","Periódicas"],["clientes","Clientes"],["cobros","Cobros"],["cartera","Efectos de cartera"],["impagados","Impagados"],["anticipos","Anticipos"],["cartasporte","Cartas de porte · CMR"],["aduanas","Aduanas · Intrastat"],["remesas","Remesas SEPA"]] },
-      { t:"grupo", k:"compras", l:"Compras", items:[["solicitudes","Solicitudes"],["pedidos","Pedidos de compra"],["recepcion","Buzón de facturas"],["gastos","Gastos"],["proveedores","Proveedores"],["pagos","Pagos"],["conciliacion","Conciliación banco"]] },
-      { t:"grupo", k:"articulos", l:"Artículos", items:[["productos","Productos"],["familias","Familias"],["tarifas","Tarifas de precios"],["inventario","Inventario / Almacenes"],["produccion","Producción"]] },
-      { t:"item", k:"personal", l:"Personal" },
-      { t:"item", k:"proyectos", l:"Proyectos" },
-      { t:"item", k:"prevision", l:"Previsión de tesorería" },
-      { t:"item", k:"informes", l:"Informes" },
-      { t:"item", k:"intragrupo", l:"Entre empresas" },
-      { t:"item", k:"gestion", l:"Análisis de gestión" },
-      { t:"item", k:"contabilidad", l:"Contabilidad" },
-      { t:"grupo", k:"analitica", l:"Analítica", items:[["analitica","Resultados por centro"],["analiticapend","Pendientes de imputar"],["analiticamaestros","Centros, partidas y reglas"],["presupuestoscont","Presupuestos"]] },
+      { t:"grupo", k:"ventas", l:"Ventas", items:[["clientes","Clientes"],["presupuestos","Presupuestos"],["pedidosventa","Pedidos de venta"],["facturas","Facturas"],["tpv","TPV · Tickets"],["recurrentes","Facturación periódica"],["anticipos","Anticipos"]] },
+      { t:"grupo", k:"compras", l:"Compras", items:[["proveedores","Proveedores"],["solicitudes","Solicitudes"],["pedidos","Pedidos de compra"],["recepcion","Buzón de facturas"],["gastos","Gastos"]] },
+      { t:"grupo", k:"articulos", l:"Artículos y almacén", items:[["productos","Artículos"],["familias","Familias"],["tarifas","Tarifas de precios"],["conceptoslinea","Conceptos de línea"],["inventario","Inventario / Almacenes"],["produccion","Producción"]] },
+      { t:"grupo", k:"logistica", l:"Expedición y aduanas", items:[["cartasporte","Cartas de porte · CMR"],["aduanas","Aduanas · Intrastat"]] },
       { t:"grupo", k:"agro", l:"Agro", items:[["agrorecepciones","Recepciones"],["agropartidas","Partidas y palés"],["agroconfeccion","Confección"],["agroliquidaciones","Liquidaciones"],["agrotrazabilidad","Trazabilidad"],["agroinforme","Informe de campaña"],["agromaestros","Maestros agro"]] },
-      { t:"item", k:"inmovilizado", l:"Inmovilizado" },
-      { t:"item", k:"divisas", l:"Divisas" },
-      { t:"item", k:"aprobaciones", l:"Aprobaciones" },
-      { t:"item", k:"integraciones", l:"API y webhooks" },
-      { t:"item", k:"actividades", l:"Actividades de negocio" },
-      { t:"item", k:"ajustes", l:"Ajustes" },
+      { t:"grupo", k:"tesoreria", l:"Tesorería", items:[["cobros","Cobros"],["cartera","Efectos de cartera"],["impagados","Impagados"],["remesas","Remesas SEPA"],["pagos","Pagos"],["conciliacion","Conciliación bancaria"],["prevision","Previsión de tesorería"],["divisas","Divisas"]] },
+      { t:"grupo", k:"contabilidad", l:"Contabilidad", items:[["contabilidad","Contabilidad y libros"],["inmovilizado","Inmovilizado"],["analitica","Analítica · resultados"],["analiticapend","Analítica · pendientes"],["analiticamaestros","Centros, partidas y reglas"],["presupuestoscont","Presupuestos contables"]] },
+      { t:"grupo", k:"informes", l:"Informes", items:[["informes","Informes y modelos"],["gestion","Análisis de gestión"]] },
+      { t:"grupo", k:"intragrupo", l:"Grupo de empresas", items:[["intragrupo","Operaciones entre empresas"],["actividades","Actividades de negocio"]] },
+      { t:"item", k:"proyectos", l:"Proyectos" },
+      { t:"item", k:"personal", l:"Personal" },
+      { t:"grupo", k:"ajustes", l:"Configuración", items:[["ajustes","Ajustes"],["aprobaciones","Aprobaciones"],["integraciones","API y webhooks"]] },
     ];
-    const TITULOS = { cartera:"Efectos de cartera", agrorecepciones:"Agro · recepciones de fruta", agropartidas:"Agro · partidas y palés", agroconfeccion:"Agro · confección", agroliquidaciones:"Agro · liquidaciones al agricultor", agrotrazabilidad:"Agro · trazabilidad", agroinforme:"Agro · informe de campaña", agromaestros:"Agro · campañas, agricultores y precios", analitica:"Analítica · resultados", analiticapend:"Analítica · pendientes de imputar", analiticamaestros:"Analítica · centros, partidas y reglas", presupuestoscont:"Presupuestos contables", impagados:"Impagados y reclamaciones", anticipos:"Anticipos de clientes", cartasporte:"Cartas de porte · CMR", aduanas:"Aduanas e Intrastat", intragrupo:"Operaciones entre empresas del grupo", actividades:"Actividades de negocio", inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos",tarifas:"Tarifas de precios", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", gestion:"Análisis de gestión", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", divisas:"Divisas y tipos de cambio", aprobaciones:"Aprobaciones y control de firmas", integraciones:"API pública y webhooks", ajustes:"Ajustes" };
+    const TITULOS = { cartera:"Efectos de cartera", agrorecepciones:"Agro · recepciones de fruta", agropartidas:"Agro · partidas y palés", agroconfeccion:"Agro · confección", agroliquidaciones:"Agro · liquidaciones al agricultor", agrotrazabilidad:"Agro · trazabilidad", agroinforme:"Agro · informe de campaña", agromaestros:"Agro · campañas, agricultores y precios", analitica:"Analítica · resultados", analiticapend:"Analítica · pendientes de imputar", analiticamaestros:"Analítica · centros, partidas y reglas", presupuestoscont:"Presupuestos contables", impagados:"Impagados y reclamaciones", anticipos:"Anticipos de clientes", cartasporte:"Cartas de porte · CMR", aduanas:"Aduanas e Intrastat", intragrupo:"Operaciones entre empresas del grupo", actividades:"Actividades de negocio", inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos",tarifas:"Tarifas de precios", conceptoslinea:"Conceptos de línea", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", gestion:"Análisis de gestión", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", divisas:"Divisas y tipos de cambio", aprobaciones:"Aprobaciones y control de firmas", integraciones:"API pública y webhooks", ajustes:"Ajustes" };
     // Plan contratado de la empresa activa (lo devuelve /empresas/{id}/seleccionar).
     let plan = null;
     // Vista → módulo contratable que necesita. Las vistas que no están aquí son de la base.
@@ -479,7 +476,7 @@
       return NAV.filter(n => n.t === "item" ? contratado(n.k) : n.items.some(([k]) => contratado(k))).map(n => {
         if (n.t === "item") return `<a class="navitem" data-k="${n.k}" onclick="ir('${n.k}')">${ICON[n.k]}<span>${n.l}</span></a>`;
         const links = n.items.filter(([k]) => contratado(k)).map(([k,l]) => `<a class="navsub" data-k="${k}" onclick="ir('${k}')"><span>${l}</span></a>`).join("");
-        return `<div class="navgroup" data-g="${n.k}"><div class="navhead" onclick="toggleGrupo('${n.k}')">${ICON[n.k]}<span>${n.l}</span><svg class="chev" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6"/></svg></div><div class="subnav">${links}</div></div>`;
+        return `<div class="navgroup${n.items.some(([k])=>k===vista)?"":" closed"}" data-g="${n.k}"><div class="navhead" onclick="toggleGrupo('${n.k}')">${ICON[n.k]}<span>${n.l}</span><svg class="chev" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6"/></svg></div><div class="subnav">${links}</div></div>`;
       }).join("");
     }
     function toggleGrupo(g){ document.querySelector(`.navgroup[data-g="${g}"]`).classList.toggle("closed"); }
@@ -576,10 +573,12 @@
     function closeMenu(){ const s=document.querySelector(".sidebar"), b=document.getElementById("backdrop"); if(s)s.classList.remove("open"); if(b)b.classList.remove("show"); }
     function ir(k){ closeMenu(); if(vista==="tpv" && k!=="tpv" && typeof tpvParar==="function") tpvParar(); vista=k;
       document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("active",a.dataset.k===k));
+      // Solo queda desplegado el grupo de la pantalla abierta; los demás se pliegan.
+      document.querySelectorAll("#nav .navgroup").forEach(g=>g.classList.toggle("closed",!g.querySelector(`a[data-k="${k}"]`)));
       document.getElementById("viewTitle").textContent=TITULOS[k]||k;
       if(!contratado(k)){ const m=NOMBRE_MODULO[MODULO_VISTA[k]]||MODULO_VISTA[k];
         view(panel("No incluido en tu plan",`<p class="muted" style="margin:0 0 14px">Esta pantalla forma parte del módulo <strong>${m}</strong>, que tu plan no incluye.</p><button class="btn small" onclick="ir('ajustes')">Ver planes en Ajustes →</button>`)); return; }
-      ({cartera:vCartera,agrorecepciones:vAgroRecepciones,agropartidas:vAgroPartidas,agroconfeccion:vAgroConfeccion,agroliquidaciones:vAgroLiquidaciones,agrotrazabilidad:vAgroTrazabilidad,agroinforme:()=>vAgroInforme(),agromaestros:()=>vAgroMaestros(),analitica:vAnalitica,analiticapend:vAnaliticaPend,analiticamaestros:vAnaliticaMaestros,presupuestoscont:vPresupuestosCont,impagados:vImpagados,anticipos:vAnticipos,cartasporte:vCartasPorte,aduanas:vAduanas,intragrupo:vIntragrupo,actividades:vActividades,inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:vPedidosVenta,clientes:vClientes,productos:vProductos,familias:vFamilias,tarifas:vTarifas,gastos:vGastos,solicitudes:vSolicitudes,pedidos:vPedidos,inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,gestion:vGestion,contabilidad:vContabilidad,inmovilizado:vInmovilizado,divisas:vDivisas,aprobaciones:vAprobaciones,integraciones:vIntegraciones,ajustes:vAjustes}[k])();
+      ({cartera:vCartera,agrorecepciones:vAgroRecepciones,agropartidas:vAgroPartidas,agroconfeccion:vAgroConfeccion,agroliquidaciones:vAgroLiquidaciones,agrotrazabilidad:vAgroTrazabilidad,agroinforme:()=>vAgroInforme(),agromaestros:()=>vAgroMaestros(),analitica:vAnalitica,analiticapend:vAnaliticaPend,analiticamaestros:vAnaliticaMaestros,presupuestoscont:vPresupuestosCont,impagados:vImpagados,anticipos:vAnticipos,cartasporte:vCartasPorte,aduanas:vAduanas,intragrupo:vIntragrupo,actividades:vActividades,inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:vPedidosVenta,clientes:vClientes,productos:vProductos,familias:vFamilias,tarifas:vTarifas,conceptoslinea:vConceptosLinea,gastos:vGastos,solicitudes:vSolicitudes,pedidos:vPedidos,inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,gestion:vGestion,contabilidad:vContabilidad,inmovilizado:vInmovilizado,divisas:vDivisas,aprobaciones:vAprobaciones,integraciones:vIntegraciones,ajustes:vAjustes}[k])();
     }
     const view = h => { document.getElementById("view").innerHTML=h; try{ mejorarTablas(); }catch(e){} };
 
@@ -736,7 +735,7 @@
         const f=await api("/facturas/"+id);
         const tipoPill=f.tipo==="Simplificada"?'<span class="pill part">Ticket</span>':(f.tipo==="Rectificativa"?'<span class="pill part">Rectificativa</span>':"");
         const estPill=`<span class="pill ${f.estado==="Rectificada"||f.estado==="Anulada"?"wait":"ok"}">${f.estado}</span>`;
-        const lineas=(f.lineas||[]).map(l=>`<tr><td>${l.descripcion}</td><td class="num">${numCant(l.cantidad)}</td><td class="num">${eur(l.precioUnitario)}</td><td class="num">${l.porcentajeDescuento?l.porcentajeDescuento+"%":"—"}</td><td class="num">${l.porcentajeIva}%</td><td class="num"><strong>${eur(l.base)}</strong></td></tr>`).join("");
+        const lineas=(f.lineas||[]).map(l=>`<tr><td>${l.descripcion}${concTexto(l.conceptos)}${l.conceptos&&l.conceptos.length?`<div class="muted" style="font-size:11.5px">Margen de la línea: ${eur(l.margen)}</div>`:""}</td><td class="num">${numCant(l.cantidad)}</td><td class="num">${eur(l.precioUnitario)}</td><td class="num">${l.porcentajeDescuento?l.porcentajeDescuento+"%":"—"}</td><td class="num">${l.porcentajeIva}%</td><td class="num"><strong>${eur(l.base)}</strong></td></tr>`).join("");
         const vf=f.huella?`<div class="doc-verifactu"><strong>Registro VeriFactu</strong><br>Huella: ${f.huella}${f.huellaAnterior?`<br>Encadena: ${f.huellaAnterior}`:""}${f.fechaHoraGenRegistro?`<br>Generado: ${new Date(f.fechaHoraGenRegistro).toLocaleString("es-ES")}`:""}</div>`:"";
         const body=`<div class="doc-grid">
           <div class="f"><small>Cliente</small><b>${f.clienteNombre}</b>${f.clienteNif?`<div class="muted mono">${f.clienteNif}</div>`:""}</div>
@@ -925,18 +924,20 @@
       if(!cs.length){ alert("Primero crea un cliente para poder hacerle un presupuesto."); return; }
       const opts=cs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join("");
       const editando=src&&src.id;
+      await facPrepararConceptos("f_cli",src&&src.lineas);
       _facLineas=(src&&src.lineas&&src.lineas.length)
-        ? src.lineas.map(l=>({descripcion:l.descripcion,cantidad:l.cantidad,precio:l.precioUnitario,iva:l.codigoIva,dto:l.porcentajeDescuento||0}))
+        ? src.lineas.map(l=>({descripcion:l.descripcion,cantidad:l.cantidad,precio:l.precioUnitario,iva:l.codigoIva,dto:l.porcentajeDescuento||0,productoId:l.productoId,_conc:concDeLinea(l.conceptos)}))
         : [{descripcion:"",cantidad:1,precio:0,iva:IMP.general,dto:0}];
       abrir(editando?"Editar presupuesto":"Nuevo presupuesto",`<div class="grid2"><div><label>Cliente</label><select id="f_cli">${opts}</select></div><div><label>Validez</label><select id="f_validez"><option value="15">15 días</option><option value="30" selected>30 días</option><option value="60">60 días</option><option value="90">90 días</option></select></div></div>
         <label style="margin-top:16px">Líneas</label>
         <div id="f_lineas">${facLineasHtml()}</div>
         <button class="btn small ghost" style="margin-top:6px" onclick="facAnadirLinea()">+ Añadir línea</button>
+        <div style="margin-top:8px">${concBloque(_facDocK)}</div>
         <div id="f_total" class="right" style="margin-top:10px;font-weight:650"></div>
         <p class="muted" style="font-size:12px;margin:10px 0 0">Un presupuesto no es un documento fiscal: es editable y no lleva numeración legal. Al aceptarlo se emite una factura real.</p>`,
-        async()=>{ const lineas=_facLineas.filter(l=>l.descripcion.trim()&&l.cantidad>0).map(l=>({descripcion:l.descripcion,cantidad:l.cantidad,precioUnitario:l.precio,codigoIva:l.iva,porcentajeDescuento:l.dto||0}));
+        async()=>{ const lineas=_facLineas.filter(l=>l.descripcion.trim()&&l.cantidad>0).map(l=>({descripcion:l.descripcion,cantidad:l.cantidad,precioUnitario:l.precio,codigoIva:l.iva,porcentajeDescuento:l.dto||0,productoId:l.productoId||null,...facConceptosLinea(l)}));
           if(!lineas.length) throw new Error("Añade al menos una línea con descripción y cantidad.");
-          const b=JSON.stringify({clienteId:val("f_cli"),diasValidez:Number(val("f_validez")),lineas});
+          const b=JSON.stringify({clienteId:val("f_cli"),diasValidez:Number(val("f_validez")),lineas,conceptosDocumento:concPayload(_facDocK)});
           await api("/presupuestos"+(editando?"/"+src.id:""),{method:editando?"PUT":"POST",body:b}); vPresupuestos(); });
       if(src&&src.clienteId){ const sel=document.getElementById("f_cli"); if([...sel.options].some(o=>o.value===src.clienteId)) sel.value=src.clienteId; }
       facTotal(); }
@@ -1268,6 +1269,103 @@
           toast(t?"Tarifa guardada.":"Tarifa creada.","ok"); vTarifas(); });
     }
 
+    /* ---------- Conceptos de línea: maestro, editor en las líneas de ventas y compras, informe ---------- */
+    const CONC_ETQ={Ambito:{Ventas:"Ventas",Compras:"Compras",Ambos:"Ventas y compras"},Efecto:{Precio:"Cambia el importe",Coste:"Solo coste"},
+      Sentido:{Suma:"Suma",Resta:"Resta"},Calculo:{Porcentaje:"% sobre la línea",PorUnidad:"€ por unidad",PorKilo:"€ por kilo",Importe:"Importe fijo"},
+      Reparto:{PorImporte:"por importe",PorCantidad:"por cantidad",PorPeso:"por peso"}};
+    const concValorTxt=c=>c.calculo==="Porcentaje"?`${numCant(c.valor)} %`:c.calculo==="PorUnidad"?`${eur(c.valor)}/ud`:c.calculo==="PorKilo"?`${eur(c.valor)}/kg`:eur(c.valor);
+    async function vConceptosLinea(){
+      view('<div class="muted">Cargando…</div>');
+      const [cs,prods,fams,clis,provs]=await Promise.all([api("/conceptos-linea"),api("/productos").catch(()=>[]),api("/familias").catch(()=>[]),api("/clientes").catch(()=>[]),api("/proveedores").catch(()=>[])]);
+      window._conceptos=cs; window._concProds=prods; window._concFams=fams; window._concTerceros=[...clis.map(c=>({id:c.id,nombre:c.nombre,t:"Cliente"})),...provs.map(p=>({id:p.id,nombre:p.nombre,t:"Proveedor"}))];
+      const signo=c=>c.sentido==="Resta"?'<span class="pill neg">−</span>':'<span class="pill ok">+</span>';
+      const filas=cs.map(c=>`<tr><td class="mono"><strong>${agEsc(c.codigo)}</strong></td><td>${agEsc(c.nombre)}${c.activo?"":' <span class="pill wait">Baja</span>'}</td><td class="muted">${CONC_ETQ.Ambito[c.ambito]}</td>
+        <td>${c.efecto==="Precio"?'<span class="pill part">Importe</span>':'<span class="pill">Coste</span>'}</td><td>${signo(c)} ${concValorTxt(c)}</td><td class="muted">${c.asignaciones.length?`${c.asignaciones.length} regla(s)`:"a mano"}</td>
+        <td class="right" style="white-space:nowrap"><button class="btn small secondary" onclick="modalConceptoLinea('${c.id}')">Editar</button> <button class="btn small ghost" onclick="eliminarConceptoLinea('${c.id}','${agEsc(c.codigo)}')" title="Eliminar">🗑</button></td></tr>`).join("");
+      const hoy=new Date(), ini=`${hoy.getFullYear()}-01-01`, fin=hoy.toISOString().slice(0,10);
+      view(panel("Conceptos de línea",`<p class="muted" style="margin:0 0 10px">Recargos, bonificaciones y costes que se ponen en las líneas de presupuestos, pedidos y facturas de venta y en los pedidos de compra. Los que <strong>cambian el importe</strong> salen en el documento (portes cobrados, rappel, envases…); los de <strong>solo coste</strong> no tocan el documento y cargan el coste de la línea (comisiones, portes pagados a un transportista, aranceles…): bajan el margen de la venta o suben el coste de entrada en almacén de la compra. Con reglas, se ponen solos al cliente o proveedor, al artículo o a la familia.</p>`
+        +(cs.length?`<table><thead><tr><th>Código</th><th>Nombre</th><th>Se usa en</th><th>Efecto</th><th>Valor</th><th>Se pone</th><th></th></tr></thead><tbody>${filas}</tbody></table>`
+        :vacio("productos","Sin conceptos","Crea tus conceptos: portes, rappels, comisiones, envases, pronto pago…",`<button class="btn small" onclick="modalConceptoLinea()">+ Nuevo concepto</button>`)),
+        `<button class="btn small" onclick="modalConceptoLinea()">+ Nuevo concepto</button>`)
+        +panel("Informe de conceptos",`<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px"><div><label>Desde</label><input id="ci_desde" type="date" value="${ini}"/></div><div><label>Hasta</label><input id="ci_hasta" type="date" value="${fin}"/></div><button class="btn small" onclick="cargarInformeConceptos()">Ver</button></div><div id="ci_res"></div>`));
+      if(cs.length) cargarInformeConceptos();
+    }
+    async function cargarInformeConceptos(){
+      const caja=document.getElementById("ci_res"); if(!caja) return; caja.innerHTML='<div class="muted">Cargando…</div>';
+      try{
+        const d=await api(`/conceptos-linea/informe?desde=${val("ci_desde")}&hasta=${val("ci_hasta")}`);
+        caja.innerHTML=`<p style="margin:0 0 8px"><span class="pill part">Ventas: importe ${eur(d.precioVentas)} · coste ${eur(d.costeVentas)}</span> <span class="pill">Compras: importe ${eur(d.precioCompras)} · coste ${eur(d.costeCompras)}</span></p>`
+          +(d.conceptos.length?`<table><thead><tr><th>Concepto</th><th>Efecto</th><th class="num">Ventas</th><th class="num">Compras</th></tr></thead><tbody>${d.conceptos.map(c=>`<tr><td><span class="mono">${agEsc(c.codigo)}</span> ${agEsc(c.nombre)}</td><td class="muted">${c.efecto==="Precio"?"Importe":"Coste"}</td><td class="num">${eur(c.ventas)} <span class="muted">(${c.documentosVenta})</span></td><td class="num">${eur(c.compras)} <span class="muted">(${c.documentosCompra})</span></td></tr>`).join("")}</tbody></table>`
+          :'<p class="muted" style="margin:0">Ningún documento del periodo lleva conceptos.</p>');
+      }catch(e){ caja.innerHTML=`<p class="muted">${agEsc(e.message)}</p>`; }
+    }
+    function lineaAsignacionHtml(a){
+      const ter=(window._concTerceros||[]).map(t=>`<option value="${t.id}"${a&&a.terceroId===t.id?" selected":""}>${t.t} · ${agEsc(t.nombre)}</option>`).join("");
+      const prods=(window._concProds||[]).map(p=>`<option value="p:${p.id}"${a&&a.productoId===p.id?" selected":""}>${agEsc(p.nombre)}</option>`).join("");
+      const fams=(window._concFams||[]).map(f=>`<option value="f:${f.id}"${a&&a.familiaId===f.id?" selected":""}>Familia · ${agEsc(f.nombre)}</option>`).join("");
+      return `<div class="conc-asig" style="display:grid;grid-template-columns:2fr 2fr 1fr auto;gap:6px;margin-bottom:6px;align-items:center">
+        <select class="ca-ter"><option value="">Cualquier cliente o proveedor</option>${ter}</select><select class="ca-obj"><option value="">Todos los artículos</option>${prods}${fams}</select>
+        <input class="ca-val" type="number" step="0.0001" placeholder="Valor (el del concepto)" value="${a&&a.valor!=null?a.valor:""}"/><button class="btn small ghost" onclick="this.parentElement.remove()" title="Quitar">✕</button></div>`;
+    }
+    function modalConceptoLinea(id){
+      const c=id?(window._conceptos||[]).find(x=>x.id===id):null;
+      const sel=(idc,campo,v)=>`<select id="${idc}">${Object.entries(CONC_ETQ[campo]).map(([k,t])=>`<option value="${k}"${v===k?" selected":""}>${t}</option>`).join("")}</select>`;
+      abrir(c?`Concepto ${c.codigo}`:"Nuevo concepto de línea",`<div class="grid2"><div><label>Código</label><input id="cl_cod" value="${c?agEsc(c.codigo):""}" ${c?"disabled":""} placeholder="PORTES"/></div><div><label>Nombre</label><input id="cl_nom" value="${c?agEsc(c.nombre):""}" placeholder="Portes"/></div></div>
+        <label>Texto en el documento (vacío: el nombre)</label><input id="cl_txt" value="${c?agEsc(c.textoDocumento||""):""}"/>
+        <div class="grid2"><div><label>Se usa en</label>${sel("cl_amb","Ambito",c?c.ambito:"Ventas")}</div><div><label>Efecto</label>${sel("cl_efe","Efecto",c?c.efecto:"Precio")}</div></div>
+        <div class="grid2"><div><label>Sentido</label>${sel("cl_sen","Sentido",c?c.sentido:"Suma")}</div><div><label>Cálculo</label>${sel("cl_cal","Calculo",c?c.calculo:"Porcentaje")}</div></div>
+        <div class="grid2"><div><label>Valor por defecto</label><input id="cl_val" type="number" step="0.0001" value="${c?c.valor:0}"/></div><div><label>Importe fijo en el documento: reparto</label>${sel("cl_rep","Reparto",c?c.reparto:"PorImporte")}</div></div>
+        ${c?`<label style="display:flex;gap:8px;align-items:center;margin-top:8px"><input id="cl_act" type="checkbox" style="width:auto" ${c.activo?"checked":""}/> Activo</label>`:""}
+        <label style="margin-top:12px">Se pone solo <span class="muted" style="font-weight:400;font-size:12px">— cada regla: cliente o proveedor (o cualquiera) · artículo, familia o todos · valor propio. Sin reglas, solo se pone a mano.</span></label>
+        <div id="cl_asig">${(c?c.asignaciones:[]).map(lineaAsignacionHtml).join("")}</div>
+        <button class="btn small ghost" style="margin-top:4px" onclick="document.getElementById('cl_asig').insertAdjacentHTML('beforeend',lineaAsignacionHtml())">+ Añadir regla</button>`,
+        async()=>{ const asignaciones=[...document.querySelectorAll('#cl_asig .conc-asig')].map(r=>{ const [tipo,oid]=(r.querySelector('.ca-obj').value||":").split(":"); const v=r.querySelector('.ca-val').value;
+            return {terceroId:r.querySelector('.ca-ter').value||null,productoId:tipo==="p"?oid:null,familiaId:tipo==="f"?oid:null,valor:v===""?null:Number(v)}; });
+          const datos={nombre:val("cl_nom"),textoDocumento:val("cl_txt")||null,ambito:val("cl_amb"),efecto:val("cl_efe"),sentido:val("cl_sen"),calculo:val("cl_cal"),valor:Number(val("cl_val")||0),reparto:val("cl_rep"),asignaciones};
+          if(c) await api("/conceptos-linea/"+c.id,{method:"PUT",body:JSON.stringify({datos,activo:document.getElementById("cl_act").checked})});
+          else await api("/conceptos-linea",{method:"POST",body:JSON.stringify({codigo:val("cl_cod"),datos})});
+          toast(c?"Concepto guardado.":"Concepto creado.","ok"); vConceptosLinea(); });
+    }
+    async function eliminarConceptoLinea(id,codigo){
+      if(!confirm(`¿Eliminar el concepto ${codigo}? Si ya está en algún documento, se da de baja (los documentos conservan su copia).`)) return;
+      try{ const r=await api("/conceptos-linea/"+id,{method:"DELETE"}); toast(r.eliminado?"Concepto eliminado.":"El concepto ya se usó: queda de baja.","ok"); vConceptosLinea(); }catch(e){ toast(e.message,"err"); }
+    }
+
+    // Editor de conceptos de una línea o de un documento. Cada editor tiene su clave; «lista» vacía de valor
+    // (undefined) en una línea significa «los que se pongan solos».
+    const _concCat={Ventas:[],Compras:[]}; const _concSets={}; let _concN=0;
+    async function cargarConceptosActivos(ambito){ try{ _concCat[ambito]=await api(`/conceptos-linea?ambito=${ambito}&activos=true`); }catch(e){ _concCat[ambito]=[]; } return _concCat[ambito]; }
+    function concNuevo(ambito,lista,opc){ const k="cc"+(++_concN); _concSets[k]=Object.assign({ambito,lista,doc:false},opc||{}); return k; }
+    // De los conceptos guardados en un documento: los de cada línea (sin los repartidos) y los del documento.
+    function concDeLinea(conceptos){ const l=(conceptos||[]).filter(c=>!c.repartido); return (conceptos||[]).length?l.map(c=>({conceptoId:c.conceptoId,valor:c.valor})):undefined; }
+    function concDeDocumento(lineas){ const m={}; (lineas||[]).forEach(l=>(l.conceptos||[]).filter(c=>c.repartido).forEach(c=>{ const x=m[c.conceptoId]||(m[c.conceptoId]={conceptoId:c.conceptoId,valor:0,calc:c.calculo});
+        x.valor=c.calculo==="Importe"?Math.round((x.valor+c.valor)*100)/100:c.valor; })); return Object.values(m).map(x=>({conceptoId:x.conceptoId,valor:x.valor})); }
+    function concBloque(k){ return (_concCat[_concSets[k].ambito]||[]).length?`<div id="cew_${k}">${concInterior(k)}</div>`:""; }
+    function concInterior(k){ const s=_concSets[k], cat=_concCat[s.ambito]||[];
+      const titulo=s.doc?"Conceptos del documento":"Conceptos";
+      if(s.lista===undefined) return `<div class="muted" style="font-size:12px;margin:0 0 8px">${titulo}: los que se pongan solos · <a href="javascript:void 0" onclick="concEditar('${k}')">elegir</a></div>`;
+      const filas=s.lista.map((c,i)=>{ const def=cat.find(x=>x.id===c.conceptoId);
+        return `<span style="display:inline-flex;gap:4px;align-items:center;margin:0 8px 4px 0"><select style="padding:4px 6px;font-size:12px" onchange="concCambiar('${k}',${i},'conceptoId',this.value)">${cat.map(x=>`<option value="${x.id}"${x.id===c.conceptoId?" selected":""}>${agEsc(x.codigo)} · ${x.sentido==="Resta"?"−":"+"} ${CONC_ETQ.Calculo[x.calculo]}${x.efecto==="Coste"?" (coste)":""}</option>`).join("")}</select>
+          <input type="number" step="0.0001" style="width:80px;padding:4px 6px;font-size:12px" placeholder="${def?def.valor:""}" value="${c.valor??""}" oninput="concCambiar('${k}',${i},'valor',this.value)"/><button class="btn small ghost" onclick="concQuitar('${k}',${i})" title="Quitar">✕</button></span>`; }).join("");
+      return `<div style="font-size:12px;margin:0 0 8px"><span class="muted">${titulo}:</span> ${filas||'<span class="muted">ninguno</span>'} <a href="javascript:void 0" onclick="concAnadir('${k}')">+ concepto</a>${s.doc?"":` · <a href="javascript:void 0" onclick="concAuto('${k}')">los automáticos</a>`}</div>`; }
+    function concRepintar(k){ const el=document.getElementById("cew_"+k); if(el) el.innerHTML=concInterior(k); facTotal(); }
+    async function concEditar(k){ const s=_concSets[k]; s.lista=[];
+      if(!s.doc){ const ter=s.terceroSel?val(s.terceroSel):(s.tercero||null), prod=s.producto?s.producto():null;
+        try{ const sug=await api(`/conceptos-linea/sugeridos?ambito=${s.ambito}${ter?"&terceroId="+ter:""}${prod?"&productoId="+prod:""}`); s.lista=sug.map(x=>({conceptoId:x.conceptoId,valor:x.valor})); }catch(e){} }
+      if(!s.lista.length) s.lista.push({conceptoId:(_concCat[s.ambito][0]||{}).id,valor:""});
+      concRepintar(k); }
+    function concAnadir(k){ const s=_concSets[k]; (s.lista=s.lista||[]).push({conceptoId:(_concCat[s.ambito][0]||{}).id,valor:""}); concRepintar(k); }
+    function concQuitar(k,i){ _concSets[k].lista.splice(i,1); concRepintar(k); }
+    function concAuto(k){ _concSets[k].lista=undefined; concRepintar(k); }
+    function concCambiar(k,i,campo,v){ _concSets[k].lista[i][campo]=v; if(campo==="conceptoId") concRepintar(k); else facTotal(); }
+    function concPayload(k){ const s=_concSets[k]; if(!s||s.lista===undefined) return undefined;
+      return s.lista.filter(c=>c.conceptoId).map(c=>({conceptoId:c.conceptoId,valor:c.valor===""||c.valor==null?null:Number(c.valor)})); }
+    // Estimación en pantalla de los conceptos que cambian el importe (el cálculo bueno lo hace el servidor al guardar).
+    function concEstimar(k,base,cant){ const s=_concSets[k]; if(!s||!s.lista) return 0; const cat=_concCat[s.ambito]||[];
+      return s.lista.reduce((t,c)=>{ const d=cat.find(x=>x.id===c.conceptoId); if(!d||d.efecto!=="Precio") return t; const v=c.valor===""||c.valor==null?d.valor:Number(c.valor);
+        const imp=d.calculo==="Porcentaje"?base*v/100:d.calculo==="PorUnidad"?cant*v:d.calculo==="Importe"?v:0; return t+(d.sentido==="Resta"?-imp:imp); },0); }
+    function concTexto(conceptos){ return (conceptos||[]).map(c=>`<div class="muted" style="font-size:11.5px">· ${agEsc(c.nombre)}${c.calculo==="Porcentaje"?` (${numCant(c.valor)} %)`:""}${c.efecto==="Coste"?" · coste":""}: ${eur(c.importe)}</div>`).join(""); }
+
     let _cacheFamilias=[];
     async function vFamilias() {
       view('<div class="muted">Cargando…</div>');
@@ -1573,7 +1671,9 @@
       return `<span class="pill ${c}">${e}</span>`;
     };
     function lineaSolHtml(d,c){ return `<div class="cmp-lsol" style="display:grid;grid-template-columns:3fr 1fr;gap:8px;margin-bottom:6px"><input class="ls-desc" placeholder="Descripción" value="${agEsc(d||"")}"/><input class="ls-cant" type="number" step="0.001" placeholder="Cantidad" value="${c||""}"/></div>`; }
-    function lineaPedHtml(d,c,p,prodId){ const po=(window._prodOpts||''); const opts=po?po.replace(`value="${prodId}"`,`value="${prodId}" selected`):''; return `<div class="cmp-lped" style="display:grid;grid-template-columns:${po?'2fr ':''}3fr 1fr 1fr;gap:8px 8px;margin-bottom:6px;align-items:start">${po?`<select class="lp-prod" title="Artículo del catálogo (opcional; permite la entrada automática al recibir)" onchange="pedLineaProd(this)"><option value="">— Sin artículo —</option>${opts}</select>`:''}<div><input class="lp-desc" placeholder="Descripción" value="${d||''}"/></div><div><input class="lp-cant" type="number" step="0.001" placeholder="Cantidad" value="${c??''}"/><div class="lp-unidad muted" style="font-size:11px;margin-top:2px"></div></div><input class="lp-prec" type="number" step="0.01" placeholder="Precio" value="${p??''}"/></div>`; }
+    function lineaPedHtml(d,c,p,prodId,conc){ const po=(window._prodOpts||''); const opts=po?po.replace(`value="${prodId}"`,`value="${prodId}" selected`):'';
+      const k=concNuevo("Compras",conc,{terceroSel:window._pedTerSel||null,tercero:window._pedTercero||null}); _concSets[k].producto=()=>document.querySelector(`[data-ck="${k}"] .lp-prod`)?.value||null;
+      return `<div class="cmp-lped" data-ck="${k}" style="display:grid;grid-template-columns:${po?'2fr ':''}3fr 1fr 1fr;gap:8px 8px;margin-bottom:6px;align-items:start">${po?`<select class="lp-prod" title="Artículo del catálogo (opcional; permite la entrada automática al recibir)" onchange="pedLineaProd(this)"><option value="">— Sin artículo —</option>${opts}</select>`:''}<div><input class="lp-desc" placeholder="Descripción" value="${d||''}"/></div><div><input class="lp-cant" type="number" step="0.001" placeholder="Cantidad" value="${c??''}"/><div class="lp-unidad muted" style="font-size:11px;margin-top:2px"></div></div><input class="lp-prec" type="number" step="0.01" placeholder="Precio" value="${p??''}"/>${(_concCat.Compras||[]).length?`<div style="grid-column:1/-1">${concBloque(k)}</div>`:""}</div>`; }
     // Al elegir un artículo en una línea de pedido: rellena descripción/precio y muestra la unidad de compra.
     function pedLineaProd(sel){ const row=sel.closest('.cmp-lped'); const prod=(window._prodMap||{})[sel.value]; const desc=row.querySelector('.lp-desc'), prec=row.querySelector('.lp-prec'), uni=row.querySelector('.lp-unidad');
       if(!prod){ if(uni) uni.textContent=""; return; }
@@ -1649,23 +1749,27 @@
     }
     async function editarPedidoCompra(id){
       const p=await api("/compras/pedidos/"+id);
-      modalPedido(p.proveedorTexto, p.lineas.map(l=>({d:l.descripcion,c:l.cantidad,p:l.precioUnitario,prodId:l.productoId})), null, p);
+      modalPedido(p.proveedorTexto, p.lineas.map(l=>({d:l.descripcion,c:l.cantidad,p:l.precioUnitario,prodId:l.productoId,conc:concDeLinea(l.conceptos)})), null, p);
     }
     async function modalPedido(prov, lineas, solId, ped){
       const [provs,prods]=await Promise.all([api("/proveedores").catch(()=>[]),api("/productos").catch(()=>[])]);
       const opts=provs.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join("");
       window._prodOpts=prods.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join("");
       window._prodMap=Object.fromEntries(prods.map(p=>[p.id,p]));
-      const filasIni=(lineas&&lineas.length?lineas:[{},{}]).map(l=>lineaPedHtml(l.d,l.c,l.p,l.prodId)).join("");
+      await cargarConceptosActivos("Compras"); window._pedTerSel=ped?null:"ped_provid"; window._pedTercero=ped?ped.proveedorId:null;
+      const pedDocK=concNuevo("Compras",concDeDocumento(ped&&ped.lineas),{doc:true});
+      const filasIni=(lineas&&lineas.length?lineas:[{},{}]).map(l=>lineaPedHtml(l.d,l.c,l.p,l.prodId,l.conc)).join("");
       const cab=ped?`<p class="muted" style="margin:0 0 10px">Proveedor: <strong>${agEsc(ped.proveedorTexto)}</strong> (no se cambia: el número es de su serie).</p><label>Fecha</label><input id="ped_fecha" type="date" value="${ped.fecha}"/>`
         :`<label>Proveedor (de la lista)</label><select id="ped_provid"><option value="">— Escribir a mano —</option>${opts}</select>
         <label>o nombre del proveedor</label><input id="ped_provtxt" value="${prov||''}"/>`;
       abrir(ped?"Editar pedido "+ped.numeroCompleto:"Nuevo pedido de compra",`${cab}
         <label style="margin-top:12px">Líneas del pedido${window._prodOpts?' <span class="muted" style="font-weight:400;font-size:12px">— asigna un artículo para la entrada automática al recibir</span>':''}</label><div id="ped_lineas">${filasIni}</div>
-        <button class="btn small secondary" style="margin-top:4px" onclick="document.getElementById('ped_lineas').insertAdjacentHTML('beforeend',lineaPedHtml())">+ Añadir línea</button>`,
-        async()=>{ const provId=ped?ped.proveedorId:(val("ped_provid")||null); const lin=[...document.querySelectorAll('#ped_lineas .cmp-lped')].map(r=>({productoId:(r.querySelector('.lp-prod')?.value||null),descripcion:(r.querySelector('.lp-desc').value||'').trim(),cantidad:Number(r.querySelector('.lp-cant').value||0),precioUnitario:Number(r.querySelector('.lp-prec').value||0)})).filter(l=>l.descripcion&&l.cantidad>0);
-          if(ped){ await api("/compras/pedidos/"+ped.id,{method:"PUT",body:JSON.stringify({proveedorId:provId,proveedorTexto:ped.proveedorTexto,fecha:val("ped_fecha")||null,lineas:lin})}); toast("Pedido guardado.","ok"); vPedidos(); return; }
-          await api("/compras/pedidos",{method:"POST",body:JSON.stringify({proveedorId:provId,proveedorTexto:provId?null:(val("ped_provtxt")||null),solicitudOrigenId:solId||null,lineas:lin})});
+        <button class="btn small secondary" style="margin-top:4px" onclick="document.getElementById('ped_lineas').insertAdjacentHTML('beforeend',lineaPedHtml())">+ Añadir línea</button>
+        <div style="margin-top:8px">${concBloque(pedDocK)}</div>`,
+        async()=>{ const provId=ped?ped.proveedorId:(val("ped_provid")||null); const lin=[...document.querySelectorAll('#ped_lineas .cmp-lped')].map(r=>({productoId:(r.querySelector('.lp-prod')?.value||null),descripcion:(r.querySelector('.lp-desc').value||'').trim(),cantidad:Number(r.querySelector('.lp-cant').value||0),precioUnitario:Number(r.querySelector('.lp-prec').value||0),...(concPayload(r.dataset.ck)===undefined?{}:{conceptos:concPayload(r.dataset.ck)})})).filter(l=>l.descripcion&&l.cantidad>0);
+          const conceptosDocumento=concPayload(pedDocK);
+          if(ped){ await api("/compras/pedidos/"+ped.id,{method:"PUT",body:JSON.stringify({proveedorId:provId,proveedorTexto:ped.proveedorTexto,fecha:val("ped_fecha")||null,lineas:lin,conceptosDocumento})}); toast("Pedido guardado.","ok"); vPedidos(); return; }
+          await api("/compras/pedidos",{method:"POST",body:JSON.stringify({proveedorId:provId,proveedorTexto:provId?null:(val("ped_provtxt")||null),solicitudOrigenId:solId||null,lineas:lin,conceptosDocumento})});
           toast("Pedido creado.","ok"); ir('pedidos'); });
     }
     async function accionPedido(id,accion){ try{ await api(`/compras/pedidos/${id}/${accion}`,{method:"POST"}); toast("Pedido "+(accion==="confirmar"?"confirmado":"cancelado")+".","ok"); vPedidos(); }catch(e){ toast(e.message,"err"); } }
@@ -2082,17 +2186,20 @@
       const [cs,ped]=await Promise.all([api("/clientes"),id?api("/pedidos-venta/"+id):null]); _cacheCli=cs;
       if(!cs.length){ alert("Primero crea un cliente."); return; }
       const opts=cs.map(c=>`<option value="${c.id}"${ped&&ped.clienteId===c.id?" selected":""}>${c.nombre}</option>`).join("");
-      _facLineas=ped?ped.lineas.map(l=>({descripcion:l.descripcion,cantidad:l.cantidad,precio:l.precioUnitario,iva:l.codigoIva,dto:l.porcentajeDescuento,productoId:l.productoId}))
+      await facPrepararConceptos("pv_cli",ped&&ped.lineas);
+      _facLineas=ped?ped.lineas.map(l=>({descripcion:l.descripcion,cantidad:l.cantidad,precio:l.precioUnitario,iva:l.codigoIva,dto:l.porcentajeDescuento,productoId:l.productoId,_conc:concDeLinea(l.conceptos)}))
         :[{descripcion:"",cantidad:1,precio:0,iva:IMP.general,dto:0}];
       abrir(ped?"Editar pedido "+ped.numeroCompleto:"Nuevo pedido de venta",`<label>Cliente</label><select id="pv_cli">${opts}</select>${ped?`<label>Fecha</label><input id="pv_fecha" type="date" value="${ped.fecha}"/>`:""}
         <label style="margin-top:16px">Líneas</label>
         <div id="f_lineas">${facLineasHtml()}</div>
         <button class="btn small ghost" style="margin-top:6px" onclick="facAnadirLinea()">+ Añadir línea</button>
+        <div style="margin-top:8px">${concBloque(_facDocK)}</div>
         <div id="f_total" class="right" style="margin-top:10px;font-weight:650"></div>`,
-        async()=>{ const lineas=_facLineas.filter(l=>l.descripcion.trim()&&l.cantidad>0).map(l=>({descripcion:l.descripcion,cantidad:l.cantidad,precioUnitario:l.precio,codigoIva:l.iva,porcentajeDescuento:l.dto||0,productoId:l.productoId||null}));
+        async()=>{ const lineas=_facLineas.filter(l=>l.descripcion.trim()&&l.cantidad>0).map(l=>({descripcion:l.descripcion,cantidad:l.cantidad,precioUnitario:l.precio,codigoIva:l.iva,porcentajeDescuento:l.dto||0,productoId:l.productoId||null,...facConceptosLinea(l)}));
           if(!lineas.length) throw new Error("Añade al menos una línea con descripción y cantidad.");
-          if(ped){ await api("/pedidos-venta/"+ped.id,{method:"PUT",body:JSON.stringify({clienteId:val("pv_cli"),fecha:val("pv_fecha")||null,lineas})}); toast("Pedido guardado.","ok"); }
-          else { await api("/pedidos-venta",{method:"POST",body:JSON.stringify({clienteId:val("pv_cli"),lineas})}); toast("Pedido de venta creado.","ok"); }
+          const conceptosDocumento=concPayload(_facDocK);
+          if(ped){ await api("/pedidos-venta/"+ped.id,{method:"PUT",body:JSON.stringify({clienteId:val("pv_cli"),fecha:val("pv_fecha")||null,lineas,conceptosDocumento})}); toast("Pedido guardado.","ok"); }
+          else { await api("/pedidos-venta",{method:"POST",body:JSON.stringify({clienteId:val("pv_cli"),lineas,conceptosDocumento})}); toast("Pedido de venta creado.","ok"); }
           vPedidosVenta(); });
       facTotal();
     }
@@ -2113,7 +2220,7 @@
     }
     async function verPedidoVenta(id){
       const [p,albaranes]=await Promise.all([api("/pedidos-venta/"+id),api("/pedidos-venta/"+id+"/albaranes").catch(()=>[])]);
-      const lin=p.lineas.map(l=>`<tr><td>${l.descripcion}</td><td class="num">${l.cantidad}</td><td class="num">${eur(l.precioUnitario)}</td><td class="num muted">${l.cantidadServida}</td><td class="num">${eur(l.base)}</td></tr>`).join("");
+      const lin=p.lineas.map(l=>`<tr><td>${l.descripcion}${concTexto(l.conceptos)}</td><td class="num">${l.cantidad}</td><td class="num">${eur(l.precioUnitario)}</td><td class="num muted">${l.cantidadServida}</td><td class="num">${eur(l.base)}</td></tr>`).join("");
       const alb=(albaranes||[]).map(a=>`<tr><td><strong>${a.numeroCompleto}</strong>${a.anulado?` <span class="pill neg" title="${agEsc(a.motivoAnulacion||"")}">Anulado</span>`:""}</td><td class="muted">${fdate(a.fecha)}</td><td class="muted">${a.lineas.length} línea(s)${a.referencia?" · "+agEsc(a.referencia):""}</td>
         <td class="right">${a.anulado||p.estado==="Facturado"?"":`<button class="btn small ghost" onclick="anularAlbaranVenta('${p.id}','${a.id}','${a.numeroCompleto}')">Anular</button>`}</td></tr>`).join("");
       abrir("Pedido de venta "+p.numeroCompleto,`<p class="muted" style="margin:0 0 10px">${p.clienteNombre} · ${estadoPillPV(p.estado)} · Total <strong>${eur(p.total)}</strong>${p.facturaId?' · facturado':''}</p>
@@ -4571,8 +4678,9 @@
       const prefijos=[...new Set(["FA",...series.map(s=>s.prefijo)])];
       const serieBox=prefijos.length>1?`<div><label>Serie</label><select id="f_serie">${prefijos.map(p=>`<option value="${p}">${p}</option>`).join("")}</select></div>`:`<div></div>`;
       const vencSel=`<select id="f_venc"><option value="0">Contado</option><option value="15">15 días</option><option value="30">30 días</option><option value="60">60 días</option><option value="90">90 días</option></select>`;
+      await facPrepararConceptos("f_cli",src&&src.lineas);
       _facLineas = (src&&src.lineas&&src.lineas.length)
-        ? src.lineas.map(l=>({descripcion:l.descripcion,cantidad:l.cantidad,precio:l.precioUnitario,iva:l.codigoIva,dto:l.porcentajeDescuento||0}))
+        ? src.lineas.map(l=>({descripcion:l.descripcion,cantidad:l.cantidad,precio:l.precioUnitario,iva:l.codigoIva,dto:l.porcentajeDescuento||0,productoId:l.productoId,_conc:concDeLinea(l.conceptos)}))
         : [{descripcion:"",cantidad:1,precio:0,iva:IMP.general,dto:0}];
       abrir(src?"Nueva factura (copia)":"Nueva factura",`<div class="grid2"><div><label>Cliente</label><select id="f_cli" onchange="ajustarRecargoCliente()">${opts}</select></div><div><label>Vencimiento</label>${vencSel}</div></div>
         <div class="grid2">${serieBox}<div><label>Forma de pago</label>${formaPagoSel("f_forma")}</div></div>
@@ -4580,29 +4688,35 @@
         <label style="margin-top:16px">Líneas</label>
         <div id="f_lineas">${facLineasHtml()}</div>
         <button class="btn small ghost" style="margin-top:6px" onclick="facAnadirLinea()">+ Añadir línea</button>
+        <div style="margin-top:8px">${concBloque(_facDocK)}</div>
         <div id="f_total" class="right" style="margin-top:10px;font-weight:650"></div>
         <label style="display:flex;align-items:center;gap:8px;margin-top:14px;font-weight:500;cursor:pointer"><input id="f_recargo" type="checkbox" style="width:auto"/> Aplicar recargo de equivalencia (cliente minorista)</label>`,
         async()=>{ const serie=document.getElementById("f_serie")?document.getElementById("f_serie").value:null;
-          const lineas=_facLineas.filter(l=>l.descripcion.trim()&&l.cantidad>0).map(l=>({descripcion:l.descripcion,cantidad:l.cantidad,precioUnitario:l.precio,codigoIva:l.iva,porcentajeDescuento:l.dto||0}));
+          const lineas=_facLineas.filter(l=>l.descripcion.trim()&&l.cantidad>0).map(l=>({descripcion:l.descripcion,cantidad:l.cantidad,precioUnitario:l.precio,codigoIva:l.iva,porcentajeDescuento:l.dto||0,productoId:l.productoId||null,...facConceptosLinea(l)}));
           if(!lineas.length) throw new Error("Añade al menos una línea con descripción y cantidad.");
-          const _f=await api("/facturas",{method:"POST",body:JSON.stringify({clienteId:val("f_cli"),serie,diasVencimiento:Number(val("f_venc")),formaPagoId:val("f_forma")||null,recargoEquivalencia:document.getElementById("f_recargo").checked,lineas})}); if(_f&&_f.avisoRiesgo) toast(_f.avisoRiesgo,"err"); vFacturas(); });
+          const _f=await api("/facturas",{method:"POST",body:JSON.stringify({clienteId:val("f_cli"),serie,diasVencimiento:Number(val("f_venc")),formaPagoId:val("f_forma")||null,recargoEquivalencia:document.getElementById("f_recargo").checked,lineas,conceptosDocumento:concPayload(_facDocK)})}); if(_f&&_f.avisoRiesgo) toast(_f.avisoRiesgo,"err"); vFacturas(); });
       if(src&&src.clienteId){ const sel=document.getElementById("f_cli"); if([...sel.options].some(o=>o.value===src.clienteId)) sel.value=src.clienteId; }
       ajustarRecargoCliente(); facTotal(); }
-    let _facLineas=[];
-    function facLineasHtml(){ return _facLineas.map((l,i)=>`<div class="row" style="align-items:end">
+    let _facLineas=[], _facTerSel="f_cli", _facDocK=null;
+    // Prepara los conceptos de un modal de venta: catálogo, cliente del que salen los automáticos y conceptos del documento.
+    async function facPrepararConceptos(terSel,lineasOrigen){ await cargarConceptosActivos("Ventas"); _facTerSel=terSel; _facDocK=concNuevo("Ventas",concDeDocumento(lineasOrigen),{doc:true}); }
+    function facLineasHtml(){ return _facLineas.map((l,i)=>{ if(!l._ck) l._ck=concNuevo("Ventas",l._conc,{terceroSel:_facTerSel,producto:()=>l.productoId||null}); return `<div class="row" style="align-items:end">
       <div style="flex:2"><input placeholder="Descripción" value="${(l.descripcion||'').replace(/"/g,'&quot;')}" oninput="_facLineas[${i}].descripcion=this.value"/></div>
       <div><label>Cant.</label><input type="number" step="0.001" value="${l.cantidad}" oninput="_facLineas[${i}].cantidad=Number(this.value);facTotal()"/></div>
       <div><label>Precio €</label><input type="number" step="0.01" value="${l.precio}" oninput="_facLineas[${i}].precio=Number(this.value);facTotal()"/></div>
       <div><label>Dto %</label><input type="number" step="0.01" value="${l.dto||0}" oninput="_facLineas[${i}].dto=Number(this.value);facTotal()"/></div>
       <div><label>${IMP.siglas}</label><select onchange="_facLineas[${i}].iva=this.value;facTotal()">${ivaOpciones(l.iva)}</select></div>
       <div><button class="btn small secondary" onclick="facQuitarLinea(${i})" ${_facLineas.length<=1?'disabled':''}>✕</button></div>
-    </div>`).join(""); }
+    </div>${concBloque(l._ck)}`; }).join(""); }
+    function facConceptosLinea(l){ const c=concPayload(l._ck); return c===undefined?{}:{conceptos:c}; }
     function facRefrescar(){ document.getElementById("f_lineas").innerHTML=facLineasHtml(); facTotal(); }
     function facAnadirLinea(){ _facLineas.push({descripcion:"",cantidad:1,precio:0,iva:IMP.general,dto:0}); facRefrescar(); }
     function facQuitarLinea(i){ if(_facLineas.length<=1)return; _facLineas.splice(i,1); facRefrescar(); }
     function facTotal(){ const el=document.getElementById("f_total"); if(!el)return;
-      let base=0,iva=0; _facLineas.forEach(l=>{ const b=(l.cantidad||0)*(l.precio||0)*(1-((l.dto||0)/100)); base+=b; iva+=b*ivaPct(l.iva)/100; });
-      el.textContent=`Base ${eur(base)} · ${IMP.siglas} ${eur(iva)} · Total ${eur(base+iva)}`; }
+      let base=0,iva=0,cant=0; _facLineas.forEach(l=>{ const bruto=(l.cantidad||0)*(l.precio||0)*(1-((l.dto||0)/100)); const b=bruto+concEstimar(l._ck,bruto,l.cantidad||0); base+=b; cant+=(l.cantidad||0); iva+=b*ivaPct(l.iva)/100; });
+      const doc=_facDocK?concEstimar(_facDocK,base,cant):0; if(doc){ iva+=doc*(base?iva/base:0); base+=doc; }
+      const hayConceptos=(_concCat.Ventas||[]).length>0;
+      el.textContent=`Base ${eur(base)} · ${IMP.siglas} ${eur(iva)} · Total ${hayConceptos?"estimado ":""}${eur(base+iva)}`; }
     async function duplicarFactura(id){ try{ const f=await api("/facturas/"+id); modalFactura(f); }catch(e){ toast(e.message,"err"); } }
     function ajustarRecargoCliente(){ const sel=document.getElementById("f_cli"), chk=document.getElementById("f_recargo"); if(!sel||!chk)return;
       const c=_cacheCli.find(x=>x.id===sel.value); chk.checked=!!(c&&c.recargoEquivalencia); }

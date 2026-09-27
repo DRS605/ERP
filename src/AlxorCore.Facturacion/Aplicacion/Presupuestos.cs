@@ -1,3 +1,4 @@
+using AlxorCore.Nucleo.Comun;
 using AlxorCore.Catalogo.Aplicacion;
 using AlxorCore.Facturacion.Dominio;
 using AlxorCore.Nucleo.Aplicacion;
@@ -10,7 +11,7 @@ namespace AlxorCore.Facturacion.Aplicacion;
 /// <summary>Vista de una línea de presupuesto.</summary>
 public sealed record LineaPresupuestoDto(
     string Descripcion, decimal Cantidad, decimal PrecioUnitario, decimal PorcentajeDescuento,
-    string CodigoIva, decimal PorcentajeIva, decimal Base, decimal CuotaIva);
+    string CodigoIva, decimal PorcentajeIva, decimal Base, decimal CuotaIva, Guid? ProductoId = null, IReadOnlyList<ConceptoAplicado>? Conceptos = null, decimal ImporteConceptos = 0m, decimal CosteConceptos = 0m);
 
 /// <summary>Vista de un presupuesto.</summary>
 public sealed record PresupuestoDto(
@@ -20,7 +21,7 @@ public sealed record PresupuestoDto(
     public static PresupuestoDto Desde(Presupuesto p) => new(
         p.Id, p.NumeroCompleto, p.ClienteId, p.ClienteNombre, p.Fecha, p.Validez, p.Estado.ToString(),
         p.BaseImponible, p.CuotaIva, p.Total, p.FacturaId,
-        p.Lineas.Select(l => new LineaPresupuestoDto(l.Descripcion, l.Cantidad, l.PrecioUnitario, l.PorcentajeDescuento, l.CodigoIva, l.PorcentajeIva, l.Base, l.CuotaIva)).ToList());
+        p.Lineas.Select(l => new LineaPresupuestoDto(l.Descripcion, l.Cantidad, l.PrecioUnitario, l.PorcentajeDescuento, l.CodigoIva, l.PorcentajeIva, l.Base, l.CuotaIva, l.ProductoId, l.Conceptos, l.ImporteConceptos, l.CosteConceptos)).ToList());
 }
 
 /// <summary>Resumen de presupuesto para listados.</summary>
@@ -47,7 +48,7 @@ public interface IConsultaPresupuestos
 }
 
 /// <summary>Datos para crear o actualizar un presupuesto.</summary>
-public sealed record DatosPresupuesto(Guid ClienteId, IReadOnlyList<LineaComando> Lineas, int DiasValidez = 30);
+public sealed record DatosPresupuesto(Guid ClienteId, IReadOnlyList<LineaComando> Lineas, int DiasValidez = 30, IReadOnlyList<ConceptoSolicitado>? ConceptosDocumento = null);
 
 /// <summary>Caso de uso: crear un presupuesto.</summary>
 public sealed class CrearPresupuesto
@@ -59,8 +60,12 @@ public sealed class CrearPresupuesto
     private readonly IResolverPrecioVenta _precios;
     private readonly IReloj _reloj;
 
-    public CrearPresupuesto(IConsultaClientes clientes, IConsultaProductos productos, IRepositorioPresupuestos presupuestos, IUnidadDeTrabajoFacturacion unidadDeTrabajo, IResolverPrecioVenta precios, IReloj reloj)
+    private readonly IResolverConceptos? _conceptos;
+
+    public CrearPresupuesto(IConsultaClientes clientes, IConsultaProductos productos, IRepositorioPresupuestos presupuestos, IUnidadDeTrabajoFacturacion unidadDeTrabajo, IResolverPrecioVenta precios, IReloj reloj,
+        IResolverConceptos? conceptos = null)
     {
+        _conceptos = conceptos;
         _precios = precios;
         _clientes = clientes;
         _productos = productos;
@@ -87,12 +92,19 @@ public sealed class CrearPresupuesto
             return Resultado.Fallo<PresupuestoDto>(resolucion.Error);
         }
 
+        var conConceptos = await ResolucionLineasFactura.AplicarConceptosAsync(_conceptos, cliente.Id, datos.Lineas ?? [], resolucion.Valor, datos.ConceptosDocumento, true, ct)
+            .ConfigureAwait(false);
+        if (conConceptos.EsFallo)
+        {
+            return Resultado.Fallo<PresupuestoDto>(conConceptos.Error);
+        }
+
         var hoy = DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
         var validez = hoy.AddDays(Math.Max(0, datos.DiasValidez));
         var numero = await _presupuestos.SiguienteNumeroAsync(empresaId, hoy.Year, ct).ConfigureAwait(false);
         var numeroCompleto = $"P{hoy.Year}/{numero:000000}";
 
-        var presupuesto = Presupuesto.Crear(empresaId, numeroCompleto, cliente.Id, cliente.Nombre, hoy, validez, resolucion.Valor, _reloj);
+        var presupuesto = Presupuesto.Crear(empresaId, numeroCompleto, cliente.Id, cliente.Nombre, hoy, validez, conConceptos.Valor, _reloj);
         if (presupuesto.EsFallo)
         {
             return Resultado.Fallo<PresupuestoDto>(presupuesto.Error);
@@ -113,8 +125,12 @@ public sealed class ActualizarPresupuesto
     private readonly IUnidadDeTrabajoFacturacion _unidadDeTrabajo;
     private readonly IResolverPrecioVenta _precios;
 
-    public ActualizarPresupuesto(IConsultaClientes clientes, IConsultaProductos productos, IRepositorioPresupuestos presupuestos, IUnidadDeTrabajoFacturacion unidadDeTrabajo, IResolverPrecioVenta precios)
+    private readonly IResolverConceptos? _conceptos;
+
+    public ActualizarPresupuesto(IConsultaClientes clientes, IConsultaProductos productos, IRepositorioPresupuestos presupuestos, IUnidadDeTrabajoFacturacion unidadDeTrabajo, IResolverPrecioVenta precios,
+        IResolverConceptos? conceptos = null)
     {
+        _conceptos = conceptos;
         _precios = precios;
         _clientes = clientes;
         _productos = productos;
@@ -145,8 +161,15 @@ public sealed class ActualizarPresupuesto
             return Resultado.Fallo<PresupuestoDto>(resolucion.Error);
         }
 
+        var conConceptos = await ResolucionLineasFactura.AplicarConceptosAsync(_conceptos, cliente.Id, datos.Lineas ?? [], resolucion.Valor, datos.ConceptosDocumento, true, ct)
+            .ConfigureAwait(false);
+        if (conConceptos.EsFallo)
+        {
+            return Resultado.Fallo<PresupuestoDto>(conConceptos.Error);
+        }
+
         var validez = presupuesto.Fecha.AddDays(Math.Max(0, datos.DiasValidez));
-        var r = presupuesto.Actualizar(cliente.Id, cliente.Nombre, validez, resolucion.Valor);
+        var r = presupuesto.Actualizar(cliente.Id, cliente.Nombre, validez, conConceptos.Valor);
         if (r.EsFallo)
         {
             return Resultado.Fallo<PresupuestoDto>(r.Error);
@@ -241,7 +264,7 @@ public sealed class AceptarPresupuesto
         }
 
         var lineas = presupuesto.Lineas
-            .Select(l => new LineaComando(l.Cantidad, l.Descripcion, l.PrecioUnitario, l.CodigoIva, l.PorcentajeDescuento, l.ProductoId))
+            .Select(l => new LineaComando(l.Cantidad, l.Descripcion, l.PrecioUnitario, l.CodigoIva, l.PorcentajeDescuento, l.ProductoId, ConceptosCopiados: l.Conceptos))
             .ToList();
 
         var comando = new EmitirFacturaComando(presupuesto.ClienteId, lineas, Serie: serie, DiasVencimiento: diasVencimiento);

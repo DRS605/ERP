@@ -13,7 +13,7 @@ public sealed record DesgloseImpuestoDto(TipoImpuesto Impuesto, string CodigoIva
 public sealed record LineaFacturaDto(
     string Descripcion, decimal Cantidad, decimal PrecioUnitario, decimal PorcentajeDescuento,
     string CodigoIva, decimal PorcentajeIva, decimal Base, decimal CuotaIva,
-    decimal CosteUnitario, decimal Margen, decimal PorcentajeRecargo, decimal CuotaRecargo, Guid? ProductoId = null);
+    decimal CosteUnitario, decimal Margen, decimal PorcentajeRecargo, decimal CuotaRecargo, Guid? ProductoId = null, IReadOnlyList<ConceptoAplicado>? Conceptos = null, decimal ImporteConceptos = 0m, decimal CosteConceptos = 0m);
 
 /// <summary>Datos de una línea de venta para el cálculo de márgenes (informe de beneficio).</summary>
 public sealed record LineaMargenDto(Guid? ProductoId, string Descripcion, decimal Cantidad, decimal Ingreso, decimal Coste);
@@ -64,7 +64,7 @@ public sealed record FacturaDto(
         f.RectificaFacturaId, f.MotivoRectificacion, f.MotivoAnulacion,
         f.Lineas.Select(l => new LineaFacturaDto(
             l.Descripcion, l.Cantidad, l.PrecioUnitario, l.PorcentajeDescuento, l.CodigoIva, l.PorcentajeIva, l.Base, l.CuotaIva,
-            l.CosteUnitario, l.Margen, l.PorcentajeRecargo, l.CuotaRecargo, l.ProductoId)).ToList(),
+            l.CosteUnitario, l.Margen, l.PorcentajeRecargo, l.CuotaRecargo, l.ProductoId, l.Conceptos, l.ImporteConceptos, l.CosteConceptos)).ToList(),
         MencionFiscal: f.MencionFiscal,
         Impuesto: f.Impuesto);
 }
@@ -126,7 +126,14 @@ public interface IConsultaFacturas
     /// </summary>
     Task<IReadOnlyList<DesgloseImpuestoDto>> DesgloseImpuestoAsync(Guid empresaId, DateOnly desde, DateOnly hasta, CancellationToken ct = default) =>
         Task.FromResult<IReadOnlyList<DesgloseImpuestoDto>>([]);
+
+    /// <summary>Conceptos de línea de las facturas emitidas en el periodo (no anuladas), con su documento.</summary>
+    Task<IReadOnlyList<ConceptoDocumentoDto>> ListarConceptosAsync(Guid empresaId, DateOnly desde, DateOnly hasta, CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<ConceptoDocumentoDto>>([]);
 }
+
+/// <summary>Concepto de línea de un documento, para los informes.</summary>
+public sealed record ConceptoDocumentoDto(Guid DocumentoId, string Documento, DateOnly Fecha, string Tercero, string Linea, ConceptoAplicado Concepto);
 
 /// <summary>Unidad de trabajo del módulo Facturación.</summary>
 public interface IUnidadDeTrabajoFacturacion : IUnidadDeTrabajo;

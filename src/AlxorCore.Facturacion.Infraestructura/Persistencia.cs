@@ -134,6 +134,9 @@ internal sealed class ConfiguracionFactura : IEntityTypeConfiguration<Factura>
             linea.Property(l => l.Base).HasColumnName("base").HasColumnType("numeric(14,2)").IsRequired();
             linea.Property(l => l.CuotaIva).HasColumnName("cuota_iva").HasColumnType("numeric(14,2)").IsRequired();
             linea.Property(l => l.CuotaRecargo).HasColumnName("cuota_recargo").HasColumnType("numeric(14,2)").IsRequired();
+            linea.Property(l => l.Conceptos).ComoConceptos();
+            linea.Property(l => l.ImporteConceptos).HasColumnName("importe_conceptos").HasColumnType("numeric(14,2)").HasDefaultValue(0m).IsRequired();
+            linea.Property(l => l.CosteConceptos).HasColumnName("coste_conceptos").HasColumnType("numeric(14,2)").HasDefaultValue(0m).IsRequired();
             linea.Ignore(l => l.CosteTotal);
             linea.Ignore(l => l.Margen);
         });
@@ -415,6 +418,16 @@ internal sealed class RepositorioFacturas : IRepositorioFacturas, IConsultaFactu
         return PaginaResultado<FacturaResumen>.Crear(elementos, total, paginacion);
     }
 
+    public async Task<IReadOnlyList<ConceptoDocumentoDto>> ListarConceptosAsync(Guid empresaId, DateOnly desde, DateOnly hasta, CancellationToken ct = default)
+    {
+        var facturas = await _contexto.Facturas
+            .Where(f => f.EmpresaId == empresaId && f.Estado != EstadoFactura.Anulada && f.FechaEmision >= desde && f.FechaEmision <= hasta)
+            .ToListAsync(ct).ConfigureAwait(false);
+        return facturas
+            .SelectMany(f => f.Lineas.SelectMany(l => l.Conceptos.Select(c => new ConceptoDocumentoDto(f.Id, f.NumeroCompleto, f.FechaEmision, f.ClienteNombre, l.Descripcion, c))))
+            .ToList();
+    }
+
     public async Task<IReadOnlyList<LineaMargenDto>> ListarLineasMargenAsync(Guid empresaId, DateOnly desde, DateOnly hasta, CancellationToken ct = default)
     {
         var facturas = await _contexto.Facturas
@@ -463,6 +476,10 @@ internal sealed class ConfiguracionPresupuesto : IEntityTypeConfiguration<Presup
             linea.Property(l => l.PorcentajeIva).HasColumnName("porcentaje_iva").HasColumnType("numeric(5,2)").IsRequired();
             linea.Property(l => l.Base).HasColumnName("base").HasColumnType("numeric(14,2)").IsRequired();
             linea.Property(l => l.CuotaIva).HasColumnName("cuota_iva").HasColumnType("numeric(14,2)").IsRequired();
+            linea.Property(l => l.Conceptos).ComoConceptos();
+            linea.Property(l => l.ImporteConceptos).HasColumnName("importe_conceptos").HasColumnType("numeric(14,2)").HasDefaultValue(0m).IsRequired();
+            linea.Property(l => l.CosteConceptos).HasColumnName("coste_conceptos").HasColumnType("numeric(14,2)").HasDefaultValue(0m).IsRequired();
+            linea.Ignore(l => l.BaseBruta);
         });
 
         builder.HasIndex(p => new { p.EmpresaId, p.Fecha }).HasDatabaseName("ix_presupuesto_empresa_fecha");

@@ -19,7 +19,9 @@ public sealed record LineaComando(
     string? CodigoIva = null,
     decimal PorcentajeDescuento = 0m,
     Guid? ProductoId = null,
-    decimal? CosteUnitario = null);
+    decimal? CosteUnitario = null,
+    IReadOnlyList<ConceptoSolicitado>? Conceptos = null,
+    IReadOnlyList<ConceptoAplicado>? ConceptosCopiados = null);
 
 /// <summary>Datos para emitir una factura. <c>DiasVencimiento</c> es el plazo de pago (0 = contado).</summary>
 public sealed record EmitirFacturaComando(
@@ -32,7 +34,8 @@ public sealed record EmitirFacturaComando(
     int? DiasVencimiento = null,
     bool RecargoEquivalencia = false,
     Guid? FormaPagoId = null,
-    Guid? ActividadNegocioId = null);
+    Guid? ActividadNegocioId = null,
+    IReadOnlyList<ConceptoSolicitado>? ConceptosDocumento = null);
 
 /// <summary>
 /// Caso de uso estrella: emitir una factura. Compone cliente (Terceros), productos/impuestos
@@ -56,6 +59,7 @@ public sealed class EmitirFactura
     private readonly IResolverIvaEmpresa _resolverIva;
     private readonly IResolverPrecioVenta _precios;
     private readonly IReloj _reloj;
+    private readonly IResolverConceptos? _conceptos;
 
     public EmitirFactura(
         IConsultaClientes clientes,
@@ -72,8 +76,10 @@ public sealed class EmitirFactura
         IConsultaRiesgo riesgo,
         IResolverIvaEmpresa resolverIva,
         IResolverPrecioVenta precios,
-        IReloj reloj)
+        IReloj reloj,
+        IResolverConceptos? conceptos = null)
     {
+        _conceptos = conceptos;
         _resolverIva = resolverIva;
         _precios = precios;
         _clientes = clientes;
@@ -115,7 +121,14 @@ public sealed class EmitirFactura
             return Resultado.Fallo<FacturaDto>(resolucion.Error);
         }
 
-        var lineas = resolucion.Valor;
+        var conConceptos = await ResolucionLineasFactura.AplicarConceptosAsync(_conceptos, cliente.Id, comando.Lineas, resolucion.Valor, comando.ConceptosDocumento, true, ct)
+            .ConfigureAwait(false);
+        if (conConceptos.EsFallo)
+        {
+            return Resultado.Fallo<FacturaDto>(conConceptos.Error);
+        }
+
+        var lineas = conConceptos.Valor;
         var mencionFiscal = await ResolucionLineasFactura.MencionFiscalAsync(empresaId, lineas, _resolverIva, ct).ConfigureAwait(false);
         var hoy = DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
         var fechaEmision = comando.FechaEmision ?? hoy;
@@ -367,6 +380,27 @@ internal static class ResolucionLineasFactura
         }
 
         return Resultado.Ok(resueltas);
+    }
+
+    /// <summary>
+    /// Pone los conceptos de línea (los pedidos, los copiados del documento de origen o, si <paramref name="automaticos"/>,
+    /// los que se ponen solos al cliente y al artículo) y los repartidos del documento. Sin resolutor, no cambia nada.
+    /// </summary>
+    public static async Task<Resultado<List<NuevaLinea>>> AplicarConceptosAsync(
+        IResolverConceptos? conceptos, Guid? clienteId, IReadOnlyList<LineaComando> comandos, List<NuevaLinea> lineas,
+        IReadOnlyList<ConceptoSolicitado>? documento, bool automaticos, CancellationToken ct)
+    {
+        if (conceptos is null)
+        {
+            return Resultado.Ok(lineas);
+        }
+
+        var entrada = lineas.Select((l, i) => new LineaConceptos(l.ProductoId, l.Cantidad,
+            LineaFactura.CalcularBaseBruta(l.Cantidad, l.PrecioUnitario, l.PorcentajeDescuento), comandos[i].Conceptos, comandos[i].ConceptosCopiados)).ToList();
+        var r = await conceptos.ResolverAsync(AmbitoConcepto.Ventas, clienteId, entrada, documento, automaticos, ct).ConfigureAwait(false);
+        return r.EsFallo
+            ? Resultado.Fallo<List<NuevaLinea>>(r.Error)
+            : Resultado.Ok(lineas.Select((l, i) => r.Valor[i].Count == 0 ? l : l with { Conceptos = r.Valor[i] }).ToList());
     }
 
     /// <summary>

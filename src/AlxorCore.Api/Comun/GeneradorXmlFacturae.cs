@@ -1,3 +1,4 @@
+using AlxorCore.Nucleo.Comun;
 using System.Globalization;
 using System.Text;
 using System.Xml;
@@ -258,7 +259,8 @@ public static class GeneradorXmlFacturae
         foreach (var l in factura.Lineas)
         {
             var totalCoste = Redondear(l.Cantidad * l.PrecioUnitario);
-            var descuento = Redondear(totalCoste - l.Base);
+            var descuento = Redondear(totalCoste - (l.Base - l.ImporteConceptos));
+            var conceptos = (l.Conceptos ?? []).Where(c => c.Efecto == EfectoConcepto.Precio && c.Importe != 0m).ToList();
 
             Ini(w, "InvoiceLine");
             El(w, "ItemDescription", Recorta(l.Descripcion, 2500));
@@ -267,14 +269,44 @@ public static class GeneradorXmlFacturae
             El(w, "UnitPriceWithoutTax", Precio(l.PrecioUnitario));
             El(w, "TotalCost", Dec(totalCoste));
 
-            if (descuento > 0m)
+            // Descuento de la línea y conceptos de línea que restan: descuentos; los que suman: cargos.
+            // Así GrossAmount = TotalCost − descuentos + cargos, como pide el formato.
+            var restan = conceptos.Where(c => c.Importe < 0m).ToList();
+            if (descuento > 0m || restan.Count > 0)
             {
                 Ini(w, "DiscountsAndRebates");
-                Ini(w, "Discount");
-                El(w, "DiscountReason", "Descuento");
-                El(w, "DiscountRate", l.PorcentajeDescuento.ToString("F2", Inv));
-                El(w, "DiscountAmount", Dec(descuento));
+                if (descuento > 0m)
+                {
+                    Ini(w, "Discount");
+                    El(w, "DiscountReason", "Descuento");
+                    El(w, "DiscountRate", l.PorcentajeDescuento.ToString("F2", Inv));
+                    El(w, "DiscountAmount", Dec(descuento));
+                    w.WriteEndElement();
+                }
+
+                foreach (var c in restan)
+                {
+                    Ini(w, "Discount");
+                    El(w, "DiscountReason", Recorta(c.Nombre, 2500));
+                    El(w, "DiscountAmount", Dec(-c.Importe));
+                    w.WriteEndElement();
+                }
+
                 w.WriteEndElement();
+            }
+
+            var suman = conceptos.Where(c => c.Importe > 0m).ToList();
+            if (suman.Count > 0)
+            {
+                Ini(w, "Charges");
+                foreach (var c in suman)
+                {
+                    Ini(w, "Charge");
+                    El(w, "ChargeReason", Recorta(c.Nombre, 2500));
+                    El(w, "ChargeAmount", Dec(c.Importe));
+                    w.WriteEndElement();
+                }
+
                 w.WriteEndElement();
             }
 

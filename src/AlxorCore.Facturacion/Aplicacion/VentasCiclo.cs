@@ -1,3 +1,5 @@
+using AlxorCore.Catalogo.Aplicacion;
+using AlxorCore.Nucleo.Comun;
 using AlxorCore.Facturacion.Dominio;
 using AlxorCore.Nucleo.Resultados;
 using AlxorCore.Nucleo.Tiempo;
@@ -9,7 +11,7 @@ namespace AlxorCore.Facturacion.Aplicacion;
 
 // ----------------------------------------------------------------------------- DTOs
 public sealed record LineaPedidoVentaDto(Guid Id, Guid? ProductoId, string Descripcion, decimal Cantidad, decimal PrecioUnitario,
-    decimal PorcentajeDescuento, string CodigoIva, decimal Base, decimal CantidadServida, decimal CantidadFacturada, decimal PendienteServir);
+    decimal PorcentajeDescuento, string CodigoIva, decimal Base, decimal CantidadServida, decimal CantidadFacturada, decimal PendienteServir, IReadOnlyList<ConceptoAplicado>? Conceptos = null, decimal ImporteConceptos = 0m, decimal CosteConceptos = 0m);
 
 public sealed record PedidoVentaDto(Guid Id, string Estado, int Ejercicio, int Numero, string NumeroCompleto, Guid ClienteId, string ClienteNombre,
     DateOnly Fecha, Guid? PresupuestoOrigenId, Guid? FacturaId, decimal Total, bool ServidoCompleto, IReadOnlyList<LineaPedidoVentaDto> Lineas)
@@ -17,7 +19,7 @@ public sealed record PedidoVentaDto(Guid Id, string Estado, int Ejercicio, int N
     public static PedidoVentaDto Desde(PedidoVenta p) => new(p.Id, p.Estado.ToString(), p.Ejercicio, p.Numero, p.NumeroCompleto, p.ClienteId, p.ClienteNombre,
         p.Fecha, p.PresupuestoOrigenId, p.FacturaId, p.Total, p.ServidoCompleto,
         p.Lineas.Select(l => new LineaPedidoVentaDto(l.Id, l.ProductoId, l.Descripcion, l.Cantidad, l.PrecioUnitario, l.PorcentajeDescuento,
-            l.CodigoIva, l.Base, l.CantidadServida, l.CantidadFacturada, l.PendienteServir)).ToList());
+            l.CodigoIva, l.Base, l.CantidadServida, l.CantidadFacturada, l.PendienteServir, l.Conceptos, l.ImporteConceptos, l.CosteConceptos)).ToList());
 }
 
 public sealed record LineaAlbaranVentaDto(Guid LineaPedidoId, Guid? ProductoId, string Descripcion, decimal Cantidad);
@@ -49,9 +51,10 @@ public interface IRepositorioAlbaranesVenta
 
 // ----------------------------------------------------------------------------- Comandos
 public sealed record LineaPedidoVentaComando(string Descripcion, decimal Cantidad, decimal PrecioUnitario,
-    string? CodigoIva = "IVA21", decimal PorcentajeDescuento = 0m, Guid? ProductoId = null);
+    string? CodigoIva = "IVA21", decimal PorcentajeDescuento = 0m, Guid? ProductoId = null, IReadOnlyList<ConceptoSolicitado>? Conceptos = null);
 
-public sealed record CrearPedidoVentaComando(Guid ClienteId, IReadOnlyList<LineaPedidoVentaComando> Lineas, DateOnly? Fecha = null);
+public sealed record CrearPedidoVentaComando(Guid ClienteId, IReadOnlyList<LineaPedidoVentaComando> Lineas, DateOnly? Fecha = null,
+    IReadOnlyList<ConceptoSolicitado>? ConceptosDocumento = null);
 
 public sealed record CrearPedidoDesdePresupuestoComando(Guid PresupuestoId, DateOnly? Fecha = null);
 
@@ -70,10 +73,12 @@ public sealed class CrearPedidoVenta
     private readonly IResolverSerie _resolverSerie;
     private readonly IUnidadDeTrabajoFacturacion _unidad;
     private readonly IReloj _reloj;
+    private readonly IResolverConceptos? _conceptos;
 
     public CrearPedidoVenta(IRepositorioPedidosVenta pedidos, IRepositorioPresupuestos presupuestos, IConsultaClientes clientes,
-        IResolverSerie resolverSerie, IUnidadDeTrabajoFacturacion unidad, IReloj reloj)
+        IResolverSerie resolverSerie, IUnidadDeTrabajoFacturacion unidad, IReloj reloj, IResolverConceptos? conceptos = null)
     {
+        _conceptos = conceptos;
         _pedidos = pedidos;
         _presupuestos = presupuestos;
         _clientes = clientes;
@@ -94,7 +99,8 @@ public sealed class CrearPedidoVenta
         var lineas = (comando.Lineas ?? Array.Empty<LineaPedidoVentaComando>())
             .Select(l => ((Guid?)l.ProductoId, l.Descripcion, l.Cantidad, l.PrecioUnitario, l.PorcentajeDescuento, l.CodigoIva ?? "IVA21")).ToList();
 
-        return await CrearInternoAsync(empresaId, comando.ClienteId, cliente.Nombre, comando.Fecha, null, lineas, ct).ConfigureAwait(false);
+        var solicitados = (comando.Lineas ?? []).Select(l => (l.Conceptos, (IReadOnlyList<ConceptoAplicado>?)null)).ToList();
+        return await CrearInternoAsync(empresaId, comando.ClienteId, cliente.Nombre, comando.Fecha, null, lineas, solicitados, comando.ConceptosDocumento, ct).ConfigureAwait(false);
     }
 
     public async Task<Resultado<PedidoVentaDto>> DesdePresupuestoAsync(Guid empresaId, CrearPedidoDesdePresupuestoComando comando, CancellationToken ct = default)
@@ -108,11 +114,14 @@ public sealed class CrearPedidoVenta
 
         var lineas = presupuesto.Lineas
             .Select(l => ((Guid?)l.ProductoId, l.Descripcion, l.Cantidad, l.PrecioUnitario, l.PorcentajeDescuento, l.CodigoIva)).ToList();
-        return await CrearInternoAsync(empresaId, presupuesto.ClienteId, presupuesto.ClienteNombre, comando.Fecha, presupuesto.Id, lineas, ct).ConfigureAwait(false);
+        var copiados = presupuesto.Lineas.Select(l => ((IReadOnlyList<ConceptoSolicitado>?)null, (IReadOnlyList<ConceptoAplicado>?)l.Conceptos)).ToList();
+        return await CrearInternoAsync(empresaId, presupuesto.ClienteId, presupuesto.ClienteNombre, comando.Fecha, presupuesto.Id, lineas, copiados, null, ct).ConfigureAwait(false);
     }
 
     private async Task<Resultado<PedidoVentaDto>> CrearInternoAsync(Guid empresaId, Guid clienteId, string clienteNombre, DateOnly? fechaOpt, Guid? presupuestoId,
-        List<(Guid?, string, decimal, decimal, decimal, string)> lineas, CancellationToken ct)
+        List<(Guid?, string, decimal, decimal, decimal, string)> lineas,
+        IReadOnlyList<(IReadOnlyList<ConceptoSolicitado>? Pedidos, IReadOnlyList<ConceptoAplicado>? Copiados)> conceptos,
+        IReadOnlyList<ConceptoSolicitado>? documento, CancellationToken ct)
     {
         var fecha = fechaOpt ?? DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
         var numero = await _pedidos.SiguienteNumeroAsync(empresaId, fecha.Year, ct).ConfigureAwait(false);
@@ -121,6 +130,11 @@ public sealed class CrearPedidoVenta
         if (pedido.EsFallo)
         {
             return Resultado.Fallo<PedidoVentaDto>(pedido.Error);
+        }
+
+        if (await PonerConceptosAsync(pedido.Valor, conceptos, documento, ct).ConfigureAwait(false) is { } error)
+        {
+            return Resultado.Fallo<PedidoVentaDto>(error);
         }
 
         _pedidos.Agregar(pedido.Valor);
@@ -152,8 +166,35 @@ public sealed class CrearPedidoVenta
             return Resultado.Fallo<PedidoVentaDto>(r.Error);
         }
 
+        var solicitados = (comando.Lineas ?? []).Select(l => (l.Conceptos, (IReadOnlyList<ConceptoAplicado>?)null)).ToList();
+        if (await PonerConceptosAsync(pedido, solicitados, comando.ConceptosDocumento, ct).ConfigureAwait(false) is { } error)
+        {
+            return Resultado.Fallo<PedidoVentaDto>(error);
+        }
+
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return Resultado.Ok(PedidoVentaDto.Desde(pedido));
+    }
+
+    private async Task<Error?> PonerConceptosAsync(PedidoVenta pedido,
+        IReadOnlyList<(IReadOnlyList<ConceptoSolicitado>? Pedidos, IReadOnlyList<ConceptoAplicado>? Copiados)> conceptos,
+        IReadOnlyList<ConceptoSolicitado>? documento, CancellationToken ct)
+    {
+        if (_conceptos is null)
+        {
+            return null;
+        }
+
+        var entrada = pedido.Lineas.Select((l, i) => new LineaConceptos(l.ProductoId, l.Cantidad, l.BaseBruta,
+            i < conceptos.Count ? conceptos[i].Pedidos : null, i < conceptos.Count ? conceptos[i].Copiados : null)).ToList();
+        var r = await _conceptos.ResolverAsync(AmbitoConcepto.Ventas, pedido.ClienteId, entrada, documento, true, ct).ConfigureAwait(false);
+        if (r.EsFallo)
+        {
+            return r.Error;
+        }
+
+        var puestos = pedido.PonerConceptos(r.Valor);
+        return puestos.EsFallo ? puestos.Error : null;
     }
 }
 
@@ -367,7 +408,7 @@ public sealed class FacturarPedidoVenta
         }
 
         var lineas = pedido.Lineas.Select(l => new LineaComando(
-            l.Cantidad, l.Descripcion, l.PrecioUnitario, l.CodigoIva, l.PorcentajeDescuento, l.ProductoId)).ToList();
+            l.Cantidad, l.Descripcion, l.PrecioUnitario, l.CodigoIva, l.PorcentajeDescuento, l.ProductoId, ConceptosCopiados: l.Conceptos)).ToList();
 
         var comandoFactura = new EmitirFacturaComando(
             pedido.ClienteId, lineas, comando.FechaEmision, null, null, null, comando.DiasVencimiento, false, comando.FormaPagoId);

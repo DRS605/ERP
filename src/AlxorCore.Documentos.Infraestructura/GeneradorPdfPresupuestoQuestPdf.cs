@@ -75,7 +75,15 @@ internal sealed class GeneradorPdfPresupuestoQuestPdf : IGeneradorPdfPresupuesto
                             tabla.Cell().AlignRight().Text(Redondeo.Formatear(linea.Cantidad));
                             tabla.Cell().AlignRight().Text(Redondeo.Formatear(linea.PrecioUnitario));
                             tabla.Cell().AlignRight().Text($"{Porcentaje(linea.PorcentajeIva)}%");
-                            tabla.Cell().AlignRight().Text(Redondeo.Formatear(linea.Base));
+                            tabla.Cell().AlignRight().Text(Redondeo.Formatear(linea.Base - linea.ImporteConceptos));
+                            foreach (var c in (linea.Conceptos ?? []).Where(c => c.Efecto == EfectoConcepto.Precio))
+                            {
+                                tabla.Cell().PaddingLeft(10).Text($"· {c.Nombre}{(c.Calculo == CalculoConcepto.Porcentaje ? $" ({Redondeo.Formatear(c.Valor)} %)" : string.Empty)}").FontSize(8).FontColor(Colors.Grey.Darken2);
+                                tabla.Cell();
+                                tabla.Cell();
+                                tabla.Cell();
+                                tabla.Cell().AlignRight().Text(Redondeo.Formatear(c.Importe)).FontSize(8).FontColor(Colors.Grey.Darken2);
+                            }
                         }
                     });
 

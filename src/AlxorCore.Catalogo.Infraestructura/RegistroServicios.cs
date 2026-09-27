@@ -72,6 +72,9 @@ public static class RegistroServicios
         servicios.AddScoped<CrearTarifa>();
         servicios.AddScoped<ActualizarTarifa>();
         servicios.AddScoped<ConsultarTarifas>();
+        servicios.AddScoped<IRepositorioConceptosLinea, RepositorioConceptosLinea>();
+        servicios.AddScoped<GestionConceptosLinea>();
+        servicios.AddScoped<IResolverConceptos, ResolverConceptos>();
         servicios.AddScoped<IResolverPrecioVenta, ResolverPrecioVenta>();
 
         return servicios;
