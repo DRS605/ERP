@@ -55,6 +55,10 @@ internal sealed class ConfiguracionFacturaRecibida : IEntityTypeConfiguration<Fa
         builder.Property(f => f.PorcentajeIrpf).HasColumnName("porcentaje_irpf").HasColumnType("numeric(5,2)");
         builder.Property(f => f.GastoId).HasColumnName("gasto_id");
         builder.Property(f => f.MotivoRechazo).HasColumnName("motivo_rechazo").HasMaxLength(500);
+        builder.Property(f => f.EmpresaOrigenId).HasColumnName("empresa_origen_id");
+        builder.Property(f => f.FacturaOrigenId).HasColumnName("factura_origen_id");
+        builder.HasIndex(f => new { f.EmpresaId, f.FacturaOrigenId }).IsUnique().HasFilter("factura_origen_id IS NOT NULL")
+            .HasDatabaseName("ux_factura_recibida_origen");
 
         builder.HasIndex(f => new { f.EmpresaId, f.Estado }).HasDatabaseName("ix_factura_recibida_empresa_estado");
         builder.Ignore(f => f.EventosDominio);
@@ -71,6 +75,13 @@ internal sealed class RepositorioFacturasRecibidas : IRepositorioFacturasRecibid
         _contexto.FacturasRecibidas.SingleOrDefaultAsync(f => f.Id == id, ct);
 
     public void Agregar(FacturaRecibida factura) => _contexto.FacturasRecibidas.Add(factura);
+
+    public Task<FacturaRecibida?> ObtenerPorFacturaOrigenAsync(Guid empresaId, Guid facturaOrigenId, CancellationToken ct = default) =>
+        _contexto.FacturasRecibidas.SingleOrDefaultAsync(f => f.EmpresaId == empresaId && f.FacturaOrigenId == facturaOrigenId, ct);
+
+    public async Task<IReadOnlyList<FacturaRecibidaDto>> IntragrupoAsync(Guid empresaId, CancellationToken ct = default) =>
+        (await _contexto.FacturasRecibidas.AsNoTracking().Where(f => f.EmpresaId == empresaId && f.Origen == OrigenRecepcion.Intragrupo)
+            .ToListAsync(ct).ConfigureAwait(false)).Select(FacturaRecibidaDto.Desde).ToList();
 
     public async Task<FacturaRecibidaDto?> ObtenerAsync(Guid id, CancellationToken ct = default)
     {

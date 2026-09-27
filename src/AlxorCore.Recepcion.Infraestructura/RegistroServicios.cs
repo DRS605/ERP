@@ -53,6 +53,7 @@ public static class RegistroServicios
         servicios.AddScoped<ValidarFactura>();
         servicios.AddScoped<ContabilizarFactura>();
         servicios.AddScoped<RechazarFactura>();
+        servicios.AddScoped<RecibirFacturaIntragrupo>();
         servicios.AddScoped<ListarFacturasRecibidas>();
         servicios.AddScoped<ObtenerFacturaRecibida>();
         servicios.AddScoped<ProcesarBuzon>();

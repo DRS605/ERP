@@ -5,6 +5,7 @@ using AlxorCore.Nucleo.Consultas;
 using AlxorCore.Nucleo.Multiempresa;
 using AlxorCore.Nucleo.Resultados;
 using AlxorCore.Organizacion.Aplicacion.CasosDeUso;
+using AlxorCore.Organizacion.Aplicacion.Puertos;
 using AlxorCore.Organizacion.Dominio;
 using AlxorCore.Terceros.Aplicacion;
 
@@ -146,19 +147,39 @@ public static class EndpointsTerceros
     private static async Task<IResult> ObtenerProvAsync(Guid id, ObtenerProveedor caso, CancellationToken ct) =>
         (await caso.EjecutarAsync(id, ct).ConfigureAwait(false)).AOk();
 
-    private static async Task<IResult> CrearProvAsync(DatosProveedor datos, IContextoEmpresa contexto, CrearProveedor caso, CancellationToken ct)
+    /// <summary>La empresa enlazada a un tercero tiene que ser del mismo grupo.</summary>
+    private static async Task<IResult?> EmpresaVinculadaInvalidaAsync(Guid? empresaId, IContextoEmpresa contexto, IConsultaEmpresas empresas, CancellationToken ct)
+    {
+        if (empresaId is not { } id || id == Guid.Empty)
+        {
+            return null;
+        }
+
+        var delGrupo = contexto.GrupoId is { } grupo ? await empresas.EmpresasDelGrupoAsync(grupo, ct).ConfigureAwait(false) : [];
+        return delGrupo.Any(e => e.Id == id)
+            ? null
+            : ResultadosHttp.AProblema(Error.Validacion("tercero.empresa_vinculada", "La empresa enlazada no es de este grupo."));
+    }
+
+    private static async Task<IResult> CrearProvAsync(DatosProveedor datos, IContextoEmpresa contexto, IConsultaEmpresas empresas, CrearProveedor caso, CancellationToken ct)
     {
         if (contexto.GrupoId is null)
         {
             return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
         }
 
+        if (await EmpresaVinculadaInvalidaAsync(datos.EmpresaVinculadaId, contexto, empresas, ct).ConfigureAwait(false) is { } invalida)
+        {
+            return invalida;
+        }
+
         var resultado = await caso.EjecutarAsync(contexto.GrupoId.Value, datos, ct).ConfigureAwait(false);
         return resultado.EsCorrecto ? resultado.ACreado($"/proveedores/{resultado.Valor.Id}") : ResultadosHttp.AProblema(resultado.Error);
     }
 
-    private static async Task<IResult> ActualizarProvAsync(Guid id, DatosProveedor datos, ActualizarProveedor caso, CancellationToken ct) =>
-        (await caso.EjecutarAsync(id, datos, ct).ConfigureAwait(false)).AOk();
+    private static async Task<IResult> ActualizarProvAsync(Guid id, DatosProveedor datos, IContextoEmpresa contexto, IConsultaEmpresas empresas, ActualizarProveedor caso, CancellationToken ct) =>
+        await EmpresaVinculadaInvalidaAsync(datos.EmpresaVinculadaId, contexto, empresas, ct).ConfigureAwait(false)
+            ?? (await caso.EjecutarAsync(id, datos, ct).ConfigureAwait(false)).AOk();
 
     private static async Task<IResult> ListarAsync(IContextoEmpresa contexto, ClaimsPrincipal usuario, IConsultaVisibilidad visibilidad, ListarClientes caso, CancellationToken ct, bool bajas = false)
     {
@@ -174,11 +195,16 @@ public static class EndpointsTerceros
     private static async Task<IResult> ObtenerAsync(Guid id, ObtenerCliente caso, CancellationToken ct) =>
         (await caso.EjecutarAsync(id, ct).ConfigureAwait(false)).AOk();
 
-    private static async Task<IResult> CrearAsync(DatosCliente datos, IContextoEmpresa contexto, CrearCliente caso, CancellationToken ct)
+    private static async Task<IResult> CrearAsync(DatosCliente datos, IContextoEmpresa contexto, IConsultaEmpresas empresas, CrearCliente caso, CancellationToken ct)
     {
         if (contexto.GrupoId is null)
         {
             return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        if (await EmpresaVinculadaInvalidaAsync(datos.EmpresaVinculadaId, contexto, empresas, ct).ConfigureAwait(false) is { } invalida)
+        {
+            return invalida;
         }
 
         var resultado = await caso.EjecutarAsync(contexto.GrupoId.Value, datos, ct).ConfigureAwait(false);
@@ -211,6 +237,7 @@ public static class EndpointsTerceros
         return Results.Ok(resultado);
     }
 
-    private static async Task<IResult> ActualizarAsync(Guid id, DatosCliente datos, ActualizarCliente caso, CancellationToken ct) =>
-        (await caso.EjecutarAsync(id, datos, ct).ConfigureAwait(false)).AOk();
+    private static async Task<IResult> ActualizarAsync(Guid id, DatosCliente datos, IContextoEmpresa contexto, IConsultaEmpresas empresas, ActualizarCliente caso, CancellationToken ct) =>
+        await EmpresaVinculadaInvalidaAsync(datos.EmpresaVinculadaId, contexto, empresas, ct).ConfigureAwait(false)
+            ?? (await caso.EjecutarAsync(id, datos, ct).ConfigureAwait(false)).AOk();
 }

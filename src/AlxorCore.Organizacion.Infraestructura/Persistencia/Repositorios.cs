@@ -27,6 +27,12 @@ internal sealed class RepositorioEmpresas : IRepositorioEmpresas, IConsultaEmpre
 
     public void Agregar(Empresa empresa) => _contexto.Empresas.Add(empresa);
 
+    public async Task<IReadOnlyList<EmpresaGrupoDto>> EmpresasDelGrupoAsync(Guid grupoId, CancellationToken ct = default) =>
+        (await _contexto.Empresas.Where(e => e.GrupoId == grupoId).OrderBy(e => e.RazonSocial).ToListAsync(ct).ConfigureAwait(false))
+            .Select(e => new EmpresaGrupoDto(e.Id, e.Nif.Valor, e.RazonSocial)).ToList();
+
+    public Task<Guid?> GrupoDeEmpresaAsync(Guid empresaId, CancellationToken ct = default) => ObtenerGrupoIdAsync(empresaId, ct);
+
     public async Task<EmpresaDto?> ObtenerAsync(Guid empresaId, CancellationToken ct = default)
     {
         var empresa = await _contexto.Empresas.SingleOrDefaultAsync(e => e.Id == empresaId, ct).ConfigureAwait(false);

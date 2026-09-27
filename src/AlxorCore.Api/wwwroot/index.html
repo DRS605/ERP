@@ -435,6 +435,8 @@
     ICON.proyectos = '<svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M8 13h8M8 16h5"/></svg>';
     ICON.aprobaciones = '<svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>';
     ICON.integraciones = '<svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>';
+    ICON.intragrupo = '<svg viewBox="0 0 24 24"><rect x="2" y="9" width="8" height="12" rx="1"/><rect x="14" y="3" width="8" height="18" rx="1"/><path d="M10 13h4M12 11l2 2-2 2"/></svg>';
+    ICON.actividades = '<svg viewBox="0 0 24 24"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg>';
 
     // Menú agrupado en carpetas: Ventas, Compras y Artículos.
     const NAV = [
@@ -446,6 +448,7 @@
       { t:"item", k:"proyectos", l:"Proyectos" },
       { t:"item", k:"prevision", l:"Previsión de tesorería" },
       { t:"item", k:"informes", l:"Informes" },
+      { t:"item", k:"intragrupo", l:"Entre empresas" },
       { t:"item", k:"gestion", l:"Análisis de gestión" },
       { t:"item", k:"contabilidad", l:"Contabilidad" },
       { t:"grupo", k:"analitica", l:"Analítica", items:[["analitica","Resultados por centro"],["analiticapend","Pendientes de imputar"],["analiticamaestros","Centros, partidas y reglas"],["presupuestoscont","Presupuestos"]] },
@@ -457,7 +460,7 @@
       { t:"item", k:"actividades", l:"Actividades de negocio" },
       { t:"item", k:"ajustes", l:"Ajustes" },
     ];
-    const TITULOS = { cartera:"Efectos de cartera", agrorecepciones:"Agro · recepciones de fruta", agropartidas:"Agro · partidas y palés", agroconfeccion:"Agro · confección", agroliquidaciones:"Agro · liquidaciones al agricultor", agrotrazabilidad:"Agro · trazabilidad", agroinforme:"Agro · informe de campaña", agromaestros:"Agro · campañas, agricultores y precios", analitica:"Analítica · resultados", analiticapend:"Analítica · pendientes de imputar", analiticamaestros:"Analítica · centros, partidas y reglas", presupuestoscont:"Presupuestos contables", impagados:"Impagados y reclamaciones", anticipos:"Anticipos de clientes", cartasporte:"Cartas de porte", actividades:"Actividades de negocio", inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos",tarifas:"Tarifas de precios", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", gestion:"Análisis de gestión", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", divisas:"Divisas y tipos de cambio", aprobaciones:"Aprobaciones y control de firmas", integraciones:"API pública y webhooks", ajustes:"Ajustes" };
+    const TITULOS = { cartera:"Efectos de cartera", agrorecepciones:"Agro · recepciones de fruta", agropartidas:"Agro · partidas y palés", agroconfeccion:"Agro · confección", agroliquidaciones:"Agro · liquidaciones al agricultor", agrotrazabilidad:"Agro · trazabilidad", agroinforme:"Agro · informe de campaña", agromaestros:"Agro · campañas, agricultores y precios", analitica:"Analítica · resultados", analiticapend:"Analítica · pendientes de imputar", analiticamaestros:"Analítica · centros, partidas y reglas", presupuestoscont:"Presupuestos contables", impagados:"Impagados y reclamaciones", anticipos:"Anticipos de clientes", cartasporte:"Cartas de porte", intragrupo:"Operaciones entre empresas del grupo", actividades:"Actividades de negocio", inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos",tarifas:"Tarifas de precios", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", gestion:"Análisis de gestión", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", divisas:"Divisas y tipos de cambio", aprobaciones:"Aprobaciones y control de firmas", integraciones:"API pública y webhooks", ajustes:"Ajustes" };
     // Plan contratado de la empresa activa (lo devuelve /empresas/{id}/seleccionar).
     let plan = null;
     // Vista → módulo contratable que necesita. Las vistas que no están aquí son de la base.
@@ -576,7 +579,7 @@
       document.getElementById("viewTitle").textContent=TITULOS[k]||k;
       if(!contratado(k)){ const m=NOMBRE_MODULO[MODULO_VISTA[k]]||MODULO_VISTA[k];
         view(panel("No incluido en tu plan",`<p class="muted" style="margin:0 0 14px">Esta pantalla forma parte del módulo <strong>${m}</strong>, que tu plan no incluye.</p><button class="btn small" onclick="ir('ajustes')">Ver planes en Ajustes →</button>`)); return; }
-      ({cartera:vCartera,agrorecepciones:vAgroRecepciones,agropartidas:vAgroPartidas,agroconfeccion:vAgroConfeccion,agroliquidaciones:vAgroLiquidaciones,agrotrazabilidad:vAgroTrazabilidad,agroinforme:()=>vAgroInforme(),agromaestros:()=>vAgroMaestros(),analitica:vAnalitica,analiticapend:vAnaliticaPend,analiticamaestros:vAnaliticaMaestros,presupuestoscont:vPresupuestosCont,impagados:vImpagados,anticipos:vAnticipos,cartasporte:vCartasPorte,actividades:vActividades,inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:vPedidosVenta,clientes:vClientes,productos:vProductos,familias:vFamilias,tarifas:vTarifas,gastos:vGastos,solicitudes:vSolicitudes,pedidos:vPedidos,inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,gestion:vGestion,contabilidad:vContabilidad,inmovilizado:vInmovilizado,divisas:vDivisas,aprobaciones:vAprobaciones,integraciones:vIntegraciones,ajustes:vAjustes}[k])();
+      ({cartera:vCartera,agrorecepciones:vAgroRecepciones,agropartidas:vAgroPartidas,agroconfeccion:vAgroConfeccion,agroliquidaciones:vAgroLiquidaciones,agrotrazabilidad:vAgroTrazabilidad,agroinforme:()=>vAgroInforme(),agromaestros:()=>vAgroMaestros(),analitica:vAnalitica,analiticapend:vAnaliticaPend,analiticamaestros:vAnaliticaMaestros,presupuestoscont:vPresupuestosCont,impagados:vImpagados,anticipos:vAnticipos,cartasporte:vCartasPorte,intragrupo:vIntragrupo,actividades:vActividades,inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:vPedidosVenta,clientes:vClientes,productos:vProductos,familias:vFamilias,tarifas:vTarifas,gastos:vGastos,solicitudes:vSolicitudes,pedidos:vPedidos,inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,gestion:vGestion,contabilidad:vContabilidad,inmovilizado:vInmovilizado,divisas:vDivisas,aprobaciones:vAprobaciones,integraciones:vIntegraciones,ajustes:vAjustes}[k])();
     }
     const view = h => { document.getElementById("view").innerHTML=h; try{ mejorarTablas(); }catch(e){} };
 
@@ -2161,7 +2164,7 @@
         return btns.join(" ");
       };
       const filas=rs.map(f=>`<tr>
-        <td><strong>${f.nombreArchivo}</strong><div class="muted" style="font-size:12px">${f.origen==="Correo"?("✉ "+(f.remitenteCorreo||"correo")):"⬆ subida manual"}</div></td>
+        <td><strong>${f.nombreArchivo}</strong><div class="muted" style="font-size:12px">${f.origen==="Intragrupo"?`<span class="pill part" style="font-size:10px">Empresa del grupo</span> ${agEsc(f.asuntoCorreo||"")}`:(f.origen==="Correo"?("✉ "+(f.remitenteCorreo||"correo")):"⬆ subida manual")}</div>${f.motivoRechazo?`<div class="muted" style="font-size:12px">${agEsc(f.motivoRechazo)}</div>`:""}</td>
         <td>${f.proveedorTexto||'<span class="muted">—</span>'}</td>
         <td class="muted">${f.numeroFactura||"—"}</td>
         <td class="muted">${f.fechaFactura?fdate(f.fechaFactura):"—"}</td>
@@ -2347,6 +2350,34 @@
       }catch(e){ toast(e.message,"err"); } }
 
     // ---- Anticipos de clientes (entregas a cuenta) ----
+    /* ---------- Operaciones entre empresas del grupo: cuadre recíproco, espejo y liquidación ---------- */
+    async function vIntragrupo(anio){
+      anio=anio||new Date().getFullYear();
+      view('<div class="muted">Cargando…</div>');
+      const [c,empresas]=await Promise.all([api(`/intragrupo/cuadre?ejercicio=${anio}`),api("/grupos/actual/empresas").catch(()=>[])]);
+      const selAnio=`<select onchange="vIntragrupo(Number(this.value))" style="width:auto">${[0,1,2,3].map(i=>new Date().getFullYear()-i).map(a=>`<option${a===anio?" selected":""}>${a}</option>`).join("")}</select>`;
+      const pill=sit=>sit==="Cuadrada"?'<span class="pill ok">Cuadrada</span>':(sit==="Anulada"?'<span class="pill wait">Anulada</span>':(sit==="Pendiente en destino"?'<span class="pill part">Pendiente en destino</span>':`<span class="pill neg">${agEsc(sit)}</span>`));
+      const intro=`<p class="muted" style="margin:0 0 12px">Enlaza en su ficha el cliente (y el proveedor) que es otra empresa del grupo. Lo que le factures llega a la bandeja de facturas recibidas de esa empresa con el PDF y sus datos, para validarlo y contabilizarlo allí. Aquí se comprueba que lo que factura cada empresa es lo que la otra ha contabilizado.</p>`;
+      if(empresas.length<2){ view(panel("Operaciones entre empresas",intro+'<p class="muted" style="margin:0">El grupo tiene una sola empresa. Crea otra empresa en el mismo grupo para operar entre ellas.</p>')); return; }
+      const bloques=c.parejas.map(p=>{
+        const filas=p.facturas.map(l=>`<tr><td class="mono"><strong>${agEsc(l.numero)}</strong></td><td class="muted">${fdate(l.fecha)}</td><td class="num">${eur(l.baseEmitida)}</td><td class="muted">${agEsc(l.estadoEspejo||"—")}</td><td class="num">${eur(l.baseContabilizada)}</td><td class="num">${l.diferencia?`<strong>${eur(l.diferencia)}</strong>`:"—"}</td><td>${pill(l.situacion)}</td>
+          <td class="right" style="white-space:nowrap">${l.situacion==="Sin reflejar"?`<button class="btn small secondary" onclick="reflejarIntragrupo('${l.facturaId}')">Enviar a ${agEsc(p.receptor)}</button>`:""}${l.situacion==="Cuadrada"?`<button class="btn small secondary" onclick="liquidarIntragrupo('${l.facturaId}','${agEsc(l.numero)}','${agEsc(p.receptor).replace(/'/g,"")}')">Liquidar</button>`:""}</td></tr>`).join("");
+        return panel(`${agEsc(p.emisor)} → ${agEsc(p.receptor)}`,`<div class="grid2" style="margin-bottom:10px"><div><span class="muted">Facturado</span> <strong>${eur(p.emitido)}</strong> · <span class="muted">contabilizado por ${agEsc(p.receptor)}</span> <strong>${eur(p.contabilizado)}</strong></div>
+          <div class="right">${p.pendienteEnDestino?`<span class="muted">pendiente de contabilizar</span> <strong>${eur(p.pendienteEnDestino)}</strong> · `:""}<span class="muted">diferencia</span> <strong>${eur(p.diferencia)}</strong></div></div>
+          <table><thead><tr><th>Factura</th><th>Fecha</th><th class="num">Base emitida</th><th>En destino</th><th class="num">Contabilizado</th><th class="num">Diferencia</th><th>Situación</th><th></th></tr></thead><tbody>${filas}</tbody></table>`);
+      }).join("");
+      const estado=c.parejas.length?(c.cuadra?'<span class="pill ok">El grupo cuadra</span>':'<span class="pill neg">Hay diferencias</span>'):"";
+      const sinAcceso=c.empresasSinAcceso.length?`<p class="muted" style="font-size:12px;margin:8px 0 0">Sin acceso (no se incluyen): ${c.empresasSinAcceso.map(agEsc).join(", ")}.</p>`:"";
+      view(panel(`Cuadre recíproco ${anio} ${estado}`,intro+(c.parejas.length?"":'<p class="muted" style="margin:0">Aún no hay facturas entre las empresas del grupo este ejercicio.</p>')+sinAcceso,selAnio)+bloques);
+    }
+    async function reflejarIntragrupo(id){
+      try{ const r=await api(`/intragrupo/facturas/${id}/reflejar`,{method:"POST"}); toast(`Enviada a la bandeja de ${r.empresaDestino}.`,"ok"); vIntragrupo(); }catch(e){ toast(e.message,"err"); } }
+    function liquidarIntragrupo(id,numero,receptor){
+      abrir(`Liquidar ${numero}`,`<p class="muted" style="margin:0 0 12px">Registra a la vez el cobro en esta empresa y el pago en ${receptor}, por el mismo importe. Vacío = todo lo pendiente.</p>
+        <div class="grid2"><div><label>Importe (€)</label><input id="li_imp" type="number" step="0.01" placeholder="Todo lo pendiente"/></div><div><label>Fecha</label><input id="li_f" type="date" value="${new Date().toISOString().slice(0,10)}"/></div></div>`,
+        async()=>{ const imp=val("li_imp"); const r=await api(`/intragrupo/facturas/${id}/liquidar`,{method:"POST",body:JSON.stringify({importe:imp?Number(imp):null,fecha:val("li_f")||null})});
+          toast(`Liquidados ${eur(r.importe)}: cobro aquí y pago en ${receptor}.`,"ok"); vIntragrupo(); });
+    }
     /* ---------- Cartas de porte (documento de control del transporte) ---------- */
     async function vCartasPorte(){
       view('<div class="muted">Cargando…</div>');
@@ -3958,7 +3989,12 @@
       try{ await api("/contabilidad/subcuenta",{method:"PUT",body:JSON.stringify({tipo, terceroId, nombre, cuentaPreferida:cuenta||null})}); }catch(e){ toast(e.message,"err"); }
     }
     let _cacheTarifas=[];
-    async function modalCliente(c){ [_cacheFormasPago,_cacheTarifas]=await Promise.all([api("/formas-pago").catch(()=>[]),api("/tarifas").catch(()=>[])]); abrir(c?"Editar cliente":"Nuevo cliente",`<label>Nombre</label><input id="c_nombre" placeholder="Nombre o razón social"/><div class="grid2"><div><label>NIF (opcional)</label><input id="c_nif"/></div><div><label>Email (opcional)</label><input id="c_email"/></div></div><label>IRPF por defecto (%)</label><input id="c_irpf" type="number" value="0"/>
+    // Empresas del grupo (para enlazar clientes y proveedores que son otra empresa del grupo).
+    function empresaGrupoSel(id,sel){ const otras=(window._empresasGrupo||[]); if(otras.length<2) return "";
+      return `<label style="margin-top:14px">Es una empresa del grupo (operaciones entre empresas)</label><select id="${id}"><option value="">— No, tercero externo —</option>${otras.map(e=>`<option value="${e.id}"${sel===e.id?" selected":""}>${agEsc(e.razonSocial)}</option>`).join("")}</select>
+        <div class="muted" style="font-size:12px;margin-top:4px">Lo que se facture a este tercero llega a la bandeja de facturas recibidas de esa empresa y cuenta en el cuadre entre empresas.</div>`; }
+    const valOpc=id=>{ const e=document.getElementById(id); return e?(e.value||null):undefined; };
+    async function modalCliente(c){ [_cacheFormasPago,_cacheTarifas,window._empresasGrupo]=await Promise.all([api("/formas-pago").catch(()=>[]),api("/tarifas").catch(()=>[]),api("/grupos/actual/empresas").catch(()=>[])]); abrir(c?"Editar cliente":"Nuevo cliente",`<label>Nombre</label><input id="c_nombre" placeholder="Nombre o razón social"/><div class="grid2"><div><label>NIF (opcional)</label><input id="c_nif"/></div><div><label>Email (opcional)</label><input id="c_email"/></div></div><label>IRPF por defecto (%)</label><input id="c_irpf" type="number" value="0"/>
       <label style="display:flex;align-items:center;gap:8px;margin-top:14px;font-weight:500;cursor:pointer"><input id="c_recargo" type="checkbox" style="width:auto"/> Cliente en recargo de equivalencia (minorista)</label>
       <label style="margin-top:14px">Domiciliación bancaria (opcional, para remesas SEPA)</label>
       <input id="c_iban" placeholder="IBAN del cliente (ES..)"/>
@@ -3976,13 +4012,14 @@
       <label style="margin-top:14px">Cuenta contable (430…)</label><input id="c_cuenta" placeholder="—"/><div id="c_cuenta_hint" class="muted" style="font-size:12px;margin-top:4px"></div>
       <label style="margin-top:14px">Forma de pago habitual (opcional)</label>${formaPagoSel("c_forma",c&&c.formaPagoDefectoId)}
       <label style="margin-top:14px">Límite de riesgo (€, opcional)</label><input id="c_riesgo" type="number" step="0.01" placeholder="Sin límite"/>
-      <label style="margin-top:14px">Tarifa de precios (opcional)</label><select id="c_tarifa"><option value="">— Precio del artículo —</option>${_cacheTarifas.filter(t=>t.activa||(c&&c.tarifaId===t.id)).map(t=>`<option value="${t.id}"${c&&c.tarifaId===t.id?" selected":""}>${agEsc(t.codigo)} · ${agEsc(t.nombre)}</option>`).join("")}</select>`,
-      async()=>{ const r=val("c_riesgo"); const b=JSON.stringify({nombre:val("c_nombre"),nifFiscal:val("c_nif")||null,email:val("c_email")||null,porcentajeIrpfDefecto:Number(val("c_irpf")),recargoEquivalencia:document.getElementById("c_recargo").checked,iban:val("c_iban")||null,mandatoReferencia:val("c_mref")||null,mandatoFecha:val("c_mfecha")||null,nifIva:val("c_iva")||null,tipo:val("c_tipo")||null,formaPagoDefectoId:val("c_forma")||null,limiteRiesgo:r?Number(r):null,esAdministracionPublica:document.getElementById("c_aapp").checked,dir3OficinaContable:val("c_oc")||null,dir3OrganoGestor:val("c_og")||null,dir3UnidadTramitadora:val("c_ut")||null}); const resp=await api("/clientes"+(c?"/"+c.id:""),{method:c?"PUT":"POST",body:b}); const cid=c?c.id:(resp&&resp.id);
+      <label style="margin-top:14px">Tarifa de precios (opcional)</label><select id="c_tarifa"><option value="">— Precio del artículo —</option>${_cacheTarifas.filter(t=>t.activa||(c&&c.tarifaId===t.id)).map(t=>`<option value="${t.id}"${c&&c.tarifaId===t.id?" selected":""}>${agEsc(t.codigo)} · ${agEsc(t.nombre)}</option>`).join("")}</select>
+      ${empresaGrupoSel("c_empresa",c&&c.empresaVinculadaId)}`,
+      async()=>{ const r=val("c_riesgo"); const b=JSON.stringify({nombre:val("c_nombre"),nifFiscal:val("c_nif")||null,email:val("c_email")||null,porcentajeIrpfDefecto:Number(val("c_irpf")),recargoEquivalencia:document.getElementById("c_recargo").checked,iban:val("c_iban")||null,mandatoReferencia:val("c_mref")||null,mandatoFecha:val("c_mfecha")||null,nifIva:val("c_iva")||null,tipo:val("c_tipo")||null,formaPagoDefectoId:val("c_forma")||null,limiteRiesgo:r?Number(r):null,esAdministracionPublica:document.getElementById("c_aapp").checked,dir3OficinaContable:val("c_oc")||null,dir3OrganoGestor:val("c_og")||null,dir3UnidadTramitadora:val("c_ut")||null,actividadNegocioId:c?c.actividadNegocioId||null:null,empresaVinculadaId:valOpc("c_empresa")===undefined?(c?c.empresaVinculadaId||null:null):valOpc("c_empresa")}); const resp=await api("/clientes"+(c?"/"+c.id:""),{method:c?"PUT":"POST",body:b}); const cid=c?c.id:(resp&&resp.id);
         if(cid&&(val("c_tarifa")||null)!==((c&&c.tarifaId)||null)) await api(`/clientes/${cid}/tarifa`,{method:"PUT",body:JSON.stringify({tarifaId:val("c_tarifa")||null})});
         await guardarSubcuentaCampo("Cliente", cid, val("c_nombre"), "c_cuenta"); vClientes(); });
       if(c){ rellenar({c_nombre:c.nombre,c_nif:c.nifFiscal,c_email:c.email,c_irpf:c.porcentajeIrpfDefecto,c_iban:c.iban,c_mref:c.mandatoReferencia,c_mfecha:c.mandatoFecha,c_iva:c.nifIva,c_tipo:c.tipo,c_riesgo:c.limiteRiesgo,c_oc:c.dir3OficinaContable,c_og:c.dir3OrganoGestor,c_ut:c.dir3UnidadTramitadora}); document.getElementById("c_recargo").checked=!!c.recargoEquivalencia; document.getElementById("c_aapp").checked=!!c.esAdministracionPublica; document.getElementById("c_dir3").style.display=c.esAdministracionPublica?"block":"none"; }
       cargarSubcuentaCampo("Cliente", c?c.id:null, "c_cuenta"); }
-    async function modalProveedor(pr){ _cacheFormasPago=await api("/formas-pago").catch(()=>[]); const fp=[["NoIndicada","Sin especificar"],["Transferencia","Transferencia"],["Domiciliacion","Domiciliación"],["Efectivo","Efectivo"],["Tarjeta","Tarjeta"],["Pagare","Pagaré"],["Confirming","Confirming"],["Otro","Otro"]].map(o=>`<option value="${o[0]}">${o[1]}</option>`).join("");
+    async function modalProveedor(pr){ [_cacheFormasPago,window._empresasGrupo]=await Promise.all([api("/formas-pago").catch(()=>[]),api("/grupos/actual/empresas").catch(()=>[])]); const fp=[["NoIndicada","Sin especificar"],["Transferencia","Transferencia"],["Domiciliacion","Domiciliación"],["Efectivo","Efectivo"],["Tarjeta","Tarjeta"],["Pagare","Pagaré"],["Confirming","Confirming"],["Otro","Otro"]].map(o=>`<option value="${o[0]}">${o[1]}</option>`).join("");
       abrir(pr?"Editar proveedor":"Nuevo proveedor",`<label>Nombre</label><input id="pr_nombre" placeholder="Nombre o razón social"/><div class="grid2"><div><label>NIF (opcional)</label><input id="pr_nif"/></div><div><label>IRPF (opcional)</label><input id="pr_irpf" type="number" value="0"/></div></div>
       <div class="grid2"><div><label>Forma de pago</label><select id="pr_pago">${fp}</select></div><div><label>Email (opcional)</label><input id="pr_email"/></div></div>
       <label style="margin-top:14px">NIF-IVA intracomunitario (opcional, para el modelo 349)</label>
@@ -3992,8 +4029,9 @@
       <label style="margin-top:14px">Cuenta contable (400…)</label><input id="pr_cuenta" placeholder="—"/><div id="pr_cuenta_hint" class="muted" style="font-size:12px;margin-top:4px"></div>
       <label style="margin-top:14px">Forma de pago habitual (opcional)</label>${formaPagoSel("pr_forma",pr&&pr.formaPagoDefectoId)}
       <label style="margin-top:14px">Límite de riesgo (€, opcional)</label><input id="pr_riesgo" type="number" step="0.01" placeholder="Sin límite"/>
-      <label style="margin-top:14px">IBAN (para pagarle por transferencia/confirming, opcional)</label><input id="pr_iban" placeholder="ES.."/>`,
-      async()=>{ const r=val("pr_riesgo"); const b=JSON.stringify({nombre:val("pr_nombre"),nifFiscal:val("pr_nif")||null,email:val("pr_email")||null,porcentajeIrpfDefecto:Number(val("pr_irpf")),formaPago:val("pr_pago"),nifIva:val("pr_iva")||null,tipo:val("pr_tipo")||null,formaPagoDefectoId:val("pr_forma")||null,limiteRiesgo:r?Number(r):null,iban:val("pr_iban")||null}); const resp=await api("/proveedores"+(pr?"/"+pr.id:""),{method:pr?"PUT":"POST",body:b}); await guardarSubcuentaCampo("Proveedor", pr?pr.id:(resp&&resp.id), val("pr_nombre"), "pr_cuenta"); vProveedores(); });
+      <label style="margin-top:14px">IBAN (para pagarle por transferencia/confirming, opcional)</label><input id="pr_iban" placeholder="ES.."/>
+      ${empresaGrupoSel("pr_empresa",pr&&pr.empresaVinculadaId)}`,
+      async()=>{ const r=val("pr_riesgo"); const b=JSON.stringify({nombre:val("pr_nombre"),nifFiscal:val("pr_nif")||null,email:val("pr_email")||null,porcentajeIrpfDefecto:Number(val("pr_irpf")),formaPago:val("pr_pago"),nifIva:val("pr_iva")||null,tipo:val("pr_tipo")||null,formaPagoDefectoId:val("pr_forma")||null,limiteRiesgo:r?Number(r):null,iban:val("pr_iban")||null,actividadNegocioId:pr?pr.actividadNegocioId||null:null,empresaVinculadaId:valOpc("pr_empresa")===undefined?(pr?pr.empresaVinculadaId||null:null):valOpc("pr_empresa")}); const resp=await api("/proveedores"+(pr?"/"+pr.id:""),{method:pr?"PUT":"POST",body:b}); await guardarSubcuentaCampo("Proveedor", pr?pr.id:(resp&&resp.id), val("pr_nombre"), "pr_cuenta"); vProveedores(); });
       if(pr) rellenar({pr_nombre:pr.nombre,pr_nif:pr.nifFiscal,pr_email:pr.email,pr_irpf:pr.porcentajeIrpfDefecto,pr_pago:pr.formaPago,pr_iva:pr.nifIva,pr_tipo:pr.tipo,pr_riesgo:pr.limiteRiesgo,pr_iban:pr.iban});
       cargarSubcuentaCampo("Proveedor", pr?pr.id:null, "pr_cuenta"); }
     async function modalProducto(p){ const [provs,prods,fams]=await Promise.all([api("/proveedores").catch(()=>[]),api("/productos").catch(()=>[]),api("/familias").catch(()=>[])]);

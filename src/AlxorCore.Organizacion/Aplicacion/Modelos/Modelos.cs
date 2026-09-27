@@ -32,6 +32,9 @@ public sealed record EmpresaDto(
 /// <summary>Resumen de una empresa a la que pertenece un usuario, con su rol.</summary>
 public sealed record EmpresaResumen(Guid Id, string Nif, string RazonSocial, string RolCodigo);
 
+/// <summary>Empresa de un grupo (para enlazar terceros y operar entre empresas).</summary>
+public sealed record EmpresaGrupoDto(Guid Id, string Nif, string RazonSocial);
+
 /// <summary>Vista de una serie de numeración.</summary>
 public sealed record SerieDto(Guid Id, TipoDocumento TipoDocumento, int Ejercicio, string Prefijo, long SiguienteNumero)
 {

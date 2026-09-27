@@ -14,6 +14,12 @@ public interface IConsultasOrganizacion
 public interface IConsultaEmpresas
 {
     Task<EmpresaDto?> ObtenerAsync(Guid empresaId, CancellationToken ct = default);
+
+    /// <summary>Empresas del grupo (holding), por razón social.</summary>
+    Task<IReadOnlyList<EmpresaGrupoDto>> EmpresasDelGrupoAsync(Guid grupoId, CancellationToken ct = default) => Task.FromResult<IReadOnlyList<EmpresaGrupoDto>>([]);
+
+    /// <summary>Grupo al que pertenece la empresa.</summary>
+    Task<Guid?> GrupoDeEmpresaAsync(Guid empresaId, CancellationToken ct = default) => Task.FromResult<Guid?>(null);
 }
 
 /// <summary>

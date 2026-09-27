@@ -13,6 +13,9 @@ public enum OrigenRecepcion
 
     /// <summary>La subió manualmente una persona.</summary>
     Manual = 2,
+
+    /// <summary>La emitió otra empresa del grupo a esta (documento espejo): llega con sus datos ya rellenos.</summary>
+    Intragrupo = 3,
 }
 
 /// <summary>
@@ -104,6 +107,40 @@ public sealed class FacturaRecibida : RaizAgregadoEmpresa<Guid>
     public Guid? GastoId { get; private set; }
 
     public string? MotivoRechazo { get; private set; }
+
+    /// <summary>Empresa del grupo que emitió la factura (solo en las intragrupo).</summary>
+    public Guid? EmpresaOrigenId { get; private set; }
+
+    /// <summary>Factura emitida en la empresa de origen de la que esta es el espejo.</summary>
+    public Guid? FacturaOrigenId { get; private set; }
+
+    /// <summary>
+    /// Recibe la factura que otra empresa del grupo ha emitido a esta: el PDF de la factura y sus datos (proveedor,
+    /// número, fecha, base, impuesto y retención) ya rellenos. Queda en la bandeja para que una persona la valide y la
+    /// contabilice, como cualquier otra.
+    /// </summary>
+    public static Resultado<FacturaRecibida> RecibirIntragrupo(Guid empresaId, Guid empresaOrigenId, Guid facturaOrigenId, string empresaOrigenNombre,
+        string? nombreArchivo, byte[]? pdf, Guid? proveedorId, string? numeroFactura, DateOnly fechaFactura, decimal? baseImponible, string? codigoIva,
+        decimal porcentajeIrpf, string? nota, IReloj reloj)
+    {
+        var r = Recibir(empresaId, OrigenRecepcion.Intragrupo, null, nota, nombreArchivo, "application/pdf", pdf, reloj);
+        if (r.EsFallo)
+        {
+            return r;
+        }
+
+        var f = r.Valor;
+        f.EmpresaOrigenId = empresaOrigenId;
+        f.FacturaOrigenId = facturaOrigenId;
+        f.ProveedorId = proveedorId;
+        f.ProveedorTexto = empresaOrigenNombre;
+        f.NumeroFactura = numeroFactura;
+        f.FechaFactura = fechaFactura;
+        f.BaseImponible = baseImponible is { } b ? Redondeo.Dos(b) : null;
+        f.CodigoIva = codigoIva;
+        f.PorcentajeIrpf = Redondeo.Dos(porcentajeIrpf);
+        return r;
+    }
 
     /// <summary>Da de alta una factura en la bandeja de entrada.</summary>
     public static Resultado<FacturaRecibida> Recibir(Guid empresaId, OrigenRecepcion origen,

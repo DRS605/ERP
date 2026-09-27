@@ -58,6 +58,9 @@ public sealed record NuevaLinea(
     decimal CosteUnitario = 0m,
     decimal PorcentajeRecargo = 0m);
 
+/// <summary>Se ha anulado una factura emitida.</summary>
+public sealed record FacturaAnulada(Guid FacturaId, Guid EmpresaId, string NumeroCompleto, string Motivo, DateTimeOffset OcurridoEn) : IEventoDominio;
+
 /// <summary>Se ha emitido una factura.</summary>
 public sealed record FacturaEmitida(
     Guid FacturaId,

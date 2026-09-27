@@ -28,7 +28,8 @@ public sealed record DatosCliente(
     string? Dir3OficinaContable = null,
     string? Dir3OrganoGestor = null,
     string? Dir3UnidadTramitadora = null,
-    Guid? ActividadNegocioId = null);
+    Guid? ActividadNegocioId = null,
+    Guid? EmpresaVinculadaId = null);
 
 /// <summary>Caso de uso: crear un cliente en la empresa activa.</summary>
 public sealed class CrearCliente
@@ -60,6 +61,7 @@ public sealed class CrearCliente
         cliente.Valor.EstablecerLimiteRiesgo(datos.LimiteRiesgo);
         cliente.Valor.EstablecerCentrosDir3(datos.EsAdministracionPublica, datos.Dir3OficinaContable, datos.Dir3OrganoGestor, datos.Dir3UnidadTramitadora);
         cliente.Valor.EstablecerActividad(datos.ActividadNegocioId);
+        cliente.Valor.EstablecerEmpresaVinculada(datos.EmpresaVinculadaId);
         _clientes.Agregar(cliente.Valor);
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return Resultado.Ok(ClienteDto.Desde(cliente.Valor));
@@ -102,6 +104,7 @@ public sealed class ActualizarCliente
         cliente.EstablecerLimiteRiesgo(datos.LimiteRiesgo);
         cliente.EstablecerCentrosDir3(datos.EsAdministracionPublica, datos.Dir3OficinaContable, datos.Dir3OrganoGestor, datos.Dir3UnidadTramitadora);
         cliente.EstablecerActividad(datos.ActividadNegocioId);
+        cliente.EstablecerEmpresaVinculada(datos.EmpresaVinculadaId);
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return Resultado.Ok(ClienteDto.Desde(cliente));
     }

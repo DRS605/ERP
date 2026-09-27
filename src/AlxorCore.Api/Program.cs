@@ -71,6 +71,7 @@ builder.Services.AddScoped<AlxorCore.Contabilidad.Aplicacion.IDeduccionImpuesto,
 // Agro: la autofactura de las liquidaciones es un gasto (Gastos/Tesorería) y el coste por kilo sale de la analítica.
 builder.Services.AddScoped<AlxorCore.Agro.Aplicacion.IAutofacturas, AlxorCore.Api.Comun.AutofacturasGastos>();
 builder.Services.AddScoped<AlxorCore.Agro.Aplicacion.IDocumentosExpedicion, AlxorCore.Api.Comun.DocumentosExpedicionFacturacion>();
+builder.Services.AddSingleton<AlxorCore.Api.Comun.OperacionesIntragrupo>();
 builder.Services.AddScoped<AlxorCore.Agro.Aplicacion.ICosteAnalitico, AlxorCore.Api.Comun.CosteAnaliticoContabilidad>();
 builder.Services.AgregarModuloAuditoria(builder.Configuration);
 builder.Services.AgregarModuloDivisas(builder.Configuration);
@@ -257,6 +258,7 @@ app.MapearTiposIva();
 app.MapearFacturacion();
 app.MapearVentas();
 app.MapearCartasPorte();
+app.MapearIntragrupo();
 app.MapearGastos();
 app.MapearRecepcion();
 app.MapearContabilidad();

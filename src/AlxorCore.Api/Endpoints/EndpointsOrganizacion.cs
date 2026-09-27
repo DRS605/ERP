@@ -5,6 +5,7 @@ using AlxorCore.Nucleo.Multiempresa;
 using AlxorCore.Nucleo.Resultados;
 using AlxorCore.Organizacion.Aplicacion;
 using AlxorCore.Organizacion.Aplicacion.CasosDeUso;
+using AlxorCore.Organizacion.Aplicacion.Puertos;
 using System.Security.Claims;
 
 namespace AlxorCore.Api.Endpoints;
@@ -38,6 +39,14 @@ public static class EndpointsOrganizacion
                 Results.Ok(new { id = contexto.GrupoId }))
             .WithTags("Grupos")
             .WithSummary("Devuelve el grupo (holding) de la empresa activa; sus maestros son compartidos.")
+            .RequireAuthorization();
+
+        rutas.MapGet("/grupos/actual/empresas", async (AlxorCore.Nucleo.Multiempresa.IContextoEmpresa contexto, IConsultaEmpresas empresas, CancellationToken ct) =>
+                contexto.GrupoId is { } grupo
+                    ? Results.Ok(await empresas.EmpresasDelGrupoAsync(grupo, ct).ConfigureAwait(false))
+                    : ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero.")))
+            .WithTags("Grupos")
+            .WithSummary("Empresas del grupo de la empresa activa (para enlazar clientes y proveedores del grupo).")
             .RequireAuthorization();
 
         empresas.MapPut("/actual/cobro", DatosCobroAsync)

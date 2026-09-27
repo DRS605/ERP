@@ -11,13 +11,14 @@ public sealed record FacturaRecibidaDto(
     Guid Id, string Origen, DateTimeOffset FechaRecepcion, string? RemitenteCorreo, string? AsuntoCorreo,
     string NombreArchivo, string TipoContenido, long TamanoBytes, string Estado,
     Guid? ProveedorId, string? ProveedorTexto, string? NumeroFactura, DateOnly? FechaFactura,
-    decimal? BaseImponible, string? CodigoIva, decimal? PorcentajeIrpf, Guid? GastoId, string? MotivoRechazo)
+    decimal? BaseImponible, string? CodigoIva, decimal? PorcentajeIrpf, Guid? GastoId, string? MotivoRechazo,
+    Guid? EmpresaOrigenId = null, Guid? FacturaOrigenId = null)
 {
     public static FacturaRecibidaDto Desde(FacturaRecibida f) => new(
         f.Id, f.Origen.ToString(), f.FechaRecepcion, f.RemitenteCorreo, f.AsuntoCorreo,
         f.NombreArchivo, f.TipoContenido, f.Contenido.LongLength, f.Estado.ToString(),
         f.ProveedorId, f.ProveedorTexto, f.NumeroFactura, f.FechaFactura,
-        f.BaseImponible, f.CodigoIva, f.PorcentajeIrpf, f.GastoId, f.MotivoRechazo);
+        f.BaseImponible, f.CodigoIva, f.PorcentajeIrpf, f.GastoId, f.MotivoRechazo, f.EmpresaOrigenId, f.FacturaOrigenId);
 }
 
 /// <summary>Contenido descargable de un adjunto.</summary>
@@ -27,6 +28,9 @@ public sealed record ContenidoAdjunto(string NombreArchivo, string TipoContenido
 public interface IRepositorioFacturasRecibidas
 {
     Task<FacturaRecibida?> ObtenerPorIdAsync(Guid id, CancellationToken ct = default);
+
+    /// <summary>El espejo de una factura emitida en otra empresa del grupo (null si no se ha reflejado).</summary>
+    Task<FacturaRecibida?> ObtenerPorFacturaOrigenAsync(Guid empresaId, Guid facturaOrigenId, CancellationToken ct = default);
 
     void Agregar(FacturaRecibida factura);
 }
@@ -39,6 +43,9 @@ public interface IConsultaFacturasRecibidas
     Task<IReadOnlyList<FacturaRecibidaDto>> ListarAsync(Guid empresaId, string? estado = null, CancellationToken ct = default);
 
     Task<ContenidoAdjunto?> ObtenerContenidoAsync(Guid id, CancellationToken ct = default);
+
+    /// <summary>Facturas recibidas de otras empresas del grupo.</summary>
+    Task<IReadOnlyList<FacturaRecibidaDto>> IntragrupoAsync(Guid empresaId, CancellationToken ct = default);
 }
 
 /// <summary>Unidad de trabajo del módulo Recepción.</summary>
@@ -379,5 +386,68 @@ public sealed class ProcesarBuzon
         }
 
         return false;
+    }
+}
+
+/// <summary>Datos de la factura que otra empresa del grupo emite a esta.</summary>
+public sealed record FacturaIntragrupo(Guid EmpresaOrigenId, string EmpresaOrigenNombre, Guid FacturaOrigenId, string NumeroFactura, DateOnly Fecha,
+    decimal? BaseImponible, string? CodigoIva, decimal PorcentajeIrpf, Guid? ProveedorId, string NombreArchivo, byte[] Pdf, string? Nota);
+
+/// <summary>
+/// Caso de uso: dejar en la bandeja de entrada la factura que otra empresa del grupo ha emitido a esta (el espejo).
+/// Es idempotente: si ya se reflejó, devuelve la que hay.
+/// </summary>
+public sealed class RecibirFacturaIntragrupo
+{
+    private readonly IRepositorioFacturasRecibidas _facturas;
+    private readonly IUnidadDeTrabajoRecepcion _unidad;
+    private readonly IReloj _reloj;
+
+    public RecibirFacturaIntragrupo(IRepositorioFacturasRecibidas facturas, IUnidadDeTrabajoRecepcion unidad, IReloj reloj)
+    {
+        _facturas = facturas;
+        _unidad = unidad;
+        _reloj = reloj;
+    }
+
+    public async Task<Resultado<FacturaRecibidaDto>> EjecutarAsync(Guid empresaId, FacturaIntragrupo datos, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(datos);
+        if (await _facturas.ObtenerPorFacturaOrigenAsync(empresaId, datos.FacturaOrigenId, ct).ConfigureAwait(false) is { } existente)
+        {
+            return Resultado.Ok(FacturaRecibidaDto.Desde(existente));
+        }
+
+        var f = FacturaRecibida.RecibirIntragrupo(empresaId, datos.EmpresaOrigenId, datos.FacturaOrigenId, datos.EmpresaOrigenNombre, datos.NombreArchivo, datos.Pdf,
+            datos.ProveedorId, datos.NumeroFactura, datos.Fecha, datos.BaseImponible, datos.CodigoIva, datos.PorcentajeIrpf, datos.Nota, _reloj);
+        if (f.EsFallo)
+        {
+            return Resultado.Fallo<FacturaRecibidaDto>(f.Error);
+        }
+
+        _facturas.Agregar(f.Valor);
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(FacturaRecibidaDto.Desde(f.Valor));
+    }
+
+    /// <summary>
+    /// La factura de origen se anuló: su espejo se rechaza si aún no se ha contabilizado. Si ya lo está, se devuelve
+    /// tal cual (la empresa receptora debe anular su gasto) y el cuadre intragrupo lo muestra.
+    /// </summary>
+    public async Task<Resultado<FacturaRecibidaDto?>> AnularOrigenAsync(Guid empresaId, Guid facturaOrigenId, string motivo, CancellationToken ct = default)
+    {
+        var f = await _facturas.ObtenerPorFacturaOrigenAsync(empresaId, facturaOrigenId, ct).ConfigureAwait(false);
+        if (f is null)
+        {
+            return Resultado.Ok<FacturaRecibidaDto?>(null);
+        }
+
+        if (f.Estado is EstadoRecepcion.Recibida or EstadoRecepcion.Validada)
+        {
+            f.Rechazar(motivo);
+            await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        }
+
+        return Resultado.Ok<FacturaRecibidaDto?>(FacturaRecibidaDto.Desde(f));
     }
 }

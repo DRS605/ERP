@@ -394,6 +394,7 @@ public sealed class Factura : RaizAgregadoEmpresa<Guid>
         MotivoAnulacion = motivo.Trim();
         FechaHoraAnulacion = generadoEn;
         HuellaAnulacion = Verifactu.CalcularHuellaAnulacion(nifEmisor, NumeroCompleto, huellaAnterior, generadoEn);
+        RegistrarEvento(new FacturaAnulada(Id, EmpresaId, NumeroCompleto, MotivoAnulacion, generadoEn));
         return Resultado.Ok();
     }
 

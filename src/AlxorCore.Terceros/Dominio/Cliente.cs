@@ -92,6 +92,12 @@ public sealed class Cliente : RaizAgregadoGrupo<Guid>
     /// </summary>
     public Guid? ActividadNegocioId { get; private set; }
 
+    /// <summary>
+    /// Empresa del grupo que es este cliente (operaciones entre empresas). Lo que se le factura (o se le compra) se
+    /// refleja en esa empresa y cuenta en el cuadre recíproco del grupo. Null = tercero externo.
+    /// </summary>
+    public Guid? EmpresaVinculadaId { get; private set; }
+
     /// <summary>Límite de riesgo (crédito) concedido al cliente. Null = sin límite. Editable.</summary>
     public decimal? LimiteRiesgo { get; private set; }
 
@@ -144,6 +150,10 @@ public sealed class Cliente : RaizAgregadoGrupo<Guid>
     /// <summary>Clasifica el cliente en una actividad de negocio (null o vacío = sin actividad).</summary>
     public void EstablecerActividad(Guid? actividadNegocioId) =>
         ActividadNegocioId = actividadNegocioId is { } a && a != Guid.Empty ? a : null;
+
+    /// <summary>Enlaza el cliente con una empresa del grupo (null o vacío = tercero externo).</summary>
+    public void EstablecerEmpresaVinculada(Guid? empresaId) =>
+        EmpresaVinculadaId = empresaId is { } e && e != Guid.Empty ? e : null;
 
     /// <summary>Fija el límite de riesgo del cliente (null o negativo = sin límite).</summary>
     public void EstablecerLimiteRiesgo(decimal? limite) => LimiteRiesgo = limite is > 0m ? limite : null;

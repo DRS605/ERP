@@ -42,6 +42,29 @@ public sealed partial class InterfazClasicaTests : IClassFixture<FabricaApiPrueb
     private static partial Regex Metodo();
 
     [Fact]
+    public void Toda_entrada_del_menu_tiene_icono_titulo_y_vista()
+    {
+        // Sin icono, el menú pinta «undefined»; sin título o sin vista, la entrada no abre nada.
+        var js = Script.Value;
+        var iconos = Regex.Matches(js, @"(?m)^\s{6}(\w+):'<svg").Select(m => m.Groups[1].Value)
+            .Concat(Regex.Matches(js, @"ICON\.(\w+)\s*=").Select(m => m.Groups[1].Value)).ToHashSet(StringComparer.Ordinal);
+        var nav = js[js.IndexOf("const NAV = [", StringComparison.Ordinal)..];
+        nav = nav[..nav.IndexOf("];", StringComparison.Ordinal)];
+        var entradas = Regex.Matches(nav, @"t:""(item|grupo)"",\s*k:""(\w+)""").Select(m => (Tipo: m.Groups[1].Value, Clave: m.Groups[2].Value)).ToList();
+        entradas.Should().NotBeEmpty();
+        entradas.Where(e => !iconos.Contains(e.Clave)).Select(e => e.Clave).Should().BeEmpty("cada entrada del menú necesita su icono en ICON");
+
+        var titulos = js[js.IndexOf("const TITULOS", StringComparison.Ordinal)..];
+        titulos = titulos[..titulos.IndexOf('\n', StringComparison.Ordinal)];
+        var vistas = Regex.Matches(nav, @"\[""(\w+)"",""[^""]+""\]").Select(m => m.Groups[1].Value)
+            .Concat(entradas.Where(e => e.Tipo == "item").Select(e => e.Clave)).Distinct().ToList();
+        vistas.Where(v => !Regex.IsMatch(titulos, $@"\b{v}:")).Should().BeEmpty("cada vista del menú necesita su título en TITULOS");
+        var mapa = Regex.Match(js, @"\(\{cartera:vCartera[^}]+\}\[k\]\)").Value;
+        mapa.Should().NotBeEmpty();
+        vistas.Where(v => !Regex.IsMatch(mapa, $@"\b{v}:")).Should().BeEmpty("cada vista del menú necesita su función en ir()");
+    }
+
+    [Fact]
     public void Ninguna_funcion_se_declara_dos_veces()
     {
         // En un script, una segunda declaración con el mismo nombre sustituye a la primera sin avisar.

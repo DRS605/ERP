@@ -33,6 +33,9 @@ public sealed class ProcesarBuzonTests
         public Task<FacturaRecibida?> ObtenerPorIdAsync(Guid id, CancellationToken ct = default) =>
             Task.FromResult(Agregadas.Find(f => f.Id == id));
 
+        public Task<FacturaRecibida?> ObtenerPorFacturaOrigenAsync(Guid empresaId, Guid facturaOrigenId, CancellationToken ct = default) =>
+            Task.FromResult(Agregadas.Find(f => f.EmpresaId == empresaId && f.FacturaOrigenId == facturaOrigenId));
+
         public void Agregar(FacturaRecibida factura) => Agregadas.Add(factura);
     }
 

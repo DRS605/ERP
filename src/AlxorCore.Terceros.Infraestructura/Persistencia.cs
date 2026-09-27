@@ -61,6 +61,8 @@ internal sealed class ConfiguracionCliente : IEntityTypeConfiguration<Cliente>
         builder.Property(c => c.Tipo).HasColumnName("tipo").HasMaxLength(Cliente.LongitudMaximaTipo);
         builder.Property(c => c.FormaPagoDefectoId).HasColumnName("forma_pago_defecto_id");
         builder.Property(c => c.ActividadNegocioId).HasColumnName("actividad_negocio_id");
+        builder.Property(c => c.EmpresaVinculadaId).HasColumnName("empresa_vinculada_id");
+        builder.HasIndex(c => c.EmpresaVinculadaId).HasDatabaseName("ix_cliente_empresa_vinculada");
         builder.Property(c => c.LimiteRiesgo).HasColumnName("limite_riesgo").HasColumnType("numeric(14,2)");
         builder.Property(c => c.TarifaId).HasColumnName("tarifa_id");
         builder.Property(c => c.Activo).HasColumnName("activo").IsRequired();
@@ -179,6 +181,8 @@ internal sealed class ConfiguracionProveedor : IEntityTypeConfiguration<Proveedo
         builder.Property(p => p.Tipo).HasColumnName("tipo").HasMaxLength(Proveedor.LongitudMaximaTipo);
         builder.Property(p => p.FormaPagoDefectoId).HasColumnName("forma_pago_defecto_id");
         builder.Property(p => p.ActividadNegocioId).HasColumnName("actividad_negocio_id");
+        builder.Property(p => p.EmpresaVinculadaId).HasColumnName("empresa_vinculada_id");
+        builder.HasIndex(p => p.EmpresaVinculadaId).HasDatabaseName("ix_proveedor_empresa_vinculada");
         builder.Property(p => p.LimiteRiesgo).HasColumnName("limite_riesgo").HasColumnType("numeric(14,2)");
         builder.Property(p => p.Iban).HasColumnName("iban").HasMaxLength(34);
         builder.Property(p => p.Activo).HasColumnName("activo").IsRequired();
