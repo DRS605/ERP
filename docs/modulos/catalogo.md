@@ -77,14 +77,44 @@ líneas trazadas y lo propaga a la entrada de almacén.
 
 ### Artículos compuestos (lista de materiales)
 
-Un artículo puede ser **compuesto** (`EsCompuesto`): se fabrica a partir de otros mediante una
-**lista de materiales** (`Componentes`), donde cada componente es otro artículo con una cantidad (en
-la unidad base del componente) por unidad del compuesto. Reglas: al menos un componente, cantidades
-`> 0`, sin autorreferencia ni componentes repetidos. El dominio ofrece `Explosionar(cantidad)` (qué y
-cuánto hace falta para fabricar N unidades) y las consultas calculan el **escandallo** (coste
-agregado = Σ coste_componente × cantidad). Esta lista de materiales es la base del futuro módulo de
-**producción**: el módulo **Inventario** ya la usa en el **montaje** (`/inventario/montaje`), que
-consume los componentes del almacén y da entrada del artículo compuesto de forma atómica.
+Un artículo puede ser **compuesto** (`EsCompuesto`): se fabrica o se vende a partir de otros mediante una **lista de
+materiales** (`Componentes`). Cada componente es otro artículo con una cantidad (en su unidad base) por unidad del
+compuesto. Reglas: al menos un componente, cantidades `> 0`, sin repetidos y sin ciclos.
+
+**Tipo de composición** (`Composicion`), lo que en Hispatec son los indicadores de `ArticulosComposicion`:
+
+| Tipo | Existencias | Al vender | Montaje |
+|---|---|---|---|
+| Fabricación | Propias | Sale el compuesto | `/inventario/montaje` consume los componentes y da entrada del compuesto |
+| Kit de venta | No tiene | Salen sus componentes (en todos los niveles de kits), con motivo «Venta (kit …)» | No se monta |
+
+**Varios niveles.** Un componente puede ser a su vez compuesto:
+
+- el árbol admite hasta 10 niveles;
+- no admite ciclos: A no puede llevar B si B ya lleva A en cualquier nivel.
+
+**Escandallo** (`GET /productos/{id}/composicion`) calcula de abajo arriba:
+
+- el **árbol** completo;
+- el **coste**: el de un subcompuesto sale de sus componentes;
+- el **peso**: con el `PesoKg` de cada artículo (la tara de envases y palés compuestos);
+- la **explosión** en materiales básicos de todos los niveles;
+- en un kit, **cuántos se pueden vender** con las existencias de sus componentes.
+
+**Precio según componentes** (opcional): es la suma de los precios de los componentes con un ajuste en %
+(negativo = descuento de pack).
+
+- Se aplica al guardar la composición y queda en el histórico de precios.
+- `POST /productos/composiciones/recalcular-precios` lo recalcula en todo el grupo tras cambiar precios de
+  componentes.
+
+**Crearlos rápido y sin duplicar:**
+
+- **Copiar** un compuesto lleva su lista de materiales a la copia.
+- `POST /productos/composiciones/buscar` devuelve los compuestos que tienen exactamente la misma lista.
+- Al guardar, se avisa si ya existe uno igual.
+- `GET /productos/{id}/usos` dice **dónde se usa** un artículo: directamente o dentro de otro compuesto, con la
+  cantidad por unidad.
 
 ### Variantes de artículo
 

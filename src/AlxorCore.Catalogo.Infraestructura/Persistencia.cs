@@ -87,6 +87,11 @@ internal sealed class ConfiguracionProducto : IEntityTypeConfiguration<Producto>
         builder.Ignore(p => p.RequiereLoteOSerie);
         builder.Ignore(p => p.EsVariante);
         builder.Ignore(p => p.ResumenVariante);
+        builder.Property(p => p.Composicion).HasColumnName("tipo_composicion").HasMaxLength(20).HasConversion<string>()
+            .HasDefaultValue(TipoComposicion.Fabricacion).HasSentinel((TipoComposicion)0).IsRequired();
+        builder.Property(p => p.PrecioSegunComponentes).HasColumnName("precio_segun_componentes").HasDefaultValue(false).IsRequired();
+        builder.Property(p => p.AjustePrecioComponentes).HasColumnName("ajuste_precio_componentes").HasColumnType("numeric(7,2)").HasDefaultValue(0m).IsRequired();
+        builder.Property(p => p.PesoKg).HasColumnName("peso_kg").HasColumnType("numeric(12,3)");
         builder.OwnsMany(p => p.Componentes, c =>
         {
             c.ToTable("componente_articulo");
@@ -304,6 +309,12 @@ internal sealed class RepositorioProductos : IRepositorioProductos, IConsultaPro
     public void Agregar(Producto producto) => _contexto.Productos.Add(producto);
 
     public void Eliminar(Producto producto) => _contexto.Productos.Remove(producto);
+
+    public async Task<IReadOnlyList<Producto>> CompuestosConComponenteAsync(Guid componenteId, CancellationToken ct = default) =>
+        await _contexto.Productos.Where(p => p.EsCompuesto && p.Componentes.Any(c => c.ComponenteId == componenteId)).ToListAsync(ct).ConfigureAwait(false);
+
+    public async Task<IReadOnlyList<Producto>> CompuestosAsync(Guid grupoId, CancellationToken ct = default) =>
+        await _contexto.Productos.Where(p => p.GrupoId == grupoId && p.EsCompuesto).ToListAsync(ct).ConfigureAwait(false);
 
     public async Task<ProductoDto?> ObtenerAsync(Guid productoId, CancellationToken ct = default)
     {

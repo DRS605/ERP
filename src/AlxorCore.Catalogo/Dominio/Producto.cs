@@ -31,6 +31,16 @@ public enum SeguimientoArticulo
 /// <summary>Se ha creado un producto.</summary>
 public sealed record ProductoCreado(Guid ProductoId, Guid GrupoId, DateTimeOffset OcurridoEn) : IEventoDominio;
 
+/// <summary>Cómo se comporta un artículo compuesto.</summary>
+public enum TipoComposicion
+{
+    /// <summary>Se fabrica o se monta: tiene existencias propias y su montaje consume los componentes.</summary>
+    Fabricacion = 1,
+
+    /// <summary>Kit (pack) de venta: no tiene existencias propias; al venderlo se descuentan sus componentes.</summary>
+    Kit = 2,
+}
+
 /// <summary>
 /// Componente de la lista de materiales de un artículo compuesto: qué artículo entra y en qué
 /// cantidad (en la unidad base del componente) para fabricar una unidad del compuesto.
@@ -199,14 +209,61 @@ public sealed class Producto : RaizAgregadoGrupo<Guid>
     /// <summary>Lista de materiales (componentes) del artículo compuesto.</summary>
     public IReadOnlyList<ComponenteArticulo> Componentes => _componentes;
 
+    /// <summary>Fabricación (existencias propias) o kit de venta (descuenta los componentes al venderse).</summary>
+    public TipoComposicion Composicion { get; private set; } = TipoComposicion.Fabricacion;
+
+    /// <summary>El precio de venta es la suma de los precios de los componentes con <see cref="AjustePrecioComponentes"/>.</summary>
+    public bool PrecioSegunComponentes { get; private set; }
+
+    /// <summary>Ajuste (%) sobre la suma de precios de los componentes: negativo para un descuento de pack.</summary>
+    public decimal AjustePrecioComponentes { get; private set; }
+
+    /// <summary>Peso neto de una unidad (kg), para la tara y el peso de los compuestos. Null = sin indicar.</summary>
+    public decimal? PesoKg { get; private set; }
+
+    /// <summary>Fija el peso por unidad (null = sin indicar; positivo, hasta 3 decimales).</summary>
+    public Resultado EstablecerPeso(decimal? pesoKg)
+    {
+        if (pesoKg is < 0m || (pesoKg is { } p && decimal.Round(p, 3) != p))
+        {
+            return Resultado.Fallo(Error.Validacion("producto.peso", "El peso es positivo, con hasta 3 decimales."));
+        }
+
+        PesoKg = pesoKg is 0m ? null : pesoKg;
+        return Resultado.Ok();
+    }
+
+    /// <summary>Aplica el precio calculado desde los componentes (solo si el compuesto lo tiene así configurado).</summary>
+    public void FijarPrecioSegunComponentes(decimal precio, IReloj reloj)
+    {
+        ArgumentNullException.ThrowIfNull(reloj);
+        if (!EsCompuesto || !PrecioSegunComponentes)
+        {
+            return;
+        }
+
+        PrecioUnitario = Redondeo.Dos(Math.Max(precio, 0m));
+        ActualizadoEn = reloj.AhoraUtc;
+    }
+
     /// <summary>
     /// Define la lista de materiales del artículo (lo convierte en compuesto). Cada componente es
     /// otro artículo con una cantidad &gt; 0; no puede incluirse a sí mismo.
     /// </summary>
-    public Resultado DefinirComposicion(IReadOnlyList<(Guid ComponenteId, decimal Cantidad)> componentes, IReloj reloj)
+    public Resultado DefinirComposicion(IReadOnlyList<(Guid ComponenteId, decimal Cantidad)> componentes, IReloj reloj,
+        TipoComposicion tipo = TipoComposicion.Fabricacion, bool precioSegunComponentes = false, decimal ajustePrecio = 0m)
     {
         ArgumentNullException.ThrowIfNull(reloj);
         ArgumentNullException.ThrowIfNull(componentes);
+        if (!Enum.IsDefined(tipo))
+        {
+            return Resultado.Fallo(Error.Validacion("composicion.tipo", "El tipo de composición no es válido."));
+        }
+
+        if (ajustePrecio is < -100m or > 1000m)
+        {
+            return Resultado.Fallo(Error.Validacion("composicion.ajuste", "El ajuste de precio va de -100 % a 1.000 %."));
+        }
 
         if (componentes.Count == 0)
         {
@@ -238,6 +295,9 @@ public sealed class Producto : RaizAgregadoGrupo<Guid>
         }
 
         EsCompuesto = true;
+        Composicion = tipo;
+        PrecioSegunComponentes = precioSegunComponentes;
+        AjustePrecioComponentes = Math.Round(ajustePrecio, 2, MidpointRounding.AwayFromZero);
         ActualizadoEn = reloj.AhoraUtc;
         return Resultado.Ok();
     }
@@ -248,6 +308,9 @@ public sealed class Producto : RaizAgregadoGrupo<Guid>
         ArgumentNullException.ThrowIfNull(reloj);
         _componentes.Clear();
         EsCompuesto = false;
+        Composicion = TipoComposicion.Fabricacion;
+        PrecioSegunComponentes = false;
+        AjustePrecioComponentes = 0m;
         ActualizadoEn = reloj.AhoraUtc;
     }
 

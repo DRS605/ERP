@@ -17,7 +17,8 @@ internal sealed class ConsultaComposicionCatalogo : IConsultaComposicion
     public async Task<IReadOnlyList<(Guid ComponenteId, decimal Cantidad)>?> ObtenerComponentesAsync(Guid productoId, CancellationToken ct = default)
     {
         var r = await _composicion.EjecutarAsync(productoId, ct).ConfigureAwait(false);
-        if (r.EsFallo || !r.Valor.EsCompuesto)
+        // Un kit de venta no se monta: no tiene existencias propias, se descuentan sus componentes al venderlo.
+        if (r.EsFallo || !r.Valor.EsCompuesto || r.Valor.TipoComposicion == "Kit")
         {
             return null;
         }

@@ -33,7 +33,9 @@ public sealed record ProductoDto(
     string Variante,
     string? Familia,
     Guid? FamiliaId,
-    Guid? ActividadNegocioId = null)
+    Guid? ActividadNegocioId = null,
+    string TipoComposicion = "Fabricacion",
+    decimal? PesoKg = null)
 {
     /// <summary>
     /// Construye el DTO. Las existencias (<paramref name="stock"/>) son por empresa (el catálogo se
@@ -45,15 +47,32 @@ public sealed record ProductoDto(
         var porcentaje = Impuesto.PorCodigoImpuesto(p.CodigoIva).Valor.Porcentaje;
         return new ProductoDto(p.Id, p.Referencia, p.Nombre, p.Tipo, p.PrecioUnitario, p.CodigoIva, porcentaje, p.Unidad, p.Activo, p.PrecioCompra, p.ProveedorHabitualId, p.ControlarStock, stock,
             p.UnidadCompra, p.FactorCompra, p.UnidadVenta, p.FactorVenta, p.PrecioCompraPorUnidadCompra, p.PrecioVentaPorUnidadVenta, p.Seguimiento, p.EsCompuesto,
-            p.ProductoPadreId, p.EsPlantilla, p.ResumenVariante, p.Familia, p.FamiliaId, p.ActividadNegocioId);
+            p.ProductoPadreId, p.EsPlantilla, p.ResumenVariante, p.Familia, p.FamiliaId, p.ActividadNegocioId, p.Composicion.ToString(), p.PesoKg);
     }
 }
 
-/// <summary>Componente de la lista de materiales, enriquecido con nombre y coste.</summary>
-public sealed record ComponenteDto(Guid ComponenteId, string Nombre, decimal Cantidad, string Unidad, decimal CosteUnitario, decimal CosteLinea);
+/// <summary>
+/// Componente de la lista de materiales, con nombre, coste, precio y peso. Si es a su vez compuesto, lleva su propia
+/// lista (<see cref="Componentes"/>): el árbol completo, con el coste y el peso calculados de abajo arriba.
+/// </summary>
+public sealed record ComponenteDto(Guid ComponenteId, string Nombre, decimal Cantidad, string Unidad, decimal CosteUnitario, decimal CosteLinea,
+    bool EsCompuesto = false, string? TipoComposicion = null, decimal PrecioUnitario = 0m, decimal? PesoKg = null, IReadOnlyList<ComponenteDto>? Componentes = null);
 
-/// <summary>Lista de materiales de un artículo compuesto, con el coste agregado (escandallo).</summary>
-public sealed record ComposicionDto(Guid ProductoId, bool EsCompuesto, decimal CosteTotal, IReadOnlyList<ComponenteDto> Componentes);
+/// <summary>Necesidad de un material básico (sin composición) para una unidad del compuesto, sumando todos los niveles.</summary>
+public sealed record NecesidadDto(Guid ProductoId, string Nombre, string Unidad, decimal Cantidad, bool ControlarStock, decimal Stock);
+
+/// <summary>
+/// Lista de materiales de un artículo compuesto (escandallo): árbol de varios niveles, coste, precio según
+/// componentes, peso calculado, explosión en materiales básicos y, en un kit, cuántos se pueden vender con las
+/// existencias de sus componentes. <see cref="CompuestosIguales"/> avisa de otros compuestos con la misma lista.
+/// </summary>
+public sealed record ComposicionDto(Guid ProductoId, bool EsCompuesto, decimal CosteTotal, IReadOnlyList<ComponenteDto> Componentes,
+    string TipoComposicion = "Fabricacion", bool PrecioSegunComponentes = false, decimal AjustePrecio = 0m, decimal PrecioComponentes = 0m,
+    decimal? PrecioCalculado = null, decimal? PesoKg = null, int Niveles = 0, IReadOnlyList<NecesidadDto>? Explosion = null, decimal? DisponibleKit = null,
+    IReadOnlyList<string>? CompuestosIguales = null);
+
+/// <summary>Un compuesto que usa el artículo (directamente, nivel 1, o dentro de otro compuesto).</summary>
+public sealed record UsoComponenteDto(Guid ProductoId, string Nombre, string TipoComposicion, int Nivel, decimal CantidadPorUnidad);
 
 /// <summary>Fila del histórico de movimientos de stock de un producto.</summary>
 public sealed record MovimientoStockDto(DateTimeOffset Fecha, string Tipo, decimal Cantidad, decimal StockResultante, string? Motivo)
@@ -77,6 +96,12 @@ public sealed record ImpuestoDto(string Codigo, string Nombre, TipoImpuesto Tipo
 public interface IRepositorioProductos
 {
     Task<Producto?> ObtenerPorIdAsync(Guid id, CancellationToken ct = default);
+
+    /// <summary>Compuestos que llevan el artículo como componente directo.</summary>
+    Task<IReadOnlyList<Producto>> CompuestosConComponenteAsync(Guid componenteId, CancellationToken ct = default) => Task.FromResult<IReadOnlyList<Producto>>([]);
+
+    /// <summary>Compuestos del grupo (para buscar uno con la misma lista de materiales).</summary>
+    Task<IReadOnlyList<Producto>> CompuestosAsync(Guid grupoId, CancellationToken ct = default) => Task.FromResult<IReadOnlyList<Producto>>([]);
 
     void Agregar(Producto producto);
 

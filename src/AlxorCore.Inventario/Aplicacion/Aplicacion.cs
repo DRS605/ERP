@@ -432,7 +432,7 @@ public sealed class MontajeArticulo
         var componentes = await _composicion.ObtenerComponentesAsync(c.ProductoId, ct).ConfigureAwait(false);
         if (componentes is null || componentes.Count == 0)
         {
-            return Resultado.Fallo<ExistenciaDto>(Error.Validacion("montaje.no_compuesto", "El artículo no tiene lista de materiales (no es compuesto)."));
+            return Resultado.Fallo<ExistenciaDto>(Error.Validacion("montaje.no_compuesto", "El artículo no tiene lista de materiales de fabricación (no es compuesto, o es un kit de venta, que no se monta)."));
         }
 
         var fecha = c.Fecha ?? DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);

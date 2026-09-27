@@ -79,6 +79,24 @@ public static class EndpointsCatalogo
             .WithSummary("Define (o vacía) la lista de materiales de un artículo compuesto.")
             .RequierePermiso(Permisos.ProductoGestionar);
 
+        productos.MapGet("/{id:guid}/usos", async (Guid id, ObtenerComposicion caso, CancellationToken ct) => (await caso.UsosAsync(id, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Dónde se usa el artículo: compuestos que lo llevan, directamente o dentro de otro compuesto.")
+            .RequireAuthorization();
+
+        productos.MapPost("/composiciones/buscar", async (DatosComposicion datos, AlxorCore.Nucleo.Multiempresa.IContextoEmpresa contexto, ObtenerComposicion caso, CancellationToken ct) =>
+                contexto.GrupoId is { } grupo
+                    ? Results.Ok(await caso.IgualesAsync(grupo, datos.Componentes, ct).ConfigureAwait(false))
+                    : ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero.")))
+            .WithSummary("Busca compuestos con exactamente esta lista de materiales (para no crear uno repetido).")
+            .RequireAuthorization();
+
+        productos.MapPost("/composiciones/recalcular-precios", async (AlxorCore.Nucleo.Multiempresa.IContextoEmpresa contexto, DefinirComposicion caso, CancellationToken ct) =>
+                contexto.GrupoId is { } grupo
+                    ? Results.Ok(new { Actualizados = await caso.RecalcularPreciosAsync(grupo, ct).ConfigureAwait(false) })
+                    : ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero.")))
+            .WithSummary("Recalcula el precio de los compuestos cuyo precio sale de sus componentes.")
+            .RequierePermiso(Permisos.ProductoGestionar);
+
         productos.MapGet("/{id:guid}/variantes", VariantesAsync)
             .WithSummary("Lista las variantes de un artículo plantilla.")
             .RequireAuthorization();

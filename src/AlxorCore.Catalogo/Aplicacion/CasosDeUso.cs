@@ -24,7 +24,8 @@ public sealed record DatosProducto(
     SeguimientoArticulo Seguimiento = SeguimientoArticulo.Ninguno,
     string? Familia = null,
     Guid? FamiliaId = null,
-    Guid? ActividadNegocioId = null);
+    Guid? ActividadNegocioId = null,
+    decimal? PesoKg = null);
 
 /// <summary>Caso de uso: crear un producto en la empresa activa.</summary>
 public sealed class CrearProducto
@@ -70,6 +71,11 @@ public sealed class CrearProducto
         }
 
         producto.Valor.EstablecerActividad(datos.ActividadNegocioId);
+        if (producto.Valor.EstablecerPeso(datos.PesoKg) is { EsFallo: true } peso)
+        {
+            return Resultado.Fallo<ProductoDto>(peso.Error);
+        }
+
         _productos.Agregar(producto.Valor);
         _historico.Agregar(HistoricoPrecio.Registrar(grupoId, producto.Valor.Id, producto.Valor.PrecioUnitario, producto.Valor.PrecioCompra, _reloj.AhoraUtc));
 
@@ -135,6 +141,11 @@ public sealed class ActualizarProducto
         }
 
         producto.EstablecerActividad(datos.ActividadNegocioId);
+        if (producto.EstablecerPeso(datos.PesoKg) is { EsFallo: true } peso)
+        {
+            return Resultado.Fallo<ProductoDto>(peso.Error);
+        }
+
 
         // Solo dejamos rastro en el histórico si algún precio cambió.
         if (producto.PrecioUnitario != precioVentaAnterior || producto.PrecioCompra != precioCompraAnterior)
@@ -199,20 +210,26 @@ public sealed class ObtenerProducto
 /// <summary>Una línea de la lista de materiales al definirla.</summary>
 public sealed record ComponenteComando(Guid ComponenteId, decimal Cantidad);
 
-/// <summary>Datos para definir la lista de materiales de un artículo compuesto.</summary>
-public sealed record DatosComposicion(IReadOnlyList<ComponenteComando> Componentes);
+/// <summary>
+/// Datos para definir la lista de materiales de un artículo compuesto: sus componentes, si es de fabricación o un kit
+/// de venta, y si su precio sale de los componentes (con un ajuste en %).
+/// </summary>
+public sealed record DatosComposicion(IReadOnlyList<ComponenteComando> Componentes, TipoComposicion Tipo = TipoComposicion.Fabricacion,
+    bool PrecioSegunComponentes = false, decimal AjustePrecio = 0m);
 
 /// <summary>Caso de uso: definir (o quitar) la lista de materiales de un artículo.</summary>
 public sealed class DefinirComposicion
 {
     private readonly IRepositorioProductos _productos;
-    private readonly IConsultaProductos _consulta;
+    private readonly IRepositorioHistoricoPrecios _historico;
+    private readonly ArbolComposiciones _arbol;
     private readonly IUnidadDeTrabajoCatalogo _unidadDeTrabajo;
     private readonly IReloj _reloj;
 
-    public DefinirComposicion(IRepositorioProductos productos, IConsultaProductos consulta, IUnidadDeTrabajoCatalogo unidadDeTrabajo, IReloj reloj)
+    public DefinirComposicion(IRepositorioProductos productos, IRepositorioHistoricoPrecios historico, ArbolComposiciones arbol, IUnidadDeTrabajoCatalogo unidadDeTrabajo,
+        IReloj reloj)
     {
-        _productos = productos; _consulta = consulta; _unidadDeTrabajo = unidadDeTrabajo; _reloj = reloj;
+        _productos = productos; _historico = historico; _arbol = arbol; _unidadDeTrabajo = unidadDeTrabajo; _reloj = reloj;
     }
 
     public async Task<Resultado<ComposicionDto>> EjecutarAsync(Guid productoId, DatosComposicion datos, CancellationToken ct = default)
@@ -229,79 +246,109 @@ public sealed class DefinirComposicion
         {
             producto.QuitarComposicion(_reloj);
             await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
-            return await ComponerDtoAsync(producto, ct).ConfigureAwait(false);
+            return Resultado.Ok(await _arbol.ComposicionAsync(producto, ct).ConfigureAwait(false));
         }
 
-        // Los componentes deben existir en el catálogo de la empresa.
+        // Los componentes deben existir en el catálogo, sin ciclos (A lleva B y B lleva A) ni más niveles de la cuenta.
         foreach (var c in componentes)
         {
-            var existe = await _consulta.ObtenerAsync(c.ComponenteId, ct).ConfigureAwait(false);
-            if (existe is null)
+            if (await _productos.ObtenerPorIdAsync(c.ComponenteId, ct).ConfigureAwait(false) is null)
             {
                 return Resultado.Fallo<ComposicionDto>(Error.Validacion("composicion.componente_desconocido", "Algún componente no existe en el catálogo."));
             }
         }
 
-        var r = producto.DefinirComposicion(componentes.Select(c => (c.ComponenteId, c.Cantidad)).ToList(), _reloj);
+        if (await _arbol.CreariaCicloAsync(productoId, componentes.Select(c => c.ComponenteId), ct).ConfigureAwait(false))
+        {
+            return Resultado.Fallo<ComposicionDto>(Error.Validacion("composicion.ciclo",
+                "Algún componente ya lleva, dentro de su composición, a este mismo artículo: se formaría un ciclo."));
+        }
+
+        if (await _arbol.NivelesAsync(componentes.Select(c => c.ComponenteId), ct).ConfigureAwait(false) > ArbolComposiciones.MaximoNiveles)
+        {
+            return Resultado.Fallo<ComposicionDto>(Error.Validacion("composicion.niveles", $"La composición tendría más de {ArbolComposiciones.MaximoNiveles} niveles."));
+        }
+
+        var r = producto.DefinirComposicion(componentes.Select(c => (c.ComponenteId, c.Cantidad)).ToList(), _reloj, datos.Tipo, datos.PrecioSegunComponentes, datos.AjustePrecio);
         if (r.EsFallo)
         {
             return Resultado.Fallo<ComposicionDto>(r.Error);
         }
 
+        await AplicarPrecioAsync(producto, ct).ConfigureAwait(false);
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
-        return await ComponerDtoAsync(producto, ct).ConfigureAwait(false);
+        return Resultado.Ok(await _arbol.ComposicionAsync(producto, ct).ConfigureAwait(false));
     }
 
-    private async Task<Resultado<ComposicionDto>> ComponerDtoAsync(Producto producto, CancellationToken ct)
+    /// <summary>Recalcula el precio de los compuestos «según componentes» del grupo (tras cambiar precios de componentes).</summary>
+    public async Task<int> RecalcularPreciosAsync(Guid grupoId, CancellationToken ct = default)
     {
-        var lineas = new List<ComponenteDto>();
-        decimal total = 0m;
-        foreach (var c in producto.Componentes)
+        var cambiados = 0;
+        foreach (var p in (await _productos.CompuestosAsync(grupoId, ct).ConfigureAwait(false)).Where(x => x.PrecioSegunComponentes))
         {
-            var comp = await _consulta.ObtenerAsync(c.ComponenteId, ct).ConfigureAwait(false);
-            var coste = comp?.PrecioCompra ?? 0m;
-            var costeLinea = Redondeo.Dos(coste * c.Cantidad);
-            total += costeLinea;
-            lineas.Add(new ComponenteDto(c.ComponenteId, comp?.Nombre ?? "(desconocido)", c.Cantidad, comp?.Unidad ?? "ud", coste, costeLinea));
+            cambiados += await AplicarPrecioAsync(p, ct).ConfigureAwait(false) ? 1 : 0;
         }
 
-        return Resultado.Ok(new ComposicionDto(producto.Id, producto.EsCompuesto, Redondeo.Dos(total), lineas));
+        if (cambiados > 0)
+        {
+            await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        }
+
+        return cambiados;
+    }
+
+    private async Task<bool> AplicarPrecioAsync(Producto producto, CancellationToken ct)
+    {
+        if (!producto.PrecioSegunComponentes)
+        {
+            return false;
+        }
+
+        var anterior = producto.PrecioUnitario;
+        producto.FijarPrecioSegunComponentes(await _arbol.PrecioSegunComponentesAsync(producto, ct).ConfigureAwait(false), _reloj);
+        if (producto.PrecioUnitario == anterior)
+        {
+            return false;
+        }
+
+        _historico.Agregar(HistoricoPrecio.Registrar(producto.GrupoId, producto.Id, producto.PrecioUnitario, producto.PrecioCompra, _reloj.AhoraUtc));
+        return true;
     }
 }
 
-/// <summary>Caso de uso: obtener la lista de materiales (escandallo) de un artículo.</summary>
+/// <summary>Caso de uso: obtener la lista de materiales (escandallo) de un artículo, y las consultas inversas.</summary>
 public sealed class ObtenerComposicion
 {
     private readonly IRepositorioProductos _productos;
-    private readonly IConsultaProductos _consulta;
+    private readonly ArbolComposiciones _arbol;
 
-    public ObtenerComposicion(IRepositorioProductos productos, IConsultaProductos consulta)
+    public ObtenerComposicion(IRepositorioProductos productos, ArbolComposiciones arbol)
     {
-        _productos = productos; _consulta = consulta;
+        _productos = productos; _arbol = arbol;
     }
 
     public async Task<Resultado<ComposicionDto>> EjecutarAsync(Guid productoId, CancellationToken ct = default)
     {
         var producto = await _productos.ObtenerPorIdAsync(productoId, ct).ConfigureAwait(false);
-        if (producto is null)
-        {
-            return Resultado.Fallo<ComposicionDto>(Error.NoEncontrado("producto.no_encontrado", "El producto no existe."));
-        }
-
-        var lineas = new List<ComponenteDto>();
-        decimal total = 0m;
-        foreach (var c in producto.Componentes)
-        {
-            var comp = await _consulta.ObtenerAsync(c.ComponenteId, ct).ConfigureAwait(false);
-            var coste = comp?.PrecioCompra ?? 0m;
-            var costeLinea = Redondeo.Dos(coste * c.Cantidad);
-            total += costeLinea;
-            lineas.Add(new ComponenteDto(c.ComponenteId, comp?.Nombre ?? "(desconocido)", c.Cantidad, comp?.Unidad ?? "ud", coste, costeLinea));
-        }
-
-        return Resultado.Ok(new ComposicionDto(producto.Id, producto.EsCompuesto, Redondeo.Dos(total), lineas));
+        return producto is null
+            ? Resultado.Fallo<ComposicionDto>(Error.NoEncontrado("producto.no_encontrado", "El producto no existe."))
+            : Resultado.Ok(await _arbol.ComposicionAsync(producto, ct).ConfigureAwait(false));
     }
+
+    /// <summary>Dónde se usa el artículo (compuestos que lo llevan, en cualquier nivel).</summary>
+    public async Task<Resultado<IReadOnlyList<UsoComponenteDto>>> UsosAsync(Guid productoId, CancellationToken ct = default) =>
+        await _productos.ObtenerPorIdAsync(productoId, ct).ConfigureAwait(false) is null
+            ? Resultado.Fallo<IReadOnlyList<UsoComponenteDto>>(Error.NoEncontrado("producto.no_encontrado", "El producto no existe."))
+            : Resultado.Ok(await _arbol.UsosAsync(productoId, ct).ConfigureAwait(false));
+
+    /// <summary>Compuestos que ya tienen exactamente esta lista de materiales (para no crear uno repetido).</summary>
+    public async Task<IReadOnlyList<CompuestoIgualDto>> IgualesAsync(Guid grupoId, IReadOnlyList<ComponenteComando> componentes, CancellationToken ct = default) =>
+        (await _arbol.IgualesAsync(grupoId, (componentes ?? []).Select(c => (c.ComponenteId, c.Cantidad)).ToList(), ct).ConfigureAwait(false))
+            .Select(x => new CompuestoIgualDto(x.Id, x.Nombre)).ToList();
 }
+
+/// <summary>Un compuesto con la misma lista de materiales.</summary>
+public sealed record CompuestoIgualDto(Guid Id, string Nombre);
 
 /// <summary>Un eje de la variante (p. ej. Talla=M).</summary>
 public sealed record AtributoComando(string Nombre, string Valor);
@@ -463,8 +510,12 @@ public sealed class StockVentas : IStockVentas
     private readonly IUnidadDeTrabajoCatalogo _unidadDeTrabajo;
     private readonly IReloj _reloj;
 
-    public StockVentas(IRepositorioProductos productos, IRepositorioExistenciasSimples existencias, IRepositorioMovimientosStock movimientos, IUnidadDeTrabajoCatalogo unidadDeTrabajo, IReloj reloj)
+    private readonly ArbolComposiciones _arbol;
+
+    public StockVentas(IRepositorioProductos productos, IRepositorioExistenciasSimples existencias, IRepositorioMovimientosStock movimientos, IUnidadDeTrabajoCatalogo unidadDeTrabajo, IReloj reloj,
+        ArbolComposiciones arbol)
     {
+        _arbol = arbol;
         _productos = productos;
         _existencias = existencias;
         _movimientos = movimientos;
@@ -476,20 +527,41 @@ public sealed class StockVentas : IStockVentas
     {
         ArgumentNullException.ThrowIfNull(lineas);
 
-        var afectados = false;
+        // Un kit no tiene existencias propias: se descuentan sus componentes (en todos los niveles de kits). Las
+        // cantidades se agrupan por artículo, así una misma existencia se mueve una sola vez.
+        var aDescontar = new Dictionary<Guid, (decimal Cantidad, string Motivo)>();
         foreach (var linea in lineas)
         {
             var producto = await _productos.ObtenerPorIdAsync(linea.ProductoId, ct).ConfigureAwait(false);
-            if (producto is null || !producto.ControlarStock)
+            if (producto is { EsCompuesto: true, Composicion: TipoComposicion.Kit })
+            {
+                foreach (var (componenteId, cantidad) in await _arbol.ExplosionAsync(producto, linea.Cantidad, true, ct).ConfigureAwait(false))
+                {
+                    var previo = aDescontar.GetValueOrDefault(componenteId, (0m, $"Venta (kit {producto.Nombre})"));
+                    aDescontar[componenteId] = (previo.Item1 + cantidad, previo.Item2);
+                }
+            }
+            else
+            {
+                var previo = aDescontar.GetValueOrDefault(linea.ProductoId, (0m, "Venta"));
+                aDescontar[linea.ProductoId] = (previo.Item1 + linea.Cantidad, previo.Item2);
+            }
+        }
+
+        var afectados = false;
+        foreach (var (productoId, (cantidadVendida, motivo)) in aDescontar)
+        {
+            var producto = await _productos.ObtenerPorIdAsync(productoId, ct).ConfigureAwait(false);
+            if (producto is null || !producto.ControlarStock || cantidadVendida <= 0m)
             {
                 continue;
             }
 
-            var existencia = await _existencias.ObtenerPorProductoAsync(linea.ProductoId, ct).ConfigureAwait(false);
+            var existencia = await _existencias.ObtenerPorProductoAsync(productoId, ct).ConfigureAwait(false);
             var nueva = existencia is null;
-            existencia ??= ExistenciaSimple.Crear(empresaId, linea.ProductoId, _reloj);
+            existencia ??= ExistenciaSimple.Crear(empresaId, productoId, _reloj);
 
-            var movimiento = existencia.Aplicar(TipoMovimientoStock.Venta, linea.Cantidad, "Venta", _reloj);
+            var movimiento = existencia.Aplicar(TipoMovimientoStock.Venta, cantidadVendida, motivo, _reloj);
             if (movimiento.EsCorrecto)
             {
                 if (nueva)
