@@ -28,6 +28,12 @@ public sealed record NuevaLineaGasto(
     decimal PorcentajeDeducible = 100m,
     string? CuentaGasto = null);
 
+/// <summary>
+/// Factura rectificativa recibida (abono o cargo del proveedor por diferencias): a qué factura rectifica y por qué. Sus
+/// importes son la diferencia, así que un abono va en negativo.
+/// </summary>
+public sealed record DatosRectificacion(Guid? RectificaGastoId, string? NumeroRectificado, DateOnly? FechaRectificada, string? Motivo);
+
 /// <summary>Vencimiento (plazo de pago) de una factura recibida.</summary>
 public sealed record VencimientoGasto(DateOnly Fecha, decimal Importe);
 
@@ -159,6 +165,19 @@ public sealed class Gasto : RaizAgregadoEmpresa<Guid>
 
     public IReadOnlyList<LineaGasto> Lineas => _lineas;
 
+    /// <summary>Si es una rectificativa del proveedor (abono o cargo por diferencias).</summary>
+    public bool EsRectificativa { get; private set; }
+
+    /// <summary>Gasto que rectifica (si está registrado aquí).</summary>
+    public Guid? RectificaGastoId { get; private set; }
+
+    /// <summary>Número y fecha de la factura rectificada (copia, para los libros y el SII).</summary>
+    public string? NumeroRectificado { get; private set; }
+
+    public DateOnly? FechaRectificada { get; private set; }
+
+    public string? MotivoRectificacion { get; private set; }
+
     /// <summary>Número de correcciones: cada versión de la factura tiene su asiento (y su contraasiento al cambiarla).</summary>
     public int Revision { get; private set; }
 
@@ -229,11 +248,17 @@ public sealed class Gasto : RaizAgregadoEmpresa<Guid>
     /// </summary>
     public static Resultado<Gasto> RegistrarFactura(
         Guid empresaId, Guid? proveedorId, string? proveedorTexto, string? concepto, string? numeroFactura, DateOnly? fechaFactura, DateOnly fecha,
-        IReadOnlyList<NuevaLineaGasto> lineas, decimal porcentajeIrpf, IReadOnlyList<VencimientoGasto>? vencimientos, DateOnly vencimientoPorDefecto, IReloj reloj)
+        IReadOnlyList<NuevaLineaGasto> lineas, decimal porcentajeIrpf, IReadOnlyList<VencimientoGasto>? vencimientos, DateOnly vencimientoPorDefecto, IReloj reloj,
+        DatosRectificacion? rectificacion = null)
     {
         ArgumentNullException.ThrowIfNull(reloj);
         var gasto = new Gasto(Guid.NewGuid(), empresaId, proveedorId, Normalizar(proveedorTexto), string.Empty, fecha, 0m, "IVA0", 0m, 0m, reloj.AhoraUtc);
-        var r = gasto.Establecer(concepto, numeroFactura, fechaFactura, fecha, lineas, porcentajeIrpf, vencimientos, vencimientoPorDefecto);
+        var r = gasto.EstablecerRectificacion(rectificacion);
+        if (r.EsCorrecto)
+        {
+            r = gasto.Establecer(concepto, numeroFactura, fechaFactura, fecha, lineas, porcentajeIrpf, vencimientos, vencimientoPorDefecto);
+        }
+
         if (r.EsFallo)
         {
             return Resultado.Fallo<Gasto>(r.Error);
@@ -246,7 +271,8 @@ public sealed class Gasto : RaizAgregadoEmpresa<Guid>
     /// <summary>Cambia los datos de una factura registrada (quien lo llama comprueba que no tenga pagos).</summary>
     public Resultado Modificar(
         Guid? proveedorId, string? proveedorTexto, string? concepto, string? numeroFactura, DateOnly? fechaFactura, DateOnly fecha,
-        IReadOnlyList<NuevaLineaGasto> lineas, decimal porcentajeIrpf, IReadOnlyList<VencimientoGasto>? vencimientos, DateOnly vencimientoPorDefecto, IReloj reloj)
+        IReadOnlyList<NuevaLineaGasto> lineas, decimal porcentajeIrpf, IReadOnlyList<VencimientoGasto>? vencimientos, DateOnly vencimientoPorDefecto, IReloj reloj,
+        DatosRectificacion? rectificacion = null)
     {
         ArgumentNullException.ThrowIfNull(reloj);
         if (Estado != EstadoGasto.Registrado)
@@ -254,7 +280,12 @@ public sealed class Gasto : RaizAgregadoEmpresa<Guid>
             return Resultado.Fallo(Error.Conflicto("gasto.anulado", "Un gasto anulado no se modifica."));
         }
 
-        var r = Establecer(concepto, numeroFactura, fechaFactura, fecha, lineas, porcentajeIrpf, vencimientos, vencimientoPorDefecto);
+        var r = EstablecerRectificacion(rectificacion);
+        if (r.EsCorrecto)
+        {
+            r = Establecer(concepto, numeroFactura, fechaFactura, fecha, lineas, porcentajeIrpf, vencimientos, vencimientoPorDefecto);
+        }
+
         if (r.EsFallo)
         {
             return r;
@@ -264,6 +295,38 @@ public sealed class Gasto : RaizAgregadoEmpresa<Guid>
         ProveedorTexto = Normalizar(proveedorTexto);
         Revision++;
         ActualizadoEn = reloj.AhoraUtc;
+        return Resultado.Ok();
+    }
+
+    private Resultado EstablecerRectificacion(DatosRectificacion? r)
+    {
+        if (r is null)
+        {
+            EsRectificativa = false;
+            RectificaGastoId = null;
+            NumeroRectificado = null;
+            FechaRectificada = null;
+            MotivoRectificacion = null;
+            return Resultado.Ok();
+        }
+
+        var numero = Normalizar(r.NumeroRectificado);
+        var motivo = Normalizar(r.Motivo);
+        if (numero is null || motivo is null)
+        {
+            return Resultado.Fallo(Error.Validacion("gasto.rectificativa", "Una rectificativa necesita el número de la factura que rectifica y el motivo."));
+        }
+
+        if (numero.Length > LongitudMaximaNumeroFactura || motivo.Length > LongitudMaximaConcepto)
+        {
+            return Resultado.Fallo(Error.Validacion("gasto.rectificativa", "El número rectificado o el motivo son demasiado largos."));
+        }
+
+        EsRectificativa = true;
+        RectificaGastoId = r.RectificaGastoId;
+        NumeroRectificado = numero;
+        FechaRectificada = r.FechaRectificada;
+        MotivoRectificacion = motivo;
         return Resultado.Ok();
     }
 
@@ -314,9 +377,9 @@ public sealed class Gasto : RaizAgregadoEmpresa<Guid>
 
         var nuevas = lineas.Select((l, i) => new LineaGasto(i + 1, l)).ToList();
         var baseTotal = Redondeo.Dos(nuevas.Sum(l => l.Base));
-        if (baseTotal < 0m)
+        if (baseTotal < 0m && !EsRectificativa)
         {
-            return Resultado.Fallo(Error.Validacion("gasto.base_negativa", "La base de la factura no puede ser negativa."));
+            return Resultado.Fallo(Error.Validacion("gasto.base_negativa", "La base no puede ser negativa: un abono del proveedor se registra como rectificativa."));
         }
 
         var cuota = Redondeo.Dos(nuevas.Sum(l => l.Cuota));

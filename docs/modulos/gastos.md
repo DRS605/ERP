@@ -55,6 +55,21 @@ Pantalla: **Compras → Facturas de proveedor** (módulo de documentos):
 
 El buzón de facturas y la facturación de pedidos de compra pasan el número y la fecha de la factura del proveedor.
 
+### Rectificativas y abonos del proveedor
+
+Un abono (devolución, descuento posterior, error de precio) se registra como **rectificativa**: `RectificaGastoId` (la
+factura rectificada, del mismo proveedor y no anulada; se copian su número y fecha) o, si no está en el sistema,
+`NumeroRectificado` + `FechaRectificada`, y siempre `MotivoRectificacion`. Solo una rectificativa admite bases negativas.
+El asiento sale invertido (400 al debe; gasto y 472 al haber: los importes negativos se pasan al otro lado y la prorrata
+se aplica con el signo), el libro de IVA y el 303 restan, y el SII la declara como `R1` por diferencias
+(`TipoRectificativa` = `I`) con `FacturasRectificadas`. En la pantalla: botón «Rectificativa / abono» en la factura.
+
+### Régimen de recargo de equivalencia
+
+Si la empresa está en `RegimenIva.RecargoEquivalencia` (comerciante minorista), el IVA y el recargo soportados no se
+deducen: cada línea se registra con `PorcentajeDeducible` = 0 (salvo las autoliquidadas) y todo va a la cuenta de gasto.
+El editor marca por defecto «El proveedor me cobra recargo de equivalencia».
+
 ## API
 
 | Método | Ruta | Auth | Descripción |

@@ -61,7 +61,7 @@ export function Listado(props: { tipo: TipoDocumento }) {
           if (hasta) q.set("hasta", hasta);
           const r = await api.get<Pagina<Gasto>>(`/gastos/buscar?${q}`);
           setTotalFilas(r.total);
-          return r.elementos.map((g) => ({ id: g.id, numero: g.numeroFactura ?? "—", fecha: g.fecha, tercero: `${g.proveedorTexto ?? ""}${g.numeroFactura ? "" : ` · ${g.concepto}`}`, total: g.total, estado: g.estado === "Anulado" ? "Anulada" : g.estado }));
+          return r.elementos.map((g) => ({ id: g.id, numero: g.numeroFactura ?? "—", fecha: g.fecha, tercero: `${g.proveedorTexto ?? ""}${g.numeroFactura ? "" : ` · ${g.concepto}`}`, total: g.total, estado: g.estado === "Anulado" ? "Anulada" : g.estado, extra: g.esRectificativa ? "Rectificativa" : undefined }));
         }
         case "presupuesto":
           return (await api.get<PresupuestoResumen[]>("/presupuestos")).map((p) => ({ id: p.id, numero: p.numeroCompleto, fecha: p.fecha, tercero: p.clienteNombre, total: p.total, estado: p.estado }));

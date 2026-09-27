@@ -23,7 +23,8 @@ public sealed record GastoDto(
     decimal PorcentajeIrpf, decimal RetencionIrpf, decimal Total, string Estado, string? AvisoRiesgo = null,
     Guid? ActividadNegocioId = null, AfectacionIva Afectacion = AfectacionIva.Comun,
     string? NumeroFactura = null, DateOnly? FechaFactura = null, decimal RecargoTotal = 0m,
-    IReadOnlyList<LineaGastoDto>? Lineas = null, IReadOnlyList<VencimientoGasto>? Vencimientos = null, IReadOnlyList<DesgloseIvaDto>? Desglose = null)
+    IReadOnlyList<LineaGastoDto>? Lineas = null, IReadOnlyList<VencimientoGasto>? Vencimientos = null, IReadOnlyList<DesgloseIvaDto>? Desglose = null,
+    bool EsRectificativa = false, Guid? RectificaGastoId = null, string? NumeroRectificado = null, DateOnly? FechaRectificada = null, string? MotivoRectificacion = null)
 {
     public static GastoDto Desde(Gasto g) => new(
         g.Id, g.ProveedorId, g.ProveedorTexto, g.Concepto, g.Fecha, g.BaseImponible, g.CodigoIva, g.PorcentajeIva, g.CuotaIva,
@@ -32,7 +33,9 @@ public sealed record GastoDto(
         Lineas: g.Lineas.OrderBy(l => l.Orden).Select(l => new LineaGastoDto(l.Descripcion, l.CuentaGasto, l.Base, l.CodigoIva, l.PorcentajeIva, l.Cuota, l.Autoliquidada,
             l.PorcentajeRecargo, l.CuotaRecargo, l.PorcentajeDeducible, l.CuotaDeducible)).ToList(),
         Vencimientos: g.Vencimientos.OrderBy(v => v.Fecha).ToList(),
-        Desglose: DesgloseDe(g));
+        Desglose: DesgloseDe(g),
+        EsRectificativa: g.EsRectificativa, RectificaGastoId: g.RectificaGastoId, NumeroRectificado: g.NumeroRectificado, FechaRectificada: g.FechaRectificada,
+        MotivoRectificacion: g.MotivoRectificacion);
 
     /// <summary>Desglose por tipo. Un gasto antiguo sin líneas sale con una sola, la de su cabecera.</summary>
     public static IReadOnlyList<DesgloseIvaDto> DesgloseDe(Gasto g) =>
@@ -101,7 +104,11 @@ public sealed record RegistrarGastoComando(
     DateOnly? FechaFactura = null,
     IReadOnlyList<LineaGastoComando>? Lineas = null,
     IReadOnlyList<VencimientoGasto>? Vencimientos = null,
-    bool RecargoEquivalencia = false);
+    bool RecargoEquivalencia = false,
+    Guid? RectificaGastoId = null,
+    string? NumeroRectificado = null,
+    DateOnly? FechaRectificada = null,
+    string? MotivoRectificacion = null);
 
 /// <summary>
 /// Línea de una factura recibida. <see cref="PorcentajeIva"/> solo hace falta en inversión del sujeto pasivo e
@@ -167,7 +174,10 @@ public sealed class RegistrarGasto
     internal static async Task<Resultado<List<NuevaLineaGasto>>> ResolverLineasAsync(
         Guid empresaId, RegistrarGastoComando comando, AlxorCore.Catalogo.Aplicacion.IResolverIvaEmpresa? resolverIva, IConsultaEmpresas empresas, CancellationToken ct)
     {
-        var impuestoEmpresa = (await empresas.ObtenerAsync(empresaId, ct).ConfigureAwait(false))?.ImpuestoIndirecto ?? TipoImpuesto.Iva;
+        var empresa = await empresas.ObtenerAsync(empresaId, ct).ConfigureAwait(false);
+        var impuestoEmpresa = empresa?.ImpuestoIndirecto ?? TipoImpuesto.Iva;
+        // Comerciante minorista en recargo de equivalencia: no deduce el IVA soportado (ni el recargo), todo es coste.
+        var enRecargo = empresa?.RegimenIva == AlxorCore.Organizacion.Dominio.RegimenIva.RecargoEquivalencia;
         var general = impuestoEmpresa == TipoImpuesto.Igic ? Impuesto.IgicGeneral : Impuesto.IvaGeneral;
         var lineas = comando.Lineas is { Count: > 0 } ? comando.Lineas : [new LineaGastoComando(comando.BaseImponible, comando.CodigoIva)];
         var resultado = new List<NuevaLineaGasto>();
@@ -193,10 +203,46 @@ public sealed class RegistrarGasto
                 ? l.PorcentajeIva ?? (iva.Porcentaje > 0m ? iva.Porcentaje : (iva.Impuesto == TipoImpuesto.Igic ? Impuesto.IgicGeneral : Impuesto.IvaGeneral).Porcentaje)
                 : iva.Porcentaje;
             var recargo = comando.RecargoEquivalencia && iva.Clase == AlxorCore.Catalogo.Dominio.ClaseIva.Ordinario ? iva.RecargoEquivalencia : 0m;
-            resultado.Add(new NuevaLineaGasto(l.Descripcion, l.Base, iva.Codigo, porcentaje, iva.Impuesto, autoliquidada, sinCuota, recargo, l.PorcentajeDeducible, l.CuentaGasto));
+            resultado.Add(new NuevaLineaGasto(l.Descripcion, l.Base, iva.Codigo, porcentaje, iva.Impuesto, autoliquidada, sinCuota, recargo,
+                enRecargo && !autoliquidada ? 0m : l.PorcentajeDeducible, l.CuentaGasto));
         }
 
         return Resultado.Ok(resultado);
+    }
+
+    /// <summary>
+    /// Datos de rectificación del comando: si indica el gasto rectificado, tiene que ser del mismo proveedor y estar vivo, y
+    /// se copian su número y su fecha. Null si no es rectificativa.
+    /// </summary>
+    internal static async Task<Resultado<DatosRectificacion?>> RectificacionAsync(RegistrarGastoComando comando, IRepositorioGastos gastos, Guid? excluirId, CancellationToken ct)
+    {
+        if (comando.RectificaGastoId is null && string.IsNullOrWhiteSpace(comando.NumeroRectificado))
+        {
+            return Resultado.Ok<DatosRectificacion?>(null);
+        }
+
+        if (comando.RectificaGastoId is not { } id)
+        {
+            return Resultado.Ok<DatosRectificacion?>(new DatosRectificacion(null, comando.NumeroRectificado, comando.FechaRectificada, comando.MotivoRectificacion));
+        }
+
+        var original = await gastos.ObtenerPorIdAsync(id, ct).ConfigureAwait(false);
+        if (original is null || original.Id == excluirId)
+        {
+            return Resultado.Fallo<DatosRectificacion?>(Error.Validacion("gasto.rectificada_no_encontrada", "La factura que se rectifica no existe."));
+        }
+
+        if (original.Estado != EstadoGasto.Registrado)
+        {
+            return Resultado.Fallo<DatosRectificacion?>(Error.Conflicto("gasto.rectificada_anulada", "No se rectifica una factura anulada."));
+        }
+
+        if (original.ProveedorId != comando.ProveedorId)
+        {
+            return Resultado.Fallo<DatosRectificacion?>(Error.Validacion("gasto.rectificada_proveedor", "La rectificativa tiene que ser del mismo proveedor que la factura rectificada."));
+        }
+
+        return Resultado.Ok<DatosRectificacion?>(new DatosRectificacion(id, original.NumeroFactura ?? original.Concepto, original.FechaFactura ?? original.Fecha, comando.MotivoRectificacion));
     }
 
     /// <summary>Documento a contabilizar de un gasto (con sus líneas si tiene más de una o alguna especial).</summary>
@@ -253,8 +299,14 @@ public sealed class RegistrarGasto
 
         var fechaFactura = comando.FechaFactura;
         var vencimiento = (fechaFactura ?? fecha).AddDays(formaPago is { GeneraVencimiento: true } ? formaPago.DiasVencimiento : 0);
+        var rectificacion = await RectificacionAsync(comando, _gastos, null, ct).ConfigureAwait(false);
+        if (rectificacion.EsFallo)
+        {
+            return Resultado.Fallo<GastoDto>(rectificacion.Error);
+        }
+
         var gasto = Gasto.RegistrarFactura(empresaId, comando.ProveedorId, proveedorTexto, comando.Concepto, comando.NumeroFactura, fechaFactura, fecha,
-            lineas.Valor, comando.PorcentajeIrpf, comando.Vencimientos, vencimiento, _reloj);
+            lineas.Valor, comando.PorcentajeIrpf, comando.Vencimientos, vencimiento, _reloj, rectificacion.Valor);
         if (gasto.EsFallo)
         {
             return Resultado.Fallo<GastoDto>(gasto.Error);
@@ -433,8 +485,14 @@ public sealed class ModificarGasto
         var fecha = comando.Fecha ?? g.Fecha;
         var formaPago = (comando.FormaPagoId ?? formaPagoDefecto) is { } fp ? await _formasPago.ObtenerAsync(fp, ct).ConfigureAwait(false) : null;
         var vencimiento = (comando.FechaFactura ?? fecha).AddDays(formaPago is { GeneraVencimiento: true } ? formaPago.DiasVencimiento : 0);
+        var rectificacion = await RegistrarGasto.RectificacionAsync(comando, _gastos, g.Id, ct).ConfigureAwait(false);
+        if (rectificacion.EsFallo)
+        {
+            return Resultado.Fallo<GastoDto>(rectificacion.Error);
+        }
+
         var r = g.Modificar(comando.ProveedorId, proveedorTexto, comando.Concepto, comando.NumeroFactura, comando.FechaFactura, fecha, lineas.Valor,
-            comando.PorcentajeIrpf, comando.Vencimientos, vencimiento, _reloj);
+            comando.PorcentajeIrpf, comando.Vencimientos, vencimiento, _reloj, rectificacion.Valor);
         if (r.EsFallo)
         {
             return Resultado.Fallo<GastoDto>(r.Error);

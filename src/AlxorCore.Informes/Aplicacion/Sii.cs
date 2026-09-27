@@ -204,7 +204,22 @@ public sealed class GenerarSii
             w.WriteEndElement();
 
             w.WriteStartElement("FacturaRecibida", NsLr);
-            w.WriteElementString("TipoFactura", NsLr, "F1");
+            w.WriteElementString("TipoFactura", NsLr, g.EsRectificativa ? "R1" : "F1");
+            if (g.EsRectificativa)
+            {
+                // Rectificativa por diferencias: los importes van con su signo (negativos si es un abono).
+                w.WriteElementString("TipoRectificativa", NsLr, "I");
+                if (g.NumeroRectificado is not null)
+                {
+                    w.WriteStartElement("FacturasRectificadas", NsLr);
+                    w.WriteStartElement("IDFacturaRectificada", NsLr);
+                    w.WriteElementString("NumSerieFacturaEmisor", NsLr, g.NumeroRectificado);
+                    w.WriteElementString("FechaExpedicionFacturaEmisor", NsLr, (g.FechaRectificada ?? g.Fecha).ToString("dd-MM-yyyy", Inv));
+                    w.WriteEndElement();
+                    w.WriteEndElement();
+                }
+            }
+
             w.WriteElementString("ClaveRegimenEspecialOTrascendencia", NsLr, "01");
             w.WriteElementString("ImporteTotal", NsLr, Importe(g.Total));
             w.WriteElementString("DescripcionOperacion", NsLr, string.IsNullOrWhiteSpace(g.Concepto) ? "Gasto" : g.Concepto);

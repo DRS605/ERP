@@ -339,6 +339,11 @@ export interface Gasto {
   lineas?: LineaGasto[] | null;
   vencimientos?: { fecha: string; importe: number }[] | null;
   desglose?: DesgloseGasto[] | null;
+  esRectificativa?: boolean;
+  rectificaGastoId?: string | null;
+  numeroRectificado?: string | null;
+  fechaRectificada?: string | null;
+  motivoRectificacion?: string | null;
 }
 
 export interface Cuenta {

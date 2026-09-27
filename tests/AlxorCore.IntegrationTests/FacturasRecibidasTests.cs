@@ -145,4 +145,91 @@ public sealed class FacturasRecibidasTests : IClassFixture<FabricaApiPruebas>
         compras.Should().HaveCount(3, "el original, su contraasiento y el corregido");
         compras.SelectMany(a => a.Apuntes).Where(a => a.CuentaCodigo == "400").Sum(a => a.Haber - a.Debe).Should().Be(12100m);
     }
+    [Fact]
+    public async Task Un_abono_del_proveedor_se_registra_como_rectificativa_con_importes_negativos()
+    {
+        var (api, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+        (await api.PutAsJsonAsync("/contabilidad/modo", new { Modo = "Completo" })).EnsureSuccessStatusCode();
+        (await api.PutAsJsonAsync("/contabilidad/contabilizacion-automatica", new { Automatica = true })).EnsureSuccessStatusCode();
+        (await api.GetAsync(new Uri("/tipos-iva", UriKind.Relative))).EnsureSuccessStatusCode();
+        var proveedor = await IdAsync(api, "/proveedores", new { Nombre = "Envases del Sur SL", NifFiscal = "B12345674" });
+        var otro = await IdAsync(api, "/proveedores", new { Nombre = "Otro SL" });
+        var original = await IdAsync(api, "/gastos", new
+        {
+            ProveedorId = proveedor, NumeroFactura = "E-900", FechaFactura = "2026-09-01", Fecha = "2026-09-01",
+            Lineas = new[] { new { Descripcion = "Cajas", Base = 1000m, CodigoIva = "IVA21" } },
+        });
+
+        // Sin ser rectificativa, una base negativa no vale; y la rectificada tiene que ser del mismo proveedor.
+        var negativa = await api.PostAsJsonAsync("/gastos", new { ProveedorId = proveedor, NumeroFactura = "A-1", Lineas = new[] { new { Base = -100m, CodigoIva = "IVA21" } } });
+        (await negativa.Content.ReadFromJsonAsync<ProblemaResp>())!.Codigo.Should().Be("gasto.base_negativa");
+        var ajena = await api.PostAsJsonAsync("/gastos", new
+        {
+            ProveedorId = otro, NumeroFactura = "A-1", RectificaGastoId = original, MotivoRectificacion = "Devolución",
+            Lineas = new[] { new { Base = -100m, CodigoIva = "IVA21" } },
+        });
+        (await ajena.Content.ReadFromJsonAsync<ProblemaResp>())!.Codigo.Should().Be("gasto.rectificada_proveedor");
+
+        var r = await api.PostAsJsonAsync("/gastos", new
+        {
+            ProveedorId = proveedor, NumeroFactura = "A-1", FechaFactura = "2026-09-15", Fecha = "2026-09-15", RectificaGastoId = original,
+            MotivoRectificacion = "Devolución de 200 cajas rotas", Lineas = new[] { new { Descripcion = "Cajas devueltas", Base = -200m, CodigoIva = "IVA21" } },
+        });
+        r.StatusCode.Should().Be(HttpStatusCode.Created, await r.Content.ReadAsStringAsync());
+        using (var abono = JsonDocument.Parse(await r.Content.ReadAsStringAsync()))
+        {
+            abono.RootElement.GetProperty("total").GetDecimal().Should().Be(-242m);
+            abono.RootElement.GetProperty("esRectificativa").GetBoolean().Should().BeTrue();
+            abono.RootElement.GetProperty("numeroRectificado").GetString().Should().Be("E-900");
+        }
+
+        // El asiento del abono sale al revés: 400 al debe, 600 y 472 al haber (sin importes negativos).
+        var asientos = (await api.GetFromJsonAsync<List<AsientoResp>>("/contabilidad/diario?ejercicio=2026"))!.Where(a => a.Origen == "Compra").ToList();
+        asientos.Should().HaveCount(2);
+        var inverso = asientos.Single(a => a.Total == 242m);
+        inverso.Apuntes.Should().OnlyContain(a => a.Debe >= 0m && a.Haber >= 0m)
+            .And.Contain(a => a.CuentaCodigo == "400" && a.Debe == 242m).And.Contain(a => a.CuentaCodigo == "472" && a.Haber == 42m);
+
+        // El 303 deduce la diferencia y el SII la declara como R1 por diferencias, con la factura rectificada.
+        using (var resumen = JsonDocument.Parse(await api.GetStringAsync("/informes/resumen-trimestral?anio=2026&trimestre=3")))
+        {
+            resumen.RootElement.GetProperty("modelo303").GetProperty("ivaDeducibleCuota").GetDecimal().Should().Be(168m);
+        }
+
+        var sii = await api.GetStringAsync("/informes/sii?tipo=Recibidas&ejercicio=2026&periodo=9");
+        sii.Should().Contain("<siiLR:TipoFactura>R1</siiLR:TipoFactura>").And.Contain("<siiLR:TipoRectificativa>I</siiLR:TipoRectificativa>")
+            .And.Contain("<siiLR:ImporteTotal>-242.00</siiLR:ImporteTotal>").And.Contain("FacturasRectificadas");
+    }
+
+    [Fact]
+    public async Task En_recargo_de_equivalencia_el_iva_soportado_es_coste()
+    {
+        var api = await Ayudas.AutenticadoAsync(_fabrica);
+        var crear = await api.PostAsJsonAsync("/empresas", new { Nif = Ayudas.GenerarNif(), RazonSocial = "Frutería Minorista SL", RegimenIva = "RecargoEquivalencia" });
+        crear.IsSuccessStatusCode.Should().BeTrue(await crear.Content.ReadAsStringAsync());
+        var empresaId = (await crear.Content.ReadFromJsonAsync<IdResp>())!.Id;
+        using (var sel = JsonDocument.Parse(await (await api.PostAsync(new Uri($"/empresas/{empresaId}/seleccionar", UriKind.Relative), null)).Content.ReadAsStringAsync()))
+        {
+            api.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", sel.RootElement.GetProperty("token").GetString());
+        }
+
+        (await api.PutAsJsonAsync("/contabilidad/modo", new { Modo = "Completo" })).EnsureSuccessStatusCode();
+        (await api.PutAsJsonAsync("/contabilidad/contabilizacion-automatica", new { Automatica = true })).EnsureSuccessStatusCode();
+        (await api.GetAsync(new Uri("/tipos-iva", UriKind.Relative))).EnsureSuccessStatusCode();
+        var proveedor = await IdAsync(api, "/proveedores", new { Nombre = "Mayorista Frutas SA", NifFiscal = "B12345674" });
+
+        var r = await api.PostAsJsonAsync("/gastos", new
+        {
+            ProveedorId = proveedor, NumeroFactura = "M-1", FechaFactura = "2026-09-05", Fecha = "2026-09-05", RecargoEquivalencia = true,
+            Lineas = new[] { new { Descripcion = "Fruta", Base = 1000m, CodigoIva = "IVA10" } },
+        });
+        r.StatusCode.Should().Be(HttpStatusCode.Created, await r.Content.ReadAsStringAsync());
+        var g = (await r.Content.ReadFromJsonAsync<GastoResp>())!;
+        g.Total.Should().Be(1114m, "1.000 + 100 de IVA + 14 de recargo (1,4 %)");
+        g.Desglose.Should().ContainSingle().Which.CuotaDeducible.Should().Be(0m);
+
+        var asiento = (await api.GetFromJsonAsync<List<AsientoResp>>("/contabilidad/diario?ejercicio=2026"))!.Single(a => a.Origen == "Compra");
+        asiento.Apuntes.Should().NotContain(a => a.CuentaCodigo.StartsWith("472"));
+        asiento.Apuntes.Where(a => a.CuentaCodigo.StartsWith('6')).Sum(a => a.Debe).Should().Be(1114m);
+    }
 }

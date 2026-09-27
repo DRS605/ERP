@@ -37,6 +37,11 @@ export function EditorGasto(props: { id?: string | null; semilla?: Gasto; alGuar
   const [irpf, setIrpf] = useState(s?.porcentajeIrpf ?? 0);
   const [formaPagoId, setFormaPagoId] = useState("");
   const [recargo, setRecargo] = useState((s?.recargoTotal ?? 0) > 0);
+  const rectificativa = !!s?.esRectificativa;
+  const [numeroRectificado, setNumeroRectificado] = useState(s?.numeroRectificado ?? "");
+  const [fechaRectificada, setFechaRectificada] = useState(s?.fechaRectificada ?? "");
+  const [motivo, setMotivo] = useState(s?.motivoRectificacion ?? "");
+  const [enRecargo, setEnRecargo] = useState(false);
   const [afectacion, setAfectacion] = useState(s?.afectacion ?? "Comun");
   const [lineas, setLineas] = useState<LineaEd[]>(() =>
     s?.lineas?.length
@@ -53,6 +58,13 @@ export function EditorGasto(props: { id?: string | null; semilla?: Gasto; alGuar
     api.get<Tercero[]>("/proveedores").then(setProveedores).catch(() => setProveedores([]));
     api.get<TipoIvaCompleto[]>("/tipos-iva").then((t) => setIvas(t.filter((x) => x.activo))).catch(() => setIvas([]));
     api.get<FormaPago[]>("/formas-pago").then((f) => setFormas(f.filter((x) => x.activo))).catch(() => setFormas([]));
+    api.get<{ regimenIva?: string }>("/empresas/actual").then((e) => {
+      // Comerciante minorista en recargo de equivalencia: el proveedor le cobra el recargo y no deduce el IVA.
+      if (e.regimenIva === "RecargoEquivalencia") {
+        setEnRecargo(true);
+        if (!s) setRecargo(true);
+      }
+    }).catch(() => undefined);
     api.get<Cuenta[]>("/contabilidad/cuentas").then((c) => setCuentas(c.filter((x) => x.codigo.startsWith("6") || x.codigo.startsWith("2")))).catch(() => setCuentas([]));
   }, [api]);
 
@@ -84,8 +96,12 @@ export function EditorGasto(props: { id?: string | null; semilla?: Gasto; alGuar
         cuentaGasto: l.cuentaGasto.trim() || null,
       })),
       vencimientos: plazosManual,
+      rectificaGastoId: rectificativa ? s?.rectificaGastoId ?? null : null,
+      numeroRectificado: rectificativa ? numeroRectificado.trim() || null : null,
+      fechaRectificada: rectificativa ? fechaRectificada || null : null,
+      motivoRectificacion: rectificativa ? motivo.trim() || null : null,
     }),
-    [proveedorId, proveedor, numero, fechaFactura, fechaRegistro, concepto, irpf, formaPagoId, recargo, afectacion, lineas, plazosManual],
+    [proveedorId, proveedor, numero, fechaFactura, fechaRegistro, concepto, irpf, formaPagoId, recargo, afectacion, lineas, plazosManual, rectificativa, s, numeroRectificado, fechaRectificada, motivo],
   );
   const retardado = useRetardado(comando, 350);
 
@@ -137,7 +153,7 @@ export function EditorGasto(props: { id?: string | null; semilla?: Gasto; alGuar
     <div className="dx-editor">
       <div className="panel">
         <div className="panel-head">
-          <h2>{props.id ? `Corregir factura ${s?.numeroFactura ?? ""}` : "Nueva factura de proveedor"}</h2>
+          <h2>{props.id ? `Corregir factura ${s?.numeroFactura ?? ""}` : rectificativa ? "Rectificativa / abono del proveedor" : "Nueva factura de proveedor"}</h2>
           <div style={{ display: "flex", gap: 8 }}>
             <button className="btn small secondary" onClick={props.alCancelar}>Cancelar</button>
             <button className="btn small" disabled={!calculo || guardando} onClick={guardar}>{props.id ? "Guardar corrección" : "Registrar factura"}</button>
@@ -159,7 +175,16 @@ export function EditorGasto(props: { id?: string | null; semilla?: Gasto; alGuar
             <div className="dx-fila">
               <div style={{ gridColumn: "1 / -1" }}><label>Concepto (vacío: «Factura nº»)</label><input value={concepto} onChange={(e) => setConcepto(e.target.value)} /></div>
             </div>
+            {rectificativa && (
+              <div className="dx-fila">
+                <div><label>Factura que rectifica</label><input value={numeroRectificado} disabled={!!s?.rectificaGastoId} onChange={(e) => setNumeroRectificado(e.target.value)} /></div>
+                <div><label>Fecha de la rectificada</label><input type="date" value={fechaRectificada} disabled={!!s?.rectificaGastoId} onChange={(e) => setFechaRectificada(e.target.value)} /></div>
+                <div><label>Motivo</label><input value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Devolución, descuento posterior, error de precio…" /></div>
+              </div>
+            )}
+            {rectificativa && <div className="muted">Las bases del abono van en negativo; el asiento y el SII (R1, por diferencias) salen con el signo.</div>}
             <label className="dx-check"><input type="checkbox" checked={recargo} onChange={(e) => setRecargo(e.target.checked)} /> El proveedor me cobra recargo de equivalencia</label>
+            {enRecargo && <div className="muted">La empresa está en recargo de equivalencia: el IVA y el recargo soportados son coste (no se deducen).</div>}
           </div>
           <div className="dx-ficha">
             {proveedor ? (
@@ -281,11 +306,15 @@ export function VistaGasto(props: { id: string }) {
           <h2 style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <button className="btn small secondary" onClick={() => navegar({ tipo: "gasto", pantalla: "lista" })}>←</button>
             Factura <span className="mono">{g.numeroFactura ?? "(sin número)"}</span> <span className={clasePill(g.estado === "Anulado" ? "Anulada" : "Emitida")}>{g.estado}</span>
+            {g.esRectificativa && <span className="pill">Rectifica {g.numeroRectificado}</span>}
           </h2>
           <div className="dx-acciones">
             <button className="btn small secondary" onClick={() => navegar({ tipo: "gasto", pantalla: "editor", semilla: { ...g, numeroFactura: null } })}>Duplicar</button>
             {vivo && sinPagos && <button className="btn small secondary" onClick={() => navegar({ tipo: "gasto", pantalla: "editor", id: g.id, semilla: g })}>Corregir</button>}
             {vivo && saldo && saldo.pendiente > 0 && anfitrion.irA && <button className="btn small" onClick={() => anfitrion.irA!("pagos")}>Pagar</button>}
+            {vivo && !g.esRectificativa && <button className="btn small secondary" onClick={() => navegar({ tipo: "gasto", pantalla: "editor", semilla: {
+              ...g, numeroFactura: null, esRectificativa: true, rectificaGastoId: g.id, numeroRectificado: g.numeroFactura ?? g.concepto, fechaRectificada: g.fechaFactura ?? g.fecha,
+              motivoRectificacion: "", vencimientos: null, lineas: g.lineas?.map((l) => ({ ...l, base: -l.base })) } })}>Rectificativa / abono</button>}
             {vivo && sinPagos && <button className="btn small ghost" onClick={() => setAnular(true)}>Anular</button>}
           </div>
         </div>

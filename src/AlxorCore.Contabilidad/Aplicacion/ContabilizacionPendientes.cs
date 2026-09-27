@@ -115,9 +115,10 @@ public sealed class PosterDocumento
         // Compras: con prorrata solo es deducible parte de la cuota; la no deducible es más gasto. Con líneas, la
         // prorrata se aplica a la parte que la línea ya deja deducible (p. ej. el 50 % de un turismo).
         var baseProrrata = doc.Sentido == SentidoContable.Compra && doc.Lineas.Count > 0 ? doc.Lineas.Sum(l => l.CuotaDeducible) : doc.CuotaIva;
-        var cuotaDeducible = doc.Sentido != SentidoContable.Compra || baseProrrata <= 0m
+        // Un abono (rectificativa en negativo) aplica la misma prorrata con el signo cambiado.
+        var cuotaDeducible = doc.Sentido != SentidoContable.Compra || baseProrrata == 0m
             ? baseProrrata
-            : await _deduccion.CuotaDeducibleAsync(doc.EmpresaId, doc.FechaRegistro.Year, baseProrrata, doc.Afectacion, ct).ConfigureAwait(false);
+            : Math.Sign(baseProrrata) * await _deduccion.CuotaDeducibleAsync(doc.EmpresaId, doc.FechaRegistro.Year, Math.Abs(baseProrrata), doc.Afectacion, ct).ConfigureAwait(false);
 
         var tesoreria = string.IsNullOrWhiteSpace(doc.CuentaTesoreria) ? PlanBasico.CuentaBancos : doc.CuentaTesoreria;
         var lineas = doc.Sentido switch
@@ -134,6 +135,13 @@ public sealed class PosterDocumento
         {
             lineas = lineas.Select(l => l with { Debe = l.Haber, Haber = l.Debe }).ToList();
         }
+
+        // Rectificativas (abonos): un importe negativo en un lado es positivo en el otro; los apuntes a cero sobran.
+        lineas = lineas
+            .Select(l => l.Debe < 0m || l.Haber < 0m ? l with { Debe = Math.Max(0m, l.Debe) + Math.Max(0m, -l.Haber), Haber = Math.Max(0m, l.Haber) + Math.Max(0m, -l.Debe) } : l)
+            .Select(l => l.Debe > 0m && l.Haber > 0m ? l with { Debe = Math.Max(0m, l.Debe - l.Haber), Haber = Math.Max(0m, l.Haber - l.Debe) } : l)
+            .Where(l => l.Debe != 0m || l.Haber != 0m)
+            .ToList();
 
         // Mes cerrado: el documento sigue pendiente (se contabiliza con otra fecha de registro o al reabrir el mes).
         if (await PeriodosContables.ComprobarAsync(_asientos, doc.EmpresaId, doc.FechaRegistro, ct).ConfigureAwait(false) is { } cerrado)
@@ -172,13 +180,13 @@ public sealed class PosterDocumento
     {
         // Debe: cliente (total a cobrar) + retención soportada. Haber: ingreso (base) + IVA repercutido.
         var lineas = new List<LineaAsiento> { new(cuentaCliente, d.Total, 0m, concepto) };
-        if (d.RetencionIrpf > 0m)
+        if (d.RetencionIrpf != 0m)
         {
             lineas.Add(new LineaAsiento(PlanBasico.CuentaRetencionVenta, d.RetencionIrpf, 0m, "Retención IRPF"));
         }
 
         lineas.Add(new LineaAsiento(cuentaIngreso, 0m, d.BaseImponible, concepto));
-        if (d.CuotaIva > 0m)
+        if (d.CuotaIva != 0m)
         {
             lineas.Add(new LineaAsiento(PlanBasico.CuentaIvaRepercutido, 0m, d.CuotaIva, "IVA repercutido"));
         }
@@ -196,7 +204,7 @@ public sealed class PosterDocumento
         // Cada línea carga su parte no deducible propia (p. ej. el 50 % del IVA de un turismo); lo que además quita la
         // prorrata se reparte en proporción a lo que cada línea dejaba deducir.
         var candidata = d.Lineas.Sum(l => l.CuotaDeducible);
-        var porProrrata = Math.Max(0m, candidata - cuotaDeducible);
+        var porProrrata = candidata - cuotaDeducible;
         var cargos = new Dictionary<string, decimal>(StringComparer.Ordinal);
         var repartida = 0m;
         var conDeducible = d.Lineas.Select((l, i) => (l, i)).Where(x => x.l.CuotaDeducible != 0m).Select(x => x.i).LastOrDefault(-1);
@@ -212,18 +220,18 @@ public sealed class PosterDocumento
         }
 
         var lineas = cargos.Where(c => c.Value != 0m).Select(c => new LineaAsiento(c.Key, c.Value, 0m, concepto)).ToList();
-        if (cuotaDeducible > 0m)
+        if (cuotaDeducible != 0m)
         {
             lineas.Add(new LineaAsiento(PlanBasico.CuentaIvaSoportado, cuotaDeducible, 0m, "IVA soportado"));
         }
 
         var autoliquidada = d.Lineas.Where(l => l.Autoliquidada).Sum(l => l.Cuota);
-        if (autoliquidada > 0m)
+        if (autoliquidada != 0m)
         {
             lineas.Add(new LineaAsiento(PlanBasico.CuentaIvaRepercutido, 0m, autoliquidada, "IVA autoliquidado (inversión del sujeto pasivo / intracomunitaria)"));
         }
 
-        if (d.RetencionIrpf > 0m)
+        if (d.RetencionIrpf != 0m)
         {
             lineas.Add(new LineaAsiento(PlanBasico.CuentaRetencion, 0m, d.RetencionIrpf, "Retención IRPF"));
         }
@@ -238,12 +246,12 @@ public sealed class PosterDocumento
         // Haber: retención + proveedores (total).
         var noDeducible = d.CuotaIva - cuotaDeducible;
         var lineas = new List<LineaAsiento> { new(cuentaGasto, d.BaseImponible + noDeducible, 0m, concepto) };
-        if (cuotaDeducible > 0m)
+        if (cuotaDeducible != 0m)
         {
             lineas.Add(new LineaAsiento(PlanBasico.CuentaIvaSoportado, cuotaDeducible, 0m, "IVA soportado"));
         }
 
-        if (d.RetencionIrpf > 0m)
+        if (d.RetencionIrpf != 0m)
         {
             lineas.Add(new LineaAsiento(PlanBasico.CuentaRetencion, 0m, d.RetencionIrpf, "Retención IRPF"));
         }

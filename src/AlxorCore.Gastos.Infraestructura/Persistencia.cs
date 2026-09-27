@@ -64,6 +64,12 @@ internal sealed class ConfiguracionGasto : IEntityTypeConfiguration<Gasto>
         builder.Property(g => g.NumeroFactura).HasColumnName("numero_factura").HasMaxLength(Gasto.LongitudMaximaNumeroFactura);
         builder.Property(g => g.FechaFactura).HasColumnName("fecha_factura");
         builder.Property(g => g.Revision).HasColumnName("revision").HasDefaultValue(0).IsRequired();
+        builder.Property(g => g.EsRectificativa).HasColumnName("es_rectificativa").HasDefaultValue(false).IsRequired();
+        builder.Property(g => g.RectificaGastoId).HasColumnName("rectifica_gasto_id");
+        builder.Property(g => g.NumeroRectificado).HasColumnName("numero_rectificado").HasMaxLength(Gasto.LongitudMaximaNumeroFactura);
+        builder.Property(g => g.FechaRectificada).HasColumnName("fecha_rectificada");
+        builder.Property(g => g.MotivoRectificacion).HasColumnName("motivo_rectificacion").HasMaxLength(Gasto.LongitudMaximaConcepto);
+        builder.HasIndex(g => g.RectificaGastoId).HasDatabaseName("ix_gasto_rectifica");
         builder.Property(g => g.RecargoTotal).HasColumnName("recargo_total").HasColumnType("numeric(14,2)").HasDefaultValue(0m).IsRequired();
 
         builder.OwnsMany(g => g.Lineas, l =>
