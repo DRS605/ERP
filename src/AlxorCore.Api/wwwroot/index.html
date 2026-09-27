@@ -2372,7 +2372,23 @@
       }).join("");
       const estado=c.parejas.length?(c.cuadra?'<span class="pill ok">El grupo cuadra</span>':'<span class="pill neg">Hay diferencias</span>'):"";
       const sinAcceso=c.empresasSinAcceso.length?`<p class="muted" style="font-size:12px;margin:8px 0 0">Sin acceso (no se incluyen): ${c.empresasSinAcceso.map(agEsc).join(", ")}.</p>`:"";
-      view(panel(`Cuadre recíproco ${anio} ${estado}`,intro+(c.parejas.length?"":'<p class="muted" style="margin:0">Aún no hay facturas entre las empresas del grupo este ejercicio.</p>')+sinAcceso,selAnio)+bloques);
+      const verCons=`<button class="btn small secondary" onclick="vConsolidado(${anio})">Ver consolidado</button>`;
+      view(panel(`Cuadre recíproco ${anio} ${estado}`,intro+(c.parejas.length?"":'<p class="muted" style="margin:0">Aún no hay facturas entre las empresas del grupo este ejercicio.</p>')+sinAcceso,agBotones(verCons,selAnio))+bloques);
+    }
+    async function vConsolidado(anio){
+      anio=anio||new Date().getFullYear();
+      view('<div class="muted">Cargando…</div>');
+      const c=await api(`/intragrupo/consolidado?ejercicio=${anio}`);
+      const num=v=>v?eur(v):'<span class="muted">—</span>';
+      const cab=c.empresas.map(e=>`<th class="num">${agEsc(e.nombre)}${e.conContabilidad?"":' <span class="muted" title="Sin asientos en el ejercicio (contabilidad simple o sin movimientos)">*</span>'}</th>`).join("");
+      const filas=c.lineas.map(l=>`<tr><td class="mono"><strong>${l.cuenta}</strong></td><td>${agEsc(l.nombre)}</td>${l.porEmpresa.map(v=>`<td class="num">${num(v)}</td>`).join("")}<td class="num">${num(l.agregado)}</td><td class="num">${l.eliminado?`<strong>${eur(l.eliminado)}</strong>`:'<span class="muted">—</span>'}</td><td class="num"><strong>${num(l.consolidado)}</strong></td></tr>`).join("");
+      const resumen=`<div class="grid2" style="margin-bottom:12px"><div><span class="muted">Resultado sumado</span> <strong>${eur(c.resultadoAgregado)}</strong> · <span class="muted">consolidado</span> <strong>${eur(c.resultadoConsolidado)}</strong></div>
+        <div class="right"><span class="muted">Eliminado: ventas</span> <strong>${eur(c.ventasEliminadas)}</strong> · <span class="muted">compras</span> <strong>${eur(c.comprasEliminadas)}</strong> · <span class="muted">saldos</span> <strong>${eur(c.saldosEliminados)}</strong> ${c.eliminacionesCuadran?'<span class="pill ok">cuadran</span>':'<span class="pill neg">no cuadran</span>'}</div></div>`;
+      const noElim=c.noEliminadas.length?panel("Sin eliminar (no cuadran entre las dos empresas)",`<table><thead><tr><th>Factura</th><th>Emisor → receptor</th><th class="num">Emitido</th><th class="num">Contabilizado</th><th>Situación</th></tr></thead><tbody>${c.noEliminadas.map(n=>`<tr><td class="mono">${agEsc(n.numero)}</td><td>${agEsc(n.emisor)} → ${agEsc(n.receptor)}</td><td class="num">${eur(n.baseEmitida)}</td><td class="num">${eur(n.baseContabilizada)}</td><td>${agEsc(n.situacion)}</td></tr>`).join("")}</tbody></table>`):"";
+      const elim=c.eliminaciones.length?panel("Apuntes de eliminación",`<table><thead><tr><th>Empresa</th><th>Documento</th><th>Concepto</th><th>Cuenta</th><th class="num">Debe</th><th class="num">Haber</th></tr></thead><tbody>${c.eliminaciones.map(x=>`<tr><td>${agEsc(x.empresa)}</td><td class="mono">${agEsc(x.documento)}</td><td>${agEsc(x.concepto)}</td><td class="mono">${x.cuenta}</td><td class="num">${num(x.debe)}</td><td class="num">${num(x.haber)}</td></tr>`).join("")}</tbody></table>`):"";
+      const volver=`<button class="btn small secondary" onclick="vIntragrupo(${anio})">Ver cuadre</button>`;
+      view(panel(`Consolidado del grupo ${anio}`,`<p class="muted" style="margin:0 0 12px">Saldos (debe − haber) de cada empresa por cuenta de 3 dígitos, con las ventas, compras y saldos entre empresas del grupo eliminados. Solo se eliminan las facturas que cuadran en las dos empresas.</p>`+resumen+
+        (c.lineas.length?`<div style="overflow-x:auto"><table><thead><tr><th>Cuenta</th><th>Nombre</th>${cab}<th class="num">Suma</th><th class="num">Eliminado</th><th class="num">Consolidado</th></tr></thead><tbody>${filas}</tbody></table></div>`:'<p class="muted" style="margin:0">Sin asientos en el ejercicio (las empresas con contabilidad simple no tienen asientos que consolidar).</p>'),volver)+noElim+elim);
     }
     async function reflejarIntragrupo(id){
       try{ const r=await api(`/intragrupo/facturas/${id}/reflejar`,{method:"POST"}); toast(`Enviada a la bandeja de ${r.empresaDestino}.`,"ok"); vIntragrupo(); }catch(e){ toast(e.message,"err"); } }

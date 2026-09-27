@@ -60,8 +60,28 @@ Las dos operaciones van por el mismo importe; por defecto, lo pendiente en las d
 
 Si el pago no se puede registrar, el cobro se anula (contraasiento en modo Completo).
 
-## 5. Pendiente
+## 5. Consolidación
 
-- Eliminaciones en un informe consolidado del grupo (hoy se ve el cuadre, no se consolida).
-- Emparejar las cuentas contables de las dos empresas (la correspondencia de asientos de Hispatec).
+`GET /intragrupo/consolidado?ejercicio=` (pantalla «Entre empresas» → «Ver consolidado»):
+
+1. Suma los saldos (debe − haber) de todas las empresas del grupo a las que tiene acceso el usuario, por cuenta de
+   3 dígitos (el nivel del PGC común a todas).
+2. De cada factura intragrupo que **cuadra** (emitida por una empresa y contabilizada por la otra por la misma base)
+   elimina los **apuntes reales de sus asientos**:
+   - la venta (7xx) en la emisora;
+   - la compra o el gasto (6xx) en la receptora, sea cual sea la cuenta con que se contabilizó.
+3. Elimina lo que queda **pendiente de cobro (430) y de pago (400)** entre ellas.
+4. Da el resultado sumado y el consolidado. La venta intragrupo no crea resultado para el grupo.
+
+Además:
+
+- Las facturas que no cuadran (pendientes en destino, rechazadas, importes distintos…) **no se eliminan** y se
+  listan aparte.
+- La consolidación comprueba que los apuntes de eliminación cuadran (debe = haber).
+- Las empresas con contabilidad simple no tienen asientos: se marcan y no aportan saldos.
+
+## 6. Pendiente
+
+- Emparejar las cuentas contables de las dos empresas (la correspondencia de asientos de Hispatec) y el porcentaje de
+  participación (consolidación proporcional, socios externos).
 - Albarán de compra nacido del albarán de venta intragrupo, con traspaso de existencias entre empresas.

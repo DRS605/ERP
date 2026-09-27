@@ -33,6 +33,9 @@ public sealed record LineaMayorDto(DateOnly Fecha, int Numero, string Concepto, 
 /// <summary>Fila del balance de sumas y saldos.</summary>
 public sealed record SaldoCuentaDto(string CuentaCodigo, string CuentaNombre, decimal SumaDebe, decimal SumaHaber, decimal SaldoDeudor, decimal SaldoAcreedor);
 
+/// <summary>Apunte de un asiento generado por un documento (factura, gasto…), identificado por su origen.</summary>
+public sealed record ApunteOrigen(Guid OrigenId, string CuentaCodigo, decimal Debe, decimal Haber);
+
 /// <summary>Saldo agregado de una cuenta (suma de debe/haber), calculado en la base de datos.</summary>
 public sealed record SaldoCuentaAgregado(string CuentaCodigo, decimal Debe, decimal Haber);
 
@@ -80,6 +83,10 @@ public interface IRepositorioAsientos
     /// datos: la memoria depende del número de cuentas, no del número de apuntes (escala a grandes volúmenes).
     /// </summary>
     Task<IReadOnlyList<SaldoCuentaAgregado>> SaldosAgregadosAsync(Guid empresaId, int ejercicio, CancellationToken ct = default);
+
+    /// <summary>Apuntes de los asientos contabilizados de unos documentos de origen (incluidas sus anulaciones).</summary>
+    Task<IReadOnlyList<ApunteOrigen>> ApuntesDeOrigenesAsync(Guid empresaId, IReadOnlyCollection<Guid> origenIds, CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<ApunteOrigen>>([]);
 
     /// <summary>¿El ejercicio tiene algún asiento de cierre? (para saber si está cerrado sin cargarlos todos).</summary>
     Task<bool> TieneCierreAsync(Guid empresaId, int ejercicio, CancellationToken ct = default);

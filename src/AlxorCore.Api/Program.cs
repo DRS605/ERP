@@ -72,6 +72,7 @@ builder.Services.AddScoped<AlxorCore.Contabilidad.Aplicacion.IDeduccionImpuesto,
 builder.Services.AddScoped<AlxorCore.Agro.Aplicacion.IAutofacturas, AlxorCore.Api.Comun.AutofacturasGastos>();
 builder.Services.AddScoped<AlxorCore.Agro.Aplicacion.IDocumentosExpedicion, AlxorCore.Api.Comun.DocumentosExpedicionFacturacion>();
 builder.Services.AddSingleton<AlxorCore.Api.Comun.OperacionesIntragrupo>();
+builder.Services.AddSingleton<AlxorCore.Api.Comun.ConsolidacionGrupo>();
 builder.Services.AddScoped<AlxorCore.Agro.Aplicacion.ICosteAnalitico, AlxorCore.Api.Comun.CosteAnaliticoContabilidad>();
 builder.Services.AgregarModuloAuditoria(builder.Configuration);
 builder.Services.AgregarModuloDivisas(builder.Configuration);

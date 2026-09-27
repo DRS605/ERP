@@ -341,6 +341,23 @@ internal sealed class RepositorioAsientos : IRepositorioAsientos
             .Select(g => new SaldoCuentaAgregado(g.Key, g.Sum(x => x.Debe), g.Sum(x => x.Haber)))
             .ToListAsync(ct).ConfigureAwait(false);
 
+    public async Task<IReadOnlyList<ApunteOrigen>> ApuntesDeOrigenesAsync(Guid empresaId, IReadOnlyCollection<Guid> origenIds, CancellationToken ct = default)
+    {
+        if (origenIds.Count == 0)
+        {
+            return [];
+        }
+
+        var documentos = await _contexto.DocumentosPendientes.AsNoTracking()
+            .Where(d => d.EmpresaId == empresaId && origenIds.Contains(d.OrigenId) && d.AsientoId != null)
+            .Select(d => new { d.OrigenId, AsientoId = d.AsientoId!.Value }).ToListAsync(ct).ConfigureAwait(false);
+        var ids = documentos.Select(d => d.AsientoId).Distinct().ToList();
+        var asientos = await _contexto.Asientos.AsNoTracking().Where(a => ids.Contains(a.Id)).ToListAsync(ct).ConfigureAwait(false);
+        var porId = asientos.ToDictionary(a => a.Id);
+        return documentos.Where(d => porId.ContainsKey(d.AsientoId))
+            .SelectMany(d => porId[d.AsientoId].Apuntes.Select(p => new ApunteOrigen(d.OrigenId, p.CuentaCodigo, p.Debe, p.Haber))).ToList();
+    }
+
     public Task<bool> TieneCierreAsync(Guid empresaId, int ejercicio, CancellationToken ct = default) =>
         _contexto.Asientos.AnyAsync(a => a.EmpresaId == empresaId && a.Ejercicio == ejercicio && a.Origen == "Cierre", ct);
 }

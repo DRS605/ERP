@@ -30,6 +30,9 @@ public sealed class IntragrupoTests : IClassFixture<FabricaApiPruebas>
     private sealed record SaldoResp(decimal Pendiente, string Estado);
     private sealed record LiquidacionResp(decimal Importe, SaldoResp Cobro, SaldoResp Pago);
     private sealed record EspejoResp(Guid FacturaRecibidaId, string Estado);
+    private sealed record LineaConsResp(string Cuenta, List<decimal> PorEmpresa, decimal Agregado, decimal Eliminado, decimal Consolidado);
+    private sealed record ConsolidadoResp(List<LineaConsResp> Lineas, decimal ResultadoAgregado, decimal ResultadoConsolidado, decimal VentasEliminadas,
+        decimal ComprasEliminadas, decimal SaldosEliminados, bool EliminacionesCuadran, List<object> NoEliminadas);
 
     private sealed record Grupo(HttpClient Api, Guid A, Guid B, Guid ClienteB);
 
@@ -154,5 +157,64 @@ public sealed class IntragrupoTests : IClassFixture<FabricaApiPruebas>
         var linea = (await g.Api.GetFromJsonAsync<CuadreResp>("/intragrupo/cuadre"))!.Parejas.Single().Facturas.Single();
         linea.Situacion.Should().Be("Anulada");
         linea.Diferencia.Should().Be(0m);
+    }
+
+    private static async Task ContabilidadCompletaAsync(HttpClient api)
+    {
+        (await api.PutAsJsonAsync("/contabilidad/modo", new { Modo = "Completo" })).EnsureSuccessStatusCode();
+        (await api.PutAsJsonAsync("/contabilidad/contabilizacion-automatica", new { Automatica = true })).EnsureSuccessStatusCode();
+    }
+
+    private static decimal Cuenta(ConsolidadoResp c, string cuenta, Func<LineaConsResp, decimal> valor) =>
+        c.Lineas.Where(l => l.Cuenta == cuenta).Sum(valor);
+
+    [Fact]
+    public async Task La_consolidacion_elimina_ventas_compras_y_saldos_entre_empresas()
+    {
+        var g = await GrupoAsync();
+        await ContabilidadCompletaAsync(g.Api);
+        await SeleccionarAsync(g.Api, g.B);
+        await ContabilidadCompletaAsync(g.Api);
+        await SeleccionarAsync(g.Api, g.A);
+
+        // A factura 1.000 a B (intragrupo) y 500 a un cliente de fuera.
+        var f = await FacturarAsync(g, 1_000m);
+        var externo = (await (await g.Api.PostAsJsonAsync("/clientes", new { Nombre = "Cliente externo", NifFiscal = Ayudas.GenerarNif() })).Content.ReadFromJsonAsync<IdResp>())!.Id;
+        (await g.Api.PostAsJsonAsync("/facturas", new { ClienteId = externo, Lineas = new[] { new { Cantidad = 1m, Descripcion = "Venta", PrecioUnitario = 500m, CodigoIva = "IVA21" } } }))
+            .EnsureSuccessStatusCode();
+
+        // Mientras B no la contabiliza, no se elimina (se lista como pendiente).
+        var antes = (await g.Api.GetFromJsonAsync<ConsolidadoResp>("/intragrupo/consolidado"))!;
+        antes.VentasEliminadas.Should().Be(0m);
+        antes.NoEliminadas.Should().HaveCount(1);
+
+        await SeleccionarAsync(g.Api, g.B);
+        var espejo = (await BandejaAsync(g)).Single();
+        (await g.Api.PostAsJsonAsync($"/recepcion/facturas/{espejo.Id}/validar", new
+        {
+            BaseImponible = espejo.BaseImponible, FechaFactura = espejo.FechaFactura, ProveedorId = espejo.ProveedorId, NumeroFactura = espejo.NumeroFactura, CodigoIva = espejo.CodigoIva,
+        })).EnsureSuccessStatusCode();
+        (await g.Api.PostAsync(new Uri($"/recepcion/facturas/{espejo.Id}/contabilizar", UriKind.Relative), null)).EnsureSuccessStatusCode();
+        await SeleccionarAsync(g.Api, g.A);
+
+        var c = (await g.Api.GetFromJsonAsync<ConsolidadoResp>("/intragrupo/consolidado"))!;
+        c.NoEliminadas.Should().BeEmpty();
+        c.EliminacionesCuadran.Should().BeTrue();
+        c.VentasEliminadas.Should().Be(1_000m);
+        c.ComprasEliminadas.Should().Be(1_000m);
+        c.SaldosEliminados.Should().Be(1_210m);
+        Cuenta(c, "705", l => l.Agregado).Should().Be(-1_500m);
+        Cuenta(c, "705", l => l.Consolidado).Should().Be(-500m, "solo queda la venta a fuera del grupo");
+        c.Lineas.Where(l => l.Cuenta.StartsWith('6')).Sum(l => l.Consolidado).Should().Be(0m);
+        Cuenta(c, "430", l => l.Consolidado).Should().Be(605m, "queda el cliente externo");
+        Cuenta(c, "400", l => l.Consolidado).Should().Be(0m);
+        c.ResultadoAgregado.Should().Be(500m);
+        c.ResultadoConsolidado.Should().Be(500m, "la venta intragrupo no crea resultado para el grupo");
+
+        // Liquidada, ya no hay saldos pendientes que eliminar.
+        (await g.Api.PostAsJsonAsync($"/intragrupo/facturas/{f.Id}/liquidar", new { })).EnsureSuccessStatusCode();
+        var tras = (await g.Api.GetFromJsonAsync<ConsolidadoResp>("/intragrupo/consolidado"))!;
+        tras.SaldosEliminados.Should().Be(0m);
+        Cuenta(tras, "430", l => l.Consolidado).Should().Be(605m);
     }
 }

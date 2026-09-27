@@ -24,6 +24,13 @@ public static class EndpointsIntragrupo
             .WithSummary("Cuadre recíproco del ejercicio: lo facturado por cada empresa a otra del grupo frente a lo que esta ha contabilizado.")
             .RequierePermiso(Permisos.InformeLeer);
 
+        g.MapGet("/consolidado", async (int? ejercicio, IContextoEmpresa contexto, ClaimsPrincipal usuario, ConsolidacionGrupo consolidacion, CancellationToken ct) =>
+                contexto.EmpresaId is not { } empresa || usuario.ObtenerUsuarioId() is not { } u
+                    ? ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."))
+                    : Results.Ok(await consolidacion.ConsolidarAsync(empresa, u, ejercicio ?? DateTime.UtcNow.Year, ct).ConfigureAwait(false)))
+            .WithSummary("Consolidación del grupo: saldos de todas las empresas por cuenta, con las ventas, compras y saldos intragrupo eliminados.")
+            .RequierePermiso(Permisos.ContabilidadLeer);
+
         g.MapPost("/facturas/{id:guid}/reflejar", async (Guid id, IContextoEmpresa contexto, OperacionesIntragrupo op, CancellationToken ct) =>
             {
                 if (contexto.EmpresaId is not { } empresa)

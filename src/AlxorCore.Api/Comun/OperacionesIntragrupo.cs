@@ -16,7 +16,7 @@ public sealed record EspejoIntragrupoDto(Guid EmpresaDestinoId, string EmpresaDe
 
 /// <summary>Una factura intragrupo en el cuadre: lo emitido por una empresa frente a lo contabilizado por la otra.</summary>
 public sealed record LineaCuadreDto(Guid FacturaId, string Numero, DateOnly Fecha, decimal BaseEmitida, string EstadoFactura, string? EstadoEspejo,
-    decimal BaseContabilizada, decimal Diferencia, string Situacion);
+    decimal BaseContabilizada, decimal Diferencia, string Situacion, Guid? GastoId = null);
 
 /// <summary>Cuadre de una pareja emisora → receptora.</summary>
 public sealed record ParejaCuadreDto(Guid EmisorId, string Emisor, Guid ReceptorId, string Receptor, decimal Emitido, decimal Contabilizado,
@@ -56,7 +56,7 @@ public sealed class OperacionesIntragrupo
     }
 
     /// <summary>Ámbito de servicios con la empresa (y su grupo) activa.</summary>
-    private async Task<AsyncServiceScope> AmbitoAsync(Guid empresaId, CancellationToken ct)
+    internal async Task<AsyncServiceScope> AmbitoAsync(Guid empresaId, CancellationToken ct)
     {
         var ambito = _ambitos.CreateAsyncScope();
         var contexto = ambito.ServiceProvider.GetRequiredService<IContextoEmpresaMutable>();
@@ -69,7 +69,7 @@ public sealed class OperacionesIntragrupo
         return ambito;
     }
 
-    private static T Servicio<T>(AsyncServiceScope ambito) where T : notnull => ambito.ServiceProvider.GetRequiredService<T>();
+    internal static T Servicio<T>(AsyncServiceScope ambito) where T : notnull => ambito.ServiceProvider.GetRequiredService<T>();
 
     /// <summary>
     /// Refleja una factura emitida a un cliente enlazado con otra empresa del grupo en la bandeja de esa empresa.
@@ -234,7 +234,7 @@ public sealed class OperacionesIntragrupo
                         (false, _) => "Anulada",
                     };
                     return new LineaCuadreDto(f.Id, f.NumeroCompleto, f.FechaEmision, emitido, f.Estado, espejo?.Estado, contabilizado,
-                        Redondeo.Dos(emitido - contabilizado), situacion);
+                        Redondeo.Dos(emitido - contabilizado), situacion, espejo?.GastoId);
                 }).ToList();
                 var pendiente = lineas.Where(l => l.Situacion == "Pendiente en destino").Sum(l => l.BaseEmitida);
                 parejas.Add(new ParejaCuadreDto(emisor.Id, emisor.RazonSocial, receptor.Id, receptor.RazonSocial, lineas.Sum(l => l.BaseEmitida),
