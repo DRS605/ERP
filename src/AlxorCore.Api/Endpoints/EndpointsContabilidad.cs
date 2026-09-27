@@ -60,6 +60,31 @@ public static class EndpointsContabilidad
             .WithSummary("Elimina un diario propio sin asientos (el que tiene asientos se da de baja).")
             .RequierePermiso(Permisos.ContabilidadGestionar);
 
+        grupo.MapGet("/periodificaciones", async (IContextoEmpresa contexto, GestionPeriodificaciones caso, CancellationToken ct) =>
+                contexto.EmpresaId is { } e ? Results.Ok(await caso.ListarAsync(e, ct).ConfigureAwait(false)) : SinEmpresa())
+            .WithSummary("Periodificaciones de gastos e ingresos, con sus cuotas mensuales.")
+            .RequierePermiso(Permisos.ContabilidadLeer);
+        grupo.MapPost("/periodificaciones", async (DatosPeriodificacion datos, IContextoEmpresa contexto, GestionPeriodificaciones caso, CancellationToken ct) =>
+                contexto.EmpresaId is { } e ? (await caso.CrearAsync(e, datos, ct).ConfigureAwait(false)).ACreado("/contabilidad/periodificaciones") : SinEmpresa())
+            .WithSummary("Da de alta una periodificación (con el asiento de reclasificación a 480/485, si se pide).")
+            .RequierePermiso(Permisos.ContabilidadGestionar);
+        grupo.MapPost("/periodificaciones/generar", async (PeticionGenerarPeriodificaciones peticion, IContextoEmpresa contexto, GestionPeriodificaciones caso, CancellationToken ct) =>
+                contexto.EmpresaId is { } e ? (await caso.GenerarAsync(e, peticion.Hasta, ct).ConfigureAwait(false)).AOk() : SinEmpresa())
+            .WithSummary("Contabiliza las cuotas pendientes hasta una fecha (las de meses cerrados, no).")
+            .RequierePermiso(Permisos.ContabilidadGestionar);
+        grupo.MapPost("/periodificaciones/{id:guid}/cancelar", async (Guid id, PeticionFechaPeriodificacion peticion, IContextoEmpresa contexto, GestionPeriodificaciones caso, CancellationToken ct) =>
+                contexto.EmpresaId is { } e ? (await caso.CancelarAsync(e, id, peticion.Fecha, ct).ConfigureAwait(false)).AOk() : SinEmpresa())
+            .WithSummary("Termina antes una periodificación: lo pendiente va a resultados de una vez.")
+            .RequierePermiso(Permisos.ContabilidadGestionar);
+        grupo.MapPost("/periodificaciones/{id:guid}/anular", async (Guid id, PeticionFechaPeriodificacion peticion, IContextoEmpresa contexto, GestionPeriodificaciones caso, CancellationToken ct) =>
+                contexto.EmpresaId is { } e ? (await caso.AnularAsync(e, id, peticion.Fecha, ct).ConfigureAwait(false)).AOk() : SinEmpresa())
+            .WithSummary("Anula todos los asientos de una periodificación con contraasientos en la fecha indicada.")
+            .RequierePermiso(Permisos.ContabilidadGestionar);
+        grupo.MapDelete("/periodificaciones/{id:guid}", async (Guid id, IContextoEmpresa contexto, GestionPeriodificaciones caso, CancellationToken ct) =>
+                contexto.EmpresaId is { } e ? (await caso.EliminarAsync(e, id, ct).ConfigureAwait(false)).ASinContenido() : SinEmpresa())
+            .WithSummary("Elimina una periodificación sin asientos.")
+            .RequierePermiso(Permisos.ContabilidadGestionar);
+
         grupo.MapGet("/periodos", async (int? ejercicio, IContextoEmpresa contexto, CierreMensual caso, IReloj reloj, CancellationToken ct) =>
                 contexto.EmpresaId is { } e ? Results.Ok(await caso.EstadoAsync(e, Ejercicio(ejercicio, reloj), ct).ConfigureAwait(false)) : SinEmpresa())
             .WithSummary("Meses del ejercicio: cerrados o abiertos, con sus asientos y documentos pendientes de contabilizar.")
@@ -468,6 +493,10 @@ public static class EndpointsContabilidad
 
     /// <summary>Mes que se cierra (hasta él) o se reabre (desde él).</summary>
     public sealed record PeticionPeriodo(int Anio, int Mes, bool Forzar = false);
+
+    public sealed record PeticionGenerarPeriodificaciones(DateOnly Hasta);
+
+    public sealed record PeticionFechaPeriodificacion(DateOnly Fecha);
 
     private static IResult SinEmpresa() => ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
 }

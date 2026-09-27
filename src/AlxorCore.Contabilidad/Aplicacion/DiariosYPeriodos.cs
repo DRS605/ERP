@@ -145,7 +145,7 @@ public sealed class GestionDiarios
 }
 
 /// <summary>Un mes del ejercicio: si está cerrado, sus asientos y lo que queda pendiente de contabilizar con esa fecha.</summary>
-public sealed record MesContableDto(int Mes, DateOnly Desde, DateOnly Hasta, bool Cerrado, int Asientos, int Pendientes);
+public sealed record MesContableDto(int Mes, DateOnly Desde, DateOnly Hasta, bool Cerrado, int Asientos, int Pendientes, int Periodificaciones = 0);
 
 public sealed record PeriodosContablesDto(int Ejercicio, DateOnly? CerradoHasta, IReadOnlyList<MesContableDto> Meses);
 
@@ -159,23 +159,32 @@ public sealed class CierreMensual
     private readonly IRepositorioAsientos _asientos;
     private readonly IRepositorioDocumentosPendientes _pendientes;
     private readonly IUnidadDeTrabajoContabilidad _unidad;
+    private readonly IRepositorioPeriodificaciones? _periodificaciones;
 
-    public CierreMensual(IRepositorioConfigContabilidad config, IRepositorioAsientos asientos, IRepositorioDocumentosPendientes pendientes, IUnidadDeTrabajoContabilidad unidad)
+    public CierreMensual(IRepositorioConfigContabilidad config, IRepositorioAsientos asientos, IRepositorioDocumentosPendientes pendientes, IUnidadDeTrabajoContabilidad unidad,
+        IRepositorioPeriodificaciones? periodificaciones = null)
     {
-        _config = config; _asientos = asientos; _pendientes = pendientes; _unidad = unidad;
+        _config = config; _asientos = asientos; _pendientes = pendientes; _unidad = unidad; _periodificaciones = periodificaciones;
     }
+
+    /// <summary>Fechas de las cuotas de periodificación sin contabilizar (de las periodificaciones activas).</summary>
+    private async Task<IReadOnlyList<DateOnly>> CuotasPendientesAsync(Guid empresaId, CancellationToken ct) =>
+        _periodificaciones is null ? []
+            : (await _periodificaciones.ListarAsync(empresaId, ct).ConfigureAwait(false)).Where(p => p.Estado == EstadoPeriodificacion.Activa)
+                .SelectMany(p => p.Cuotas.Where(c => c.AsientoId is null).Select(c => c.Fecha)).ToList();
 
     public async Task<PeriodosContablesDto> EstadoAsync(Guid empresaId, int ejercicio, CancellationToken ct = default)
     {
         var cerrado = (await _config.ObtenerAsync(empresaId, ct).ConfigureAwait(false))?.CerradoHasta;
         var asientos = await _asientos.DiarioAsync(empresaId, ejercicio, ct).ConfigureAwait(false);
         var pendientes = (await _pendientes.ListarPendientesAsync(empresaId, ct).ConfigureAwait(false)).Where(p => p.FechaRegistro.Year == ejercicio).ToList();
+        var cuotas = (await CuotasPendientesAsync(empresaId, ct).ConfigureAwait(false)).Where(f => f.Year == ejercicio).ToList();
         var meses = Enumerable.Range(1, 12).Select(m =>
         {
             var desde = new DateOnly(ejercicio, m, 1);
             var hasta = desde.AddMonths(1).AddDays(-1);
             return new MesContableDto(m, desde, hasta, cerrado is { } h && hasta <= h, asientos.Count(a => a.Fecha.Month == m),
-                pendientes.Count(p => p.FechaRegistro.Month == m));
+                pendientes.Count(p => p.FechaRegistro.Month == m), cuotas.Count(f => f.Month == m));
         }).ToList();
         return new PeriodosContablesDto(ejercicio, cerrado, meses);
     }
@@ -196,6 +205,13 @@ public sealed class CierreMensual
             {
                 return Resultado.Fallo<PeriodosContablesDto>(Error.Conflicto("periodo.pendientes",
                     $"Hay {n} documento(s) pendiente(s) de contabilizar con fecha hasta el {fin:dd/MM/yyyy}: contabilízalos antes, o cierra igualmente."));
+            }
+
+            var cuotas = (await CuotasPendientesAsync(empresaId, ct).ConfigureAwait(false)).Count(f => f <= fin && (config.CerradoHasta is not { } h2 || f > h2));
+            if (cuotas > 0)
+            {
+                return Resultado.Fallo<PeriodosContablesDto>(Error.Conflicto("periodo.pendientes",
+                    $"Hay {cuotas} cuota(s) de periodificación sin contabilizar hasta el {fin:dd/MM/yyyy}: genéralas antes, o cierra igualmente."));
             }
         }
 

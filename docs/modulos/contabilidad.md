@@ -154,6 +154,7 @@ Diarios de sistema, que existen siempre:
 | `COM` | Compras | Facturas de compra y gastos |
 | `TES` | Cobros y pagos | Cobros, pagos y anticipos |
 | `INM` | Inmovilizado | Amortizaciones, impuesto diferido, bajas y ventas de inmovilizado |
+| `PER` | Periodificaciones | Reclasificaciones, cuotas y cancelaciones de periodificaciones |
 | `CIE` | Regularización y cierre | Regularización y cierre del ejercicio |
 | `APE` | Apertura | Apertura del ejercicio |
 
@@ -166,11 +167,16 @@ Diarios de sistema, que existen siempre:
 - Un **contraasiento** va siempre al diario del asiento que anula.
 - Un diario con asientos no se elimina: se da de baja, y sus orígenes vuelven a su diario de sistema.
 
-La base de datos asigna el diario y el número al dar de alta el asiento (trigger `contabilidad.asiento_diario`). Así
-lo cumplen todos los orígenes. El número es correlativo porque el alta ya tiene el bloqueo del ejercicio. Índice
-único `ux_asiento_diario_numero`.
+La base de datos asigna el diario al dar de alta el asiento (trigger `contabilidad.asiento_diario`), así que lo
+cumplen todos los orígenes. Al migrar, los asientos existentes recibieron su diario por su origen.
 
-Al migrar, los asientos existentes recibieron su diario por el origen y su número en orden.
+El **número dentro del diario no se guarda**: es el orden del asiento, por su número correlativo, en su diario y
+ejercicio, y se calcula al leer el libro diario. Es estable porque los asientos no se borran y la numeración solo
+crece.
+
+Guardarlo no funcionaba cuando varios asientos se graban juntos (las cuotas de periodificación, el cierre del
+ejercicio, la amortización mensual). La base de datos los recibe en el orden de su clave, no en el de su número, y
+el número del diario salía desordenado.
 
 ## Cierre mensual
 
@@ -183,6 +189,7 @@ ni anulaciones (409 `asiento.periodo_cerrado`). La regularización y el cierre d
 - Si hay **documentos pendientes de contabilizar** con fecha hasta ese mes, el cierre pide confirmación (409
   `periodo.pendientes`; con `forzar: true` cierra igualmente). Esos documentos se contabilizan después con otra fecha
   de registro, o reabriendo el mes.
+- También pide confirmación si quedan **cuotas de periodificación** sin generar hasta ese mes.
 - Con **contabilización automática**, un documento con fecha de un mes cerrado se registra igual, pero su asiento se
   queda **pendiente**.
 - **Reabrir** (`POST /contabilidad/periodos/reabrir`) reabre desde un mes y todos los posteriores. Los meses de un
@@ -192,6 +199,37 @@ ni anulaciones (409 `asiento.periodo_cerrado`). La regularización y el cierre d
 
 La fecha de cierre es `config_contabilidad.cerrado_hasta`. El mismo trigger de alta la comprueba, de modo que ningún
 camino puede saltársela.
+
+## Periodificaciones
+
+Un gasto o un ingreso que corresponde a varios meses se lleva a resultados **mes a mes** (el
+`AsientosPeriodificacion` de Hispatec). Ejemplos: un seguro anual pagado en marzo, una suscripción, un alquiler
+cobrado por adelantado. Pantalla «Contabilidad» → «Periodificaciones»; API `/contabilidad/periodificaciones`.
+
+**Alta**: descripción, tipo (gasto o ingreso), cuenta de resultados (grupo 6 o 7), importe, fecha, meses (2 a 120) y
+primer mes (por defecto, el de la fecha). La cuenta de periodificación es por defecto la **480** (gastos anticipados)
+o la **485** (ingresos anticipados).
+
+- Con **reclasificar** (por defecto), un asiento en la fecha saca el importe de la cuenta de resultados, donde lo
+  dejó la factura, y lo lleva a la 480/485. Gasto: 480 al debe, 6xx al haber. Ingreso: 7xx al debe, 485 al haber.
+- Sin reclasificar, se entiende que la factura ya se contabilizó en la 480/485.
+
+**Cuotas**: el importe entre los meses; la última recoge el redondeo (1.000 en 3 meses: 333,33 + 333,33 + 333,34).
+
+- «Generar cuotas» (`POST …/generar` con `{hasta}`) contabiliza las pendientes hasta esa fecha, con un asiento al
+  **último día de cada mes**. Gasto: 6xx al debe, 480 al haber. Ingreso: 485 al debe, 7xx al haber.
+- Cada cuota se contabiliza una sola vez. Las de meses o ejercicios cerrados no se generan: se cuentan aparte en la
+  respuesta.
+- Con la última cuota, la periodificación queda **Terminada**.
+
+**Cancelar** (`POST …/{id}/cancelar` con `{fecha}`): termina antes. Lo pendiente va a resultados de una vez.
+
+**Anular** (`POST …/{id}/anular` con `{fecha}`): contraasientos de todos sus asientos en esa fecha. Todo vuelve a
+donde estaba, y la fecha no puede ser anterior a sus asientos. Sus asientos no se anulan uno a uno desde el diario.
+
+**Eliminar**: solo si no tiene asientos.
+
+Todos sus asientos van al diario `PER`, con origen `Periodificacion`, y respetan el cierre mensual.
 
 ## Invariantes
 
@@ -214,6 +252,12 @@ camino puede saltársela.
 | `POST` | `/contabilidad/diarios` | `contabilidad.gestionar` | Crea un diario propio. **201** |
 | `PUT` | `/contabilidad/diarios/{id}` | `contabilidad.gestionar` | Nombre, orígenes y alta o baja de un diario propio. |
 | `DELETE` | `/contabilidad/diarios/{id}` | `contabilidad.gestionar` | Elimina un diario propio sin asientos. **204** |
+| `GET` | `/contabilidad/periodificaciones` | `contabilidad.leer` | Periodificaciones con sus cuotas. |
+| `POST` | `/contabilidad/periodificaciones` | `contabilidad.gestionar` | Alta (con reclasificación a 480/485 si se pide). **201** |
+| `POST` | `/contabilidad/periodificaciones/generar` | `contabilidad.gestionar` | Contabiliza las cuotas pendientes hasta `{hasta}`. |
+| `POST` | `/contabilidad/periodificaciones/{id}/cancelar` | `contabilidad.gestionar` | Lo pendiente, a resultados en `{fecha}`. |
+| `POST` | `/contabilidad/periodificaciones/{id}/anular` | `contabilidad.gestionar` | Contraasientos de todos sus asientos en `{fecha}`. |
+| `DELETE` | `/contabilidad/periodificaciones/{id}` | `contabilidad.gestionar` | Elimina una sin asientos. **204** |
 | `GET` | `/contabilidad/periodos?ejercicio=` | `contabilidad.leer` | Meses del ejercicio: cerrados o abiertos, asientos y pendientes. |
 | `POST` | `/contabilidad/periodos/cerrar` | `contabilidad.gestionar` | Cierra hasta un mes (`{anio, mes, forzar}`). |
 | `POST` | `/contabilidad/periodos/reabrir` | `contabilidad.gestionar` | Reabre desde un mes (`{anio, mes}`). |

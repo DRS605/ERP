@@ -1708,7 +1708,7 @@
     async function vContabilidad() {
       view('<div class="muted">Cargando…</div>');
       const anio=new Date().getFullYear();
-      const [cfg,diario,balance,pendientes,reglas,cuentas,pyg,balsit,anuales,is200,diarios,periodos]=await Promise.all([
+      const [cfg,diario,balance,pendientes,reglas,cuentas,pyg,balsit,anuales,is200,diarios,periodos,periodif]=await Promise.all([
         api("/contabilidad/config"),
         api("/contabilidad/diario?ejercicio="+anio),
         api("/contabilidad/balance?ejercicio="+anio),
@@ -1721,7 +1721,9 @@
         api("/contabilidad/modelo-200?ejercicio="+anio).catch(()=>null),
         api("/contabilidad/diarios").catch(()=>[]),
         api("/contabilidad/periodos?ejercicio="+anio).catch(()=>null),
+        api("/contabilidad/periodificaciones").catch(()=>[]),
       ]);
+      window._periodif=periodif;
       window._diarios=diarios; window._diarioTodos=diario;
       window._ctaOpts=cuentas;
       const modo=cfg.modo||"Simple";
@@ -1874,7 +1876,7 @@
         +panelPend
         +panelReglas
         +panel("Libro diario · "+anio,`<div id="diario_cuerpo">${diarioTabla}</div>`,agBotones((diarios||[]).length?`<select style="width:auto" onchange="filtrarDiario(this.value)"><option value="">Todos los diarios</option>${diarios.map(d=>`<option value="${d.codigo}">${agEsc(d.codigo)} · ${agEsc(d.nombre)}</option>`).join("")}</select>`:"",`<button class="btn small" onclick="modalAsiento()">+ Nuevo asiento</button>`))
-        +(modo==="Completo"?panelPeriodos(periodos,anio)+panelDiarios(diarios):"")
+        +(modo==="Completo"?panelPeriodificaciones(periodif)+panelPeriodos(periodos,anio)+panelDiarios(diarios):"")
         +panel("Balance de sumas y saldos · "+anio,balTabla)
         +panelPyg
         +panelBalSit
@@ -1958,8 +1960,8 @@
       const nombres=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
       const primeroAbierto=p.meses.find(m=>!m.cerrado);
       const filas=p.meses.map(m=>`<tr><td>${nombres[m.mes-1]}</td><td>${m.cerrado?'<span class="pill neg">Cerrado</span>':'<span class="pill ok">Abierto</span>'}</td>
-        <td class="num">${m.asientos||'<span class="muted">—</span>'}</td><td class="num">${m.pendientes?`<span class="pill part">${m.pendientes}</span>`:'<span class="muted">—</span>'}</td>
-        <td class="right">${m.cerrado?`<button class="btn small ghost" onclick="reabrirMes(${anio},${m.mes})">Reabrir desde aquí</button>`:(primeroAbierto&&m.mes>=primeroAbierto.mes?`<button class="btn small secondary" onclick="cerrarMes(${anio},${m.mes},${m.pendientes||0})">Cerrar hasta aquí</button>`:'')}</td></tr>`).join("");
+        <td class="num">${m.asientos||'<span class="muted">—</span>'}</td><td class="num">${(m.pendientes||m.periodificaciones)?`<span class="pill part" title="${m.pendientes} documento(s) y ${m.periodificaciones||0} cuota(s) de periodificación">${m.pendientes+(m.periodificaciones||0)}</span>`:'<span class="muted">—</span>'}</td>
+        <td class="right">${m.cerrado?`<button class="btn small ghost" onclick="reabrirMes(${anio},${m.mes})">Reabrir desde aquí</button>`:(primeroAbierto&&m.mes>=primeroAbierto.mes?`<button class="btn small secondary" onclick="cerrarMes(${anio},${m.mes},${(m.pendientes||0)+(m.periodificaciones||0)})">Cerrar hasta aquí</button>`:'')}</td></tr>`).join("");
       return panel("Cierre mensual · "+anio,`<p class="muted" style="margin:0 0 10px">Un mes cerrado no admite asientos con su fecha (ni anteriores): ciérralo al presentar el IVA. Los documentos pendientes de un mes cerrado se contabilizan con otra fecha de registro o reabriendo el mes.${p.cerradoHasta?` Cerrado hasta el <strong>${fdate(p.cerradoHasta)}</strong>.`:''}</p>
         <table><thead><tr><th>Mes</th><th>Estado</th><th class="num">Asientos</th><th class="num">Pendientes</th><th></th></tr></thead><tbody>${filas}</tbody></table>`);
     }
@@ -1972,7 +1974,49 @@
       if(!confirm("Se reabre este mes y todos los posteriores. ¿Continuar?")) return;
       try{ await api("/contabilidad/periodos/reabrir",{method:"POST",body:JSON.stringify({anio,mes})}); toast("Mes reabierto.","ok"); vContabilidad(); }catch(e){ toast(e.message,"err"); }
     }
-    const ORIGENES_ASIENTO={Manual:"Asientos manuales",Venta:"Facturas de venta",Compra:"Facturas de compra",Cobro:"Cobros",Pago:"Pagos",Amortizacion:"Amortizaciones",BajaInmovilizado:"Bajas de inmovilizado",Enajenacion:"Ventas de inmovilizado",ImpuestoDiferido:"Impuesto diferido",Regularizacion:"Regularización",Cierre:"Cierre",Apertura:"Apertura"};
+    const ORIGENES_ASIENTO={Manual:"Asientos manuales",Venta:"Facturas de venta",Compra:"Facturas de compra",Cobro:"Cobros",Pago:"Pagos",Amortizacion:"Amortizaciones",BajaInmovilizado:"Bajas de inmovilizado",Enajenacion:"Ventas de inmovilizado",ImpuestoDiferido:"Impuesto diferido",Periodificacion:"Periodificaciones",Regularizacion:"Regularización",Cierre:"Cierre",Apertura:"Apertura"};
+    function panelPeriodificaciones(lista){
+      const finMes=()=>{ const d=new Date(); return new Date(d.getFullYear(),d.getMonth()+1,0).toISOString().slice(0,10); };
+      const estado={Activa:'<span class="pill ok">Activa</span>',Terminada:'<span class="pill">Terminada</span>',Cancelada:'<span class="pill wait">Cancelada</span>',Anulada:'<span class="pill neg">Anulada</span>'};
+      const filas=(lista||[]).map(p=>{ const hechas=p.cuotas.filter(c=>c.asientoId).length;
+        return `<tr><td><strong>${agEsc(p.descripcion)}</strong><div class="muted" style="font-size:12px">${p.tipo==="Gasto"?"Gasto":"Ingreso"} · ${p.cuentaResultado} ↔ ${p.cuentaPeriodificacion} · desde ${String(p.mesInicio).padStart(2,"0")}/${p.ejercicioInicio}</div></td>
+        <td class="num">${eur(p.importe)}</td><td class="num">${eur(p.imputado)}</td><td class="num">${eur(p.pendiente)}</td><td class="num">${hechas}/${p.meses}</td><td>${estado[p.estado]||p.estado}</td>
+        <td class="right" style="white-space:nowrap">${p.estado==="Activa"?`<button class="btn small ghost" onclick="cancelarPeriodificacion('${p.id}')">Cancelar</button>`:""}${p.estado!=="Anulada"&&(hechas||p.asientoReclasificacionId||p.asientoCancelacionId)?` <button class="btn small ghost" onclick="anularPeriodificacion('${p.id}')">Anular</button>`:""}${!hechas&&!p.asientoReclasificacionId&&!p.asientoCancelacionId?` <button class="btn small ghost" onclick="eliminarPeriodificacion('${p.id}')" title="Eliminar">✕</button>`:""}</td></tr>`; }).join("");
+      return panel("Periodificaciones",`<p class="muted" style="margin:0 0 10px">Un gasto o un ingreso de varios meses (un seguro anual, un alquiler cobrado por adelantado) espera en la 480/485 y pasa a resultados mes a mes, con un asiento al último día de cada mes.</p>
+        ${filas?`<table><thead><tr><th>Periodificación</th><th class="num">Importe</th><th class="num">Imputado</th><th class="num">Pendiente</th><th class="num">Cuotas</th><th>Estado</th><th></th></tr></thead><tbody>${filas}</tbody></table>`:'<p class="muted" style="margin:0">Sin periodificaciones.</p>'}`,
+        agBotones(`<button class="btn small secondary" onclick="generarPeriodificaciones('${finMes()}')">Generar cuotas</button>`,`<button class="btn small" onclick="modalPeriodificacion()">+ Nueva periodificación</button>`));
+    }
+    function modalPeriodificacion(){
+      const hoy=new Date().toISOString().slice(0,10);
+      abrir("Nueva periodificación",`<label>Descripción</label><input id="pf_des" placeholder="Seguro anual del local"/>
+        <div class="grid2"><div><label>Tipo</label><select id="pf_tip" onchange="document.getElementById('pf_cta').placeholder=this.value==='Gasto'?'625':'752'"><option value="Gasto">Gasto (va a la 480)</option><option value="Ingreso">Ingreso (va a la 485)</option></select></div>
+        <div><label>Cuenta de gasto o ingreso</label><input id="pf_cta" placeholder="625"/></div></div>
+        <div class="grid2"><div><label>Importe</label><input id="pf_imp" type="number" step="0.01" min="0"/></div><div><label>Meses</label><input id="pf_mes" type="number" min="2" max="120" value="12"/></div></div>
+        <div class="grid2"><div><label>Fecha del gasto o ingreso</label><input id="pf_fec" type="date" value="${hoy}"/></div><div><label>Primer mes</label><input id="pf_ini" type="month" value="${hoy.slice(0,7)}"/></div></div>
+        <label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="pf_rec" checked style="width:auto;margin:0"/> Reclasificar: sacar el importe de la cuenta de resultados a la 480/485 en esa fecha</label>
+        <p class="muted" style="font-size:12px;margin:6px 0 0">Desmárcalo si la factura ya se contabilizó en la 480/485.</p>`,
+        async()=>{ const [ai,mi]=(val("pf_ini")||"").split("-").map(Number);
+          await api("/contabilidad/periodificaciones",{method:"POST",body:JSON.stringify({descripcion:val("pf_des"),tipo:val("pf_tip"),cuentaResultado:val("pf_cta"),importe:Number(val("pf_imp")||0),
+            meses:Number(val("pf_mes")||0),fecha:val("pf_fec"),anioInicio:ai||null,mesInicio:mi||null,reclasificar:document.getElementById("pf_rec").checked})});
+          toast("Periodificación dada de alta.","ok"); setTimeout(vContabilidad); });
+    }
+    async function generarPeriodificaciones(hasta){
+      const f=prompt("Generar las cuotas hasta (AAAA-MM-DD):",hasta); if(!f) return;
+      try{ const r=await api("/contabilidad/periodificaciones/generar",{method:"POST",body:JSON.stringify({hasta:f})});
+        toast(`${r.asientos} asiento(s) por ${eur(r.importe)}${r.enMesesCerrados?` · ${r.enMesesCerrados} cuota(s) de meses cerrados sin generar`:""}.`,"ok"); vContabilidad(); }catch(e){ toast(e.message,"err"); }
+    }
+    async function cancelarPeriodificacion(id){
+      const f=prompt("Lo pendiente irá a resultados de una vez. Fecha del asiento (AAAA-MM-DD):",new Date().toISOString().slice(0,10)); if(!f) return;
+      try{ await api(`/contabilidad/periodificaciones/${id}/cancelar`,{method:"POST",body:JSON.stringify({fecha:f})}); toast("Periodificación cancelada.","ok"); vContabilidad(); }catch(e){ toast(e.message,"err"); }
+    }
+    async function anularPeriodificacion(id){
+      const f=prompt("Se anulan todos sus asientos con contraasientos. Fecha (AAAA-MM-DD):",new Date().toISOString().slice(0,10)); if(!f) return;
+      try{ await api(`/contabilidad/periodificaciones/${id}/anular`,{method:"POST",body:JSON.stringify({fecha:f})}); toast("Periodificación anulada.","ok"); vContabilidad(); }catch(e){ toast(e.message,"err"); }
+    }
+    async function eliminarPeriodificacion(id){
+      if(!confirm("¿Eliminar esta periodificación?")) return;
+      try{ await api(`/contabilidad/periodificaciones/${id}`,{method:"DELETE"}); toast("Periodificación eliminada.","ok"); vContabilidad(); }catch(e){ toast(e.message,"err"); }
+    }
     function panelDiarios(diarios){
       if(!diarios||!diarios.length) return "";
       const filas=diarios.map(d=>`<tr><td class="mono"><strong>${agEsc(d.codigo)}</strong></td><td>${agEsc(d.nombre)}${d.deSistema?' <span class="muted" style="font-size:12px">· de sistema</span>':''}${d.activo?'':' <span class="pill wait">De baja</span>'}</td>
@@ -1983,7 +2027,7 @@
     }
     function modalDiario(id){
       const d=id?(window._diarios||[]).find(x=>x.id===id):null;
-      const asignables=["Manual","Venta","Compra","Cobro","Pago","Amortizacion","BajaInmovilizado","Enajenacion","ImpuestoDiferido"];
+      const asignables=["Manual","Venta","Compra","Cobro","Pago","Amortizacion","BajaInmovilizado","Enajenacion","ImpuestoDiferido","Periodificacion"];
       abrir(d?"Editar diario "+d.codigo:"Nuevo diario",`<div class="grid2"><div><label>Código</label><input id="di_cod" maxlength="10" value="${d?agEsc(d.codigo):""}"${d?" disabled":""} placeholder="BAN"/></div>
         <div><label>Nombre</label><input id="di_nom" value="${d?agEsc(d.nombre):""}" placeholder="Bancos"/></div></div>
         <label style="margin-top:12px">Recoge los asientos de <span class="muted" style="font-weight:400;font-size:12px">— en lugar de su diario de sistema</span></label>

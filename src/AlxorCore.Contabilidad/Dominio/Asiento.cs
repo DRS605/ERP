@@ -83,9 +83,6 @@ public sealed class Asiento : RaizAgregadoEmpresa<Guid>
     /// </summary>
     public string? Diario { get; private set; }
 
-    /// <summary>Número correlativo dentro del diario y el ejercicio (lo asigna la base de datos).</summary>
-    public int NumeroDiario { get; private set; }
-
     /// <summary>Si es un contraasiento: el asiento que anula (un asiento solo se anula una vez: índice único).</summary>
     public Guid? AnulaAsientoId { get; private set; }
 

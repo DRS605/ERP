@@ -24,7 +24,7 @@ public sealed record AsientoDto(Guid Id, int Ejercicio, int Numero, DateOnly Fec
 
     public static AsientoDto Desde(Asiento a, Guid? anuladoPorId) => new(a.Id, a.Ejercicio, a.Numero, a.Fecha, a.Concepto,
         a.Origen, a.TotalDebe, a.Apuntes.Select(p => new ApunteDto(p.CuentaCodigo, p.Concepto, p.Debe, p.Haber, p.Id)).ToList(),
-        a.AnulaAsientoId, anuladoPorId, a.Diario, a.NumeroDiario);
+        a.AnulaAsientoId, anuladoPorId, a.Diario);
 }
 
 /// <summary>Línea del libro mayor de una cuenta.</summary>
@@ -168,6 +168,10 @@ public static class PlanBasico
         ("4740", "Activos por diferencias temporarias deducibles"),
         ("479", "Pasivos por diferencias temporarias imponibles"),
         ("6301", "Impuesto diferido"),
+
+        // Periodificaciones.
+        ("480", "Gastos anticipados"),
+        ("485", "Ingresos anticipados"),
     };
 }
 

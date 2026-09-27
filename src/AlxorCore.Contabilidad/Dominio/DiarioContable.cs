@@ -24,12 +24,13 @@ public static class DiariosContables
         new("COM", "Compras", ["Compra"]),
         new("TES", "Cobros y pagos", ["Cobro", "Pago"]),
         new("INM", "Inmovilizado", ["Amortizacion", "BajaInmovilizado", "Enajenacion", "ImpuestoDiferido"]),
+        new("PER", "Periodificaciones", ["Periodificacion"]),
         new("CIE", "Regularización y cierre", ["Regularizacion", "Cierre"]),
         new("APE", "Apertura", ["Apertura"]),
     ];
 
     /// <summary>Orígenes que un diario propio puede recoger (el cierre, la apertura y las anulaciones, no).</summary>
-    public static readonly IReadOnlyList<string> OrigenesAsignables = ["Manual", "Venta", "Compra", "Cobro", "Pago", "Amortizacion", "BajaInmovilizado", "Enajenacion", "ImpuestoDiferido"];
+    public static readonly IReadOnlyList<string> OrigenesAsignables = ["Manual", "Venta", "Compra", "Cobro", "Pago", "Amortizacion", "BajaInmovilizado", "Enajenacion", "ImpuestoDiferido", "Periodificacion"];
 
     public static bool EsDeSistema(string codigo) => Sistema.Any(d => string.Equals(d.Codigo, codigo, StringComparison.OrdinalIgnoreCase));
 

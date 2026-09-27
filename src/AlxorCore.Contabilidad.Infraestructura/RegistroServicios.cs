@@ -30,6 +30,7 @@ public static class RegistroServicios
         servicios.AddScoped<IRepositorioCuentas, RepositorioCuentas>();
         servicios.AddScoped<IRepositorioAsientos, RepositorioAsientos>();
         servicios.AddScoped<IRepositorioDiarios, RepositorioDiarios>();
+        servicios.AddScoped<IRepositorioPeriodificaciones, RepositorioPeriodificaciones>();
         servicios.AddScoped<IRepositorioConfigContabilidad, RepositorioConfigContabilidad>();
         servicios.AddScoped<IRepositorioDocumentosPendientes, RepositorioDocumentosPendientes>();
         servicios.AddScoped<IRepositorioReglasContabilizacion, RepositorioReglasContabilizacion>();
@@ -50,6 +51,7 @@ public static class RegistroServicios
         servicios.AddScoped<ListarDiario>();
         servicios.AddScoped<GestionDiarios>();
         servicios.AddScoped<CierreMensual>();
+        servicios.AddScoped<GestionPeriodificaciones>();
         servicios.AddScoped<MayorCuenta>();
         servicios.AddScoped<BalanceSumasYSaldos>();
         servicios.AddScoped<GenerarPerdidasGanancias>();

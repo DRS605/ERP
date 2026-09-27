@@ -50,6 +50,8 @@ public sealed class ContabilidadDbContext : DbContextEmpresaBase, IUnidadDeTraba
 
     public DbSet<DiarioContable> Diarios => Set<DiarioContable>();
 
+    public DbSet<Periodificacion> Periodificaciones => Set<Periodificacion>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Esquema);
@@ -93,12 +95,11 @@ internal sealed class ConfiguracionAsiento : IEntityTypeConfiguration<Asiento>
         builder.Property(a => a.CreadoEn).HasColumnName("creado_en").IsRequired();
         builder.Property(a => a.AnulaAsientoId).HasColumnName("anula_asiento_id");
         builder.HasIndex(a => a.AnulaAsientoId).IsUnique().HasFilter("anula_asiento_id IS NOT NULL").HasDatabaseName("ux_asiento_anula");
-        // Diario y número dentro del diario: los asigna el trigger contabilidad.asiento_diario al insertar.
+        // Diario: lo asigna el trigger contabilidad.asiento_diario al insertar. El número dentro del diario no se guarda:
+        // es el orden del asiento (por su número correlativo) en su diario y ejercicio, estable porque los asientos no
+        // se borran y la numeración solo crece.
         builder.Property(a => a.Diario).HasColumnName("diario").HasMaxLength(DiarioContable.LongitudCodigo).IsRequired().ValueGeneratedOnAdd();
-        builder.Property(a => a.NumeroDiario).HasColumnName("numero_diario").ValueGeneratedOnAdd()
-            .HasAnnotation("Npgsql:ValueGenerationStrategy",
-                Npgsql.EntityFrameworkCore.PostgreSQL.Metadata.NpgsqlValueGenerationStrategy.None);
-        builder.HasIndex(a => new { a.EmpresaId, a.Ejercicio, a.Diario, a.NumeroDiario }).IsUnique().HasDatabaseName("ux_asiento_diario_numero");
+        builder.HasIndex(a => new { a.EmpresaId, a.Ejercicio, a.Diario, a.Numero }).HasDatabaseName("ix_asiento_diario");
 
         builder.OwnsMany(a => a.Apuntes, apunte =>
         {
@@ -149,6 +150,66 @@ internal sealed class ConfiguracionDiarioContable : IEntityTypeConfiguration<Dia
         builder.HasIndex(d => new { d.EmpresaId, d.Codigo }).IsUnique().HasDatabaseName("ux_diario_empresa_codigo");
         builder.Ignore(d => d.EventosDominio);
     }
+}
+
+internal sealed class ConfiguracionPeriodificacion : IEntityTypeConfiguration<Periodificacion>
+{
+    public void Configure(EntityTypeBuilder<Periodificacion> builder)
+    {
+        builder.ToTable("periodificacion");
+        builder.HasKey(p => p.Id);
+        builder.Property(p => p.Id).HasColumnName("id").ValueGeneratedNever();
+        builder.Property(p => p.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        builder.Property(p => p.Descripcion).HasColumnName("descripcion").HasMaxLength(Periodificacion.LongitudDescripcion).IsRequired();
+        builder.Property(p => p.Tipo).HasColumnName("tipo").HasMaxLength(10).HasConversion<string>().IsRequired();
+        builder.Property(p => p.CuentaResultado).HasColumnName("cuenta_resultado").HasMaxLength(Cuenta.LongitudMaximaCodigo).IsRequired();
+        builder.Property(p => p.CuentaPeriodificacion).HasColumnName("cuenta_periodificacion").HasMaxLength(Cuenta.LongitudMaximaCodigo).IsRequired();
+        builder.Property(p => p.Importe).HasColumnName("importe").HasColumnType("numeric(14,2)").IsRequired();
+        builder.Property(p => p.Fecha).HasColumnName("fecha").IsRequired();
+        builder.Property(p => p.EjercicioInicio).HasColumnName("ejercicio_inicio").IsRequired();
+        builder.Property(p => p.MesInicio).HasColumnName("mes_inicio").IsRequired();
+        builder.Property(p => p.Meses).HasColumnName("meses").IsRequired();
+        builder.Property(p => p.Estado).HasColumnName("estado").HasMaxLength(12).HasConversion<string>().IsRequired();
+        builder.Property(p => p.AsientoReclasificacionId).HasColumnName("asiento_reclasificacion_id");
+        builder.Property(p => p.AsientoCancelacionId).HasColumnName("asiento_cancelacion_id");
+        builder.Ignore(p => p.Imputado);
+        builder.Ignore(p => p.Pendiente);
+        builder.Ignore(p => p.TieneAsientos);
+        builder.OwnsMany(p => p.Cuotas, c =>
+        {
+            c.ToTable("cuota_periodificacion");
+            c.WithOwner().HasForeignKey("periodificacion_id");
+            c.HasKey(x => x.Id);
+            c.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+            c.Property(x => x.Ejercicio).HasColumnName("ejercicio").IsRequired();
+            c.Property(x => x.Mes).HasColumnName("mes").IsRequired();
+            c.Property(x => x.Importe).HasColumnName("importe").HasColumnType("numeric(14,2)").IsRequired();
+            c.Property(x => x.AsientoId).HasColumnName("asiento_id");
+            c.Ignore(x => x.Fecha);
+            c.HasIndex("periodificacion_id", nameof(CuotaPeriodificacion.Ejercicio), nameof(CuotaPeriodificacion.Mes)).IsUnique().HasDatabaseName("ux_cuota_periodificacion_mes");
+            c.HasIndex(x => x.AsientoId).HasDatabaseName("ix_cuota_periodificacion_asiento");
+        });
+        builder.HasIndex(p => new { p.EmpresaId, p.Estado }).HasDatabaseName("ix_periodificacion_empresa_estado");
+        builder.HasIndex(p => p.AsientoReclasificacionId).HasDatabaseName("ix_periodificacion_asiento_reclasificacion");
+        builder.HasIndex(p => p.AsientoCancelacionId).HasDatabaseName("ix_periodificacion_asiento_cancelacion");
+        builder.Ignore(p => p.EventosDominio);
+    }
+}
+
+internal sealed class RepositorioPeriodificaciones : IRepositorioPeriodificaciones
+{
+    private readonly ContabilidadDbContext _contexto;
+
+    public RepositorioPeriodificaciones(ContabilidadDbContext contexto) => _contexto = contexto;
+
+    public async Task<IReadOnlyList<Periodificacion>> ListarAsync(Guid empresaId, CancellationToken ct = default) =>
+        await _contexto.Periodificaciones.Where(p => p.EmpresaId == empresaId).ToListAsync(ct).ConfigureAwait(false);
+
+    public Task<Periodificacion?> ObtenerAsync(Guid id, CancellationToken ct = default) => _contexto.Periodificaciones.SingleOrDefaultAsync(p => p.Id == id, ct);
+
+    public void Agregar(Periodificacion periodificacion) => _contexto.Periodificaciones.Add(periodificacion);
+
+    public void Eliminar(Periodificacion periodificacion) => _contexto.Periodificaciones.Remove(periodificacion);
 }
 
 internal sealed class RepositorioDiarios : IRepositorioDiarios
@@ -359,7 +420,10 @@ internal sealed class RepositorioAsientos : IRepositorioAsientos
             .Where(a => a.AnulaAsientoId != null && ids.Contains(a.AnulaAsientoId.Value))
             .Select(a => new { Anulado = a.AnulaAsientoId!.Value, Por = a.Id })
             .ToDictionaryAsync(x => x.Anulado, x => x.Por, ct).ConfigureAwait(false);
-        return asientos.Select(a => AsientoDto.Desde(a, anulados.TryGetValue(a.Id, out var por) ? por : null)).ToList();
+        // Número dentro del diario: el orden del asiento (por su número correlativo) en su diario.
+        var enDiario = asientos.GroupBy(a => a.Diario ?? string.Empty, StringComparer.Ordinal)
+            .SelectMany(g => g.OrderBy(a => a.Numero).Select((a, i) => (a.Id, N: i + 1))).ToDictionary(x => x.Id, x => x.N);
+        return asientos.Select(a => AsientoDto.Desde(a, anulados.TryGetValue(a.Id, out var por) ? por : null) with { NumeroDiario = enDiario[a.Id] }).ToList();
     }
 
     public Task<Asiento?> ObtenerAsync(Guid id, CancellationToken ct = default) =>
