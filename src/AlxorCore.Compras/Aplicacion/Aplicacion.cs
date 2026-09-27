@@ -69,6 +69,10 @@ public interface IRepositorioAlbaranes
     Task<AlbaranCompra?> ObtenerPorIdAsync(Guid id, CancellationToken ct = default) => Task.FromResult<AlbaranCompra?>(null);
     Task<IReadOnlyList<AlbaranCompra>> DePedidoAsync(Guid pedidoId, CancellationToken ct = default) => Task.FromResult<IReadOnlyList<AlbaranCompra>>([]);
     Task<AlbaranCompra?> PorAlbaranVentaOrigenAsync(Guid empresaId, Guid albaranVentaId, CancellationToken ct = default) => Task.FromResult<AlbaranCompra?>(null);
+
+    /// <summary>Albaranes de recepción no anulados con fecha en el periodo (para Intrastat).</summary>
+    Task<IReadOnlyList<AlbaranCompra>> EnPeriodoAsync(Guid empresaId, DateOnly desde, DateOnly hasta, CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<AlbaranCompra>>([]);
 }
 
 public interface IRepositorioAlmacenesTraspaso

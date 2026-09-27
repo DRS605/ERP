@@ -81,6 +81,68 @@ public static class EndpointsTransporte
                 c.EmpresaId is { } e ? (await caso.EliminarAsync(e, id, ct).ConfigureAwait(false)).ASinContenido() : SinEmpresa())
             .WithSummary("Elimina un despacho registrado por error.").RequierePermiso(Permisos.FacturaCrear);
 
+        a.MapGet("/intrastat", async (int? anio, int? mes, FlujoIntrastat? flujo, string? formato, IContextoEmpresa c, Intrastat caso, CancellationToken ct) =>
+            {
+                if (c.EmpresaId is not { } e)
+                {
+                    return SinEmpresa();
+                }
+
+                var hoy = DateTime.UtcNow.AddMonths(-1);
+                var m = mes ?? hoy.Month;
+                if (m is < 1 or > 12)
+                {
+                    return ResultadosHttp.AProblema(Error.Validacion("intrastat.mes", "El mes va de 1 a 12."));
+                }
+
+                var d = await caso.DeclaracionAsync(e, anio ?? hoy.Year, m, flujo ?? FlujoIntrastat.Expedicion, ct).ConfigureAwait(false);
+                return string.Equals(formato, "csv", StringComparison.OrdinalIgnoreCase)
+                    ? Results.File(Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(Intrastat.Csv(d))).ToArray(), "text/csv; charset=utf-8",
+                        $"intrastat-{d.Flujo.ToLowerInvariant()}-{d.Anio}-{d.Mes:D2}.csv")
+                    : Results.Ok(d);
+            })
+            .WithSummary("Intrastat del mes: expediciones (facturas intracomunitarias) o introducciones (albaranes de compra de la UE); con ?formato=csv, el fichero.")
+            .RequierePermiso(Permisos.FacturaLeer);
+
+        a.MapGet("/importaciones", async (IContextoEmpresa c, AlxorCore.Gastos.Aplicacion.Importaciones caso, CancellationToken ct) =>
+                c.EmpresaId is { } e ? Results.Ok(await caso.ListarAsync(e, ct).ConfigureAwait(false)) : SinEmpresa())
+            .WithSummary("Compras de fuera de la UE (o con IVA de importación) y sus DUA de importación.").RequierePermiso(Permisos.FacturaLeer);
+        a.MapPost("/gastos/{id:guid}/duas", async (Guid id, AlxorCore.Gastos.Aplicacion.DatosDuaImportacion d, IContextoEmpresa c, AlxorCore.Gastos.Aplicacion.Importaciones caso, CancellationToken ct) =>
+                c.EmpresaId is { } e ? (await caso.RegistrarAsync(e, id, d, ct).ConfigureAwait(false)).ACreado("/aduanas/importaciones") : SinEmpresa())
+            .WithSummary("Registra el DUA de importación de una factura de proveedor (MRN, admisión, base, aranceles e IVA a la importación).")
+            .RequierePermiso(Permisos.GastoGestionar);
+        a.MapPut("/duas-importacion/{id:guid}", async (Guid id, AlxorCore.Gastos.Aplicacion.DatosDuaImportacion d, IContextoEmpresa c, AlxorCore.Gastos.Aplicacion.Importaciones caso, CancellationToken ct) =>
+                c.EmpresaId is { } e ? (await caso.ModificarAsync(e, id, d, ct).ConfigureAwait(false)).AOk() : SinEmpresa())
+            .WithSummary("Corrige un DUA de importación.").RequierePermiso(Permisos.GastoGestionar);
+        a.MapDelete("/duas-importacion/{id:guid}", async (Guid id, IContextoEmpresa c, AlxorCore.Gastos.Aplicacion.Importaciones caso, CancellationToken ct) =>
+                c.EmpresaId is { } e ? (await caso.EliminarAsync(e, id, ct).ConfigureAwait(false)).ASinContenido() : SinEmpresa())
+            .WithSummary("Elimina un DUA de importación registrado por error.").RequierePermiso(Permisos.GastoGestionar);
+
+        rutas.MapGet("/cartas-porte/{id:guid}/certificados", async (Guid id, CertificadosFitosanitarios caso, CancellationToken ct) =>
+                Results.Ok(await caso.DeCartaAsync(id, ct).ConfigureAwait(false)))
+            .WithTags("Cartas de porte").WithSummary("Certificados fitosanitarios de la expedición.").RequierePermiso(Permisos.FacturaLeer);
+        rutas.MapPost("/cartas-porte/{id:guid}/certificados", async (Guid id, DatosCertificadoFitosanitario d, IContextoEmpresa c, CertificadosFitosanitarios caso, CancellationToken ct) =>
+                c.EmpresaId is { } e ? (await caso.RegistrarAsync(e, id, d, ct).ConfigureAwait(false)).ACreado($"/cartas-porte/{id}/certificados") : SinEmpresa())
+            .WithTags("Cartas de porte").WithSummary("Registra un certificado fitosanitario (con su documento escaneado, en base64).").RequierePermiso(Permisos.FacturaCrear);
+        var cf = rutas.MapGroup("/certificados-fitosanitarios").WithTags("Cartas de porte");
+        cf.MapPut("/{id:guid}", async (Guid id, DatosCertificadoFitosanitario d, IContextoEmpresa c, CertificadosFitosanitarios caso, CancellationToken ct) =>
+                c.EmpresaId is { } e ? (await caso.ModificarAsync(e, id, d, ct).ConfigureAwait(false)).AOk() : SinEmpresa())
+            .WithSummary("Corrige un certificado fitosanitario.").RequierePermiso(Permisos.FacturaCrear);
+        cf.MapDelete("/{id:guid}", async (Guid id, IContextoEmpresa c, CertificadosFitosanitarios caso, CancellationToken ct) =>
+                c.EmpresaId is { } e ? (await caso.EliminarAsync(e, id, ct).ConfigureAwait(false)).ASinContenido() : SinEmpresa())
+            .WithSummary("Elimina un certificado fitosanitario.").RequierePermiso(Permisos.FacturaCrear);
+        cf.MapGet("/{id:guid}/documento", async (Guid id, IContextoEmpresa c, CertificadosFitosanitarios caso, CancellationToken ct) =>
+            {
+                if (c.EmpresaId is not { } e)
+                {
+                    return SinEmpresa();
+                }
+
+                var r = await caso.DocumentoAsync(e, id, ct).ConfigureAwait(false);
+                return r.EsFallo ? ResultadosHttp.AProblema(r.Error) : Results.File(r.Valor.Contenido, r.Valor.Tipo, r.Valor.Nombre);
+            })
+            .WithSummary("Descarga el documento escaneado del certificado.").RequierePermiso(Permisos.FacturaLeer);
+
         return rutas;
     }
 

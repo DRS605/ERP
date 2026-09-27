@@ -287,6 +287,52 @@ internal sealed class ConfiguracionDespachoAduanero : IEntityTypeConfiguration<D
     }
 }
 
+internal sealed class ConfiguracionCertificadoFitosanitario : IEntityTypeConfiguration<CertificadoFitosanitario>
+{
+    public void Configure(EntityTypeBuilder<CertificadoFitosanitario> builder)
+    {
+        builder.ToTable("certificado_fitosanitario");
+        builder.HasKey(c => c.Id);
+        builder.Property(c => c.Id).HasColumnName("id").ValueGeneratedNever();
+        builder.Property(c => c.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        builder.Property(c => c.CartaPorteId).HasColumnName("carta_porte_id").IsRequired();
+        builder.Property(c => c.Tipo).HasColumnName("tipo").HasMaxLength(25).HasConversion<string>().IsRequired();
+        builder.Property(c => c.Numero).HasColumnName("numero").HasMaxLength(40).IsRequired();
+        builder.Property(c => c.FechaEmision).HasColumnName("fecha_emision").IsRequired();
+        builder.Property(c => c.PaisDestino).HasColumnName("pais_destino").HasMaxLength(2);
+        builder.Property(c => c.Organismo).HasColumnName("organismo").HasMaxLength(120);
+        builder.Property(c => c.Mercancia).HasColumnName("mercancia").HasMaxLength(200);
+        builder.Property(c => c.Observaciones).HasColumnName("observaciones").HasMaxLength(300);
+        builder.Property(c => c.DocumentoNombre).HasColumnName("documento_nombre").HasMaxLength(150);
+        builder.Property(c => c.DocumentoTipo).HasColumnName("documento_tipo").HasMaxLength(40);
+        builder.Property(c => c.Documento).HasColumnName("documento");
+        builder.HasIndex(c => c.CartaPorteId).HasDatabaseName("ix_certificado_fitosanitario_carta");
+        builder.HasIndex(c => new { c.EmpresaId, c.Numero }).HasDatabaseName("ix_certificado_fitosanitario_numero");
+        builder.Ignore(c => c.EventosDominio);
+    }
+}
+
+internal sealed class RepositorioCertificadosFitosanitarios : IRepositorioCertificadosFitosanitarios
+{
+    private readonly FacturacionDbContext _contexto;
+
+    public RepositorioCertificadosFitosanitarios(FacturacionDbContext contexto) => _contexto = contexto;
+
+    public async Task<IReadOnlyList<CertificadoFitosanitario>> DeCartaAsync(Guid cartaPorteId, CancellationToken ct = default) =>
+        await _contexto.CertificadosFitosanitarios.AsNoTracking().Where(c => c.CartaPorteId == cartaPorteId).ToListAsync(ct).ConfigureAwait(false);
+
+    public async Task<IReadOnlyList<(Guid CartaPorteId, string Tipo, string Numero)>> NumerosAsync(IReadOnlyCollection<Guid> cartas, CancellationToken ct = default) =>
+        (await _contexto.CertificadosFitosanitarios.AsNoTracking().Where(c => cartas.Contains(c.CartaPorteId))
+            .Select(c => new { c.CartaPorteId, c.Tipo, c.Numero }).ToListAsync(ct).ConfigureAwait(false))
+        .Select(c => (c.CartaPorteId, c.Tipo.ToString(), c.Numero)).ToList();
+
+    public Task<CertificadoFitosanitario?> ObtenerAsync(Guid id, CancellationToken ct = default) => _contexto.CertificadosFitosanitarios.SingleOrDefaultAsync(c => c.Id == id, ct);
+
+    public void Agregar(CertificadoFitosanitario certificado) => _contexto.CertificadosFitosanitarios.Add(certificado);
+
+    public void Eliminar(CertificadoFitosanitario certificado) => _contexto.CertificadosFitosanitarios.Remove(certificado);
+}
+
 internal sealed class RepositorioTransporte : IRepositorioTransporte
 {
     private readonly FacturacionDbContext _contexto;
@@ -376,7 +422,7 @@ internal sealed class RepositorioCartasPorte : IRepositorioCartasPorte, IConsult
     {
         var carta = await _contexto.CartasPorte.AsNoTracking()
             .Include(c => c.Lineas).SingleOrDefaultAsync(c => c.Id == id, ct).ConfigureAwait(false);
-        return carta is null ? null : CartaPorteDto.Desde(carta);
+        return carta is null ? null : (await ConCertificadosAsync([CartaPorteDto.Desde(carta)], ct).ConfigureAwait(false))[0];
     }
 
     public async Task<IReadOnlyList<CartaPorteResumen>> ListarAsync(Guid empresaId, CancellationToken ct = default)
@@ -396,6 +442,21 @@ internal sealed class RepositorioCartasPorte : IRepositorioCartasPorte, IConsult
         var albaranes = _contexto.AlbaranesVenta.Where(a => _contexto.PedidosVenta.Any(p => p.Id == a.PedidoId && p.FacturaId == facturaId)).Select(a => a.Id);
         var cartas = await _contexto.CartasPorte.AsNoTracking().Include(c => c.Lineas)
             .Where(c => c.AlbaranId != null && albaranes.Contains(c.AlbaranId.Value)).OrderBy(c => c.FechaExpedicion).ToListAsync(ct).ConfigureAwait(false);
-        return cartas.Select(CartaPorteDto.Desde).ToList();
+        return await ConCertificadosAsync(cartas.Select(CartaPorteDto.Desde).ToList(), ct).ConfigureAwait(false);
+    }
+
+    /// <summary>Añade a cada carta los certificados fitosanitarios que la acompañan (para el CMR y la aduana).</summary>
+    private async Task<IReadOnlyList<CartaPorteDto>> ConCertificadosAsync(IReadOnlyList<CartaPorteDto> cartas, CancellationToken ct)
+    {
+        var ids = cartas.Select(c => c.Id).ToList();
+        var certificados = (await _contexto.CertificadosFitosanitarios.AsNoTracking().Where(c => ids.Contains(c.CartaPorteId))
+                .Select(c => new { c.CartaPorteId, c.Tipo, c.Numero, c.FechaEmision }).ToListAsync(ct).ConfigureAwait(false))
+            .GroupBy(c => c.CartaPorteId).ToDictionary(g => g.Key, g => g.OrderBy(c => c.FechaEmision).Select(c => c.Tipo switch
+            {
+                TipoCertificadoFitosanitario.PasaporteFitosanitario => $"Pasaporte fitosanitario nº {c.Numero}",
+                TipoCertificadoFitosanitario.Reexportacion => $"Certificado fitosanitario de reexportación nº {c.Numero}",
+                _ => $"Certificado fitosanitario nº {c.Numero}",
+            }).ToList());
+        return cartas.Select(c => certificados.TryGetValue(c.Id, out var l) ? c with { Certificados = l } : c).ToList();
     }
 }

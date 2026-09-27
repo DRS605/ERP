@@ -24,6 +24,7 @@ public static class RutasModulos
             ("/cartas-porte", CatalogoModulos.Ventas),
             ("/transporte", CatalogoModulos.Ventas),
             ("/aduanas", CatalogoModulos.Ventas),
+            ("/certificados-fitosanitarios", CatalogoModulos.Ventas),
             ("/tarifas", CatalogoModulos.Ventas),
             ("/precios", CatalogoModulos.Ventas),
             ("/compras", CatalogoModulos.Compras),

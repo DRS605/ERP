@@ -88,6 +88,8 @@ public static class RegistroServicios
         servicios.AddScoped<IConsultaFacturasPorIva, ConsultaFacturasPorIva>();
         servicios.AddScoped<GestionTransporte>();
         servicios.AddScoped<Aduanas>();
+        servicios.AddScoped<IRepositorioCertificadosFitosanitarios, RepositorioCertificadosFitosanitarios>();
+        servicios.AddScoped<CertificadosFitosanitarios>();
         servicios.AddScoped<CrearCartaPorte>();
         servicios.AddScoped<AnularCartaPorte>();
         servicios.AddScoped<ListarCartasPorte>();

@@ -441,7 +441,7 @@
     // Menú agrupado en carpetas: Ventas, Compras y Artículos.
     const NAV = [
       { t:"item", k:"inicio", l:"Inicio" },
-      { t:"grupo", k:"ventas", l:"Ventas", items:[["presupuestos","Presupuestos"],["pedidosventa","Pedidos de venta"],["facturas","Facturas"],["tpv","TPV · Tickets"],["recurrentes","Periódicas"],["clientes","Clientes"],["cobros","Cobros"],["cartera","Efectos de cartera"],["impagados","Impagados"],["anticipos","Anticipos"],["cartasporte","Cartas de porte · CMR"],["aduanas","Aduanas · exportación"],["remesas","Remesas SEPA"]] },
+      { t:"grupo", k:"ventas", l:"Ventas", items:[["presupuestos","Presupuestos"],["pedidosventa","Pedidos de venta"],["facturas","Facturas"],["tpv","TPV · Tickets"],["recurrentes","Periódicas"],["clientes","Clientes"],["cobros","Cobros"],["cartera","Efectos de cartera"],["impagados","Impagados"],["anticipos","Anticipos"],["cartasporte","Cartas de porte · CMR"],["aduanas","Aduanas · Intrastat"],["remesas","Remesas SEPA"]] },
       { t:"grupo", k:"compras", l:"Compras", items:[["solicitudes","Solicitudes"],["pedidos","Pedidos de compra"],["recepcion","Buzón de facturas"],["gastos","Gastos"],["proveedores","Proveedores"],["pagos","Pagos"],["conciliacion","Conciliación banco"]] },
       { t:"grupo", k:"articulos", l:"Artículos", items:[["productos","Productos"],["familias","Familias"],["tarifas","Tarifas de precios"],["inventario","Inventario / Almacenes"],["produccion","Producción"]] },
       { t:"item", k:"personal", l:"Personal" },
@@ -460,7 +460,7 @@
       { t:"item", k:"actividades", l:"Actividades de negocio" },
       { t:"item", k:"ajustes", l:"Ajustes" },
     ];
-    const TITULOS = { cartera:"Efectos de cartera", agrorecepciones:"Agro · recepciones de fruta", agropartidas:"Agro · partidas y palés", agroconfeccion:"Agro · confección", agroliquidaciones:"Agro · liquidaciones al agricultor", agrotrazabilidad:"Agro · trazabilidad", agroinforme:"Agro · informe de campaña", agromaestros:"Agro · campañas, agricultores y precios", analitica:"Analítica · resultados", analiticapend:"Analítica · pendientes de imputar", analiticamaestros:"Analítica · centros, partidas y reglas", presupuestoscont:"Presupuestos contables", impagados:"Impagados y reclamaciones", anticipos:"Anticipos de clientes", cartasporte:"Cartas de porte · CMR", aduanas:"Aduanas · exportación", intragrupo:"Operaciones entre empresas del grupo", actividades:"Actividades de negocio", inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos",tarifas:"Tarifas de precios", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", gestion:"Análisis de gestión", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", divisas:"Divisas y tipos de cambio", aprobaciones:"Aprobaciones y control de firmas", integraciones:"API pública y webhooks", ajustes:"Ajustes" };
+    const TITULOS = { cartera:"Efectos de cartera", agrorecepciones:"Agro · recepciones de fruta", agropartidas:"Agro · partidas y palés", agroconfeccion:"Agro · confección", agroliquidaciones:"Agro · liquidaciones al agricultor", agrotrazabilidad:"Agro · trazabilidad", agroinforme:"Agro · informe de campaña", agromaestros:"Agro · campañas, agricultores y precios", analitica:"Analítica · resultados", analiticapend:"Analítica · pendientes de imputar", analiticamaestros:"Analítica · centros, partidas y reglas", presupuestoscont:"Presupuestos contables", impagados:"Impagados y reclamaciones", anticipos:"Anticipos de clientes", cartasporte:"Cartas de porte · CMR", aduanas:"Aduanas e Intrastat", intragrupo:"Operaciones entre empresas del grupo", actividades:"Actividades de negocio", inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos",tarifas:"Tarifas de precios", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", gestion:"Análisis de gestión", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", divisas:"Divisas y tipos de cambio", aprobaciones:"Aprobaciones y control de firmas", integraciones:"API pública y webhooks", ajustes:"Ajustes" };
     // Plan contratado de la empresa activa (lo devuelve /empresas/{id}/seleccionar).
     let plan = null;
     // Vista → módulo contratable que necesita. Las vistas que no están aquí son de la base.
@@ -2597,7 +2597,7 @@
         return `<tr><td class="mono"><strong>${agEsc(c.numeroCompleto)}</strong> ${tipo}</td><td class="muted">${fdate(c.fechaExpedicion)}</td><td>${agEsc(c.destinatarioNombre)}</td>
           <td class="muted">${agEsc(c.lugarOrigen)} → ${agEsc(c.lugarDestino)}${c.incoterm?` <span class="muted">(${c.incoterm})</span>`:""}</td><td class="muted">${agEsc(c.transportistaNombre||"—")}${c.matricula?" · "+agEsc(c.matricula):""}</td>
           <td class="num">${c.totalBultos}</td><td class="num">${kg(c.totalPesoKg)}</td><td>${est}</td>
-          <td class="right" style="white-space:nowrap"><button class="btn small secondary" onclick="pdfCartaPorte('${c.id}')">PDF</button>${anular}</td></tr>`; }).join("");
+          <td class="right" style="white-space:nowrap"><button class="btn small secondary" onclick="pdfCartaPorte('${c.id}')">PDF</button> <button class="btn small ghost" onclick="modalCertificados('${c.id}','${agEsc(c.numeroCompleto)}',${c.anulada})">Certificados</button>${anular}</td></tr>`; }).join("");
       const nueva=`<button class="btn small" onclick="modalCartaPorte()">+ Nueva carta de porte</button>`;
       const nomT=id=>(transportistas.find(t=>t.id===id)||{}).nombre||"—";
       const pT=panel("Transportistas",transportistas.length?`<table><thead><tr><th>Transportista</th><th>NIF</th><th>País</th><th>Teléfono</th><th></th></tr></thead><tbody>${transportistas.map(t=>`<tr><td><strong>${agEsc(t.nombre)}</strong>${t.activo?"":' <span class="pill wait">De baja</span>'}</td><td class="mono">${agEsc(t.nif||"—")}</td><td>${t.pais||"—"}</td><td class="muted">${agEsc(t.telefono||"")}</td>
@@ -2689,16 +2689,68 @@
     }
     async function vAduanas(){
       view('<div class="muted">Cargando…</div>');
-      const lista=await api("/aduanas/exportaciones");
-      window._exportaciones=lista;
+      const [lista,imps]=await Promise.all([api("/aduanas/exportaciones"),api("/aduanas/importaciones").catch(()=>[])]);
+      window._exportaciones=lista; window._importaciones=imps;
       const pill={"Sin DUA":'<span class="pill neg">Sin DUA</span>',"Despachada":'<span class="pill part">Despachada</span>',"Salida confirmada":'<span class="pill ok">Salida confirmada</span>'};
       const filas=lista.map(e=>`<tr><td class="mono"><strong>${agEsc(e.numero)}</strong></td><td class="muted">${fdate(e.fecha)}</td><td>${agEsc(e.cliente)}${e.paisDestino?` <span class="muted">· ${e.paisDestino}</span>`:""}</td><td class="num">${eur(e.baseExportacion)}</td><td>${pill[e.situacion]||e.situacion}</td>
         <td class="muted" style="font-size:12px">${e.despachos.map(d=>`<span class="mono">${d.mrn}</span> · ${fdate(d.fechaDespacho)}${d.fechaSalida?` · salida ${fdate(d.fechaSalida)}`:""} <button class="btn small ghost" onclick="modalDespacho('${e.facturaId}','${d.id}')">Editar</button><button class="btn small ghost" onclick="eliminarDespacho('${d.id}')" title="Eliminar">✕</button>`).join("<br>")||"—"}</td>
         <td class="right" style="white-space:nowrap"><button class="btn small secondary" onclick="verDatosAduana('${e.facturaId}')">Datos para el agente</button> <button class="btn small" onclick="modalDespacho('${e.facturaId}')">+ DUA</button></td></tr>`).join("");
       view(panel("Aduanas · exportación",`<p class="muted" style="margin:0 0 10px">Facturas exentas por exportación (art. 21 LIVA). La exención se prueba con el DUA de exportación: anota su MRN al despacharlo y la fecha de salida cuando la aduana la confirme. «Datos para el agente» reúne lo que necesita el agente de aduanas (partidas por código arancelario, EORI, Incoterm, bultos y pesos) y avisa de lo que falta.</p>`
         +(lista.length?`<table><thead><tr><th>Factura</th><th>Fecha</th><th>Cliente</th><th class="num">Base exenta</th><th>Situación</th><th>DUA (MRN)</th><th></th></tr></thead><tbody>${filas}</tbody></table>`
-        :'<p class="muted" style="margin:0">No hay facturas con IVA de exportación (EXPORT).</p>')));
+        :'<p class="muted" style="margin:0">No hay facturas con IVA de exportación (EXPORT).</p>'))
+        +panelImportaciones(imps)+panelIntrastat());
+      cargarIntrastat();
     }
+    function panelImportaciones(imps){
+      const pill={"Sin DUA":'<span class="pill neg">Sin DUA</span>',"Con DUA":'<span class="pill ok">Con DUA</span>'};
+      const filas=imps.map(i=>`<tr><td>${agEsc(i.proveedor)}${i.pais?` <span class="muted">· ${i.pais}</span>`:""}</td><td class="muted">${fdate(i.fecha)}</td><td>${agEsc(i.concepto)}</td><td class="num">${eur(i.baseImponible)}</td><td>${pill[i.situacion]||i.situacion}</td>
+        <td class="muted" style="font-size:12px">${i.duas.map(d=>`<span class="mono">${d.mrn}</span> · ${fdate(d.fechaAdmision)} · IVA ${eur(d.cuotaIva)}${d.aranceles?` · aranceles ${eur(d.aranceles)}`:""} <button class="btn small ghost" onclick="modalDuaImportacion('${i.gastoId}','${d.id}')">Editar</button><button class="btn small ghost" onclick="eliminarDuaImportacion('${d.id}')" title="Eliminar">✕</button>`).join("<br>")||"—"}</td>
+        <td class="right"><button class="btn small" onclick="modalDuaImportacion('${i.gastoId}')">+ DUA</button></td></tr>`).join("");
+      return panel("Aduanas · importación",`<p class="muted" style="margin:0 0 10px">Gastos de proveedores de fuera de la UE (o con IVA de importación). La factura del proveedor no lleva IVA español: el IVA de la importación lo liquida la aduana en el DUA, y ese DUA es el justificante para deducirlo. Anota su MRN, la base del IVA (valor en aduana + aranceles + gastos hasta destino) y la cuota.</p>`
+        +(imps.length?`<table><thead><tr><th>Proveedor</th><th>Fecha</th><th>Concepto</th><th class="num">Base factura</th><th>Situación</th><th>DUA (MRN)</th><th></th></tr></thead><tbody>${filas}</tbody></table>`
+        :'<p class="muted" style="margin:0">No hay gastos de proveedores de fuera de la UE.</p>'));
+    }
+    function modalDuaImportacion(gastoId,id){
+      const i=(window._importaciones||[]).find(x=>x.gastoId===gastoId); const d=id&&i?i.duas.find(x=>x.id===id):null;
+      abrir(d?"Editar DUA de importación":`DUA de importación · ${i?agEsc(i.proveedor):""}`,`<label>MRN (18 caracteres)</label><input id="di_mrn" maxlength="22" value="${d?d.mrn:""}" placeholder="26ES00281130098765"/>
+        <div class="grid2"><div><label>Fecha de admisión</label><input id="di_fa" type="date" value="${d?d.fechaAdmision:new Date().toISOString().slice(0,10)}"/></div><div><label>Aduana</label><input id="di_adu" value="${d?agEsc(d.aduana||""):""}" placeholder="Valencia (4600)"/></div></div>
+        <div class="grid2"><div><label>Base del IVA</label><input id="di_base" type="number" step="0.01" value="${d?d.baseIva:(i?i.baseImponible:"")}"/></div><div><label>Cuota de IVA</label><input id="di_iva" type="number" step="0.01" value="${d?d.cuotaIva:""}"/></div></div>
+        <label>Aranceles</label><input id="di_ara" type="number" step="0.01" value="${d?d.aranceles:0}"/><label>Observaciones</label><input id="di_obs" value="${d?agEsc(d.observaciones||""):""}"/>`,
+        async()=>{ const b={mrn:val("di_mrn"),fechaAdmision:val("di_fa"),aduana:val("di_adu")||null,baseIva:Number(val("di_base")||0),cuotaIva:Number(val("di_iva")||0),aranceles:Number(val("di_ara")||0),observaciones:val("di_obs")||null};
+          await api(d?`/aduanas/duas-importacion/${d.id}`:`/aduanas/gastos/${gastoId}/duas`,{method:d?"PUT":"POST",body:JSON.stringify(b)}); toast("DUA guardado.","ok"); setTimeout(vAduanas); });
+    }
+    async function eliminarDuaImportacion(id){
+      if(!confirm("¿Eliminar este DUA de importación?")) return;
+      try{ await api(`/aduanas/duas-importacion/${id}`,{method:"DELETE"}); toast("DUA eliminado.","ok"); vAduanas(); }catch(e){ toast(e.message,"err"); }
+    }
+    function panelIntrastat(){
+      const hoy=new Date(); const previo=new Date(hoy.getFullYear(),hoy.getMonth()-1,1);
+      return panel("Intrastat",`<p class="muted" style="margin:0 0 10px">Declaración estadística mensual del comercio de bienes con otros Estados miembros. Expediciones: facturas con IVA intracomunitario del mes. Introducciones: albaranes de compra de proveedores de la UE. Obligatoria para cada flujo si el año anterior o el acumulado del año supera 400.000 €.</p>
+        <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px"><div><label>Año</label><input id="is_anio" type="number" style="width:90px" value="${previo.getFullYear()}"/></div>
+        <div><label>Mes</label><input id="is_mes" type="number" min="1" max="12" style="width:70px" value="${previo.getMonth()+1}"/></div>
+        <div><label>Flujo</label><select id="is_flujo"><option value="Expedicion">Expediciones</option><option value="Introduccion">Introducciones</option></select></div>
+        <button class="btn small" onclick="cargarIntrastat()">Ver</button><button class="btn small secondary" onclick="descargarIntrastat()">Descargar CSV</button></div><div id="is_res"></div>`);
+    }
+    function paramsIntrastat(){ return `anio=${val("is_anio")}&mes=${val("is_mes")}&flujo=${val("is_flujo")}`; }
+    async function cargarIntrastat(){
+      const caja=document.getElementById("is_res"); if(!caja) return; caja.innerHTML='<div class="muted">Cargando…</div>';
+      try{
+        const d=await api(`/aduanas/intrastat?${paramsIntrastat()}`);
+        const umbral=d.superaUmbral?`<span class="pill neg">Supera el umbral: ${eur(d.acumuladoAnual)} en el año</span>`:`<span class="pill">Acumulado del año ${eur(d.acumuladoAnual)} de ${eur(d.umbral)}</span>`;
+        caja.innerHTML=`<p style="margin:0 0 8px">${umbral}</p>${d.avisos.map(a=>`<p class="muted" style="margin:2px 0;font-size:12.5px">⚠ ${agEsc(a)}</p>`).join("")}
+          ${d.lineas.length?`<table style="margin-top:8px"><thead><tr><th>Estado</th><th>Prov.</th><th>Incoterm</th><th>Nat.</th><th>Modo</th><th>Código NC</th><th>Origen</th><th class="num">Masa neta kg</th><th class="num">Importe</th><th>NIF contraparte</th></tr></thead><tbody>
+          ${d.lineas.map(l=>`<tr><td>${l.estadoMiembro}</td><td>${l.provincia||"—"}</td><td>${l.condicionesEntrega||"—"}</td><td>${l.naturalezaTransaccion}</td><td>${l.modalidadTransporte}</td><td class="mono">${l.codigoMercancias||'<span class="pill neg">falta</span>'}</td><td>${l.paisOrigen||"—"}</td>
+            <td class="num">${l.masaNetaKg!=null?numCant(l.masaNetaKg):"—"}</td><td class="num">${eur(l.importeFacturado)}</td><td class="mono">${agEsc(l.nifContraparte||"—")}</td></tr>`).join("")}
+          <tr><td colspan="7"><strong>Total</strong></td><td class="num">${d.totalMasaNetaKg!=null?numCant(d.totalMasaNetaKg):""}</td><td class="num"><strong>${eur(d.totalImporte)}</strong></td><td></td></tr></tbody></table>`
+          :'<p class="muted" style="margin:6px 0 0">Sin operaciones en el mes.</p>'}`;
+      }catch(e){ caja.innerHTML=`<p class="muted">${agEsc(e.message)}</p>`; }
+    }
+    async function descargarIntrastat(){ try{
+        const r=await fetch(`/aduanas/intrastat?${paramsIntrastat()}&formato=csv`,{headers:{Authorization:"Bearer "+token}});
+        if(!r.ok) throw new Error("No se pudo generar el fichero");
+        const u=URL.createObjectURL(await r.blob()); const a=document.createElement("a"); a.href=u; a.download=`intrastat-${val("is_flujo").toLowerCase()}-${val("is_anio")}-${String(val("is_mes")).padStart(2,"0")}.csv`; a.click();
+        setTimeout(()=>URL.revokeObjectURL(u),60000);
+      }catch(e){ toast(e.message,"err"); } }
     function modalDespacho(facturaId,id){
       const e=(window._exportaciones||[]).find(x=>x.facturaId===facturaId); const d=id&&e?e.despachos.find(x=>x.id===id):null;
       abrir(d?"Editar DUA":`DUA de exportación · ${e?agEsc(e.numero):""}`,`<label>MRN (18 caracteres)</label><input id="du_mrn" maxlength="22" value="${d?d.mrn:""}" placeholder="26ES00461120012345"/>
@@ -2737,6 +2789,35 @@
         const u=URL.createObjectURL(await r.blob()); window.open(u,"_blank");
         setTimeout(()=>URL.revokeObjectURL(u),60000);
       }catch(e){ toast(e.message,"err"); } }
+    const TIPOS_CERT=[["Exportacion","Certificado fitosanitario de exportación"],["Reexportacion","Certificado de reexportación"],["PasaporteFitosanitario","Pasaporte fitosanitario (UE)"]];
+    async function modalCertificados(cartaId,numero,anulada){
+      try{
+        const lista=await api(`/cartas-porte/${cartaId}/certificados`);
+        const nombre=t=>(TIPOS_CERT.find(x=>x[0]===t)||[t,t])[1];
+        const filas=lista.map(c=>`<tr><td>${nombre(c.tipo)}</td><td class="mono">${agEsc(c.numero)}</td><td class="muted">${fdate(c.fechaEmision)}</td><td>${c.paisDestino||"—"}</td><td class="muted">${agEsc(c.organismo||"")}</td>
+          <td class="right" style="white-space:nowrap">${c.tieneDocumento?`<button class="btn small secondary" onclick="documentoCertificado('${c.id}')">Documento</button> `:""}<button class="btn small ghost" onclick="eliminarCertificado('${c.id}','${cartaId}','${agEsc(numero)}',${anulada})" title="Eliminar">✕</button></td></tr>`).join("");
+        abrir(`Certificados fitosanitarios · ${agEsc(numero)}`,`${lista.length?`<table><thead><tr><th>Tipo</th><th>Número</th><th>Emisión</th><th>Destino</th><th>Organismo</th><th></th></tr></thead><tbody>${filas}</tbody></table>`:'<p class="muted" style="margin:0">Sin certificados. Se imprimen en la casilla 5 del CMR.</p>'}
+          ${anulada?"":`<h4 style="margin:14px 0 6px">Añadir certificado</h4><div class="grid2"><div><label>Tipo</label><select id="cf_tipo">${TIPOS_CERT.map(t=>`<option value="${t[0]}">${t[1]}</option>`).join("")}</select></div><div><label>Número</label><input id="cf_num" placeholder="ES-2026-0001234"/></div></div>
+          <div class="grid2"><div><label>Fecha de emisión</label><input id="cf_fecha" type="date" value="${new Date().toISOString().slice(0,10)}"/></div><div><label>País de destino (vacío: el de la carta)</label><input id="cf_pais" maxlength="2" placeholder="GB"/></div></div>
+          <label>Organismo emisor</label><input id="cf_org" placeholder="MAPA · Inspección fitosanitaria"/><label>Mercancía</label><input id="cf_merc"/>
+          <label>Documento escaneado (PDF, JPG o PNG, máx. 5 MB)</label><input id="cf_doc" type="file" accept="application/pdf,image/jpeg,image/png"/>`}`,
+          anulada?null:async()=>{ const f=document.getElementById("cf_doc").files[0]; let doc=null;
+            if(f) doc=await new Promise((ok,ko)=>{ const r=new FileReader(); r.onload=()=>ok(String(r.result).split(",")[1]); r.onerror=ko; r.readAsDataURL(f); });
+            const b={tipo:val("cf_tipo"),numero:val("cf_num"),fechaEmision:val("cf_fecha"),paisDestino:val("cf_pais")||null,organismo:val("cf_org")||null,mercancia:val("cf_merc")||null,
+              documentoNombre:f?f.name:null,documentoTipo:f?f.type:null,documentoBase64:doc};
+            await api(`/cartas-porte/${cartaId}/certificados`,{method:"POST",body:JSON.stringify(b)}); toast("Certificado añadido.","ok"); setTimeout(()=>modalCertificados(cartaId,numero,anulada)); });
+        if(anulada) document.getElementById("modalOk").style.display="none";
+      }catch(e){ toast(e.message,"err"); }
+    }
+    async function documentoCertificado(id){ try{
+        const r=await fetch(`/certificados-fitosanitarios/${id}/documento`,{headers:{Authorization:"Bearer "+token}});
+        if(!r.ok) throw new Error("No se pudo descargar el documento");
+        const u=URL.createObjectURL(await r.blob()); window.open(u,"_blank"); setTimeout(()=>URL.revokeObjectURL(u),60000);
+      }catch(e){ toast(e.message,"err"); } }
+    async function eliminarCertificado(id,cartaId,numero,anulada){
+      if(!confirm("¿Eliminar este certificado?")) return;
+      try{ await api(`/certificados-fitosanitarios/${id}`,{method:"DELETE"}); toast("Certificado eliminado.","ok"); modalCertificados(cartaId,numero,anulada); }catch(e){ toast(e.message,"err"); }
+    }
     async function anularCartaPorte(id,numero){ const motivo=prompt(`Motivo de la anulación de la carta de porte ${numero}:`); if(motivo===null) return;
       try{ await api(`/cartas-porte/${id}/anular`,{method:"POST",body:JSON.stringify({motivo:motivo||null})}); toast("Carta de porte anulada.","ok"); vCartasPorte(); }catch(e){ toast(e.message,"err"); } }
 

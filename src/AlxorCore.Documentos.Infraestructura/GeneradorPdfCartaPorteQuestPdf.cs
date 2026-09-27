@@ -257,7 +257,14 @@ internal static class GeneradorCmr
                             ("4", "Lugar y fecha de carga (lugar, país, fecha) / Place and date of taking over", x =>
                                 x.Item().Text($"{carta.LugarOrigen}{Pais(t.PaisOrigen)} · {(carta.FechaCarga ?? carta.FechaExpedicion):dd/MM/yyyy}")),
                             ("18", "Reservas y observaciones del transportista / Carrier's reservations", _ => { }));
-                        Fila(col, color, ("5", "Documentos anexos / Documents attached", x => x.Item().Text(t.DocumentosAnexos ?? " ")));
+                        Fila(col, color, ("5", "Documentos anexos / Documents attached", x =>
+                        {
+                            x.Item().Text(t.DocumentosAnexos ?? " ");
+                            foreach (var cert in carta.Certificados ?? [])
+                            {
+                                x.Item().Text(cert);
+                            }
+                        }));
 
                         // 6 a 12: la mercancía.
                         col.Item().BorderTop(1).BorderColor(color).Table(tabla =>

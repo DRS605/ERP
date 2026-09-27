@@ -25,6 +25,8 @@ public sealed class GastosDbContext : DbContextEmpresaBase, IUnidadDeTrabajoGast
 
     public DbSet<MensajeSalida> MensajesSalida => Set<MensajeSalida>();
 
+    public DbSet<DuaImportacion> DuasImportacion => Set<DuaImportacion>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Esquema);
@@ -62,6 +64,47 @@ internal sealed class ConfiguracionGasto : IEntityTypeConfiguration<Gasto>
         builder.HasIndex(g => new { g.EmpresaId, g.Fecha }).HasDatabaseName("ix_gasto_empresa_fecha");
         builder.Ignore(g => g.EventosDominio);
     }
+}
+
+internal sealed class ConfiguracionDuaImportacion : IEntityTypeConfiguration<DuaImportacion>
+{
+    public void Configure(EntityTypeBuilder<DuaImportacion> builder)
+    {
+        builder.ToTable("dua_importacion");
+        builder.HasKey(d => d.Id);
+        builder.Property(d => d.Id).HasColumnName("id").ValueGeneratedNever();
+        builder.Property(d => d.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        builder.Property(d => d.GastoId).HasColumnName("gasto_id").IsRequired();
+        builder.Property(d => d.Mrn).HasColumnName("mrn").HasMaxLength(DuaImportacion.LongitudMrn).IsRequired();
+        builder.Property(d => d.FechaAdmision).HasColumnName("fecha_admision").IsRequired();
+        builder.Property(d => d.Aduana).HasColumnName("aduana").HasMaxLength(60);
+        builder.Property(d => d.BaseIva).HasColumnName("base_iva").HasColumnType("numeric(14,2)").IsRequired();
+        builder.Property(d => d.Aranceles).HasColumnName("aranceles").HasColumnType("numeric(14,2)").IsRequired();
+        builder.Property(d => d.CuotaIva).HasColumnName("cuota_iva").HasColumnType("numeric(14,2)").IsRequired();
+        builder.Property(d => d.Observaciones).HasColumnName("observaciones").HasMaxLength(300);
+        builder.HasIndex(d => new { d.EmpresaId, d.Mrn }).IsUnique().HasDatabaseName("ux_dua_importacion_empresa_mrn");
+        builder.HasIndex(d => d.GastoId).HasDatabaseName("ix_dua_importacion_gasto");
+        builder.Ignore(d => d.EventosDominio);
+    }
+}
+
+internal sealed class RepositorioDuasImportacion : IRepositorioDuasImportacion
+{
+    private readonly GastosDbContext _contexto;
+
+    public RepositorioDuasImportacion(GastosDbContext contexto) => _contexto = contexto;
+
+    public async Task<IReadOnlyList<DuaImportacion>> ListarAsync(Guid empresaId, CancellationToken ct = default) =>
+        await _contexto.DuasImportacion.AsNoTracking().Where(d => d.EmpresaId == empresaId).ToListAsync(ct).ConfigureAwait(false);
+
+    public Task<DuaImportacion?> ObtenerAsync(Guid id, CancellationToken ct = default) => _contexto.DuasImportacion.SingleOrDefaultAsync(d => d.Id == id, ct);
+
+    public Task<bool> ExisteMrnAsync(Guid empresaId, string mrn, Guid? salvo, CancellationToken ct = default) =>
+        _contexto.DuasImportacion.AnyAsync(d => d.EmpresaId == empresaId && d.Mrn == mrn && d.Id != salvo, ct);
+
+    public void Agregar(DuaImportacion dua) => _contexto.DuasImportacion.Add(dua);
+
+    public void Eliminar(DuaImportacion dua) => _contexto.DuasImportacion.Remove(dua);
 }
 
 internal sealed class RepositorioGastos : IRepositorioGastos, IConsultaGastos

@@ -29,7 +29,7 @@ mano.
 |---|---|
 | 1 · 2 · 16 | Remitente con NIF y EORI; consignatario; transportista, matrícula, remolque y conductores |
 | 3 · 4 · 21 | Lugar de entrega, lugar y fecha de carga con sus países, y lugar y fecha de emisión |
-| 5 | Documentos anexos (factura, certificado fitosanitario…) |
+| 5 | Documentos anexos (los indicados en la carta y los certificados fitosanitarios registrados) |
 | 6 a 12 | Por línea: marcas, bultos, embalaje, mercancía (con su peso neto), número estadístico (código arancelario), peso bruto y volumen |
 | 13 | Instrucciones del remitente; la temperatura de consigna y el termógrafo, en negrita |
 | 14 · 19 | Portes pagados o debidos; Incoterm 2020 y su lugar, contenedor y precinto |
@@ -78,6 +78,27 @@ y los kilos como peso neto. Sin la tara de cajas y palés, el peso bruto es el m
 
 Guardas en la base de datos: códigos arancelarios de 8 o 10 dígitos, países de dos letras, Incoterms válidos,
 temperatura en rango y FK de la carta de porte a sus transportista y vehículo.
+
+## Certificados fitosanitarios
+
+Cada carta de porte puede llevar sus certificados fitosanitarios (tabla `facturacion.certificado_fitosanitario`).
+Cada certificado guarda:
+
+- el tipo: `Exportacion`, `Reexportacion` o `PasaporteFitosanitario`;
+- el número y la fecha de emisión;
+- el país de destino (por defecto, el de la carta);
+- el organismo emisor, la mercancía y unas observaciones;
+- el documento escaneado, opcional: PDF, JPG o PNG de hasta 5 MB (400 `certificado.documento` si no cumple).
+
+Salen en `certificados` del detalle de la carta («Certificado fitosanitario nº …»), en la casilla 5 del CMR y en los
+datos de aduana de la factura. A una carta anulada no se le añaden certificados (409 `certificado.carta_anulada`).
+
+API:
+- `GET/POST /cartas-porte/{id}/certificados`
+- `PUT/DELETE /certificados-fitosanitarios/{id}`
+- `GET /certificados-fitosanitarios/{id}/documento`
+
+En la pantalla de cartas de porte, el botón **«Certificados»** los lista, añade (con el fichero) y elimina.
 
 ## API
 

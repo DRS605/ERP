@@ -43,7 +43,8 @@ public sealed record CartaPorteDto(
     string? TransportistaNombre, string? TransportistaNif, string? Matricula,
     string LugarOrigen, string LugarDestino, DateOnly? FechaCarga, string? Observaciones,
     Guid? AlbaranId, int TotalBultos, decimal TotalPesoKg, IReadOnlyList<LineaCartaPorteDto> Lineas, bool Anulada = false, string? MotivoAnulacion = null,
-    string Tipo = "Nacional", decimal? TotalPesoNetoKg = null, decimal? TotalVolumenM3 = null, TransporteCarta? Transporte = null)
+    string Tipo = "Nacional", decimal? TotalPesoNetoKg = null, decimal? TotalVolumenM3 = null, TransporteCarta? Transporte = null,
+    IReadOnlyList<string>? Certificados = null)
 {
     public static CartaPorteDto Desde(CartaPorte c) => new(
         c.Id, c.NumeroCompleto, c.FechaExpedicion, c.RemitenteNombre, c.RemitenteNif,

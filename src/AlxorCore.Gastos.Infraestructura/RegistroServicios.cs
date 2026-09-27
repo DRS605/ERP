@@ -30,6 +30,8 @@ public static class RegistroServicios
         servicios.AddScoped<RepositorioGastos>();
         servicios.AddScoped<IRepositorioGastos>(sp => sp.GetRequiredService<RepositorioGastos>());
         servicios.AddScoped<IConsultaGastos>(sp => sp.GetRequiredService<RepositorioGastos>());
+        servicios.AddScoped<IRepositorioDuasImportacion, RepositorioDuasImportacion>();
+        servicios.AddScoped<Importaciones>();
 
         // Bandeja de salida (outbox transaccional): atomicidad entre registrar gasto y encolar su
         // contabilización, con despacho y reintento.

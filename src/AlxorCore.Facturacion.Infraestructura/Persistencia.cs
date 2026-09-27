@@ -42,6 +42,8 @@ public sealed class FacturacionDbContext : DbContextEmpresaBase, IUnidadDeTrabaj
 
     public DbSet<DespachoAduanero> Despachos => Set<DespachoAduanero>();
 
+    public DbSet<CertificadoFitosanitario> CertificadosFitosanitarios => Set<CertificadoFitosanitario>();
+
     public DbSet<MensajeSalida> MensajesSalida => Set<MensajeSalida>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

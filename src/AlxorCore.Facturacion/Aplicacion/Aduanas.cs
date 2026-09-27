@@ -34,7 +34,7 @@ public sealed record DatosAduanaDto(Guid FacturaId, string Factura, DateOnly Fec
     string Exportador, string ExportadorNif, string ExportadorEori, string Destinatario, string? DestinatarioNif, string? DestinatarioEori, string DestinatarioDireccion,
     string? PaisDestino, string? Incoterm, string? LugarIncoterm, string? ModoTransporte, string? Matricula, string? Contenedor, string? Precinto, string? Buque,
     string? Vuelo, string? Awb, int? Bultos, decimal? PesoBrutoKg, decimal? PesoNetoKg, decimal ValorTotal, IReadOnlyList<PartidaAduanaDto> Partidas,
-    IReadOnlyList<string> CartasPorte, IReadOnlyList<DespachoDto> Despachos, IReadOnlyList<string> Avisos);
+    IReadOnlyList<string> CartasPorte, IReadOnlyList<DespachoDto> Despachos, IReadOnlyList<string> Avisos, IReadOnlyList<string>? Certificados = null);
 
 public interface IRepositorioDespachos
 {
@@ -239,7 +239,8 @@ public sealed class Aduanas
             cartas.Count > 0 ? cartas.Sum(x => x.TotalBultos) : null, cartas.Count > 0 ? cartas.Sum(x => x.TotalPesoKg) : null,
             agrupadas.All(x => x.PesoNetoKg is not null) ? agrupadas.Sum(x => x.PesoNetoKg!.Value) : null,
             Redondeo.Dos(agrupadas.Sum(x => x.Valor)), agrupadas, cartas.Select(x => x.NumeroCompleto).ToList(),
-            await DespachosAsync(facturaId, ct).ConfigureAwait(false), avisos.Distinct(StringComparer.Ordinal).ToList()));
+            await DespachosAsync(facturaId, ct).ConfigureAwait(false), avisos.Distinct(StringComparer.Ordinal).ToList(),
+            cartas.SelectMany(x => x.Certificados ?? []).Distinct(StringComparer.Ordinal).ToList()));
     }
 
     /// <summary>Las partidas en CSV (separado por punto y coma, como lo abre Excel en español).</summary>

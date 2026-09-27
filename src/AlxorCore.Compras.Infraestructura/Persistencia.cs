@@ -246,6 +246,10 @@ internal sealed class RepositorioAlbaranes : IRepositorioAlbaranes
 
     public Task<AlbaranCompra?> ObtenerPorIdAsync(Guid id, CancellationToken ct = default) => _contexto.Albaranes.SingleOrDefaultAsync(a => a.Id == id, ct);
 
+    public async Task<IReadOnlyList<AlbaranCompra>> EnPeriodoAsync(Guid empresaId, DateOnly desde, DateOnly hasta, CancellationToken ct = default) =>
+        await _contexto.Albaranes.AsNoTracking().Where(a => a.EmpresaId == empresaId && a.AnuladoEn == null && a.Fecha >= desde && a.Fecha <= hasta)
+            .ToListAsync(ct).ConfigureAwait(false);
+
     public Task<AlbaranCompra?> PorAlbaranVentaOrigenAsync(Guid empresaId, Guid albaranVentaId, CancellationToken ct = default) =>
         _contexto.Albaranes.SingleOrDefaultAsync(a => a.EmpresaId == empresaId && a.AlbaranVentaOrigenId == albaranVentaId, ct);
 
