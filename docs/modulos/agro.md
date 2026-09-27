@@ -79,6 +79,40 @@ El **palé** se identifica con un **SSCC** GS1 de 18 dígitos: extensión + pref
 de control, calculado y comprobado. Sus estados son: abierto ⇄ cerrado → expedido. La **expedición** saca
 todo el contenido de los palés cerrados hacia un cliente, con referencia de albarán o carta de porte.
 
+### Palés rápidos (plantillas, cajas y montaje de una vez)
+
+Lo que en Hispatec es la *confección* de palé:
+
+- **Plantilla de palé** (`/agro/plantillas-pale`):
+  - datos: tipo de palé, producto (opcional), marca, **cajas por palé**, **kilos por caja**, mosaico (filas ×
+    columnas por capa; las cajas deben ser capas enteras) y cliente habitual;
+  - si ya se han montado palés con ella, no cambian sus cajas, kilos ni producto: se crea otra y se desactiva;
+  - se elimina solo si no se ha usado.
+- **Montaje de una vez** (`POST /agro/pales/montar`):
+  - con una plantilla y una partida se crean los palés con SSCC correlativos;
+  - se monta una de tres cantidades:
+    - todos los palés completos que dan los kilos sueltos de la partida;
+    - un número de palés;
+    - un número de cajas (el último palé queda abierto si no se llena);
+  - los palés completos quedan **cerrados**.
+- **Por cajas** (`POST /agro/pales/{id}/cajas`):
+  - en un palé con plantilla se ponen o se sacan cajas (en negativo);
+  - los kilos son las cajas por los kilos por caja;
+  - el palé **se cierra solo** al completarse;
+  - no se paletiza por kilos.
+- **Libro de movimientos:** cada movimiento guarda sus cajas (con el mismo signo que los kilos), así que el
+  contenido del palé se ve en cajas y kilos por partida.
+- **Etiqueta logística** (`GET /agro/pales/{id o SSCC}/etiqueta`):
+  - PDF A6 con dos códigos GS1-128:
+    - el del SSCC (IA 00);
+    - el del contenido: peso neto (IA 310n), cajas (IA 37) y lote (IA 10);
+  - el codificador está contrastado con otro independiente (bwip-js) en las pruebas.
+- **Carta de porte al expedir** (`CartaPorte = true` en `/agro/expediciones`):
+  - se emite en facturación, con una línea por producto (bultos = cajas, peso = kilos), y queda enlazada a los
+    palés;
+  - si la expedición no llega a guardarse, la carta se anula;
+  - al anular la expedición de todos sus palés, también se anula.
+
 ## 4. Clasificación
 
 Un **muestreo** dice cuántos kilos de la muestra salieron de cada categoría. Puede ser:
@@ -193,7 +227,9 @@ saltándose la aplicación:
   - la numeración no tiene huecos.
 - **Libros de solo inserción:** los movimientos de partidas y de envases y la genealogía.
 - **Saldos:** el de cada partida, suelto y en cada palé, nunca es negativo. Una partida anulada no se mueve.
-  Un palé solo admite movimientos compatibles con su estado, y uno expedido ya no cambia.
+  Un palé solo admite movimientos compatibles con su estado, y uno expedido ya no cambia. El SSCC y la plantilla
+  de un palé no cambian, y solo un palé expedido lleva carta de porte. Las cajas de un movimiento llevan el signo
+  de sus kilos, y la plantilla tiene cajas y kilos positivos y un mosaico coherente.
 - **Cuadres:**
   - **recepción:** cada línea, con el neto y los envases de sus pesadas y con su partida;
   - **liquidación:**
@@ -211,12 +247,13 @@ saltándose la aplicación:
 
 - **Otros módulos:**
   - reflejar las partidas en Inventario, para una valoración única de existencias;
-  - albarán de venta con los palés expedidos, y su factura.
+  - albarán de venta (del pedido) con los palés expedidos, y su factura. Hoy la expedición emite la carta de
+    porte; el albarán de venta necesita el pedido y todavía no se puede anular, por eso no se genera solo.
 - **Liquidaciones:**
   - anticipos a cuenta;
   - liquidaciones masivas de todos los agricultores del periodo;
   - REAGP del IGIC en Canarias (hoy se indica a mano el impuesto de la autofactura).
 - **Operativa:**
-  - impresión de etiquetas GS1-128 de los palés;
+  - lectura de cajas con escáner en el punto de paletizado (hoy se indican las cajas en pantalla);
   - lectura directa de básculas;
   - certificaciones (GlobalG.A.P.) y cuaderno de campo.

@@ -12,7 +12,7 @@ public interface IUnidadDeTrabajoAgro : IUnidadDeTrabajo
 }
 
 /// <summary>Saldo de una partida en un palé (null: kilos sueltos).</summary>
-public sealed record SaldoPartida(Guid PartidaId, Guid? PaleId, decimal Kilos);
+public sealed record SaldoPartida(Guid PartidaId, Guid? PaleId, decimal Kilos, int Cajas = 0);
 
 /// <summary>Persistencia del módulo agro.</summary>
 public interface IRepositorioAgro
@@ -66,6 +66,10 @@ public interface IRepositorioAgro
     Task<IReadOnlyList<Pale>> PalesAsync(Guid empresaId, EstadoPale? estado, CancellationToken ct = default);
     Task<IReadOnlyList<Pale>> PalesAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default);
     Task<int> PalesCreadosAsync(Guid empresaId, CancellationToken ct = default);
+    Task<IReadOnlyList<Pale>> PalesDeCartaPorteAsync(Guid cartaPorteId, CancellationToken ct = default);
+    Task<IReadOnlyList<PlantillaPale>> PlantillasPaleAsync(Guid empresaId, CancellationToken ct = default);
+    Task<PlantillaPale?> PlantillaPaleAsync(Guid id, CancellationToken ct = default);
+    Task<bool> PlantillaPaleEnUsoAsync(Guid plantillaId, CancellationToken ct = default);
 
     // Clasificación y liquidación
     Task<IReadOnlyList<ClasificacionPartida>> ClasificacionesAsync(Guid partidaId, CancellationToken ct = default);
@@ -99,6 +103,21 @@ public interface IAutofacturas
     Task<Resultado<(Guid GastoId, decimal Total)>> RegistrarAsync(Guid empresaId, AutofacturaAgro autofactura, CancellationToken ct = default);
 
     Task<Resultado> AnularAsync(Guid gastoId, CancellationToken ct = default);
+}
+
+/// <summary>Carta de porte de una expedición de palés: destinatario, transporte y una línea por producto.</summary>
+public sealed record CartaPorteExpedicion(Guid ClienteId, DateOnly Fecha, string? Transportista, string? Matricula, string? LugarOrigen, string? LugarDestino,
+    string? Observaciones, IReadOnlyList<(string Descripcion, int Bultos, decimal Kilos)> Lineas);
+
+/// <summary>
+/// Documentos de transporte de una expedición: emite la carta de porte (y la anula si la expedición no se completa o se
+/// deshace). Lo implementa la API sobre el módulo de facturación.
+/// </summary>
+public interface IDocumentosExpedicion
+{
+    Task<Resultado<(Guid Id, string Numero)>> EmitirCartaPorteAsync(Guid empresaId, CartaPorteExpedicion carta, CancellationToken ct = default);
+
+    Task<Resultado> AnularCartaPorteAsync(Guid cartaPorteId, string motivo, CancellationToken ct = default);
 }
 
 /// <summary>Gastos e ingresos imputados en analítica a unos centros (con sus descendientes) en unas fechas.</summary>

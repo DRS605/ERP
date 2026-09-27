@@ -62,6 +62,7 @@ public sealed class OperacionesRegistrosTests : IClassFixture<FabricaApiPruebas>
         ["/contabilidad/presupuestos/desde-real"] = "crea un presupuesto (se corrige en /contabilidad/presupuestos/{id})",
         ["/pedidos-venta/desde-presupuesto"] = "crea un pedido (se corrige en /pedidos-venta/{id})",
         ["/agro/liquidaciones/previsualizar"] = "cálculo sin guardar",
+        ["/agro/pales/montar"] = "monta palés de una vez: cada uno se corrige con /agro/pales/{id}/cajas (reabriéndolo si está cerrado)",
         ["/agro/expediciones"] = "marca palés como expedidos: cada uno se anula con /agro/pales/{id}/anular-expedicion",
         ["/usuarios/invitar"] = "se revoca con /usuarios/{usuarioId}/revocar",
         ["/aprobaciones/solicitudes"] = "se aprueba o rechaza",

@@ -1,9 +1,11 @@
 using AlxorCore.Agro.Aplicacion;
 using AlxorCore.Agro.Dominio;
 using AlxorCore.Api.Comun;
+using AlxorCore.Documentos.Aplicacion;
 using AlxorCore.Nucleo.Autorizacion;
 using AlxorCore.Nucleo.Multiempresa;
 using AlxorCore.Nucleo.Resultados;
+using AlxorCore.Organizacion.Aplicacion.Puertos;
 
 namespace AlxorCore.Api.Endpoints;
 
@@ -218,6 +220,41 @@ public static class EndpointsAgro
             .WithSummary("Palé por id o por SSCC.").RequierePermiso(Permisos.AgroLeer);
         g.MapPost("/pales", (DatosPale d, IContextoEmpresa c, PalesAgro p, CancellationToken ct) => ConEmpresa(c, async e => Creado(await p.CrearAsync(e, d, ct).ConfigureAwait(false), "pales")))
             .WithSummary("Da de alta un palé con el siguiente SSCC GS1.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapPost("/pales/montar", (DatosMontaje d, IContextoEmpresa c, PalesAgro p, CancellationToken ct) => ConEmpresa(c, async e => (await p.MontarAsync(e, d, ct).ConfigureAwait(false)).AOk()))
+            .WithSummary("Montaje rápido: con una plantilla y una partida, monta de una vez los palés (completos y cerrados; el último, abierto si no se llena).")
+            .RequierePermiso(Permisos.AgroGestionar);
+        g.MapPost("/pales/{id:guid}/cajas", async (Guid id, DatosCajas d, PalesAgro p, CancellationToken ct) => (await p.CajasAsync(id, d, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Pone cajas de una partida en un palé con plantilla (o las saca, en negativo); se cierra solo al completarse.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapGet("/pales/{idOSscc}/etiqueta", (string idOSscc, IContextoEmpresa c, PalesAgro p, IConsultaEmpresas empresas, IGeneradorEtiquetaLogistica generador, CancellationToken ct) =>
+                ConEmpresa(c, async e =>
+                {
+                    var et = await p.EtiquetaAsync(e, idOSscc, ct).ConfigureAwait(false);
+                    if (et.EsFallo)
+                    {
+                        return ResultadosHttp.AProblema(et.Error);
+                    }
+
+                    var empresa = await empresas.ObtenerAsync(e, ct).ConfigureAwait(false);
+                    if (empresa is null)
+                    {
+                        return ResultadosHttp.AProblema(Error.NoEncontrado("empresa.no_encontrada", "La empresa no existe."));
+                    }
+
+                    var v = et.Valor;
+                    var pdf = generador.Generar(new EtiquetaLogistica(v.Sscc, v.Producto, v.Marca, v.TipoPale, v.Cajas, v.Kilos, v.Lote, v.Fecha, v.Destinatario), empresa);
+                    return Results.File(pdf, "application/pdf", $"etiqueta-{v.Sscc}.pdf");
+                }))
+            .WithSummary("Etiqueta logística GS1 del palé (PDF A6 con el SSCC y el contenido en GS1-128).").RequierePermiso(Permisos.AgroLeer);
+
+        g.MapGet("/plantillas-pale", (IContextoEmpresa c, PalesAgro p, CancellationToken ct) => ConEmpresa(c, async e => Results.Ok(await p.PlantillasAsync(e, ct).ConfigureAwait(false))))
+            .WithSummary("Plantillas de palé (tipo, producto, marca, cajas por palé, kilos por caja y mosaico).").RequierePermiso(Permisos.AgroLeer);
+        g.MapPost("/plantillas-pale", (DatosPlantilla d, IContextoEmpresa c, PalesAgro p, CancellationToken ct) =>
+                ConEmpresa(c, async e => Creado(await p.CrearPlantillaAsync(e, d, ct).ConfigureAwait(false), "plantillas-pale")))
+            .WithSummary("Crea una plantilla de palé.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapPut("/plantillas-pale/{id:guid}", async (Guid id, DatosPlantilla d, PalesAgro p, CancellationToken ct) => (await p.ActualizarPlantillaAsync(id, d, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Modifica una plantilla (si ya se usó, no cambian sus cajas, kilos ni producto) o la desactiva.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapDelete("/plantillas-pale/{id:guid}", async (Guid id, PalesAgro p, CancellationToken ct) => (await p.EliminarPlantillaAsync(id, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Elimina una plantilla con la que no se ha montado ningún palé.").RequierePermiso(Permisos.AgroGestionar);
         g.MapPost("/pales/{id:guid}/paletizar", async (Guid id, DatosMoverKilos d, PalesAgro p, CancellationToken ct) => (await p.PaletizarAsync(id, d, ct).ConfigureAwait(false)).AOk())
             .WithSummary("Pone kilos de una partida en el palé (sueltos o desde otro palé).").RequierePermiso(Permisos.AgroGestionar);
         g.MapPost("/pales/{id:guid}/despaletizar", async (Guid id, DatosMoverKilos d, PalesAgro p, CancellationToken ct) => (await p.DespaletizarAsync(id, d, ct).ConfigureAwait(false)).AOk())
@@ -229,7 +266,7 @@ public static class EndpointsAgro
         g.MapPost("/pales/{id:guid}/anular-expedicion", (Guid id, IContextoEmpresa c, PalesAgro p, CancellationToken ct) => ConEmpresa(c, async e => (await p.AnularExpedicionAsync(e, id, ct).ConfigureAwait(false)).AOk()))
             .WithSummary("Anula la expedición de un palé (salió por error o volvió): queda cerrado con su contenido.").RequierePermiso(Permisos.AgroGestionar);
         g.MapPost("/expediciones", (DatosExpedicion d, IContextoEmpresa c, PalesAgro p, CancellationToken ct) => ConEmpresa(c, async e => (await p.ExpedirAsync(e, d, ct).ConfigureAwait(false)).AOk()))
-            .WithSummary("Expide palés cerrados a un cliente.").RequierePermiso(Permisos.AgroGestionar);
+            .WithSummary("Expide palés cerrados a un cliente (con CartaPorte = true emite además la carta de porte).").RequierePermiso(Permisos.AgroGestionar);
 
         g.MapGet("/trazabilidad/atras", (Guid? partidaId, string? sscc, IContextoEmpresa c, TrazabilidadAgro t, CancellationToken ct) =>
                 ConEmpresa(c, async e => (await t.HaciaAtrasAsync(e, partidaId, sscc, ct).ConfigureAwait(false)).AOk()))

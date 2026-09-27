@@ -143,9 +143,10 @@ public sealed class MovimientoPartida : RaizAgregadoEmpresa<Guid>
     }
 
     private MovimientoPartida(Guid id, Guid empresaId, Guid partidaId, DateOnly fecha, TipoMovimientoPartida tipo, decimal kilos, Guid? paleId,
-        string? documentoTipo, Guid? documentoId, string? concepto, DateTimeOffset ahora)
+        string? documentoTipo, Guid? documentoId, string? concepto, int cajas, DateTimeOffset ahora)
         : base(id, empresaId)
     {
+        Cajas = cajas;
         PartidaId = partidaId;
         Fecha = fecha;
         Tipo = tipo;
@@ -166,6 +167,9 @@ public sealed class MovimientoPartida : RaizAgregadoEmpresa<Guid>
     /// <summary>Kilos con signo: positivos entran, negativos salen.</summary>
     public decimal Kilos { get; private set; }
 
+    /// <summary>Cajas (bultos) que representan esos kilos, con el mismo signo; 0 si se movieron a granel.</summary>
+    public int Cajas { get; private set; }
+
     /// <summary>Palé en el que están (o del que salen) los kilos; null si están sueltos.</summary>
     public Guid? PaleId { get; private set; }
 
@@ -178,9 +182,14 @@ public sealed class MovimientoPartida : RaizAgregadoEmpresa<Guid>
     public DateTimeOffset CreadoEn { get; private set; }
 
     public static Resultado<MovimientoPartida> Crear(Guid empresaId, Guid partidaId, DateOnly fecha, TipoMovimientoPartida tipo, decimal kilos, Guid? paleId,
-        string? documentoTipo, Guid? documentoId, string? concepto, IReloj reloj)
+        string? documentoTipo, Guid? documentoId, string? concepto, IReloj reloj, int cajas = 0)
     {
         ArgumentNullException.ThrowIfNull(reloj);
+        if (cajas != 0 && Math.Sign(cajas) != Math.Sign(kilos))
+        {
+            return Resultado.Fallo<MovimientoPartida>(Error.Validacion("partida.cajas", "Las cajas llevan el mismo signo que los kilos."));
+        }
+
         if (kilos == 0m || decimal.Round(kilos, 3) != kilos)
         {
             return Resultado.Fallo<MovimientoPartida>(Error.Validacion("partida.kilos", "Los kilos no pueden ser cero (hasta 3 decimales)."));
@@ -198,7 +207,7 @@ public sealed class MovimientoPartida : RaizAgregadoEmpresa<Guid>
             texto = texto[..LongitudConcepto];
         }
 
-        return Resultado.Ok(new MovimientoPartida(Guid.NewGuid(), empresaId, partidaId, fecha, tipo, kilos, paleId, documentoTipo, documentoId, texto, reloj.AhoraUtc));
+        return Resultado.Ok(new MovimientoPartida(Guid.NewGuid(), empresaId, partidaId, fecha, tipo, kilos, paleId, documentoTipo, documentoId, texto, cajas, reloj.AhoraUtc));
     }
 }
 
@@ -227,11 +236,12 @@ public sealed class Pale : RaizAgregadoEmpresa<Guid>
         Sscc = null!;
     }
 
-    private Pale(Guid id, Guid empresaId, string sscc, string? tipo, DateTimeOffset ahora)
+    private Pale(Guid id, Guid empresaId, string sscc, string? tipo, Guid? plantillaId, DateTimeOffset ahora)
         : base(id, empresaId)
     {
         Sscc = sscc;
         Tipo = tipo;
+        PlantillaId = plantillaId;
         Estado = EstadoPale.Abierto;
         CreadoEn = ahora;
     }
@@ -243,6 +253,12 @@ public sealed class Pale : RaizAgregadoEmpresa<Guid>
 
     public EstadoPale Estado { get; private set; }
 
+    /// <summary>Plantilla con que se monta (cajas por palé, kilos por caja, mosaico…); null en un palé a granel.</summary>
+    public Guid? PlantillaId { get; private set; }
+
+    /// <summary>Carta de porte que se emitió al expedirlo.</summary>
+    public Guid? CartaPorteId { get; private set; }
+
     public Guid? ClienteId { get; private set; }
 
     public DateOnly? FechaExpedicion { get; private set; }
@@ -252,7 +268,7 @@ public sealed class Pale : RaizAgregadoEmpresa<Guid>
 
     public DateTimeOffset CreadoEn { get; private set; }
 
-    public static Resultado<Pale> Crear(Guid empresaId, string sscc, string? tipo, IReloj reloj)
+    public static Resultado<Pale> Crear(Guid empresaId, string sscc, string? tipo, IReloj reloj, Guid? plantillaId = null)
     {
         ArgumentNullException.ThrowIfNull(reloj);
         if (sscc?.Length != 18 || !ReglasAgro.Gs1Valido(sscc))
@@ -260,7 +276,7 @@ public sealed class Pale : RaizAgregadoEmpresa<Guid>
             return Resultado.Fallo<Pale>(Error.Validacion("pale.sscc", "El SSCC debe tener 18 dígitos con el dígito de control GS1 correcto."));
         }
 
-        return Resultado.Ok(new Pale(Guid.NewGuid(), empresaId, sscc, string.IsNullOrWhiteSpace(tipo) ? null : tipo.Trim(), reloj.AhoraUtc));
+        return Resultado.Ok(new Pale(Guid.NewGuid(), empresaId, sscc, string.IsNullOrWhiteSpace(tipo) ? null : tipo.Trim(), plantillaId, reloj.AhoraUtc));
     }
 
     public Resultado Cerrar()
@@ -311,9 +327,152 @@ public sealed class Pale : RaizAgregadoEmpresa<Guid>
         ClienteId = null;
         FechaExpedicion = null;
         ReferenciaExpedicion = null;
+        CartaPorteId = null;
+        return Resultado.Ok();
+    }
+
+    /// <summary>Enlaza la carta de porte emitida con la expedición (solo en un palé expedido).</summary>
+    public Resultado AsignarCartaPorte(Guid cartaPorteId, string numero)
+    {
+        if (Estado != EstadoPale.Expedido)
+        {
+            return Resultado.Fallo(Error.Conflicto("pale.no_expedido", "El palé no está expedido."));
+        }
+
+        CartaPorteId = cartaPorteId;
+        ReferenciaExpedicion ??= numero;
         return Resultado.Ok();
     }
 }
+
+/// <summary>
+/// Plantilla de palé (la «confección» de Hispatec): qué tipo de palé, qué producto y marca, cuántas cajas lleva y de
+/// cuántos kilos, y su mosaico (cajas por capa = filas × columnas). Con ella el palé se monta por cajas y se cierra solo
+/// al completarse, y se pueden montar de una vez todos los palés completos que da una partida.
+/// </summary>
+public sealed class PlantillaPale : RaizAgregadoEmpresa<Guid>
+{
+    public const int MaximoCajas = 10_000;
+
+    private PlantillaPale(Guid id)
+        : base(id, Guid.Empty)
+    {
+        Codigo = null!;
+        Nombre = null!;
+    }
+
+    private PlantillaPale(Guid id, Guid empresaId, string codigo, string nombre)
+        : base(id, empresaId)
+    {
+        Codigo = codigo;
+        Nombre = nombre;
+        Activa = true;
+    }
+
+    public string Codigo { get; private set; }
+
+    public string Nombre { get; private set; }
+
+    /// <summary>Tipo de palé (europeo, americano, medio palé…).</summary>
+    public string? TipoPale { get; private set; }
+
+    /// <summary>Producto que admite; null si admite cualquiera.</summary>
+    public Guid? ProductoId { get; private set; }
+
+    public string? Marca { get; private set; }
+
+    public int CajasPorPale { get; private set; }
+
+    public decimal KilosPorCaja { get; private set; }
+
+    /// <summary>Mosaico de cada capa (opcional): filas × columnas cajas.</summary>
+    public int? Filas { get; private set; }
+
+    public int? Columnas { get; private set; }
+
+    /// <summary>Cliente para el que se monta habitualmente (opcional; se propone al expedir).</summary>
+    public Guid? ClienteId { get; private set; }
+
+    public bool Activa { get; private set; }
+
+    public int? CajasPorCapa => Filas is { } f && Columnas is { } c ? f * c : null;
+
+    public int? Capas => CajasPorCapa is { } porCapa ? CajasPorPale / porCapa : null;
+
+    public decimal KilosPorPale => CajasPorPale * KilosPorCaja;
+
+    public static Resultado<PlantillaPale> Crear(Guid empresaId, string? codigo, string? nombre, DatosPlantillaPale datos)
+    {
+        var error = ReglasAgro.CodigoNombre(ref codigo, ref nombre, "plantilla");
+        if (error is not null)
+        {
+            return Resultado.Fallo<PlantillaPale>(error);
+        }
+
+        var p = new PlantillaPale(Guid.NewGuid(), empresaId, codigo!, nombre!);
+        var r = p.Fijar(nombre, datos, true, false);
+        return r.EsFallo ? Resultado.Fallo<PlantillaPale>(r.Error) : Resultado.Ok(p);
+    }
+
+    /// <summary>
+    /// Cambia la plantilla. Si ya hay palés montados con ella, las cajas por palé, los kilos por caja y el producto
+    /// no cambian (los palés abiertos se cerrarían con otra medida): se crea otra plantilla.
+    /// </summary>
+    public Resultado Fijar(string? nombre, DatosPlantillaPale datos, bool activa, bool enUso)
+    {
+        ArgumentNullException.ThrowIfNull(datos);
+        nombre = nombre?.Trim();
+        if (string.IsNullOrWhiteSpace(nombre) || nombre.Length > ReglasAgro.LongitudNombre)
+        {
+            return Resultado.Fallo(Error.Validacion("plantilla.nombre", $"El nombre es obligatorio (máximo {ReglasAgro.LongitudNombre} caracteres)."));
+        }
+
+        if (datos.CajasPorPale is < 1 or > MaximoCajas)
+        {
+            return Resultado.Fallo(Error.Validacion("plantilla.cajas", $"Las cajas por palé van de 1 a {MaximoCajas}."));
+        }
+
+        if (datos.KilosPorCaja <= 0m || decimal.Round(datos.KilosPorCaja, 3) != datos.KilosPorCaja || datos.KilosPorCaja * datos.CajasPorPale > 100_000m)
+        {
+            return Resultado.Fallo(Error.Validacion("plantilla.kilos", "Los kilos por caja son positivos (hasta 3 decimales)."));
+        }
+
+        if ((datos.Filas is null) != (datos.Columnas is null) || datos.Filas is < 1 || datos.Columnas is < 1
+            || (datos.Filas is { } f && datos.Columnas is { } c && datos.CajasPorPale % (f * c) != 0))
+        {
+            return Resultado.Fallo(Error.Validacion("plantilla.mosaico",
+                "El mosaico lleva filas y columnas (las dos) y las cajas por palé deben ser un número entero de capas (filas × columnas)."));
+        }
+
+        if (enUso && (datos.CajasPorPale != CajasPorPale || datos.KilosPorCaja != KilosPorCaja || datos.ProductoId != ProductoId))
+        {
+            return Resultado.Fallo(Error.Conflicto("plantilla.en_uso",
+                "Ya hay palés montados con esta plantilla: no cambian sus cajas, kilos ni producto. Crea otra plantilla (y desactiva esta)."));
+        }
+
+        Nombre = nombre;
+        TipoPale = Texto(datos.TipoPale, 40);
+        ProductoId = datos.ProductoId;
+        Marca = Texto(datos.Marca, 60);
+        CajasPorPale = datos.CajasPorPale;
+        KilosPorCaja = datos.KilosPorCaja;
+        Filas = datos.Filas;
+        Columnas = datos.Columnas;
+        ClienteId = datos.ClienteId;
+        Activa = activa;
+        return Resultado.Ok();
+    }
+
+    private static string? Texto(string? t, int maximo)
+    {
+        var v = string.IsNullOrWhiteSpace(t) ? null : t.Trim();
+        return v?.Length > maximo ? v[..maximo] : v;
+    }
+}
+
+/// <summary>Datos de una plantilla de palé.</summary>
+public sealed record DatosPlantillaPale(int CajasPorPale, decimal KilosPorCaja, string? TipoPale = null, Guid? ProductoId = null, string? Marca = null,
+    int? Filas = null, int? Columnas = null, Guid? ClienteId = null);
 
 /// <summary>
 /// Movimiento de envases con un agricultor (palots, cajas…): positivos los que se le entregan vacíos,

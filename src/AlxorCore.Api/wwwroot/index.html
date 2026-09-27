@@ -3551,16 +3551,85 @@
     // ------------------------------------------------ Partidas y palés
     async function vAgroPartidas(){
       view('<div class="muted">Cargando…</div>'); await agCargar();
-      const [partidas,pales]=await Promise.all([api("/agro/partidas"),api("/agro/pales")]);
-      window._agPartidas=partidas; window._agPales=pales;
+      const [partidas,pales,plantillas]=await Promise.all([api("/agro/partidas"),api("/agro/pales"),api("/agro/plantillas-pale").catch(()=>[])]);
+      window._agPartidas=partidas; window._agPales=pales; window._agPlantillas=plantillas;
       const fp=partidas.map(p=>`<tr><td class="mono"><strong>${p.codigo}</strong></td><td>${agEsc(agProd(p.productoId))}${p.calibre?` <small class="muted">cal. ${agEsc(p.calibre)}</small>`:""}</td><td class="muted">${p.origen==="Recepcion"?agEsc(agNombre(_ag.agricultores,p.agricultorId)):"Confección"}</td><td class="muted">${fdate(p.fecha)}</td><td class="num muted">${kg(p.kilosIniciales)}</td><td class="num"><strong>${kg(p.saldo)}</strong></td><td class="num">${p.costeKg!=null?eurKg(p.costeKg):'<span class="muted">—</span>'}</td>
         <td class="right" style="white-space:nowrap">${p.origen==="Recepcion"?`<button class="btn small secondary" onclick="modalAgroClasificar('${p.id}','${p.codigo}')">Clasificar</button> `:""}<button class="btn small ghost" onclick="modalAgroAjuste('${p.id}','${p.codigo}')">Ajustar</button> <button class="btn small ghost" onclick="vAgroTraza('atras-partida','${p.id}')">Trazar</button></td></tr>`).join("");
-      const fpal=pales.filter(p=>p.estado!=="Expedido"||p.kilos>0).slice(0,60).map(p=>`<tr><td class="mono"><strong>${p.sscc}</strong></td><td>${agEstado(p.estado)}</td><td class="num"><strong>${kg(p.kilos)}</strong></td><td class="muted">${p.contenido.map(c=>`${c.partida} (${kg(c.kilos)})`).join(", ")}</td><td class="muted">${p.estado==="Expedido"?`${agEsc(agNombre(_ag.clientes,p.clienteId))} ${fdate(p.fechaExpedicion)} ${agEsc(p.referenciaExpedicion||"")}`:""}</td>
-        <td class="right" style="white-space:nowrap">${p.estado==="Abierto"?`<button class="btn small secondary" onclick="modalAgroPaletizar('${p.id}','${p.sscc}')">Paletizar</button> <button class="btn small ghost" onclick="agAccion(()=>api('/agro/pales/${p.id}/cerrar',{method:'POST'}),'Palé cerrado.',vAgroPartidas)">Cerrar</button>`:(p.estado==="Cerrado"?`<button class="btn small ghost" onclick="agAccion(()=>api('/agro/pales/${p.id}/reabrir',{method:'POST'}),null,vAgroPartidas)">Reabrir</button>`:`<button class="btn small ghost" onclick="vAgroTraza('atras','${p.sscc}')">Trazar</button> <button class="btn small ghost" onclick="if(confirm('¿Anular la expedición de este palé? Vuelve a quedar cerrado en el almacén.'))agAccion(()=>api('/agro/pales/${p.id}/anular-expedicion',{method:'POST'}),'Expedición anulada.',vAgroPartidas)">Anular salida</button>`)}</td></tr>`).join("");
+      const fpal=pales.filter(p=>p.estado!=="Expedido"||p.kilos>0).slice(0,60).map(p=>`<tr><td class="mono"><strong>${p.sscc}</strong></td><td>${agEstado(p.estado)}</td><td class="num"><strong>${kg(p.kilos)}</strong>${p.cajasPorPale?`<br><small class="muted">${p.cajas}/${p.cajasPorPale} cajas</small>`:""}</td><td class="muted">${p.contenido.map(c=>`${c.partida} (${kg(c.kilos)}${c.cajas?` · ${c.cajas} cj`:""})`).join(", ")}</td><td class="muted">${p.estado==="Expedido"?`${agEsc(agNombre(_ag.clientes,p.clienteId))} ${fdate(p.fechaExpedicion)} ${agEsc(p.referenciaExpedicion||"")}`:""}</td>
+        <td class="right" style="white-space:nowrap">${p.kilos>0?`<button class="btn small ghost" onclick="agEtiqueta('${p.sscc}')" title="Etiqueta GS1 del palé">Etiqueta</button> `:""}${p.estado==="Abierto"?`${p.plantillaId?`<button class="btn small secondary" onclick="modalAgroCajas('${p.id}','${p.sscc}',${p.cajasPorPale-p.cajas})">Cajas</button>`:`<button class="btn small secondary" onclick="modalAgroPaletizar('${p.id}','${p.sscc}')">Paletizar</button>`} <button class="btn small ghost" onclick="agAccion(()=>api('/agro/pales/${p.id}/cerrar',{method:'POST'}),'Palé cerrado.',vAgroPartidas)">Cerrar</button>`:(p.estado==="Cerrado"?`<button class="btn small ghost" onclick="agAccion(()=>api('/agro/pales/${p.id}/reabrir',{method:'POST'}),null,vAgroPartidas)">Reabrir</button>`:`<button class="btn small ghost" onclick="vAgroTraza('atras','${p.sscc}')">Trazar</button> <button class="btn small ghost" onclick="if(confirm('¿Anular la expedición de este palé? Vuelve a quedar cerrado en el almacén.'))agAccion(()=>api('/agro/pales/${p.id}/anular-expedicion',{method:'POST'}),'Expedición anulada.',vAgroPartidas)">Anular salida</button>`)}</td></tr>`).join("");
       view(panel("Partidas en almacén",partidas.length?`<table><thead><tr><th>Partida</th><th>Producto</th><th>Origen</th><th>Fecha</th><th class="num">Iniciales</th><th class="num">Disponible</th><th class="num">Coste</th><th></th></tr></thead><tbody>${fp}</tbody></table>`:'<p class="muted" style="margin:0">Sin existencias. Las partidas nacen al confirmar una recepción o validar un parte de confección.</p>')
         +panel("Palés (SSCC)",pales.length?`<table><thead><tr><th>SSCC</th><th>Estado</th><th class="num">Kilos</th><th>Contenido</th><th>Expedición</th><th></th></tr></thead><tbody>${fpal}</tbody></table>`:'<p class="muted" style="margin:0">Cada palé lleva un SSCC GS1 de 18 dígitos (con el prefijo de empresa configurado en Maestros agro).</p>',
-          agBotones(`<button class="btn small" onclick="agAccion(()=>api('/agro/pales',{method:'POST',body:'{}'}),'Palé creado.',vAgroPartidas)">+ Palé</button>`,`<button class="btn small secondary" onclick="modalAgroExpedir()">Expedir</button>`)));
+          agBotones(`<button class="btn small" onclick="modalAgroMontar()">Montar palés</button>`,`<button class="btn small secondary" onclick="modalAgroPale()">+ Palé</button>`,`<button class="btn small secondary" onclick="modalAgroExpedir()">Expedir</button>`))
+        +panelPlantillasPale(plantillas));
     }
+    function panelPlantillasPale(pls){
+      const filas=pls.map(t=>`<tr><td class="mono"><strong>${agEsc(t.codigo)}</strong></td><td>${agEsc(t.nombre)}${t.activa?"":' <span class="pill wait">Inactiva</span>'}</td><td class="muted">${agEsc(t.tipoPale||"—")}</td>
+        <td class="muted">${t.productoId?agEsc(agProd(t.productoId)):"Cualquiera"}${t.marca?" · "+agEsc(t.marca):""}</td><td class="num">${t.cajasPorPale} × ${kg(t.kilosPorCaja)}</td>
+        <td class="muted">${t.capas?`${t.capas} capas de ${t.filas}×${t.columnas}`:"—"}</td><td class="num"><strong>${kg(t.kilosPorPale)}</strong></td>
+        <td class="right" style="white-space:nowrap"><button class="btn small secondary" onclick="modalPlantillaPale('${t.id}')">Editar</button> <button class="btn small ghost" onclick="eliminarPlantillaPale('${t.id}')" title="Eliminar">🗑</button></td></tr>`).join("");
+      const nueva=`<button class="btn small secondary" onclick="modalPlantillaPale()">+ Plantilla</button>`;
+      return panel("Plantillas de palé",pls.length?`<table><thead><tr><th>Código</th><th>Nombre</th><th>Palé</th><th>Producto · marca</th><th class="num">Cajas × kg</th><th>Mosaico</th><th class="num">Por palé</th><th></th></tr></thead><tbody>${filas}</tbody></table>`
+        :'<p class="muted" style="margin:0">Una plantilla dice cómo se monta un palé: tipo, producto y marca, cajas por palé, kilos por caja y mosaico (filas × columnas por capa). Con ella se montan de una vez todos los palés de una partida y cada palé se cierra solo al completar sus cajas.</p>',nueva);
+    }
+    function modalPlantillaPale(id){
+      const t=id?(window._agPlantillas||[]).find(x=>x.id===id):null;
+      const clientes=_ag.clientes||[];
+      abrir(t?`Plantilla ${t.codigo}`:"Nueva plantilla de palé",`<div class="grid2"><div><label>Código</label><input id="pp_cod" value="${t?agEsc(t.codigo):""}" ${t?"disabled":""} placeholder="EUR80"/></div><div><label>Nombre</label><input id="pp_nom" value="${t?agEsc(t.nombre):""}" placeholder="Europeo 80 cajas de 12,5 kg"/></div></div>
+        <div class="grid2"><div><label>Tipo de palé</label><input id="pp_tipo" value="${t?agEsc(t.tipoPale||""):"Europeo"}"/></div><div><label>Producto</label><select id="pp_prod">${agOpc(agKilos(),t?t.productoId:null,"Cualquiera")}</select></div></div>
+        <div class="grid2"><div><label>Cajas por palé</label><input id="pp_cajas" type="number" step="1" min="1" value="${t?t.cajasPorPale:80}"/></div><div><label>Kilos por caja</label><input id="pp_kg" type="number" step="0.001" min="0" value="${t?t.kilosPorCaja:12.5}"/></div></div>
+        <div class="grid2"><div><label>Mosaico: filas por capa</label><input id="pp_f" type="number" step="1" min="1" value="${t&&t.filas?t.filas:""}" placeholder="4"/></div><div><label>Columnas por capa</label><input id="pp_c" type="number" step="1" min="1" value="${t&&t.columnas?t.columnas:""}" placeholder="5"/></div></div>
+        <div class="grid2"><div><label>Marca</label><input id="pp_marca" value="${t?agEsc(t.marca||""):""}"/></div><div><label>Cliente habitual</label><select id="pp_cli">${agOpc(clientes,t?t.clienteId:null,"—")}</select></div></div>
+        ${t?`<label style="display:flex;gap:8px;align-items:center;margin-top:8px"><input id="pp_act" type="checkbox" style="width:auto" ${t.activa?"checked":""}/> Activa</label>`:""}
+        <p class="muted" style="font-size:12px;margin:10px 0 0" id="pp_res"></p>`,
+        async()=>{ const n=x=>val(x)===""?null:Number(val(x));
+          const cuerpo={codigo:t?t.codigo:val("pp_cod"),nombre:val("pp_nom"),tipoPale:val("pp_tipo")||null,productoId:val("pp_prod")||null,marca:val("pp_marca")||null,
+            cajasPorPale:Number(val("pp_cajas")||0),kilosPorCaja:Number(val("pp_kg")||0),filas:n("pp_f"),columnas:n("pp_c"),clienteId:val("pp_cli")||null,activa:t?document.getElementById("pp_act").checked:true};
+          if(t) await api("/agro/plantillas-pale/"+t.id,{method:"PUT",body:JSON.stringify(cuerpo)}); else await api("/agro/plantillas-pale",{method:"POST",body:JSON.stringify(cuerpo)});
+          toast(t?"Plantilla guardada.":"Plantilla creada.","ok"); setTimeout(vAgroPartidas); });
+      const res=()=>{ const c=Number(val("pp_cajas")||0),k=Number(val("pp_kg")||0),f=Number(val("pp_f")||0),co=Number(val("pp_c")||0);
+        document.getElementById("pp_res").textContent=`${kg(c*k)} por palé`+(f&&co?(c%(f*co)===0?` · ${c/(f*co)} capas de ${f*co} cajas`:` · ${c} cajas no son capas enteras de ${f*co}`):""); };
+      ["pp_cajas","pp_kg","pp_f","pp_c"].forEach(x=>document.getElementById(x).oninput=res); res();
+    }
+    async function eliminarPlantillaPale(id){
+      const t=(window._agPlantillas||[]).find(x=>x.id===id); if(!t||!confirm(`¿Eliminar la plantilla ${t.codigo}?`)) return;
+      try{ await api("/agro/plantillas-pale/"+id,{method:"DELETE"}); toast("Plantilla eliminada.","ok"); vAgroPartidas(); }
+      catch(e){ if((e.codigo||"").endsWith(".en_uso")){ if(confirm(`${e.message}\n\n¿Desactivarla ahora?`)){ try{ await api("/agro/plantillas-pale/"+id,{method:"PUT",body:JSON.stringify({...t,activa:false})}); toast("Plantilla desactivada.","ok"); vAgroPartidas(); }catch(e2){ toast(e2.message,"err"); } } } else toast(e.message,"err"); }
+    }
+    function modalAgroPale(){
+      const pls=(window._agPlantillas||[]).filter(t=>t.activa);
+      abrir("Nuevo palé",`<label>Plantilla</label><select id="ap_pl">${agOpc(pls,null,"Sin plantilla (a granel, por kilos)",t=>`${t.codigo} · ${t.nombre}`)}</select><label>Tipo de palé (sin plantilla)</label><input id="ap_tipo" placeholder="Europeo"/>`,
+        async()=>{ await api("/agro/pales",{method:"POST",body:JSON.stringify({plantillaId:val("ap_pl")||null,tipo:val("ap_tipo")||null})}); toast("Palé creado.","ok"); setTimeout(vAgroPartidas); });
+    }
+    function modalAgroMontar(){
+      const pls=(window._agPlantillas||[]).filter(t=>t.activa);
+      if(!pls.length){ toast("Crea antes una plantilla de palé (abajo, «+ Plantilla»).","err"); return; }
+      const conSaldo=(window._agPartidas||[]).filter(p=>p.saldo>0);
+      if(!conSaldo.length){ toast("No hay partidas con kilos.","err"); return; }
+      abrir("Montar palés",`<div class="grid2"><div><label>Plantilla</label><select id="am_pl">${agOpc(pls,null,undefined,t=>`${t.codigo} · ${t.cajasPorPale} × ${kg(t.kilosPorCaja)}`)}</select></div>
+        <div><label>Partida</label><select id="am_pa">${agOpc(conSaldo,null,undefined,p=>`${p.codigo} · ${agProd(p.productoId)} · ${kg(p.saldo)}`)}</select></div></div>
+        <label>Cuántos</label><select id="am_modo"><option value="todo">Todos los palés completos que den sus kilos sueltos</option><option value="pales">Un número de palés completos</option><option value="cajas">Un número de cajas (el último palé puede quedar abierto)</option></select>
+        <div id="am_ncaja" style="display:none"><label id="am_lbl">Número</label><input id="am_n" type="number" step="1" min="1"/></div>
+        <p class="muted" style="font-size:12px;margin:10px 0 0">Los palés completos quedan cerrados, con su SSCC, listos para etiquetar y expedir.</p>`,
+        async()=>{ const modo=val("am_modo"),n=Number(val("am_n")||0);
+          if(modo!=="todo"&&n<1) throw new Error("Indica cuántos.");
+          const r=await api("/agro/pales/montar",{method:"POST",body:JSON.stringify({plantillaId:val("am_pl"),partidaId:val("am_pa"),numeroPales:modo==="pales"?n:null,cajas:modo==="cajas"?n:null})});
+          const cerrados=r.filter(p=>p.estado==="Cerrado").length;
+          toast(`${r.length} palé(s) montados${cerrados<r.length?` (${cerrados} cerrados, 1 abierto)`:""}.`,"ok"); setTimeout(vAgroPartidas); });
+      const modo=document.getElementById("am_modo"); modo.onchange=()=>{ document.getElementById("am_ncaja").style.display=modo.value==="todo"?"none":""; document.getElementById("am_lbl").textContent=modo.value==="pales"?"Palés":"Cajas"; };
+    }
+    function modalAgroCajas(paleId,sscc,faltan){
+      const conSaldo=(window._agPartidas||[]).filter(p=>p.saldo>0);
+      abrir(`Cajas del palé ${sscc}`,`<div class="grid2"><div><label>Partida</label><select id="acj_p">${agOpc(conSaldo,null,undefined,p=>`${p.codigo} · ${agProd(p.productoId)} · ${kg(p.saldo)}`)}</select></div>
+        <div><label>Cajas (negativo = sacar)</label><input id="acj_n" type="number" step="1" value="${faltan>0?faltan:""}"/></div></div>
+        <p class="muted" style="font-size:12px;margin:10px 0 0">Faltan ${faltan} caja(s): al completarlas, el palé se cierra solo.</p>`,
+        async()=>{ const p=await api(`/agro/pales/${paleId}/cajas`,{method:"POST",body:JSON.stringify({partidaId:val("acj_p"),cajas:Number(val("acj_n")||0)})});
+          toast(p.estado==="Cerrado"?"Palé completo y cerrado.":`Palé con ${p.cajas}/${p.cajasPorPale} cajas.`,"ok"); setTimeout(vAgroPartidas); });
+    }
+    async function agEtiqueta(sscc){ try{
+        const r=await fetch(`/agro/pales/${sscc}/etiqueta`,{headers:{Authorization:"Bearer "+token}});
+        if(!r.ok){ let m="No se pudo generar la etiqueta"; try{ m=(await r.json()).title||m; }catch(_){} throw new Error(m); }
+        const u=URL.createObjectURL(await r.blob()); window.open(u,"_blank"); setTimeout(()=>URL.revokeObjectURL(u),60000);
+      }catch(e){ toast(e.message,"err"); } }
     function modalAgroClasificar(partidaId,codigo){
       if(!_ag.categorias.length){ toast("Crea las categorías (Extra, 1ª, destrío…) en Maestros agro.","err"); return; }
       abrir(`Clasificar ${codigo}`,`<p class="muted" style="margin:0 0 12px">Kilos de la muestra en cada categoría. Al liquidar, los kilos netos de la partida se reparten en esta proporción.</p>
@@ -3582,9 +3651,16 @@
       const cerrados=(window._agPales||[]).filter(p=>p.estado==="Cerrado");
       if(!cerrados.length){ toast("No hay palés cerrados para expedir.","err"); return; }
       abrir("Expedición",`${cerrados.map(p=>`<label style="display:flex;gap:8px;align-items:center"><input type="checkbox" class="aex" value="${p.id}" style="width:auto" checked/> <span class="mono">${p.sscc}</span> · ${kg(p.kilos)}</label>`).join("")}
-        <div class="grid2" style="margin-top:12px"><div><label>Cliente</label><select id="aex_c">${agOpc(_ag.clientes,null,"— Sin cliente —")}</select></div><div><label>Albarán / carta de porte</label><input id="aex_r"/></div></div><label>Fecha</label><input id="aex_f" type="date" value="${hoyIso()}"/>`,
-        async()=>{ const paleIds=[...document.querySelectorAll(".aex:checked")].map(x=>x.value);
-          await api("/agro/expediciones",{method:"POST",body:JSON.stringify({paleIds,clienteId:val("aex_c")||null,referencia:val("aex_r")||null,fecha:val("aex_f")})}); toast("Palés expedidos.","ok"); setTimeout(vAgroPartidas); });
+        <div class="grid2" style="margin-top:12px"><div><label>Cliente</label><select id="aex_c">${agOpc(_ag.clientes,null,"— Sin cliente —")}</select></div><div><label>Referencia (pedido, albarán…)</label><input id="aex_r"/></div></div><label>Fecha</label><input id="aex_f" type="date" value="${hoyIso()}"/>
+        <label style="display:flex;gap:8px;align-items:center;margin-top:12px"><input id="aex_cp" type="checkbox" style="width:auto" checked/> Emitir la carta de porte (una línea por producto con sus cajas y kilos)</label>
+        <div id="aex_tr"><div class="grid2"><div><label>Transportista</label><input id="aex_t"/></div><div><label>Matrícula</label><input id="aex_m" placeholder="1234 ABC"/></div></div>
+        <div class="grid2"><div><label>Lugar de carga</label><input id="aex_o"/></div><div><label>Lugar de destino</label><input id="aex_d"/></div></div></div>`,
+        async()=>{ const paleIds=[...document.querySelectorAll(".aex:checked")].map(x=>x.value); const carta=document.getElementById("aex_cp").checked;
+          if(carta&&!val("aex_c")) throw new Error("Para la carta de porte, elige el cliente.");
+          const r=await api("/agro/expediciones",{method:"POST",body:JSON.stringify({paleIds,clienteId:val("aex_c")||null,referencia:val("aex_r")||null,fecha:val("aex_f"),
+            cartaPorte:carta,transportista:val("aex_t")||null,matricula:val("aex_m")||null,lugarOrigen:val("aex_o")||null,lugarDestino:val("aex_d")||null})});
+          toast(carta&&r.length?`Palés expedidos con la carta de porte ${r[0].referenciaExpedicion}.`:"Palés expedidos.","ok"); setTimeout(vAgroPartidas); });
+      const cp=document.getElementById("aex_cp"); cp.onchange=()=>document.getElementById("aex_tr").style.display=cp.checked?"":"none";
     }
 
     // ------------------------------------------------ Confección

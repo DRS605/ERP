@@ -1,3 +1,4 @@
+using AlxorCore.Nucleo.Aplicacion;
 using AlxorCore.Nucleo.Comun;
 using AlxorCore.Agro.Dominio;
 using AlxorCore.Catalogo.Aplicacion;
@@ -42,15 +43,46 @@ public sealed record ParteResumenDto(Guid Id, string? Numero, DateOnly Fecha, st
 
 public sealed record PaleDto(
     Guid Id, string Sscc, string? Tipo, string Estado, Guid? ClienteId, DateOnly? FechaExpedicion, string? ReferenciaExpedicion, decimal Kilos,
-    IReadOnlyList<ContenidoPaleDto> Contenido);
+    IReadOnlyList<ContenidoPaleDto> Contenido, Guid? PlantillaId = null, int Cajas = 0, int? CajasPorPale = null, Guid? CartaPorteId = null);
 
-public sealed record ContenidoPaleDto(Guid PartidaId, string? Partida, Guid ProductoId, decimal Kilos);
+public sealed record ContenidoPaleDto(Guid PartidaId, string? Partida, Guid ProductoId, decimal Kilos, int Cajas = 0);
 
-public sealed record DatosPale(string? Tipo = null);
+public sealed record DatosPale(string? Tipo = null, Guid? PlantillaId = null);
 
 public sealed record DatosMoverKilos(Guid PartidaId, decimal Kilos, Guid? DesdePaleId = null, DateOnly? Fecha = null);
 
-public sealed record DatosExpedicion(IReadOnlyList<Guid> PaleIds, Guid? ClienteId = null, DateOnly? Fecha = null, string? Referencia = null);
+/// <summary>Cajas de una partida que se ponen en el palé (positivas) o se sacan de él (negativas).</summary>
+public sealed record DatosCajas(Guid PartidaId, int Cajas, DateOnly? Fecha = null);
+
+/// <summary>
+/// Montaje rápido: con una plantilla y una partida, monta de una vez <see cref="NumeroPales"/> palés completos, o reparte
+/// <see cref="Cajas"/> cajas (el último palé queda abierto si no se completa). Sin ninguno de los dos, monta todos los
+/// palés completos que dan los kilos sueltos de la partida.
+/// </summary>
+public sealed record DatosMontaje(Guid PlantillaId, Guid PartidaId, int? NumeroPales = null, int? Cajas = null, DateOnly? Fecha = null);
+
+/// <summary>
+/// Expedición de palés cerrados. Con <see cref="CartaPorte"/> se emite además la carta de porte (una línea por producto,
+/// con sus cajas y kilos), que queda enlazada a los palés.
+/// </summary>
+public sealed record DatosExpedicion(IReadOnlyList<Guid> PaleIds, Guid? ClienteId = null, DateOnly? Fecha = null, string? Referencia = null,
+    bool CartaPorte = false, string? Transportista = null, string? Matricula = null, string? LugarOrigen = null, string? LugarDestino = null, string? Observaciones = null);
+
+/// <summary>Lo que se imprime en la etiqueta del palé.</summary>
+public sealed record EtiquetaPaleDto(string Sscc, string? Producto, string? Marca, string? TipoPale, int Cajas, decimal Kilos, string? Lote, DateOnly Fecha, string? Destinatario);
+
+public sealed record PlantillaPaleDto(Guid Id, string Codigo, string Nombre, string? TipoPale, Guid? ProductoId, string? Marca, int CajasPorPale, decimal KilosPorCaja,
+    int? Filas, int? Columnas, int? CajasPorCapa, int? Capas, decimal KilosPorPale, Guid? ClienteId, bool Activa)
+{
+    public static PlantillaPaleDto De(PlantillaPale p) => new(p.Id, p.Codigo, p.Nombre, p.TipoPale, p.ProductoId, p.Marca, p.CajasPorPale, p.KilosPorCaja,
+        p.Filas, p.Columnas, p.CajasPorCapa, p.Capas, p.KilosPorPale, p.ClienteId, p.Activa);
+}
+
+public sealed record DatosPlantilla(string? Codigo, string? Nombre, int CajasPorPale, decimal KilosPorCaja, string? TipoPale = null, Guid? ProductoId = null,
+    string? Marca = null, int? Filas = null, int? Columnas = null, Guid? ClienteId = null, bool Activa = true)
+{
+    public DatosPlantillaPale Datos => new(CajasPorPale, KilosPorCaja, TipoPale, ProductoId, Marca, Filas, Columnas, ClienteId);
+}
 
 /// <summary>Partes de confección: valoración, validación (consumos, salidas y genealogía) y anulación.</summary>
 public sealed class ConfeccionAgro
@@ -353,15 +385,23 @@ public sealed class PalesAgro
     private readonly IRepositorioAgro _repo;
     private readonly IUnidadDeTrabajoAgro _unidad;
     private readonly IConsultaClientes _clientes;
+    private readonly IConsultaProductos _productos;
     private readonly IReloj _reloj;
+    private readonly IDocumentosExpedicion? _documentos;
 
-    public PalesAgro(IRepositorioAgro repo, IUnidadDeTrabajoAgro unidad, IConsultaClientes clientes, IReloj reloj)
+    public PalesAgro(IRepositorioAgro repo, IUnidadDeTrabajoAgro unidad, IConsultaClientes clientes, IConsultaProductos productos, IReloj reloj,
+        IDocumentosExpedicion? documentos = null)
     {
         _repo = repo;
         _unidad = unidad;
         _clientes = clientes;
+        _productos = productos;
         _reloj = reloj;
+        _documentos = documentos;
     }
+
+    /// <summary>Máximo de palés que se montan en una sola operación.</summary>
+    public const int MaximoPalesMontaje = 200;
 
     private DateOnly Hoy => DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
 
@@ -389,24 +429,307 @@ public sealed class PalesAgro
     public async Task<Resultado<PaleDto>> CrearAsync(Guid empresaId, DatosPale datos, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(datos);
+        PlantillaPale? plantilla = null;
+        if (datos.PlantillaId is { } plantillaId)
+        {
+            plantilla = await _repo.PlantillaPaleAsync(plantillaId, ct).ConfigureAwait(false);
+            if (plantilla is null || !plantilla.Activa)
+            {
+                return Resultado.Fallo<PaleDto>(Error.NoEncontrado("plantilla.no_encontrada", "La plantilla de palé no existe o está desactivada."));
+            }
+        }
+
+        var pales = await NuevosPalesAsync(empresaId, 1, datos.Tipo ?? plantilla?.TipoPale, plantilla?.Id, ct).ConfigureAwait(false);
+        if (pales.EsFallo)
+        {
+            return Resultado.Fallo<PaleDto>(pales.Error);
+        }
+
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(await DtoAsync(pales.Valor[0], ct).ConfigureAwait(false));
+    }
+
+    /// <summary>Datos de la etiqueta logística del palé (producto, marca, cajas, peso neto, lote y destinatario).</summary>
+    public async Task<Resultado<EtiquetaPaleDto>> EtiquetaAsync(Guid empresaId, string idOSscc, CancellationToken ct = default)
+    {
+        var dto = await ObtenerAsync(empresaId, idOSscc, ct).ConfigureAwait(false);
+        if (dto is null)
+        {
+            return NoEncontrado<EtiquetaPaleDto>();
+        }
+
+        if (dto.Kilos <= 0m)
+        {
+            return Resultado.Fallo<EtiquetaPaleDto>(Error.Conflicto("pale.vacio", "El palé está vacío."));
+        }
+
+        var plantilla = dto.PlantillaId is { } pid ? await _repo.PlantillaPaleAsync(pid, ct).ConfigureAwait(false) : null;
+        var productos = dto.Contenido.Select(c => c.ProductoId).Distinct().ToList();
+        var producto = productos.Count == 1 ? (await _productos.ObtenerAsync(productos[0], ct).ConfigureAwait(false))?.Nombre : "Varios productos";
+        var lotes = dto.Contenido.Select(c => c.Partida).Distinct().ToList();
+        var clienteId = dto.ClienteId ?? plantilla?.ClienteId;
+        var cliente = clienteId is { } cid ? (await _clientes.ObtenerAsync(cid, ct).ConfigureAwait(false))?.Nombre : null;
+        return Resultado.Ok(new EtiquetaPaleDto(dto.Sscc, producto, plantilla?.Marca, dto.Tipo, dto.Cajas, dto.Kilos, lotes.Count == 1 ? lotes[0] : "VARIOS",
+            dto.FechaExpedicion ?? Hoy, cliente));
+    }
+
+    public async Task<IReadOnlyList<PlantillaPaleDto>> PlantillasAsync(Guid empresaId, CancellationToken ct = default) =>
+        (await _repo.PlantillasPaleAsync(empresaId, ct).ConfigureAwait(false)).Select(PlantillaPaleDto.De).ToList();
+
+    public async Task<Resultado<PlantillaPaleDto>> CrearPlantillaAsync(Guid empresaId, DatosPlantilla datos, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(datos);
+        var p = PlantillaPale.Crear(empresaId, datos.Codigo, datos.Nombre, datos.Datos);
+        if (p.EsFallo)
+        {
+            return Resultado.Fallo<PlantillaPaleDto>(p.Error);
+        }
+
+        if ((await _repo.PlantillasPaleAsync(empresaId, ct).ConfigureAwait(false)).Any(x => x.Codigo == p.Valor.Codigo))
+        {
+            return Resultado.Fallo<PlantillaPaleDto>(Error.Conflicto("plantilla.codigo_duplicado", $"Ya hay una plantilla {p.Valor.Codigo}."));
+        }
+
+        var error = await ValidarReferenciasAsync(datos, ct).ConfigureAwait(false);
+        if (error is not null)
+        {
+            return Resultado.Fallo<PlantillaPaleDto>(error);
+        }
+
+        _repo.Agregar(p.Valor);
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(PlantillaPaleDto.De(p.Valor));
+    }
+
+    public async Task<Resultado<PlantillaPaleDto>> ActualizarPlantillaAsync(Guid id, DatosPlantilla datos, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(datos);
+        var p = await _repo.PlantillaPaleAsync(id, ct).ConfigureAwait(false);
+        if (p is null)
+        {
+            return Resultado.Fallo<PlantillaPaleDto>(Error.NoEncontrado("plantilla.no_encontrada", "La plantilla de palé no existe."));
+        }
+
+        var error = await ValidarReferenciasAsync(datos, ct).ConfigureAwait(false);
+        if (error is not null)
+        {
+            return Resultado.Fallo<PlantillaPaleDto>(error);
+        }
+
+        var r = p.Fijar(datos.Nombre, datos.Datos, datos.Activa, await _repo.PlantillaPaleEnUsoAsync(id, ct).ConfigureAwait(false));
+        if (r.EsFallo)
+        {
+            return Resultado.Fallo<PlantillaPaleDto>(r.Error);
+        }
+
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(PlantillaPaleDto.De(p));
+    }
+
+    /// <summary>Elimina una plantilla con la que no se ha montado ningún palé; si ya se usó, se desactiva.</summary>
+    public async Task<Resultado<BajaDto>> EliminarPlantillaAsync(Guid id, CancellationToken ct = default)
+    {
+        var p = await _repo.PlantillaPaleAsync(id, ct).ConfigureAwait(false);
+        if (p is null)
+        {
+            return Resultado.Fallo<BajaDto>(Error.NoEncontrado("plantilla.no_encontrada", "La plantilla de palé no existe."));
+        }
+
+        if (await _repo.PlantillaPaleEnUsoAsync(id, ct).ConfigureAwait(false))
+        {
+            return Resultado.Fallo<BajaDto>(Bajas.EnUso("plantilla", $"la plantilla {p.Codigo}", "palés montados"));
+        }
+
+        _repo.Eliminar(p);
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(new BajaDto(id, true, false));
+    }
+
+    private async Task<Error?> ValidarReferenciasAsync(DatosPlantilla datos, CancellationToken ct)
+    {
+        if (datos.ProductoId is { } producto && await _productos.ObtenerAsync(producto, ct).ConfigureAwait(false) is null)
+        {
+            return Error.NoEncontrado("producto.no_encontrado", "El producto no existe.");
+        }
+
+        return datos.ClienteId is { } cliente && await _clientes.ObtenerAsync(cliente, ct).ConfigureAwait(false) is null
+            ? Error.NoEncontrado("cliente.no_encontrado", "El cliente no existe.")
+            : null;
+    }
+
+    /// <summary>Da de alta <paramref name="cantidad"/> palés con SSCC correlativos (sin guardar).</summary>
+    private async Task<Resultado<IReadOnlyList<Pale>>> NuevosPalesAsync(Guid empresaId, int cantidad, string? tipo, Guid? plantillaId, CancellationToken ct)
+    {
         await _unidad.BloquearAsync(RecepcionesAgro.ClaveNumeracion(empresaId, "SSCC"), ct).ConfigureAwait(false);
         var config = await _repo.ConfiguracionAsync(empresaId, ct).ConfigureAwait(false) ?? ConfiguracionAgro.Crear(empresaId);
-        var serie = await _repo.PalesCreadosAsync(empresaId, ct).ConfigureAwait(false) + 1;
-        var sscc = config.Sscc(serie);
-        if (sscc.EsFallo)
+        var serie = await _repo.PalesCreadosAsync(empresaId, ct).ConfigureAwait(false);
+        var lista = new List<Pale>();
+        for (var i = 1; i <= cantidad; i++)
         {
-            return Resultado.Fallo<PaleDto>(sscc.Error);
+            var sscc = config.Sscc(serie + i);
+            if (sscc.EsFallo)
+            {
+                return Resultado.Fallo<IReadOnlyList<Pale>>(sscc.Error);
+            }
+
+            var pale = Pale.Crear(empresaId, sscc.Valor, tipo, _reloj, plantillaId);
+            if (pale.EsFallo)
+            {
+                return Resultado.Fallo<IReadOnlyList<Pale>>(pale.Error);
+            }
+
+            _repo.Agregar(pale.Valor);
+            lista.Add(pale.Valor);
         }
 
-        var pale = Pale.Crear(empresaId, sscc.Valor, datos.Tipo, _reloj);
-        if (pale.EsFallo)
+        return Resultado.Ok<IReadOnlyList<Pale>>(lista);
+    }
+
+    /// <summary>
+    /// Pone cajas de una partida en un palé montado con plantilla (o las saca, con cajas negativas). Los kilos son las
+    /// cajas por los kilos por caja de la plantilla, y el palé se cierra solo al completar sus cajas.
+    /// </summary>
+    public async Task<Resultado<PaleDto>> CajasAsync(Guid paleId, DatosCajas datos, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(datos);
+        var pale = await _repo.PaleAsync(paleId, ct).ConfigureAwait(false);
+        if (pale is null)
         {
-            return Resultado.Fallo<PaleDto>(pale.Error);
+            return NoEncontrado<PaleDto>();
         }
 
-        _repo.Agregar(pale.Valor);
+        var plantilla = pale.PlantillaId is { } pid ? await _repo.PlantillaPaleAsync(pid, ct).ConfigureAwait(false) : null;
+        if (plantilla is null)
+        {
+            return Resultado.Fallo<PaleDto>(Error.Validacion("pale.sin_plantilla", "El palé no se montó con plantilla: se paletiza por kilos."));
+        }
+
+        if (pale.Estado != EstadoPale.Abierto)
+        {
+            return Resultado.Fallo<PaleDto>(Error.Conflicto("pale.no_abierto", "El palé no está abierto (reábrelo para cambiar sus cajas)."));
+        }
+
+        if (datos.Cajas == 0)
+        {
+            return Resultado.Fallo<PaleDto>(Error.Validacion("pale.cajas", "Indica cuántas cajas se ponen (o, en negativo, se sacan)."));
+        }
+
+        var contenido = await _repo.ContenidoPaleAsync(pale.Id, ct).ConfigureAwait(false);
+        var llevadas = contenido.Sum(c => c.Cajas);
+        if (datos.Cajas > 0 && llevadas + datos.Cajas > plantilla.CajasPorPale)
+        {
+            return Resultado.Fallo<PaleDto>(Error.Conflicto("pale.completo",
+                $"El palé lleva {llevadas} de {plantilla.CajasPorPale} cajas: caben {plantilla.CajasPorPale - llevadas} más."));
+        }
+
+        if (datos.Cajas < 0 && -datos.Cajas > contenido.Where(c => c.PartidaId == datos.PartidaId).Sum(c => c.Cajas))
+        {
+            return Resultado.Fallo<PaleDto>(Error.Conflicto("pale.cajas", "El palé no lleva tantas cajas de esa partida."));
+        }
+
+        var kilos = Math.Abs(datos.Cajas) * plantilla.KilosPorCaja;
+        var r = datos.Cajas > 0
+            ? await MoverAsync(pale.EmpresaId, datos.PartidaId, kilos, null, pale, datos.Fecha, ct, datos.Cajas, plantilla).ConfigureAwait(false)
+            : await MoverAsync(pale.EmpresaId, datos.PartidaId, kilos, pale.Id, null, datos.Fecha, ct, -datos.Cajas).ConfigureAwait(false);
+        if (r.EsFallo)
+        {
+            return Resultado.Fallo<PaleDto>(r.Error);
+        }
+
+        if (llevadas + datos.Cajas == plantilla.CajasPorPale)
+        {
+            pale.Cerrar();
+            await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        }
+
+        return Resultado.Ok(await DtoAsync(pale, ct).ConfigureAwait(false));
+    }
+
+    /// <summary>Monta de una vez los palés de una partida con una plantilla (ver <see cref="DatosMontaje"/>).</summary>
+    public async Task<Resultado<IReadOnlyList<PaleDto>>> MontarAsync(Guid empresaId, DatosMontaje datos, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(datos);
+        var plantilla = await _repo.PlantillaPaleAsync(datos.PlantillaId, ct).ConfigureAwait(false);
+        if (plantilla is null || !plantilla.Activa)
+        {
+            return Resultado.Fallo<IReadOnlyList<PaleDto>>(Error.NoEncontrado("plantilla.no_encontrada", "La plantilla de palé no existe o está desactivada."));
+        }
+
+        var partida = await _repo.PartidaAsync(datos.PartidaId, ct).ConfigureAwait(false);
+        if (partida is null || partida.Anulada)
+        {
+            return Resultado.Fallo<IReadOnlyList<PaleDto>>(Error.NoEncontrado("partida.no_encontrada", "La partida no existe o está anulada."));
+        }
+
+        if (plantilla.ProductoId is { } producto && producto != partida.ProductoId)
+        {
+            return Resultado.Fallo<IReadOnlyList<PaleDto>>(Error.Validacion("plantilla.producto", $"La plantilla {plantilla.Codigo} es para otro producto."));
+        }
+
+        if (datos.NumeroPales is < 1 || datos.Cajas is < 1 || (datos.NumeroPales is not null && datos.Cajas is not null))
+        {
+            return Resultado.Fallo<IReadOnlyList<PaleDto>>(Error.Validacion("montaje.cantidad", "Indica el número de palés o las cajas (una de las dos, positiva)."));
+        }
+
+        var sueltos = (await _repo.SaldosAsync([partida.Id], ct).ConfigureAwait(false)).Where(x => x.PaleId is null).Sum(x => x.Kilos);
+        var cajas = datos.Cajas ?? (datos.NumeroPales * plantilla.CajasPorPale)
+            ?? (int)Math.Floor(sueltos / plantilla.KilosPorPale) * plantilla.CajasPorPale;
+        if (cajas == 0)
+        {
+            return Resultado.Fallo<IReadOnlyList<PaleDto>>(Error.Conflicto("montaje.sin_kilos",
+                $"La partida {partida.Codigo} tiene {Redondeo.Formatear(sueltos, 3)} kg sueltos: no llega a un palé completo ({Redondeo.Formatear(plantilla.KilosPorPale, 3)} kg)."));
+        }
+
+        var kilos = cajas * plantilla.KilosPorCaja;
+        if (kilos > sueltos)
+        {
+            return Resultado.Fallo<IReadOnlyList<PaleDto>>(Error.Conflicto("partida.saldo_insuficiente",
+                $"{cajas} cajas son {Redondeo.Formatear(kilos, 3)} kg y la partida {partida.Codigo} solo tiene {Redondeo.Formatear(sueltos, 3)} kg sueltos."));
+        }
+
+        var numero = (cajas + plantilla.CajasPorPale - 1) / plantilla.CajasPorPale;
+        if (numero > MaximoPalesMontaje)
+        {
+            return Resultado.Fallo<IReadOnlyList<PaleDto>>(Error.Validacion("montaje.maximo", $"Se montan como mucho {MaximoPalesMontaje} palés de una vez."));
+        }
+
+        var pales = await NuevosPalesAsync(empresaId, numero, plantilla.TipoPale, plantilla.Id, ct).ConfigureAwait(false);
+        if (pales.EsFallo)
+        {
+            return Resultado.Fallo<IReadOnlyList<PaleDto>>(pales.Error);
+        }
+
+        var dia = datos.Fecha ?? Hoy;
+        var restantes = cajas;
+        foreach (var pale in pales.Valor)
+        {
+            var enEste = Math.Min(restantes, plantilla.CajasPorPale);
+            restantes -= enEste;
+            var kg = enEste * plantilla.KilosPorCaja;
+            _repo.Agregar(MovimientoPartida.Crear(empresaId, partida.Id, dia, TipoMovimientoPartida.Paletizado, -kg, null, "Pale", pale.Id, null, _reloj, -enEste).Valor);
+            _repo.Agregar(MovimientoPartida.Crear(empresaId, partida.Id, dia, TipoMovimientoPartida.Paletizado, kg, pale.Id, "Pale", pale.Id, null, _reloj, enEste).Valor);
+        }
+
+        // La base de datos comprueba al confirmar que se paletiza en palés abiertos: primero se montan y después se
+        // cierran los completos (si el cierre fallase, quedan montados y abiertos, listos para cerrar).
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
-        return Resultado.Ok(await DtoAsync(pale.Valor, ct).ConfigureAwait(false));
+        var completos = pales.Valor.Take(cajas / plantilla.CajasPorPale).ToList();
+        foreach (var pale in completos)
+        {
+            pale.Cerrar();
+        }
+
+        if (completos.Count > 0)
+        {
+            await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        }
+        var lista = new List<PaleDto>();
+        foreach (var p in pales.Valor)
+        {
+            lista.Add(await DtoAsync(p, ct).ConfigureAwait(false));
+        }
+
+        return Resultado.Ok<IReadOnlyList<PaleDto>>(lista);
     }
 
     /// <summary>Pone kilos de una partida en el palé (sueltos o desde otro palé abierto).</summary>
@@ -419,9 +742,16 @@ public sealed class PalesAgro
             return NoEncontrado<PaleDto>();
         }
 
+        if (pale.PlantillaId is not null)
+        {
+            return Resultado.Fallo<PaleDto>(PorCajas());
+        }
+
         var r = await MoverAsync(pale.EmpresaId, datos.PartidaId, datos.Kilos, datos.DesdePaleId, pale, datos.Fecha, ct).ConfigureAwait(false);
         return r.EsFallo ? Resultado.Fallo<PaleDto>(r.Error) : Resultado.Ok(await DtoAsync(pale, ct).ConfigureAwait(false));
     }
+
+    private static Error PorCajas() => Error.Validacion("pale.por_cajas", "Este palé se montó con plantilla: se ponen y se sacan cajas, no kilos.");
 
     /// <summary>Saca kilos de una partida del palé (vuelven a quedar sueltos).</summary>
     public async Task<Resultado<PaleDto>> DespaletizarAsync(Guid paleId, DatosMoverKilos datos, CancellationToken ct = default)
@@ -436,6 +766,11 @@ public sealed class PalesAgro
         if (pale.Estado != EstadoPale.Abierto)
         {
             return Resultado.Fallo<PaleDto>(Error.Conflicto("pale.no_abierto", "Solo se saca mercancía de un palé abierto."));
+        }
+
+        if (pale.PlantillaId is not null)
+        {
+            return Resultado.Fallo<PaleDto>(PorCajas());
         }
 
         var r = await MoverAsync(pale.EmpresaId, datos.PartidaId, datos.Kilos, pale.Id, null, datos.Fecha, ct).ConfigureAwait(false);
@@ -497,7 +832,13 @@ public sealed class PalesAgro
             return Resultado.Fallo<IReadOnlyList<PaleDto>>(Error.NoEncontrado("cliente.no_encontrado", "El cliente no existe."));
         }
 
+        if (datos.CartaPorte && (datos.ClienteId is null || _documentos is null))
+        {
+            return Resultado.Fallo<IReadOnlyList<PaleDto>>(Error.Validacion("expedicion.carta_sin_cliente", "Para emitir la carta de porte indica el cliente."));
+        }
+
         var fecha = datos.Fecha ?? Hoy;
+        var cargado = new List<(Guid PaleId, SaldoPartida Contenido)>();
         var pales = await _repo.PalesAsync(datos.PaleIds.Distinct().ToList(), ct).ConfigureAwait(false);
         if (pales.Count != datos.PaleIds.Distinct().Count())
         {
@@ -515,11 +856,38 @@ public sealed class PalesAgro
             foreach (var c in (await _repo.ContenidoPaleAsync(pale.Id, ct).ConfigureAwait(false)).Where(c => c.Kilos > 0m))
             {
                 _repo.Agregar(MovimientoPartida.Crear(empresaId, c.PartidaId, fecha, TipoMovimientoPartida.Expedicion, -c.Kilos, pale.Id, "Expedicion", pale.Id,
-                    $"Expedición {datos.Referencia}".Trim(), _reloj).Valor);
+                    $"Expedición {datos.Referencia}".Trim(), _reloj, c.Cajas > 0 ? -c.Cajas : 0).Valor);
+                cargado.Add((pale.Id, c));
             }
         }
 
-        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        Guid? cartaId = null;
+        if (datos.CartaPorte)
+        {
+            var carta = await EmitirCartaPorteAsync(empresaId, datos, fecha, cargado, ct).ConfigureAwait(false);
+            if (carta.EsFallo)
+            {
+                return Resultado.Fallo<IReadOnlyList<PaleDto>>(carta.Error);
+            }
+
+            cartaId = carta.Valor.Id;
+            foreach (var pale in pales)
+            {
+                pale.AsignarCartaPorte(carta.Valor.Id, carta.Valor.Numero);
+            }
+        }
+
+        try
+        {
+            await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        }
+        catch when (cartaId is not null)
+        {
+            // La expedición no se guardó: la carta de porte ya emitida se anula (su número queda usado).
+            await _documentos!.AnularCartaPorteAsync(cartaId.Value, "La expedición no se completó.", CancellationToken.None).ConfigureAwait(false);
+            throw;
+        }
+
         var lista = new List<PaleDto>();
         foreach (var p in pales)
         {
@@ -540,27 +908,36 @@ public sealed class PalesAgro
 
         var salida = (await _repo.MovimientosDePaleAsync(paleId, ct).ConfigureAwait(false))
             .Where(m => m.DocumentoTipo == DocumentoExpedicion).GroupBy(m => m.PartidaId)
-            .Select(g => (Partida: g.Key, Kilos: -g.Sum(m => m.Kilos))).Where(x => x.Kilos > 0m).ToList();
+            .Select(g => (Partida: g.Key, Kilos: -g.Sum(m => m.Kilos), Cajas: -g.Sum(m => m.Cajas))).Where(x => x.Kilos > 0m).ToList();
+        var carta = pale.CartaPorteId;
         var r = pale.AnularExpedicion();
         if (r.EsFallo)
         {
             return Resultado.Fallo<PaleDto>(r.Error);
         }
 
-        foreach (var (partida, kilos) in salida)
+        foreach (var (partida, kilos, cajas) in salida)
         {
             _repo.Agregar(MovimientoPartida.Crear(empresaId, partida, Hoy, TipoMovimientoPartida.Anulacion, kilos, pale.Id, DocumentoExpedicion, pale.Id,
-                "Anulación de la expedición", _reloj).Valor);
+                "Anulación de la expedición", _reloj, Math.Max(cajas, 0)).Valor);
         }
 
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+
+        // Si ya no queda ningún palé expedido con esa carta de porte, la carta se anula (el transporte no se hizo).
+        if (carta is { } cartaId && _documentos is not null
+            && (await _repo.PalesDeCartaPorteAsync(cartaId, ct).ConfigureAwait(false)).All(p => p.Estado != EstadoPale.Expedido))
+        {
+            await _documentos.AnularCartaPorteAsync(cartaId, "Expedición anulada.", ct).ConfigureAwait(false);
+        }
         return Resultado.Ok(await DtoAsync(pale, ct).ConfigureAwait(false));
     }
 
     /// <summary>Tipo de documento de los movimientos de una expedición (la salida y, si se anula, su vuelta).</summary>
     public const string DocumentoExpedicion = "Expedicion";
 
-    private async Task<Resultado> MoverAsync(Guid empresaId, Guid partidaId, decimal kilos, Guid? desdePaleId, Pale? hacia, DateOnly? fecha, CancellationToken ct)
+    private async Task<Resultado> MoverAsync(Guid empresaId, Guid partidaId, decimal kilos, Guid? desdePaleId, Pale? hacia, DateOnly? fecha, CancellationToken ct,
+        int cajas = 0, PlantillaPale? plantilla = null)
     {
         if (hacia is { Estado: not EstadoPale.Abierto })
         {
@@ -573,12 +950,22 @@ public sealed class PalesAgro
             return Resultado.Fallo(Error.NoEncontrado("partida.no_encontrada", "La partida no existe o está anulada."));
         }
 
+        if (plantilla?.ProductoId is { } producto && producto != partida.ProductoId)
+        {
+            return Resultado.Fallo(Error.Validacion("plantilla.producto", $"La plantilla {plantilla.Codigo} es para otro producto."));
+        }
+
         if (desdePaleId is { } origenId && origenId != hacia?.Id)
         {
             var origen = await _repo.PaleAsync(origenId, ct).ConfigureAwait(false);
             if (origen is null || origen.Estado != EstadoPale.Abierto)
             {
                 return Resultado.Fallo(Error.Conflicto("pale.no_abierto", "El palé de origen no existe o no está abierto."));
+            }
+
+            if (origen.PlantillaId is not null && cajas == 0)
+            {
+                return Resultado.Fallo(PorCajas());
             }
         }
 
@@ -594,10 +981,27 @@ public sealed class PalesAgro
         }
 
         var dia = fecha ?? Hoy;
-        _repo.Agregar(MovimientoPartida.Crear(empresaId, partidaId, dia, TipoMovimientoPartida.Paletizado, -kilos, desdePaleId, "Pale", hacia?.Id ?? desdePaleId, null, _reloj).Valor);
-        _repo.Agregar(MovimientoPartida.Crear(empresaId, partidaId, dia, TipoMovimientoPartida.Paletizado, kilos, hacia?.Id, "Pale", hacia?.Id ?? desdePaleId, null, _reloj).Valor);
+        _repo.Agregar(MovimientoPartida.Crear(empresaId, partidaId, dia, TipoMovimientoPartida.Paletizado, -kilos, desdePaleId, "Pale", hacia?.Id ?? desdePaleId, null, _reloj, -cajas).Valor);
+        _repo.Agregar(MovimientoPartida.Crear(empresaId, partidaId, dia, TipoMovimientoPartida.Paletizado, kilos, hacia?.Id, "Pale", hacia?.Id ?? desdePaleId, null, _reloj, cajas).Valor);
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return Resultado.Ok();
+    }
+
+    private async Task<Resultado<(Guid Id, string Numero)>> EmitirCartaPorteAsync(Guid empresaId, DatosExpedicion datos, DateOnly fecha,
+        IReadOnlyList<(Guid PaleId, SaldoPartida Contenido)> cargado, CancellationToken ct)
+    {
+        var partidas = (await _repo.PartidasAsync(cargado.Select(c => c.Contenido.PartidaId).Distinct().ToList(), ct).ConfigureAwait(false)).ToDictionary(p => p.Id);
+        var lineas = new List<(string, int, decimal)>();
+        foreach (var grupo in cargado.GroupBy(c => partidas.GetValueOrDefault(c.Contenido.PartidaId)?.ProductoId ?? Guid.Empty))
+        {
+            var nombre = (await _productos.ObtenerAsync(grupo.Key, ct).ConfigureAwait(false))?.Nombre ?? "Mercancía";
+            var pales = grupo.Select(c => c.PaleId).Distinct().Count();
+            var cajas = grupo.Sum(c => Math.Max(c.Contenido.Cajas, 0));
+            lineas.Add(($"{nombre} · {pales} palé(s)", cajas > 0 ? cajas : pales, grupo.Sum(c => c.Contenido.Kilos)));
+        }
+
+        return await _documentos!.EmitirCartaPorteAsync(empresaId, new CartaPorteExpedicion(datos.ClienteId!.Value, fecha, datos.Transportista, datos.Matricula,
+            datos.LugarOrigen, datos.LugarDestino, datos.Observaciones ?? datos.Referencia, lineas), ct).ConfigureAwait(false);
     }
 
     private async Task<PaleDto> DtoAsync(Pale p, CancellationToken ct)
@@ -608,15 +1012,18 @@ public sealed class PalesAgro
             // Expedido: se muestra lo que llevaba al salir.
             var salidas = (await _repo.MovimientosDePaleAsync(p.Id, ct).ConfigureAwait(false))
                 .Where(m => m.DocumentoTipo == DocumentoExpedicion)
-                .GroupBy(m => m.PartidaId).Select(g => new SaldoPartida(g.Key, p.Id, -g.Sum(m => m.Kilos))).ToList();
+                .GroupBy(m => m.PartidaId).Select(g => new SaldoPartida(g.Key, p.Id, -g.Sum(m => m.Kilos), -g.Sum(m => m.Cajas))).ToList();
             contenido = salidas;
         }
 
+        var plantilla = p.PlantillaId is { } pid ? await _repo.PlantillaPaleAsync(pid, ct).ConfigureAwait(false) : null;
         var partidas = (await _repo.PartidasAsync(contenido.Select(c => c.PartidaId).ToList(), ct).ConfigureAwait(false)).ToDictionary(x => x.Id);
         var lineas = contenido.Where(c => c.Kilos > 0m)
-            .Select(c => new ContenidoPaleDto(c.PartidaId, partidas.GetValueOrDefault(c.PartidaId)?.Codigo, partidas.GetValueOrDefault(c.PartidaId)?.ProductoId ?? Guid.Empty, c.Kilos))
+            .Select(c => new ContenidoPaleDto(c.PartidaId, partidas.GetValueOrDefault(c.PartidaId)?.Codigo, partidas.GetValueOrDefault(c.PartidaId)?.ProductoId ?? Guid.Empty, c.Kilos,
+                Math.Max(c.Cajas, 0)))
             .ToList();
-        return new PaleDto(p.Id, p.Sscc, p.Tipo, p.Estado.ToString(), p.ClienteId, p.FechaExpedicion, p.ReferenciaExpedicion, lineas.Sum(l => l.Kilos), lineas);
+        return new PaleDto(p.Id, p.Sscc, p.Tipo, p.Estado.ToString(), p.ClienteId, p.FechaExpedicion, p.ReferenciaExpedicion, lineas.Sum(l => l.Kilos), lineas,
+            p.PlantillaId, lineas.Sum(l => l.Cajas), plantilla?.CajasPorPale, p.CartaPorteId);
     }
 
     private static Resultado<T> NoEncontrado<T>() => Resultado.Fallo<T>(Error.NoEncontrado("pale.no_encontrado", "El palé no existe."));

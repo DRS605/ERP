@@ -26,6 +26,16 @@ public interface IGeneradorPdfCartaPorte
     byte[] Generar(CartaPorteDto cartaPorte, EmpresaDto emisor);
 }
 
+/// <summary>Datos de la etiqueta logística GS1 de un palé (SSCC).</summary>
+public sealed record EtiquetaLogistica(string Sscc, string? Producto, string? Marca, string? TipoPale, int Cajas, decimal KilosNetos, string? Lote,
+    DateOnly Fecha, string? Destinatario);
+
+/// <summary>Puerto de generación de la etiqueta logística (PDF, formato A6) de un palé.</summary>
+public interface IGeneradorEtiquetaLogistica
+{
+    byte[] Generar(EtiquetaLogistica etiqueta, EmpresaDto emisor);
+}
+
 /// <summary>Mensaje de correo con un adjunto.</summary>
 public sealed record MensajeCorreo(string Para, string Asunto, string Cuerpo, byte[] Adjunto, string NombreAdjunto);
 

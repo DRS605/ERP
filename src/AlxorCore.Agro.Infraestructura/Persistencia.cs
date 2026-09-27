@@ -30,6 +30,7 @@ public sealed class AgroDbContext : DbContextEmpresaBase, IUnidadDeTrabajoAgro
         DELETE FROM agro.parte_confeccion WHERE empresa_id = {0};
         DELETE FROM agro.partida WHERE empresa_id = {0};
         DELETE FROM agro.pale WHERE empresa_id = {0};
+        DELETE FROM agro.plantilla_pale WHERE empresa_id = {0};
         DELETE FROM agro.recepcion WHERE empresa_id = {0};
         DELETE FROM agro.precio_liquidacion WHERE empresa_id = {0};
         DELETE FROM agro.articulo_campana WHERE empresa_id = {0};
@@ -314,6 +315,7 @@ internal sealed class ConfiguracionMovimientoPartida : IEntityTypeConfiguration<
         Columnas.Enum(b.Property(x => x.Tipo), "tipo");
         b.Property(x => x.Kilos).HasColumnName("kilos").HasColumnType(Columnas.Kilos).IsRequired();
         b.Property(x => x.PaleId).HasColumnName("pale_id");
+        b.Property(x => x.Cajas).HasColumnName("cajas").HasDefaultValue(0).IsRequired();
         b.Property(x => x.DocumentoTipo).HasColumnName("documento_tipo").HasMaxLength(30);
         b.Property(x => x.DocumentoId).HasColumnName("documento_id");
         b.Property(x => x.Concepto).HasColumnName("concepto").HasMaxLength(MovimientoPartida.LongitudConcepto);
@@ -334,8 +336,32 @@ internal sealed class ConfiguracionPale : IEntityTypeConfiguration<Pale>
         b.Property(x => x.ClienteId).HasColumnName("cliente_id");
         b.Property(x => x.FechaExpedicion).HasColumnName("fecha_expedicion");
         b.Property(x => x.ReferenciaExpedicion).HasColumnName("referencia_expedicion").HasMaxLength(80);
+        b.Property(x => x.PlantillaId).HasColumnName("plantilla_id");
+        b.Property(x => x.CartaPorteId).HasColumnName("carta_porte_id");
         b.Property(x => x.CreadoEn).HasColumnName("creado_en").IsRequired();
         b.HasIndex(x => new { x.EmpresaId, x.Sscc }).IsUnique().HasDatabaseName("ux_pale_sscc");
+        b.HasIndex(x => x.PlantillaId).HasDatabaseName("ix_pale_plantilla");
+        b.HasIndex(x => x.CartaPorteId).HasDatabaseName("ix_pale_carta_porte");
+    }
+}
+
+internal sealed class ConfiguracionPlantillaPale : IEntityTypeConfiguration<PlantillaPale>
+{
+    public void Configure(EntityTypeBuilder<PlantillaPale> b)
+    {
+        Columnas.Base(b, "plantilla_pale");
+        b.Property(x => x.Codigo).HasColumnName("codigo").HasMaxLength(ReglasAgro.LongitudCodigo).IsRequired();
+        b.Property(x => x.Nombre).HasColumnName("nombre").HasMaxLength(ReglasAgro.LongitudNombre).IsRequired();
+        b.Property(x => x.TipoPale).HasColumnName("tipo_pale").HasMaxLength(40);
+        b.Property(x => x.ProductoId).HasColumnName("producto_id");
+        b.Property(x => x.Marca).HasColumnName("marca").HasMaxLength(60);
+        b.Property(x => x.CajasPorPale).HasColumnName("cajas_por_pale").IsRequired();
+        b.Property(x => x.KilosPorCaja).HasColumnName("kilos_por_caja").HasColumnType(Columnas.Kilos).IsRequired();
+        b.Property(x => x.Filas).HasColumnName("filas");
+        b.Property(x => x.Columnas).HasColumnName("columnas");
+        b.Property(x => x.ClienteId).HasColumnName("cliente_id");
+        b.Property(x => x.Activa).HasColumnName("activa").IsRequired();
+        b.HasIndex(x => new { x.EmpresaId, x.Codigo }).IsUnique().HasDatabaseName("ux_plantilla_pale_codigo");
     }
 }
 
@@ -706,15 +732,15 @@ internal sealed class RepositorioAgro : IRepositorioAgro
         }
 
         var filas = await _ctx.Set<MovimientoPartida>().Where(m => partidaIds.Contains(m.PartidaId)).GroupBy(m => new { m.PartidaId, m.PaleId })
-            .Select(g => new { g.Key.PartidaId, g.Key.PaleId, Kilos = g.Sum(m => m.Kilos) }).ToListAsync(ct).ConfigureAwait(false);
-        return filas.Where(f => f.Kilos != 0m).Select(f => new SaldoPartida(f.PartidaId, f.PaleId, f.Kilos)).ToList();
+            .Select(g => new { g.Key.PartidaId, g.Key.PaleId, Kilos = g.Sum(m => m.Kilos), Cajas = g.Sum(m => m.Cajas) }).ToListAsync(ct).ConfigureAwait(false);
+        return filas.Where(f => f.Kilos != 0m).Select(f => new SaldoPartida(f.PartidaId, f.PaleId, f.Kilos, f.Cajas)).ToList();
     }
 
     public async Task<IReadOnlyList<SaldoPartida>> ContenidoPaleAsync(Guid paleId, CancellationToken ct = default)
     {
         var filas = await _ctx.Set<MovimientoPartida>().Where(m => m.PaleId == paleId).GroupBy(m => m.PartidaId)
-            .Select(g => new { PartidaId = g.Key, Kilos = g.Sum(m => m.Kilos) }).ToListAsync(ct).ConfigureAwait(false);
-        return filas.Select(f => new SaldoPartida(f.PartidaId, paleId, f.Kilos)).ToList();
+            .Select(g => new { PartidaId = g.Key, Kilos = g.Sum(m => m.Kilos), Cajas = g.Sum(m => m.Cajas) }).ToListAsync(ct).ConfigureAwait(false);
+        return filas.Select(f => new SaldoPartida(f.PartidaId, paleId, f.Kilos, f.Cajas)).ToList();
     }
 
     public async Task<IReadOnlyList<MovimientoPartida>> MovimientosDePaleAsync(Guid paleId, CancellationToken ct = default) =>
@@ -748,6 +774,16 @@ internal sealed class RepositorioAgro : IRepositorioAgro
         ids.Count == 0 ? [] : await _ctx.Set<Pale>().Where(x => ids.Contains(x.Id)).ToListAsync(ct).ConfigureAwait(false);
 
     public Task<int> PalesCreadosAsync(Guid empresaId, CancellationToken ct = default) => _ctx.Set<Pale>().CountAsync(x => x.EmpresaId == empresaId, ct);
+
+    public async Task<IReadOnlyList<Pale>> PalesDeCartaPorteAsync(Guid cartaPorteId, CancellationToken ct = default) =>
+        await _ctx.Set<Pale>().Where(x => x.CartaPorteId == cartaPorteId).ToListAsync(ct).ConfigureAwait(false);
+
+    public async Task<IReadOnlyList<PlantillaPale>> PlantillasPaleAsync(Guid empresaId, CancellationToken ct = default) =>
+        await _ctx.Set<PlantillaPale>().Where(x => x.EmpresaId == empresaId).OrderBy(x => x.Codigo).ToListAsync(ct).ConfigureAwait(false);
+
+    public Task<PlantillaPale?> PlantillaPaleAsync(Guid id, CancellationToken ct = default) => _ctx.Set<PlantillaPale>().SingleOrDefaultAsync(x => x.Id == id, ct);
+
+    public Task<bool> PlantillaPaleEnUsoAsync(Guid plantillaId, CancellationToken ct = default) => _ctx.Set<Pale>().AnyAsync(x => x.PlantillaId == plantillaId, ct);
 
     public async Task<IReadOnlyList<ClasificacionPartida>> ClasificacionesAsync(Guid partidaId, CancellationToken ct = default) =>
         await _ctx.Set<ClasificacionPartida>().Where(x => x.PartidaId == partidaId).ToListAsync(ct).ConfigureAwait(false);

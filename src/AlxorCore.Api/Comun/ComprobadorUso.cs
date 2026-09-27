@@ -28,6 +28,7 @@ public static class ReferenciasRegistros
                 ("tesoreria.anticipo.cliente_id", "anticipos"),
                 ("tesoreria.efecto_cartera.tercero_id", "efectos de cartera"),
                 ("agro.pale.cliente_id", "palés expedidos"),
+                ("agro.plantilla_pale.cliente_id", "plantillas de palé"),
                 ("contabilidad.cuenta.tercero_id", "movimientos en su subcuenta contable"),
                 ("contabilidad.documento_pendiente.tercero_id", "documentos pendientes de contabilizar"),
                 ("contabilidad.regla_analitica.tercero_id", "reglas de analítica"),
@@ -75,6 +76,7 @@ public static class ReferenciasRegistros
                 ("agro.precio_liquidacion.producto_id", "precios de liquidación"),
                 ("agro.material_parte.producto_id", "partes de confección (material)"),
                 ("agro.salida_parte.producto_id", "partes de confección"),
+                ("agro.plantilla_pale.producto_id", "plantillas de palé"),
             ],
             [TiposRegistro.Almacen] =
             [
