@@ -1,9 +1,11 @@
 using System.Security.Claims;
 using AlxorCore.Api.Comun;
+using AlxorCore.Compras.Aplicacion;
 using AlxorCore.Nucleo.Autorizacion;
 using AlxorCore.Nucleo.Multiempresa;
 using AlxorCore.Nucleo.Resultados;
 using AlxorCore.Organizacion.Aplicacion.CasosDeUso;
+using AlxorCore.Organizacion.Aplicacion.Puertos;
 
 namespace AlxorCore.Api.Endpoints;
 
@@ -95,6 +97,48 @@ public static class EndpointsIntragrupo
             .WithSummary("Vuelve a enviar el traspaso de un albarán de venta a la empresa del grupo (pedido y recepción en su almacén; es idempotente).")
             .RequierePermiso(Permisos.FacturaEmitir);
 
+        g.MapPost("/albaranes/{id:guid}/deshacer-traspaso", async (Guid id, IContextoEmpresa contexto, OperacionesIntragrupo op, CancellationToken ct) =>
+                contexto.EmpresaId is not { } empresa ? SinEmpresa()
+                    : (await op.AnularTraspasoAsync(empresa, id, "Albarán de venta anulado.", ct).ConfigureAwait(false)) is { EsFallo: true } r
+                        ? ResultadosHttp.AProblema(r.Error) : Results.NoContent())
+            .WithSummary("Repite, en la empresa receptora, la anulación del traspaso de un albarán de venta ya anulado (p. ej. tras regularizar su almacén).")
+            .RequierePermiso(Permisos.FacturaEmitir);
+
+        g.MapGet("/traspasos/almacenes", async (IContextoEmpresa contexto, AlmacenesTraspaso almacenes, CancellationToken ct) =>
+                contexto.EmpresaId is { } empresa
+                    ? Results.Ok((await almacenes.ListarAsync(empresa, ct).ConfigureAwait(false)).Select(a => new AlmacenTraspasoDto(a.Id, a.EmpresaOrigenId, a.AlmacenId)))
+                    : SinEmpresa())
+            .WithSummary("Almacén de entrada de los traspasos de otras empresas del grupo (por empresa de origen o general).")
+            .RequierePermiso(Permisos.CompraLeer);
+        g.MapPut("/traspasos/almacenes", async (DatosAlmacenTraspaso datos, IContextoEmpresa contexto, AlmacenesTraspaso almacenes,
+                AlxorCore.Inventario.Aplicacion.GestionAlmacenes gestion, IConsultaEmpresas empresas, CancellationToken ct) =>
+            {
+                if (contexto.EmpresaId is not { } empresa || contexto.GrupoId is not { } grupo)
+                {
+                    return SinEmpresa();
+                }
+
+                if (datos.EmpresaOrigenId is { } origen && (origen == empresa
+                    || !(await empresas.EmpresasDelGrupoAsync(grupo, ct).ConfigureAwait(false)).Any(e => e.Id == origen)))
+                {
+                    return ResultadosHttp.AProblema(Error.Validacion("almacen_traspaso.origen", "La empresa de origen debe ser otra empresa del grupo."));
+                }
+
+                if (datos.AlmacenId is { } alm && !(await gestion.ListarAlmacenesAsync(empresa, ct).ConfigureAwait(false)).Any(a => a.Id == alm && a.Activo))
+                {
+                    return ResultadosHttp.AProblema(Error.Validacion("almacen_traspaso.almacen", "El almacén no existe o no está activo."));
+                }
+
+                var a = await almacenes.FijarAsync(empresa, datos.EmpresaOrigenId, datos.AlmacenId, ct).ConfigureAwait(false);
+                return Results.Ok(new AlmacenTraspasoDto(a.Id, a.EmpresaOrigenId, a.AlmacenId));
+            })
+            .WithSummary("Fija el almacén de entrada de los traspasos (sin almacén: se recibe sin entrada en inventario).")
+            .RequierePermiso(Permisos.CompraGestionar);
+        g.MapDelete("/traspasos/almacenes/{id:guid}", async (Guid id, AlmacenesTraspaso almacenes, CancellationToken ct) =>
+                (await almacenes.QuitarAsync(id, ct).ConfigureAwait(false)).ASinContenido())
+            .WithSummary("Quita la configuración: vuelve al almacén activo de código más bajo.")
+            .RequierePermiso(Permisos.CompraGestionar);
+
         g.MapPost("/facturas/{id:guid}/liquidar", async (Guid id, LiquidarIntragrupoPeticion? peticion, IContextoEmpresa contexto, ClaimsPrincipal usuario,
                 OperacionesIntragrupo op, CancellationToken ct) =>
                 contexto.EmpresaId is not { } empresa || usuario.ObtenerUsuarioId() is not { } u
@@ -105,6 +149,10 @@ public static class EndpointsIntragrupo
 
         return rutas;
     }
+
+    public sealed record DatosAlmacenTraspaso(Guid? EmpresaOrigenId, Guid? AlmacenId);
+
+    public sealed record AlmacenTraspasoDto(Guid Id, Guid? EmpresaOrigenId, Guid? AlmacenId);
 
     private static IResult SinEmpresa() => ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
 }

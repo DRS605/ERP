@@ -29,6 +29,7 @@ public static class RegistroServicios
         servicios.AddScoped<IRepositorioSolicitudes, RepositorioSolicitudes>();
         servicios.AddScoped<IRepositorioPedidos, RepositorioPedidos>();
         servicios.AddScoped<IRepositorioAlbaranes, RepositorioAlbaranes>();
+        servicios.AddScoped<IRepositorioAlmacenesTraspaso, RepositorioAlmacenesTraspaso>();
         // Entrada automática al inventario al recibir albarán (requiere el módulo Inventario registrado).
         servicios.AddScoped<IEntradaInventarioCompras, EntradaInventarioCompras>();
 
@@ -42,6 +43,7 @@ public static class RegistroServicios
         servicios.AddScoped<RecibirMercancia>();
         servicios.AddScoped<AnularAlbaranCompra>();
         servicios.AddScoped<TraspasoIntragrupoCompras>();
+        servicios.AddScoped<AlmacenesTraspaso>();
         servicios.AddScoped<ListarAlbaranesPedido>();
         servicios.AddScoped<FacturarPedido>();
 

@@ -6,7 +6,12 @@ using AlxorCore.Organizacion.Dominio;
 namespace AlxorCore.Organizacion.Aplicacion.CasosDeUso;
 
 /// <summary>Participación y método de consolidación de una empresa del grupo.</summary>
-public sealed record PerimetroDto(Guid EmpresaId, string RazonSocial, decimal Porcentaje, MetodoConsolidacion Metodo);
+public sealed record PerimetroDto(Guid EmpresaId, string RazonSocial, decimal Porcentaje, MetodoConsolidacion Metodo, Guid? TitularId = null,
+    string? CuentaInversion = null, decimal? CosteInversion = null, decimal? PatrimonioAdquisicion = null)
+{
+    public static PerimetroDto De(PerimetroConsolidacion p, string razonSocial) =>
+        new(p.EmpresaId, razonSocial, p.Porcentaje, p.Metodo, p.TitularId, p.CuentaInversion, p.CosteInversion, p.PatrimonioAdquisicion);
+}
 
 /// <summary>Correspondencia de cuentas recíprocas entre dos empresas del grupo.</summary>
 public sealed record CorrespondenciaDto(Guid Id, Guid EmpresaAId, string CuentaA, Guid EmpresaBId, string CuentaB, string Descripcion)
@@ -18,7 +23,8 @@ public sealed record CorrespondenciaDto(Guid Id, Guid EmpresaAId, string CuentaA
 public sealed record DatosCorrespondencia(Guid EmpresaAId, string? CuentaA, Guid EmpresaBId, string? CuentaB, string? Descripcion = null);
 
 /// <summary>Datos del perímetro de una empresa.</summary>
-public sealed record DatosPerimetro(decimal Porcentaje, MetodoConsolidacion Metodo);
+public sealed record DatosPerimetro(decimal Porcentaje, MetodoConsolidacion Metodo, Guid? TitularId = null, string? CuentaInversion = null,
+    decimal? CosteInversion = null, decimal? PatrimonioAdquisicion = null);
 
 /// <summary>Repositorio de la configuración de la consolidación del grupo.</summary>
 public interface IRepositorioConsolidacion
@@ -59,7 +65,7 @@ public sealed class ConfiguracionConsolidacion
         var fijado = (await _repo.PerimetroAsync(grupoId, ct).ConfigureAwait(false)).ToDictionary(p => p.EmpresaId);
         return (await _empresas.EmpresasDelGrupoAsync(grupoId, ct).ConfigureAwait(false))
             .Select(e => fijado.TryGetValue(e.Id, out var p)
-                ? new PerimetroDto(e.Id, e.RazonSocial, p.Porcentaje, p.Metodo)
+                ? PerimetroDto.De(p, e.RazonSocial)
                 : new PerimetroDto(e.Id, e.RazonSocial, 100m, MetodoConsolidacion.Global))
             .ToList();
     }
@@ -67,10 +73,16 @@ public sealed class ConfiguracionConsolidacion
     public async Task<Resultado<PerimetroDto>> FijarPerimetroAsync(Guid grupoId, Guid empresaId, DatosPerimetro datos, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(datos);
-        var empresa = (await _empresas.EmpresasDelGrupoAsync(grupoId, ct).ConfigureAwait(false)).FirstOrDefault(e => e.Id == empresaId);
+        var delGrupo = await _empresas.EmpresasDelGrupoAsync(grupoId, ct).ConfigureAwait(false);
+        var empresa = delGrupo.FirstOrDefault(e => e.Id == empresaId);
         if (empresa is null)
         {
             return Resultado.Fallo<PerimetroDto>(Error.NoEncontrado("consolidacion.empresa", "La empresa no es de este grupo."));
+        }
+
+        if (datos.TitularId is { } titular && !delGrupo.Any(e => e.Id == titular))
+        {
+            return Resultado.Fallo<PerimetroDto>(Error.Validacion("consolidacion.titular", "La titular de la participación debe ser una empresa del grupo."));
         }
 
         var p = (await _repo.PerimetroAsync(grupoId, ct).ConfigureAwait(false)).FirstOrDefault(x => x.EmpresaId == empresaId);
@@ -81,13 +93,18 @@ public sealed class ConfiguracionConsolidacion
         }
 
         var r = p.Fijar(datos.Porcentaje, datos.Metodo, _reloj);
+        if (r.EsCorrecto)
+        {
+            r = p.FijarInversion(datos.TitularId, datos.CuentaInversion, datos.CosteInversion, datos.PatrimonioAdquisicion);
+        }
+
         if (r.EsFallo)
         {
             return Resultado.Fallo<PerimetroDto>(r.Error);
         }
 
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
-        return Resultado.Ok(new PerimetroDto(empresaId, empresa.RazonSocial, p.Porcentaje, p.Metodo));
+        return Resultado.Ok(PerimetroDto.De(p, empresa.RazonSocial));
     }
 
     public async Task<IReadOnlyList<CorrespondenciaDto>> CorrespondenciasAsync(Guid grupoId, CancellationToken ct = default) =>

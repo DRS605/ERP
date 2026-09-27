@@ -23,21 +23,21 @@ public sealed record LineaPedidoDto(Guid Id, Guid? ProductoId, string Descripcio
     decimal Importe, decimal CantidadRecibida, decimal CantidadFacturada, decimal PendienteRecibir);
 
 public sealed record PedidoDto(Guid Id, string Estado, int Ejercicio, int Numero, string NumeroCompleto, Guid? ProveedorId, string ProveedorTexto, DateOnly Fecha,
-    Guid? SolicitudOrigenId, decimal Total, bool RecibidoCompleto, IReadOnlyList<LineaPedidoDto> Lineas, Guid? EmpresaOrigenId = null, Guid? AlbaranVentaOrigenId = null)
+    Guid? SolicitudOrigenId, decimal Total, bool RecibidoCompleto, IReadOnlyList<LineaPedidoDto> Lineas, Guid? EmpresaOrigenId = null, Guid? PedidoVentaOrigenId = null)
 {
     public static PedidoDto Desde(PedidoCompra p) => new(p.Id, p.Estado.ToString(), p.Ejercicio, p.Numero, p.NumeroCompleto, p.ProveedorId, p.ProveedorTexto,
         p.Fecha, p.SolicitudOrigenId, p.Total, p.RecibidoCompleto,
         p.Lineas.Select(l => new LineaPedidoDto(l.Id, l.ProductoId, l.Descripcion, l.Cantidad, l.PrecioUnitario, l.Importe,
-            l.CantidadRecibida, l.CantidadFacturada, l.PendienteRecibir)).ToList(), p.EmpresaOrigenId, p.AlbaranVentaOrigenId);
+            l.CantidadRecibida, l.CantidadFacturada, l.PendienteRecibir)).ToList(), p.EmpresaOrigenId, p.PedidoVentaOrigenId);
 }
 
 public sealed record LineaAlbaranDto(Guid LineaPedidoId, Guid? ProductoId, string Descripcion, decimal Cantidad);
 
 public sealed record AlbaranDto(Guid Id, Guid PedidoId, int Numero, string NumeroCompleto, DateOnly Fecha, string? Referencia, IReadOnlyList<LineaAlbaranDto> Lineas,
-    Guid? AlmacenId = null, bool Anulado = false, string? MotivoAnulacion = null)
+    Guid? AlmacenId = null, bool Anulado = false, string? MotivoAnulacion = null, Guid? AlbaranVentaOrigenId = null)
 {
     public static AlbaranDto Desde(AlbaranCompra a) => new(a.Id, a.PedidoId, a.Numero, a.NumeroCompleto, a.Fecha, a.Referencia,
-        a.Lineas.Select(l => new LineaAlbaranDto(l.LineaPedidoId, l.ProductoId, l.Descripcion, l.Cantidad)).ToList(), a.AlmacenId, a.AnuladoEn is not null, a.MotivoAnulacion);
+        a.Lineas.Select(l => new LineaAlbaranDto(l.LineaPedidoId, l.ProductoId, l.Descripcion, l.Cantidad)).ToList(), a.AlmacenId, a.AnuladoEn is not null, a.MotivoAnulacion, a.AlbaranVentaOrigenId);
 }
 
 // ---------------------------------------------------------------------------- Puertos
@@ -57,7 +57,8 @@ public interface IRepositorioPedidos
     Task<IReadOnlyList<PedidoDto>> ListarAsync(Guid empresaId, CancellationToken ct = default);
     Task<PedidoDto?> ObtenerDtoAsync(Guid id, CancellationToken ct = default);
     Task<int> SiguienteNumeroAsync(Guid empresaId, int ejercicio, Guid? proveedorId, CancellationToken ct = default);
-    Task<PedidoCompra?> PorAlbaranVentaOrigenAsync(Guid empresaId, Guid albaranVentaId, CancellationToken ct = default) => Task.FromResult<PedidoCompra?>(null);
+    /// <summary>Pedido vivo (no cancelado) espejo de un pedido de venta de otra empresa del grupo.</summary>
+    Task<PedidoCompra?> PorPedidoVentaOrigenAsync(Guid empresaId, Guid pedidoVentaId, CancellationToken ct = default) => Task.FromResult<PedidoCompra?>(null);
 }
 
 public interface IRepositorioAlbaranes
@@ -67,6 +68,15 @@ public interface IRepositorioAlbaranes
     Task<int> SiguienteNumeroAsync(Guid empresaId, int ejercicio, CancellationToken ct = default);
     Task<AlbaranCompra?> ObtenerPorIdAsync(Guid id, CancellationToken ct = default) => Task.FromResult<AlbaranCompra?>(null);
     Task<IReadOnlyList<AlbaranCompra>> DePedidoAsync(Guid pedidoId, CancellationToken ct = default) => Task.FromResult<IReadOnlyList<AlbaranCompra>>([]);
+    Task<AlbaranCompra?> PorAlbaranVentaOrigenAsync(Guid empresaId, Guid albaranVentaId, CancellationToken ct = default) => Task.FromResult<AlbaranCompra?>(null);
+}
+
+public interface IRepositorioAlmacenesTraspaso
+{
+    Task<IReadOnlyList<AlmacenTraspaso>> ListarAsync(Guid empresaId, CancellationToken ct = default);
+    Task<AlmacenTraspaso?> ObtenerPorIdAsync(Guid id, CancellationToken ct = default);
+    void Agregar(AlmacenTraspaso almacen);
+    void Eliminar(AlmacenTraspaso almacen);
 }
 
 public interface IUnidadDeTrabajoCompras : IUnidadDeTrabajo;
@@ -287,6 +297,11 @@ public sealed class CrearPedido
             return Resultado.Fallo<PedidoDto>(Error.NoEncontrado("pedido.no_encontrado", "No se encontró el pedido."));
         }
 
+        if (pedido.EsTraspasoIntragrupo)
+        {
+            return Resultado.Fallo<PedidoDto>(ErroresTraspaso.PedidoIntragrupo);
+        }
+
         if (comando.ProveedorId is { } p && p != pedido.ProveedorId)
         {
             return Resultado.Fallo<PedidoDto>(Error.Validacion("pedido.cambio_proveedor",
@@ -314,7 +329,8 @@ public sealed class DecidirPedido
     public DecidirPedido(IRepositorioPedidos repo, IUnidadDeTrabajoCompras unidad) { _repo = repo; _unidad = unidad; }
 
     public Task<Resultado<PedidoDto>> ConfirmarAsync(Guid id, CancellationToken ct = default) => CambiarAsync(id, p => p.Confirmar(), ct);
-    public Task<Resultado<PedidoDto>> CancelarAsync(Guid id, CancellationToken ct = default) => CambiarAsync(id, p => p.Cancelar(), ct);
+    public Task<Resultado<PedidoDto>> CancelarAsync(Guid id, CancellationToken ct = default) =>
+        CambiarAsync(id, p => p.EsTraspasoIntragrupo ? Resultado.Fallo(ErroresTraspaso.PedidoIntragrupo) : p.Cancelar(), ct);
 
     private async Task<Resultado<PedidoDto>> CambiarAsync(Guid id, Func<PedidoCompra, Resultado> accion, CancellationToken ct)
     {
@@ -365,13 +381,22 @@ public sealed class RecibirMercancia
         _pedidos = pedidos; _albaranes = albaranes; _resolverSerie = resolverSerie; _unidad = unidad; _reloj = reloj; _inventario = inventario;
     }
 
-    public async Task<Resultado<AlbaranDto>> EjecutarAsync(Guid empresaId, Guid pedidoId, RecibirMercanciaComando comando, CancellationToken ct = default)
+    public Task<Resultado<AlbaranDto>> EjecutarAsync(Guid empresaId, Guid pedidoId, RecibirMercanciaComando comando, CancellationToken ct = default) =>
+        EjecutarAsync(empresaId, pedidoId, comando, null, ct);
+
+    /// <param name="albaranVentaOrigenId">Albarán de venta de otra empresa del grupo que origina esta recepción (traspaso).</param>
+    internal async Task<Resultado<AlbaranDto>> EjecutarAsync(Guid empresaId, Guid pedidoId, RecibirMercanciaComando comando, Guid? albaranVentaOrigenId, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(comando);
         var pedido = await _pedidos.ObtenerPorIdAsync(pedidoId, ct).ConfigureAwait(false);
         if (pedido is null)
         {
             return Resultado.Fallo<AlbaranDto>(Error.NoEncontrado("pedido.no_encontrado", "No se encontró el pedido."));
+        }
+
+        if (pedido.EsTraspasoIntragrupo && albaranVentaOrigenId is null)
+        {
+            return Resultado.Fallo<AlbaranDto>(ErroresTraspaso.PedidoIntragrupo);
         }
 
         var recepciones = (comando.Lineas ?? Array.Empty<RecepcionLineaComando>()).Select(l => (l.LineaPedidoId, l.Cantidad)).ToList();
@@ -397,7 +422,7 @@ public sealed class RecibirMercancia
         }).ToList();
 
         var albaran = AlbaranCompra.Crear(empresaId, pedidoId, numero, fecha, comando.Referencia, lineasAlbaran, _reloj, serie,
-            _inventario is not null ? comando.AlmacenId : null);
+            _inventario is not null ? comando.AlmacenId : null, albaranVentaOrigenId);
         if (albaran.EsFallo)
         {
             return Resultado.Fallo<AlbaranDto>(albaran.Error);
@@ -463,7 +488,7 @@ public sealed class AnularAlbaranCompra
             return Resultado.Fallo<AlbaranDto>(Error.NoEncontrado("pedido.no_encontrado", "No se encontró el pedido."));
         }
 
-        if (pedido.AlbaranVentaOrigenId is not null && !desdeTraspaso)
+        if (pedido.EsTraspasoIntragrupo && !desdeTraspaso)
         {
             return Resultado.Fallo<AlbaranDto>(Error.Conflicto("albaran.intragrupo",
                 "Este albarán es un traspaso de otra empresa del grupo: se anula anulando su albarán de venta en la empresa de origen."));
@@ -511,17 +536,28 @@ public sealed class AnularAlbaranCompra
     }
 }
 
-/// <summary>Línea de un traspaso entre empresas del grupo.</summary>
-public sealed record LineaTraspaso(Guid? ProductoId, string Descripcion, decimal Cantidad, decimal PrecioUnitario);
+internal static class ErroresTraspaso
+{
+    public static readonly Error PedidoIntragrupo = Error.Conflicto("pedido.intragrupo",
+        "Es un traspaso de otra empresa del grupo: se recibe, se anula y se factura desde la empresa de origen.");
+}
 
-/// <summary>Traspaso de mercancía que otra empresa del grupo ha entregado a esta (su albarán de venta).</summary>
-public sealed record DatosTraspaso(Guid EmpresaOrigenId, string EmpresaOrigenNombre, Guid AlbaranVentaId, string NumeroAlbaranVenta, Guid? ProveedorId,
-    DateOnly Fecha, Guid? AlmacenId, IReadOnlyList<LineaTraspaso> Lineas);
+/// <summary>Línea del pedido de venta de origen de un traspaso entre empresas del grupo (precio neto de descuento).</summary>
+public sealed record LineaTraspaso(Guid LineaVentaId, Guid? ProductoId, string Descripcion, decimal Cantidad, decimal PrecioUnitario);
+
+/// <summary>Lo entregado en un albarán de venta, por línea del pedido de venta.</summary>
+public sealed record EntregaTraspaso(Guid LineaVentaId, decimal Cantidad);
+
+/// <summary>Mercancía que otra empresa del grupo ha entregado a esta (su albarán de venta, contra su pedido de venta).</summary>
+public sealed record DatosTraspaso(Guid EmpresaOrigenId, string EmpresaOrigenNombre, Guid PedidoVentaId, Guid AlbaranVentaId, string NumeroAlbaranVenta,
+    Guid? ProveedorId, DateOnly Fecha, Guid? AlmacenId, IReadOnlyList<LineaTraspaso> LineasPedido, IReadOnlyList<EntregaTraspaso> Entregas);
 
 /// <summary>
-/// Traspaso de existencias entre empresas del grupo: el albarán de venta de una empresa a otra del grupo genera en la
-/// receptora su pedido de compra (confirmado) y el albarán de recepción, con la entrada en su almacén. El pedido no se
-/// factura desde compras: la factura llega a la bandeja de facturas recibidas. Es idempotente por albarán de origen.
+/// Traspaso de existencias entre empresas del grupo. El pedido de venta de una empresa a otra del grupo tiene en la
+/// receptora su pedido de compra espejo (confirmado, mismas líneas y precio neto), que nace con la primera entrega;
+/// cada albarán de venta es un albarán de recepción de ese pedido, con la entrada en su almacén. Las entregas parciales
+/// se acumulan en el mismo pedido. El pedido no se factura desde compras: la factura llega a la bandeja de facturas
+/// recibidas. Es idempotente por albarán de origen.
 /// </summary>
 public sealed class TraspasoIntragrupoCompras
 {
@@ -541,59 +577,141 @@ public sealed class TraspasoIntragrupoCompras
     public async Task<Resultado<PedidoDto>> RecibirAsync(Guid empresaId, DatosTraspaso datos, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(datos);
-        if (await _pedidos.PorAlbaranVentaOrigenAsync(empresaId, datos.AlbaranVentaId, ct).ConfigureAwait(false) is { } existente)
+        if (await _albaranes.PorAlbaranVentaOrigenAsync(empresaId, datos.AlbaranVentaId, ct).ConfigureAwait(false) is { } hecho)
         {
-            return Resultado.Ok(PedidoDto.Desde(existente));
+            return Resultado.Ok(PedidoDto.Desde((await _pedidos.ObtenerPorIdAsync(hecho.PedidoId, ct).ConfigureAwait(false))!));
         }
 
-        var creado = await _crear.EjecutarAsync(empresaId, new CrearPedidoComando(datos.EmpresaOrigenNombre,
-            datos.Lineas.Select(l => new LineaPedidoComando(l.Descripcion, l.Cantidad, l.PrecioUnitario, l.ProductoId)).ToList(), datos.ProveedorId, datos.Fecha), ct).ConfigureAwait(false);
-        if (creado.EsFallo)
+        var pedido = await _pedidos.PorPedidoVentaOrigenAsync(empresaId, datos.PedidoVentaId, ct).ConfigureAwait(false);
+        if (pedido is null)
         {
-            return creado;
+            var creado = await _crear.EjecutarAsync(empresaId, new CrearPedidoComando(datos.EmpresaOrigenNombre,
+                datos.LineasPedido.Select(l => new LineaPedidoComando(l.Descripcion, l.Cantidad, l.PrecioUnitario, l.ProductoId)).ToList(), datos.ProveedorId, datos.Fecha),
+                ct).ConfigureAwait(false);
+            if (creado.EsFallo)
+            {
+                return creado;
+            }
+
+            pedido = (await _pedidos.ObtenerPorIdAsync(creado.Valor.Id, ct).ConfigureAwait(false))!;
+            var marcado = pedido.MarcarTraspasoIntragrupo(datos.EmpresaOrigenId, datos.PedidoVentaId, datos.LineasPedido.Select(l => l.LineaVentaId).ToList());
+            var confirmado = marcado.EsCorrecto ? pedido.Confirmar() : marcado;
+            if (confirmado.EsFallo)
+            {
+                return Resultado.Fallo<PedidoDto>(confirmado.Error);
+            }
+
+            await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
         }
 
-        var pedido = (await _pedidos.ObtenerPorIdAsync(creado.Valor.Id, ct).ConfigureAwait(false))!;
-        var marcado = pedido.MarcarTraspasoIntragrupo(datos.EmpresaOrigenId, datos.AlbaranVentaId);
-        var confirmado = marcado.EsCorrecto ? pedido.Confirmar() : marcado;
-        if (confirmado.EsFallo)
+        var lineas = new List<RecepcionLineaComando>();
+        foreach (var e in datos.Entregas)
         {
-            return Resultado.Fallo<PedidoDto>(confirmado.Error);
+            var linea = pedido.Lineas.FirstOrDefault(l => l.LineaVentaOrigenId == e.LineaVentaId);
+            if (linea is null)
+            {
+                return Resultado.Fallo<PedidoDto>(Error.Conflicto("traspaso.linea_sin_espejo",
+                    $"El pedido de compra {pedido.NumeroCompleto} no tiene la línea del pedido de venta que se entrega."));
+            }
+
+            lineas.Add(new RecepcionLineaComando(linea.Id, e.Cantidad));
         }
 
-        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
-        var recibido = await _recibir.EjecutarAsync(empresaId, pedido.Id, new RecibirMercanciaComando(
-            pedido.Lineas.Select(l => new RecepcionLineaComando(l.Id, l.Cantidad)).ToList(), datos.Fecha, $"Albarán {datos.NumeroAlbaranVenta} de {datos.EmpresaOrigenNombre}",
-            datos.AlmacenId), ct).ConfigureAwait(false);
+        var recibido = await _recibir.EjecutarAsync(empresaId, pedido.Id, new RecibirMercanciaComando(lineas, datos.Fecha,
+            $"Albarán {datos.NumeroAlbaranVenta} de {datos.EmpresaOrigenNombre}", datos.AlmacenId), datos.AlbaranVentaId, ct).ConfigureAwait(false);
         return recibido.EsFallo ? Resultado.Fallo<PedidoDto>(recibido.Error) : Resultado.Ok(PedidoDto.Desde(pedido));
     }
 
-    /// <summary>El albarán de venta de origen se anuló: se anulan los albaranes de compra del traspaso y se cancela el pedido.</summary>
+    /// <summary>
+    /// El albarán de venta de origen se anuló: se anula su albarán de recepción (sale del almacén y vuelve a quedar
+    /// pendiente). Si el pedido se queda sin recepciones vivas, se cancela; la siguiente entrega abre otro.
+    /// </summary>
     public async Task<Resultado<PedidoDto?>> AnularAsync(Guid empresaId, Guid albaranVentaId, string motivo, CancellationToken ct = default)
     {
-        var pedido = await _pedidos.PorAlbaranVentaOrigenAsync(empresaId, albaranVentaId, ct).ConfigureAwait(false);
-        if (pedido is null)
+        var albaran = await _albaranes.PorAlbaranVentaOrigenAsync(empresaId, albaranVentaId, ct).ConfigureAwait(false);
+        if (albaran is null)
         {
             return Resultado.Ok<PedidoDto?>(null);
         }
 
-        foreach (var a in (await _albaranes.DePedidoAsync(pedido.Id, ct).ConfigureAwait(false)).Where(a => a.AnuladoEn is null))
+        var pedido = (await _pedidos.ObtenerPorIdAsync(albaran.PedidoId, ct).ConfigureAwait(false))!;
+        if (albaran.AnuladoEn is null)
         {
-            var r = await _anular.EjecutarAsync(empresaId, pedido.Id, a.Id, motivo, desdeTraspaso: true, ct).ConfigureAwait(false);
+            var r = await _anular.EjecutarAsync(empresaId, pedido.Id, albaran.Id, motivo, desdeTraspaso: true, ct).ConfigureAwait(false);
             if (r.EsFallo)
             {
                 return Resultado.Fallo<PedidoDto?>(r.Error);
             }
         }
 
-        var cancelado = pedido.Cancelar();
-        if (cancelado.EsFallo)
+        if (pedido.Estado is not EstadoPedido.Cancelado && pedido.Lineas.All(l => l.CantidadRecibida == 0m))
         {
-            return Resultado.Fallo<PedidoDto?>(cancelado.Error);
+            var cancelado = pedido.Cancelar();
+            if (cancelado.EsFallo)
+            {
+                return Resultado.Fallo<PedidoDto?>(cancelado.Error);
+            }
+
+            await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        }
+
+        return Resultado.Ok<PedidoDto?>(PedidoDto.Desde(pedido));
+    }
+}
+
+/// <summary>
+/// Almacén de entrada de los traspasos desde otras empresas del grupo: uno por empresa de origen, uno general para las
+/// demás, o ninguno (entra en el almacén activo de código más bajo).
+/// </summary>
+public sealed class AlmacenesTraspaso
+{
+    private readonly IRepositorioAlmacenesTraspaso _repo;
+    private readonly IUnidadDeTrabajoCompras _unidad;
+
+    public AlmacenesTraspaso(IRepositorioAlmacenesTraspaso repo, IUnidadDeTrabajoCompras unidad) { _repo = repo; _unidad = unidad; }
+
+    public Task<IReadOnlyList<AlmacenTraspaso>> ListarAsync(Guid empresaId, CancellationToken ct = default) => _repo.ListarAsync(empresaId, ct);
+
+    /// <summary>
+    /// Almacén configurado para una empresa de origen (o el general). <c>Configurado</c> falso si no hay nada
+    /// configurado; con <c>Configurado</c> y almacén nulo, el traspaso no da entrada en inventario.
+    /// </summary>
+    public async Task<(bool Configurado, Guid? AlmacenId)> ResolverAsync(Guid empresaId, Guid empresaOrigenId, CancellationToken ct = default)
+    {
+        var lista = await _repo.ListarAsync(empresaId, ct).ConfigureAwait(false);
+        var fila = lista.FirstOrDefault(a => a.EmpresaOrigenId == empresaOrigenId) ?? lista.FirstOrDefault(a => a.EmpresaOrigenId is null);
+        return fila is null ? (false, null) : (true, fila.AlmacenId);
+    }
+
+    /// <summary>Fija el almacén (nulo: sin entrada en inventario) para una empresa de origen o, sin ella, para todas las demás.</summary>
+    public async Task<AlmacenTraspaso> FijarAsync(Guid empresaId, Guid? empresaOrigenId, Guid? almacenId, CancellationToken ct = default)
+    {
+        var fila = (await _repo.ListarAsync(empresaId, ct).ConfigureAwait(false)).FirstOrDefault(a => a.EmpresaOrigenId == empresaOrigenId);
+        if (fila is null)
+        {
+            fila = AlmacenTraspaso.Crear(empresaId, empresaOrigenId, almacenId);
+            _repo.Agregar(fila);
+        }
+        else
+        {
+            fila.CambiarAlmacen(almacenId);
         }
 
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
-        return Resultado.Ok<PedidoDto?>(PedidoDto.Desde(pedido));
+        return fila;
+    }
+
+    public async Task<Resultado> QuitarAsync(Guid id, CancellationToken ct = default)
+    {
+        var fila = await _repo.ObtenerPorIdAsync(id, ct).ConfigureAwait(false);
+        if (fila is null)
+        {
+            return Resultado.Fallo(Error.NoEncontrado("almacen_traspaso.no_encontrado", "No existe esa configuración."));
+        }
+
+        _repo.Eliminar(fila);
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok();
     }
 }
 

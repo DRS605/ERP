@@ -184,8 +184,9 @@ public sealed class OperacionesIntragrupo
     private static Resultado<EspejoIntragrupoDto?> Sin<T>(Resultado<T> r) => r.EsFallo ? Resultado.Fallo<EspejoIntragrupoDto?>(r.Error) : Resultado.Ok<EspejoIntragrupoDto?>(null);
 
     /// <summary>
-    /// Traspaso de existencias: el albarán de venta a un cliente enlazado con otra empresa del grupo genera en esa empresa
-    /// el pedido de compra y su albarán de recepción, con la entrada en su almacén (el único activo, o el de código más
+    /// Traspaso de existencias: el albarán de venta a un cliente enlazado con otra empresa del grupo es, en esa empresa,
+    /// un albarán de recepción del pedido de compra espejo de su pedido de venta (que nace con la primera entrega), con la
+    /// entrada en el almacén que la receptora tenga configurado para los traspasos (por defecto, el activo de código más
     /// bajo). Devuelve el pedido de compra, o null si el cliente no es del grupo. Es idempotente.
     /// </summary>
     public async Task<Resultado<Guid?>> TraspasarAlbaranAsync(Guid empresaOrigenId, Guid albaranId, CancellationToken ct = default)
@@ -208,25 +209,35 @@ public sealed class OperacionesIntragrupo
 
             destino = vinculada.Value.Destino;
             var pedido = await Servicio<ObtenerPedidoVenta>(origen).EjecutarAsync(albaran.PedidoId, ct).ConfigureAwait(false);
-            var precios = pedido?.Lineas.ToDictionary(l => l.Id, l => Redondeo.Dos(l.PrecioUnitario * (1m - (l.PorcentajeDescuento / 100m)))) ?? [];
-            datos = new DatosTraspasoParcial(vinculada.Value.Origen.RazonSocial, albaran.NumeroCompleto, albaran.Fecha,
-                albaran.Lineas.Select(l => new LineaTraspaso(l.ProductoId, l.Descripcion, l.Cantidad, precios.GetValueOrDefault(l.LineaPedidoId))).ToList());
+            if (pedido is null)
+            {
+                return Resultado.Fallo<Guid?>(Error.NoEncontrado("pedidoventa.no_encontrado", "El pedido de venta del albarán no existe."));
+            }
+
+            datos = new DatosTraspasoParcial(vinculada.Value.Origen.RazonSocial, pedido.Id, albaran.NumeroCompleto, albaran.Fecha,
+                pedido.Lineas.Select(l => new LineaTraspaso(l.Id, l.ProductoId, l.Descripcion, l.Cantidad,
+                    Redondeo.Dos(l.PrecioUnitario * (1m - (l.PorcentajeDescuento / 100m))))).ToList(),
+                albaran.Lineas.Select(l => new EntregaTraspaso(l.LineaPedidoId, l.Cantidad)).ToList());
         }
 
         await using var receptora = await AmbitoAsync(destino.Id, ct).ConfigureAwait(false);
         var grupo = Servicio<IContextoEmpresa>(receptora).GrupoId!.Value;
         var proveedor = (await Servicio<IConsultaProveedores>(receptora).ListarAsync(grupo, true, null, ct).ConfigureAwait(false))
             .FirstOrDefault(p => p.EmpresaVinculadaId == empresaOrigenId);
-        var almacen = (await Servicio<AlxorCore.Inventario.Aplicacion.GestionAlmacenes>(receptora).ListarAlmacenesAsync(destino.Id, ct).ConfigureAwait(false))
-            .Where(a => a.Activo).OrderBy(a => a.Codigo, StringComparer.Ordinal).FirstOrDefault();
-        var r = await Servicio<TraspasoIntragrupoCompras>(receptora).RecibirAsync(destino.Id, new DatosTraspaso(empresaOrigenId, datos.Origen, albaranId, datos.Numero,
-            proveedor?.Id, datos.Fecha, almacen?.Id, datos.Lineas), ct).ConfigureAwait(false);
+        var activos = (await Servicio<AlxorCore.Inventario.Aplicacion.GestionAlmacenes>(receptora).ListarAlmacenesAsync(destino.Id, ct).ConfigureAwait(false))
+            .Where(a => a.Activo).OrderBy(a => a.Codigo, StringComparer.Ordinal).ToList();
+        var (configurado, elegido) = await Servicio<AlmacenesTraspaso>(receptora).ResolverAsync(destino.Id, empresaOrigenId, ct).ConfigureAwait(false);
+        // El almacén elegido, si sigue activo; sin configuración (o dado de baja), el primero activo.
+        var almacen = configurado && (elegido is null || activos.Any(a => a.Id == elegido)) ? elegido : activos.FirstOrDefault()?.Id;
+        var r = await Servicio<TraspasoIntragrupoCompras>(receptora).RecibirAsync(destino.Id, new DatosTraspaso(empresaOrigenId, datos.Origen, datos.PedidoVentaId,
+            albaranId, datos.Numero, proveedor?.Id, datos.Fecha, almacen, datos.LineasPedido, datos.Entregas), ct).ConfigureAwait(false);
         return r.EsFallo ? Resultado.Fallo<Guid?>(r.Error) : Resultado.Ok<Guid?>(r.Valor.Id);
     }
 
-    private sealed record DatosTraspasoParcial(string Origen, string Numero, DateOnly Fecha, IReadOnlyList<LineaTraspaso> Lineas);
+    private sealed record DatosTraspasoParcial(string Origen, Guid PedidoVentaId, string Numero, DateOnly Fecha, IReadOnlyList<LineaTraspaso> LineasPedido,
+        IReadOnlyList<EntregaTraspaso> Entregas);
 
-    /// <summary>El albarán de venta de origen se anuló: en la receptora se anula la recepción (y sale del almacén) y se cancela el pedido.</summary>
+    /// <summary>El albarán de venta de origen se anuló: en la receptora se anula su recepción (y sale del almacén); sin recepciones vivas, el pedido se cancela.</summary>
     public async Task<Resultado<Guid?>> AnularTraspasoAsync(Guid empresaOrigenId, Guid albaranId, string motivo, CancellationToken ct = default)
     {
         EmpresaGrupoDto destino;
@@ -237,6 +248,11 @@ public sealed class OperacionesIntragrupo
             if (vinculada is null)
             {
                 return Resultado.Ok<Guid?>(null);
+            }
+
+            if (albaran!.AnuladoEn is null)
+            {
+                return Resultado.Fallo<Guid?>(Error.Conflicto("albaranventa.vivo", "El albarán de venta no está anulado: su traspaso no se deshace."));
             }
 
             destino = vinculada.Value.Destino;

@@ -46,6 +46,9 @@ public sealed class LineaPedido
 
     public decimal CantidadFacturada { get; private set; }
 
+    /// <summary>Línea del pedido de venta de la empresa del grupo de la que es espejo (traspaso intragrupo).</summary>
+    public Guid? LineaVentaOrigenId { get; internal set; }
+
     public decimal Importe => Redondeo.Dos(Cantidad * PrecioUnitario);
 
     public decimal PendienteRecibir => Cantidad - CantidadRecibida;
@@ -106,19 +109,36 @@ public sealed class PedidoCompra : RaizAgregadoEmpresa<Guid>
     /// <summary>Empresa del grupo que vende (traspaso intragrupo): el pedido nace de su albarán de venta.</summary>
     public Guid? EmpresaOrigenId { get; private set; }
 
-    /// <summary>Albarán de venta de la empresa del grupo del que nace este pedido (traspaso de existencias).</summary>
-    public Guid? AlbaranVentaOrigenId { get; private set; }
+    /// <summary>Pedido de venta de la empresa del grupo del que este pedido es espejo (traspaso de existencias).</summary>
+    public Guid? PedidoVentaOrigenId { get; private set; }
 
-    /// <summary>Marca el pedido como traspaso desde otra empresa del grupo (solo en borrador).</summary>
-    public Resultado MarcarTraspasoIntragrupo(Guid empresaOrigenId, Guid albaranVentaId)
+    /// <summary>Es un traspaso desde otra empresa del grupo: se recibe, anula y factura desde la empresa de origen.</summary>
+    public bool EsTraspasoIntragrupo => PedidoVentaOrigenId is not null;
+
+    /// <summary>
+    /// Marca el pedido (en borrador) como espejo del pedido de venta de otra empresa del grupo; cada línea queda
+    /// enlazada, en orden, con su línea del pedido de venta.
+    /// </summary>
+    public Resultado MarcarTraspasoIntragrupo(Guid empresaOrigenId, Guid pedidoVentaId, IReadOnlyList<Guid> lineasVenta)
     {
+        ArgumentNullException.ThrowIfNull(lineasVenta);
         if (Estado is not EstadoPedido.Borrador)
         {
             return Resultado.Fallo(Error.Conflicto("pedido.estado", "Solo un pedido en borrador se marca como traspaso."));
         }
 
+        if (lineasVenta.Count != _lineas.Count)
+        {
+            return Resultado.Fallo(Error.Validacion("pedido.lineas_traspaso", "Cada línea del pedido debe corresponder a una línea del pedido de venta."));
+        }
+
         EmpresaOrigenId = empresaOrigenId;
-        AlbaranVentaOrigenId = albaranVentaId;
+        PedidoVentaOrigenId = pedidoVentaId;
+        for (var i = 0; i < _lineas.Count; i++)
+        {
+            _lineas[i].LineaVentaOrigenId = lineasVenta[i];
+        }
+
         return Resultado.Ok();
     }
 
@@ -295,7 +315,7 @@ public sealed class PedidoCompra : RaizAgregadoEmpresa<Guid>
             return Resultado.Fallo<decimal>(Error.Conflicto("pedido.no_confirmado", "Confirma el pedido antes de facturarlo."));
         }
 
-        if (AlbaranVentaOrigenId is not null)
+        if (EsTraspasoIntragrupo)
         {
             return Resultado.Fallo<decimal>(Error.Conflicto("pedido.intragrupo",
                 "Es un traspaso de otra empresa del grupo: su factura llega a la bandeja de facturas recibidas; contabilízala allí."));

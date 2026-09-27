@@ -1622,7 +1622,7 @@
       const acc=p=>{
         const b=[];
         const recibido=p.lineas.some(l=>l.cantidadRecibida>0);
-        if(p.albaranVentaOrigenId){ if(recibido) b.push(`<button class="btn small secondary" onclick="modalAlbaranesCompra('${p.id}')">Albaranes</button>`); return b.join(" "); }
+        if(p.pedidoVentaOrigenId){ if(recibido) b.push(`<button class="btn small secondary" onclick="modalAlbaranesCompra('${p.id}')">Albaranes</button>`); return b.join(" "); }
         if(recibido) b.push(`<button class="btn small secondary" onclick="modalAlbaranesCompra('${p.id}')">Albaranes</button>`);
         if((p.estado==="Borrador"||p.estado==="Confirmado")&&p.lineas.every(l=>!l.cantidadRecibida&&!l.cantidadFacturada)) b.push(`<button class="btn small secondary" onclick="editarPedidoCompra('${p.id}')">Editar</button>`);
         if(p.estado==="Borrador") b.push(`<button class="btn small secondary" onclick="accionPedido('${p.id}','confirmar')">Confirmar</button>`);
@@ -1630,7 +1630,7 @@
         if(p.estado!=="Facturado"&&p.estado!=="Cancelado") b.push(`<button class="btn small ghost" onclick="accionPedido('${p.id}','cancelar')" title="Cancelar">✕</button>`);
         return b.join(" ");
       };
-      const filas=ps.map(p=>`<tr><td><strong>${p.proveedorTexto}</strong><div class="muted" style="font-size:12px">Pedido nº ${p.numeroCompleto} · ${fdate(p.fecha)} · ${p.lineas.length} línea(s)${p.recibidoCompleto?' · recibido':''}</div>${p.albaranVentaOrigenId?`<span class="pill" style="font-size:10px" title="Lo generó el albarán de venta de otra empresa del grupo; la factura llega a la bandeja de facturas recibidas">Traspaso intragrupo</span>`:''}</td><td class="num">${eur(p.total)}</td><td class="right">${estadoPillCompra(p.estado)}</td><td class="right" style="white-space:nowrap">${acc(p)}</td></tr>`).join("");
+      const filas=ps.map(p=>`<tr><td><strong>${p.proveedorTexto}</strong><div class="muted" style="font-size:12px">Pedido nº ${p.numeroCompleto} · ${fdate(p.fecha)} · ${p.lineas.length} línea(s)${p.recibidoCompleto?' · recibido':''}</div>${p.pedidoVentaOrigenId?`<span class="pill" style="font-size:10px" title="Lo generó el albarán de venta de otra empresa del grupo; la factura llega a la bandeja de facturas recibidas">Traspaso intragrupo</span>`:''}</td><td class="num">${eur(p.total)}</td><td class="right">${estadoPillCompra(p.estado)}</td><td class="right" style="white-space:nowrap">${acc(p)}</td></tr>`).join("");
       const tabla=ps.length?`<table><thead><tr><th>Proveedor</th><th class="num">Total</th><th class="right">Estado</th><th class="right">Acciones</th></tr></thead><tbody>${filas}</tbody></table>`
         :vacio("compras","Sin pedidos de compra","Crea un pedido a proveedor (o conviértelo desde una solicitud aprobada).",`<button class="btn small" onclick="modalPedido()">+ Nuevo pedido</button>`);
       view(panel("Pedidos de compra",tabla,`<button class="btn small" onclick="modalPedido()">+ Nuevo pedido</button>`));
@@ -1638,8 +1638,8 @@
     async function modalAlbaranesCompra(id){
       const [p,als]=await Promise.all([api("/compras/pedidos/"+id),api(`/compras/pedidos/${id}/albaranes`)]);
       const filas=als.map(a=>`<tr><td><strong>${agEsc(a.numeroCompleto)}</strong>${a.referencia?`<div class="muted" style="font-size:12px">${agEsc(a.referencia)}</div>`:''}</td><td class="muted">${fdate(a.fecha)}</td><td class="muted" style="font-size:12px">${a.lineas.map(l=>`${agEsc(l.descripcion)} × ${Number(l.cantidad).toLocaleString("es-ES")}`).join("<br>")}</td>
-        <td class="right">${a.anulado?`<span class="pill" title="${agEsc(a.motivoAnulacion||'')}">Anulado</span>`:(p.albaranVentaOrigenId||p.estado==="Facturado"?'':`<button class="btn small ghost" onclick="anularAlbaranCompra('${id}','${a.id}')">Anular</button>`)}</td></tr>`).join("");
-      abrir("Albaranes del pedido "+p.numeroCompleto,(p.albaranVentaOrigenId?`<p class="muted" style="margin:0 0 10px">Traspaso de otra empresa del grupo: se anula anulando su albarán de venta en la empresa de origen.</p>`:`<p class="muted" style="margin:0 0 10px">Anular un albarán saca del almacén lo que entró y deja la cantidad otra vez pendiente de recibir.</p>`)
+        <td class="right">${a.anulado?`<span class="pill" title="${agEsc(a.motivoAnulacion||'')}">Anulado</span>`:(p.pedidoVentaOrigenId||p.estado==="Facturado"?'':`<button class="btn small ghost" onclick="anularAlbaranCompra('${id}','${a.id}')">Anular</button>`)}</td></tr>`).join("");
+      abrir("Albaranes del pedido "+p.numeroCompleto,(p.pedidoVentaOrigenId?`<p class="muted" style="margin:0 0 10px">Traspaso de otra empresa del grupo: se anula anulando su albarán de venta en la empresa de origen.</p>`:`<p class="muted" style="margin:0 0 10px">Anular un albarán saca del almacén lo que entró y deja la cantidad otra vez pendiente de recibir.</p>`)
         +(als.length?`<table><thead><tr><th>Albarán</th><th>Fecha</th><th>Líneas</th><th class="right"></th></tr></thead><tbody>${filas}</tbody></table>`:'<p class="muted">Sin albaranes.</p>'),null);
       document.getElementById("modalOk").style.display="none";
     }
@@ -2373,7 +2373,8 @@
     async function vIntragrupo(anio){
       anio=anio||new Date().getFullYear();
       view('<div class="muted">Cargando…</div>');
-      const [c,empresas]=await Promise.all([api(`/intragrupo/cuadre?ejercicio=${anio}`),api("/grupos/actual/empresas").catch(()=>[])]);
+      const [c,empresas,almTras,almacenes]=await Promise.all([api(`/intragrupo/cuadre?ejercicio=${anio}`),api("/grupos/actual/empresas").catch(()=>[]),
+        api("/intragrupo/traspasos/almacenes").catch(()=>null),api("/inventario/almacenes").catch(()=>[])]);
       const selAnio=`<select onchange="vIntragrupo(Number(this.value))" style="width:auto">${[0,1,2,3].map(i=>new Date().getFullYear()-i).map(a=>`<option${a===anio?" selected":""}>${a}</option>`).join("")}</select>`;
       const pill=sit=>sit==="Cuadrada"?'<span class="pill ok">Cuadrada</span>':(sit==="Anulada"?'<span class="pill wait">Anulada</span>':(sit==="Pendiente en destino"?'<span class="pill part">Pendiente en destino</span>':`<span class="pill neg">${agEsc(sit)}</span>`));
       const intro=`<p class="muted" style="margin:0 0 12px">Enlaza en su ficha el cliente (y el proveedor) que es otra empresa del grupo. Lo que le factures llega a la bandeja de facturas recibidas de esa empresa con el PDF y sus datos, para validarlo y contabilizarlo allí. Aquí se comprueba que lo que factura cada empresa es lo que la otra ha contabilizado.</p>`;
@@ -2388,7 +2389,28 @@
       const estado=c.parejas.length?(c.cuadra?'<span class="pill ok">El grupo cuadra</span>':'<span class="pill neg">Hay diferencias</span>'):"";
       const sinAcceso=c.empresasSinAcceso.length?`<p class="muted" style="font-size:12px;margin:8px 0 0">Sin acceso (no se incluyen): ${c.empresasSinAcceso.map(agEsc).join(", ")}.</p>`:"";
       const verCons=`<button class="btn small secondary" onclick="vConsolidado(${anio})">Ver consolidado</button>`;
-      view(panel(`Cuadre recíproco ${anio} ${estado}`,intro+(c.parejas.length?"":'<p class="muted" style="margin:0">Aún no hay facturas entre las empresas del grupo este ejercicio.</p>')+sinAcceso,agBotones(verCons,selAnio))+bloques);
+      view(panel(`Cuadre recíproco ${anio} ${estado}`,intro+(c.parejas.length?"":'<p class="muted" style="margin:0">Aún no hay facturas entre las empresas del grupo este ejercicio.</p>')+sinAcceso,agBotones(verCons,selAnio))+bloques
+        +panelAlmacenesTraspaso(empresas,almTras,almacenes));
+    }
+    function panelAlmacenesTraspaso(empresas,filas,almacenes){
+      if(!filas) return "";
+      window._almTras=filas;
+      const activos=almacenes.filter(a=>a.activo!==false);
+      const sel=origen=>{ const f=filas.find(x=>(x.empresaOrigenId||null)===origen); const v=!f?"":(f.almacenId||"ninguno");
+        const o=(val,txt)=>`<option value="${val}"${val===v?" selected":""}>${agEsc(txt)}</option>`;
+        return `<select style="width:auto" onchange="fijarAlmacenTraspaso(${origen?`'${origen}'`:"null"},this.value)">${origen?o("","Como el resto"):o("","Automático: el activo de código más bajo")}${o("ninguno","Sin entrada en inventario")}${activos.map(a=>o(a.id,`${a.codigo} · ${a.nombre}`)).join("")}</select>`; };
+      const otras=empresas.filter(e=>e.id!==empresa.id);
+      return panel("Traspasos de existencias: almacén de entrada",`<p class="muted" style="margin:0 0 10px">Cuando otra empresa del grupo te entrega mercancía (su albarán de venta), aquí se registra su pedido de compra y el albarán de recepción, con la entrada en este almacén. Las entregas parciales del mismo pedido se acumulan en un solo pedido de compra.</p>
+        <table><thead><tr><th>Mercancía que llega de</th><th>Almacén de entrada</th></tr></thead><tbody>${otras.map(e=>`<tr><td>${agEsc(e.razonSocial)}</td><td>${sel(e.id)}</td></tr>`).join("")}
+        <tr><td class="muted">Resto de empresas del grupo</td><td>${sel(null)}</td></tr></tbody></table>`);
+    }
+    async function fijarAlmacenTraspaso(origen,valor){
+      try{
+        const fila=(window._almTras||[]).find(x=>(x.empresaOrigenId||null)===origen);
+        if(valor===""){ if(fila) await api(`/intragrupo/traspasos/almacenes/${fila.id}`,{method:"DELETE"}); }
+        else await api("/intragrupo/traspasos/almacenes",{method:"PUT",body:JSON.stringify({empresaOrigenId:origen,almacenId:valor==="ninguno"?null:valor})});
+        toast("Almacén de entrada guardado.","ok"); vIntragrupo();
+      }catch(e){ toast(e.message,"err"); }
     }
     async function vConsolidado(anio){
       anio=anio||new Date().getFullYear();
@@ -2404,6 +2426,11 @@
       const noElim=c.noEliminadas.length?panel("Sin eliminar (no cuadran entre las dos empresas)",`<table><thead><tr><th>Factura</th><th>Emisor → receptor</th><th class="num">Emitido</th><th class="num">Contabilizado</th><th>Situación</th></tr></thead><tbody>${c.noEliminadas.map(n=>`<tr><td class="mono">${agEsc(n.numero)}</td><td>${agEsc(n.emisor)} → ${agEsc(n.receptor)}</td><td class="num">${eur(n.baseEmitida)}</td><td class="num">${eur(n.baseContabilizada)}</td><td>${agEsc(n.situacion)}</td></tr>`).join("")}</tbody></table>`):"";
       const elim=c.eliminaciones.length?panel("Apuntes de eliminación",`<table><thead><tr><th>Empresa</th><th>Documento</th><th>Concepto</th><th>Cuenta</th><th class="num">Debe</th><th class="num">Haber</th></tr></thead><tbody>${c.eliminaciones.map(x=>`<tr><td>${agEsc(x.empresa)}</td><td class="mono">${agEsc(x.documento)}</td><td>${agEsc(x.concepto)}</td><td class="mono">${x.cuenta}</td><td class="num">${num(x.debe)}</td><td class="num">${num(x.haber)}</td></tr>`).join("")}</tbody></table>`):"";
       const volver=`<button class="btn small secondary" onclick="vIntragrupo(${anio})">Ver cuadre</button>`;
+      const invs=c.inversiones||[];
+      const pInv=(invs.length||(c.avisos||[]).length)?panel("Inversión – patrimonio neto",`<p class="muted" style="margin:0 0 10px">El coste de cada participación se elimina contra el patrimonio neto (grupos 10 a 13) de la participada. Se configura en el perímetro («Participación que tiene»).</p>
+        ${invs.length?`<table><thead><tr><th>Participada</th><th>Titular</th><th class="num">%</th><th class="num">Coste</th><th class="num">PN al adquirir</th><th class="num">PN actual</th><th class="num">Fondo de comercio</th><th class="num">Reservas consolidadas</th><th class="num">Socios externos</th></tr></thead><tbody>
+        ${invs.map(i=>`<tr><td>${agEsc(i.participada)}</td><td>${agEsc(i.titular)}</td><td class="num">${numCant(i.porcentaje)}</td><td class="num">${eur(i.coste)}</td><td class="num">${eur(i.patrimonioAdquisicion)}</td><td class="num">${eur(i.patrimonioActual)}</td><td class="num">${eur(i.fondoComercio)}</td><td class="num">${eur(i.reservas)}</td><td class="num">${eur(i.sociosExternos)}</td></tr>`).join("")}</tbody></table>`:""}
+        ${(c.avisos||[]).map(a=>`<p class="muted" style="font-size:12px;margin:8px 0 0">⚠ ${agEsc(a)}</p>`).join("")}`):"";
       const nomE=id=>(perim.find(p=>p.empresaId===id)||{}).razonSocial||"—";
       const metodoTxt={Global:"Integración global",Proporcional:"Proporcional",Excluida:"Excluida"};
       const pPerim=panel("Perímetro de consolidación",`<p class="muted" style="margin:0 0 10px">Participación del grupo en cada empresa y cómo se consolida. Global: al 100 %, y la parte de otros socios va a socios externos. Proporcional: en su porcentaje. Excluida: no se consolida.</p>
@@ -2419,14 +2446,22 @@
         `<button class="btn small secondary" onclick="modalCorrespondencia()">+ Correspondencia</button>`);
       window._correspondencias=corr;
       view(panel(`Consolidado del grupo ${anio}`,`<p class="muted" style="margin:0 0 12px">Saldos (debe − haber) de cada empresa por cuenta de 3 dígitos, con las ventas, compras y saldos entre empresas del grupo eliminados. Solo se eliminan las facturas que cuadran en las dos empresas.</p>`+resumen+
-        (c.lineas.length?`<div style="overflow-x:auto"><table><thead><tr><th>Cuenta</th><th>Nombre</th>${cab}<th class="num">Suma</th><th class="num">Eliminado</th><th class="num">Consolidado</th></tr></thead><tbody>${filas}</tbody></table></div>`:'<p class="muted" style="margin:0">Sin asientos en el ejercicio (las empresas con contabilidad simple no tienen asientos que consolidar).</p>'),volver)+noElim+elim+pPerim+pCorr);
+        (c.lineas.length?`<div style="overflow-x:auto"><table><thead><tr><th>Cuenta</th><th>Nombre</th>${cab}<th class="num">Suma</th><th class="num">Eliminado</th><th class="num">Consolidado</th></tr></thead><tbody>${filas}</tbody></table></div>`:'<p class="muted" style="margin:0">Sin asientos en el ejercicio (las empresas con contabilidad simple no tienen asientos que consolidar).</p>'),volver)+pInv+noElim+elim+pPerim+pCorr);
     }
     function modalPerimetro(empresaId){
       const p=(window._perimetro||[]).find(x=>x.empresaId===empresaId); if(!p) return;
       const op=(v,t)=>`<option value="${v}"${p.metodo===v?" selected":""}>${t}</option>`;
       abrir(`Perímetro · ${p.razonSocial}`,`<div class="grid2"><div><label>Participación (%)</label><input id="pe_pct" type="number" step="0.0001" min="0" max="100" value="${p.porcentaje}"/></div>
-        <div><label>Método</label><select id="pe_met">${op("Global","Integración global")}${op("Proporcional","Integración proporcional")}${op("Excluida","Excluida (no se consolida)")}</select></div></div>`,
-        async()=>{ await api(`/intragrupo/perimetro/${empresaId}`,{method:"PUT",body:JSON.stringify({porcentaje:Number(val("pe_pct")),metodo:val("pe_met")})}); toast("Perímetro guardado.","ok"); setTimeout(()=>vConsolidado(window._consAnio)); });
+        <div><label>Método</label><select id="pe_met">${op("Global","Integración global")}${op("Proporcional","Integración proporcional")}${op("Excluida","Excluida (no se consolida)")}</select></div></div>
+        <label style="margin-top:12px">Participación que tiene <span class="muted" style="font-weight:400;font-size:12px">— para eliminar la inversión contra su patrimonio neto</span></label>
+        <select id="pe_tit"><option value="">— Ninguna (no se elimina la inversión) —</option>${(window._perimetro||[]).filter(x=>x.empresaId!==empresaId).map(x=>`<option value="${x.empresaId}"${p.titularId===x.empresaId?" selected":""}>${agEsc(x.razonSocial)}</option>`).join("")}</select>
+        <div class="grid2"><div><label>Cuenta de la inversión</label><input id="pe_cta" value="${p.cuentaInversion||""}" placeholder="2403"/></div>
+        <div><label>Coste (vacío: saldo de la cuenta)</label><input id="pe_cos" type="number" step="0.01" min="0" value="${p.costeInversion??""}"/></div></div>
+        <label>Patrimonio neto al adquirirla (vacío: el actual)</label><input id="pe_pna" type="number" step="0.01" value="${p.patrimonioAdquisicion??""}"/>
+        <p class="muted" style="font-size:12px;margin:8px 0 0">Coste − participación × patrimonio al adquirirla = fondo de comercio (si sale negativo, reservas). La parte del grupo en lo generado después va a reservas en sociedades consolidadas y la de otros socios, a socios externos.</p>`,
+        async()=>{ const num=id=>val(id)===""?null:Number(val(id));
+          await api(`/intragrupo/perimetro/${empresaId}`,{method:"PUT",body:JSON.stringify({porcentaje:Number(val("pe_pct")),metodo:val("pe_met"),titularId:val("pe_tit")||null,
+            cuentaInversion:val("pe_cta")||null,costeInversion:num("pe_cos"),patrimonioAdquisicion:num("pe_pna")})}); toast("Perímetro guardado.","ok"); setTimeout(()=>vConsolidado(window._consAnio)); });
     }
     function modalCorrespondencia(id){
       const x=id?(window._correspondencias||[]).find(c=>c.id===id):null; const emp=window._perimetro||[];

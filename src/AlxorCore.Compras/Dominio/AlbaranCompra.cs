@@ -73,6 +73,9 @@ public sealed class AlbaranCompra : RaizAgregadoEmpresa<Guid>
     /// <summary>Almacén en que entró la mercancía (null si no se registró entrada de inventario).</summary>
     public Guid? AlmacenId { get; private set; }
 
+    /// <summary>Albarán de venta de la empresa del grupo del que nace esta recepción (traspaso intragrupo).</summary>
+    public Guid? AlbaranVentaOrigenId { get; private set; }
+
     public DateTimeOffset? AnuladoEn { get; private set; }
 
     public string? MotivoAnulacion { get; private set; }
@@ -92,7 +95,8 @@ public sealed class AlbaranCompra : RaizAgregadoEmpresa<Guid>
     }
 
     public static Resultado<AlbaranCompra> Crear(Guid empresaId, Guid pedidoId, int numero, DateOnly fecha, string? referencia,
-        IReadOnlyList<(Guid LineaPedidoId, Guid? ProductoId, string Descripcion, decimal Cantidad)> lineas, IReloj reloj, string? serie = null, Guid? almacenId = null)
+        IReadOnlyList<(Guid LineaPedidoId, Guid? ProductoId, string Descripcion, decimal Cantidad)> lineas, IReloj reloj, string? serie = null, Guid? almacenId = null,
+        Guid? albaranVentaOrigenId = null)
     {
         ArgumentNullException.ThrowIfNull(reloj);
         ArgumentNullException.ThrowIfNull(lineas);
@@ -101,7 +105,7 @@ public sealed class AlbaranCompra : RaizAgregadoEmpresa<Guid>
             return Resultado.Fallo<AlbaranCompra>(Error.Validacion("albaran.sin_lineas", "El albarán necesita al menos una línea recibida."));
         }
 
-        var albaran = new AlbaranCompra(Guid.NewGuid(), empresaId, pedidoId, numero, fecha, referencia?.Trim(), serie, reloj.AhoraUtc) { AlmacenId = almacenId };
+        var albaran = new AlbaranCompra(Guid.NewGuid(), empresaId, pedidoId, numero, fecha, referencia?.Trim(), serie, reloj.AhoraUtc) { AlmacenId = almacenId, AlbaranVentaOrigenId = albaranVentaOrigenId };
         foreach (var l in lineas)
         {
             albaran._lineas.Add(new LineaAlbaran(Guid.NewGuid(), l.LineaPedidoId, l.ProductoId, l.Descripcion?.Trim() ?? string.Empty, l.Cantidad));

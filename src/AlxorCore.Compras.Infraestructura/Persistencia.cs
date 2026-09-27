@@ -26,6 +26,8 @@ public sealed class ComprasDbContext : DbContextEmpresaBase, IUnidadDeTrabajoCom
 
     public DbSet<AlbaranCompra> Albaranes => Set<AlbaranCompra>();
 
+    public DbSet<AlmacenTraspaso> AlmacenesTraspaso => Set<AlmacenTraspaso>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Esquema);
@@ -77,9 +79,11 @@ internal sealed class ConfiguracionPedido : IEntityTypeConfiguration<PedidoCompr
         builder.Ignore(p => p.NumeroCompleto);
         builder.Property(p => p.SolicitudOrigenId).HasColumnName("solicitud_origen_id");
         builder.Property(p => p.EmpresaOrigenId).HasColumnName("empresa_origen_id");
-        builder.Property(p => p.AlbaranVentaOrigenId).HasColumnName("albaran_venta_origen_id");
-        builder.HasIndex(p => new { p.EmpresaId, p.AlbaranVentaOrigenId }).IsUnique().HasFilter("albaran_venta_origen_id IS NOT NULL")
-            .HasDatabaseName("ux_pedido_compra_albaran_origen");
+        builder.Property(p => p.PedidoVentaOrigenId).HasColumnName("pedido_venta_origen_id");
+        builder.Ignore(p => p.EsTraspasoIntragrupo);
+        // Un único pedido vivo por pedido de venta de origen (si se cancela, el siguiente albarán abre otro).
+        builder.HasIndex(p => new { p.EmpresaId, p.PedidoVentaOrigenId }).IsUnique()
+            .HasFilter("pedido_venta_origen_id IS NOT NULL AND estado <> 'Cancelado'").HasDatabaseName("ux_pedido_compra_pedido_venta_origen");
         builder.Property(p => p.Estado).HasColumnName("estado").HasMaxLength(20).HasConversion<string>().IsRequired();
         builder.Property(p => p.CreadoEn).HasColumnName("creado_en").IsRequired();
         builder.OwnsMany(p => p.Lineas, l =>
@@ -94,6 +98,7 @@ internal sealed class ConfiguracionPedido : IEntityTypeConfiguration<PedidoCompr
             l.Property(x => x.PrecioUnitario).HasColumnName("precio_unitario").HasColumnType("numeric(14,2)").IsRequired();
             l.Property(x => x.CantidadRecibida).HasColumnName("cantidad_recibida").HasColumnType("numeric(14,3)").IsRequired();
             l.Property(x => x.CantidadFacturada).HasColumnName("cantidad_facturada").HasColumnType("numeric(14,3)").IsRequired();
+            l.Property(x => x.LineaVentaOrigenId).HasColumnName("linea_venta_origen_id");
         });
         builder.HasIndex(p => new { p.EmpresaId, p.Estado }).HasDatabaseName("ix_pedido_empresa_estado");
         builder.HasIndex(p => new { p.EmpresaId, p.Ejercicio, p.ProveedorId, p.Numero })
@@ -119,6 +124,9 @@ internal sealed class ConfiguracionAlbaran : IEntityTypeConfiguration<AlbaranCom
         builder.Property(a => a.CreadoEn).HasColumnName("creado_en").IsRequired();
         builder.Property(a => a.AlmacenId).HasColumnName("almacen_id");
         builder.Property(a => a.AnuladoEn).HasColumnName("anulado_en");
+        builder.Property(a => a.AlbaranVentaOrigenId).HasColumnName("albaran_venta_origen_id");
+        builder.HasIndex(a => new { a.EmpresaId, a.AlbaranVentaOrigenId }).IsUnique().HasFilter("albaran_venta_origen_id IS NOT NULL")
+            .HasDatabaseName("ux_albaran_compra_albaran_venta_origen");
         builder.Property(a => a.MotivoAnulacion).HasColumnName("motivo_anulacion").HasMaxLength(200);
         builder.OwnsMany(a => a.Lineas, l =>
         {
@@ -162,6 +170,36 @@ internal sealed class RepositorioSolicitudes : IRepositorioSolicitudes
     }
 }
 
+internal sealed class ConfiguracionAlmacenTraspaso : IEntityTypeConfiguration<AlmacenTraspaso>
+{
+    public void Configure(EntityTypeBuilder<AlmacenTraspaso> builder)
+    {
+        builder.ToTable("almacen_traspaso");
+        builder.HasKey(a => a.Id);
+        builder.Property(a => a.Id).HasColumnName("id").ValueGeneratedNever();
+        builder.Property(a => a.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        builder.Property(a => a.EmpresaOrigenId).HasColumnName("empresa_origen_id");
+        builder.Property(a => a.AlmacenId).HasColumnName("almacen_id");
+        builder.HasIndex(a => new { a.EmpresaId, a.EmpresaOrigenId }).IsUnique().AreNullsDistinct(false).HasDatabaseName("ux_almacen_traspaso_origen");
+        builder.Ignore(a => a.EventosDominio);
+    }
+}
+
+internal sealed class RepositorioAlmacenesTraspaso : IRepositorioAlmacenesTraspaso
+{
+    private readonly ComprasDbContext _contexto;
+    public RepositorioAlmacenesTraspaso(ComprasDbContext contexto) => _contexto = contexto;
+
+    public async Task<IReadOnlyList<AlmacenTraspaso>> ListarAsync(Guid empresaId, CancellationToken ct = default) =>
+        await _contexto.AlmacenesTraspaso.Where(a => a.EmpresaId == empresaId).ToListAsync(ct).ConfigureAwait(false);
+
+    public Task<AlmacenTraspaso?> ObtenerPorIdAsync(Guid id, CancellationToken ct = default) => _contexto.AlmacenesTraspaso.SingleOrDefaultAsync(a => a.Id == id, ct);
+
+    public void Agregar(AlmacenTraspaso almacen) => _contexto.AlmacenesTraspaso.Add(almacen);
+
+    public void Eliminar(AlmacenTraspaso almacen) => _contexto.AlmacenesTraspaso.Remove(almacen);
+}
+
 internal sealed class RepositorioPedidos : IRepositorioPedidos
 {
     private readonly ComprasDbContext _contexto;
@@ -172,8 +210,8 @@ internal sealed class RepositorioPedidos : IRepositorioPedidos
 
     public void Agregar(PedidoCompra pedido) => _contexto.Pedidos.Add(pedido);
 
-    public Task<PedidoCompra?> PorAlbaranVentaOrigenAsync(Guid empresaId, Guid albaranVentaId, CancellationToken ct = default) =>
-        _contexto.Pedidos.SingleOrDefaultAsync(p => p.EmpresaId == empresaId && p.AlbaranVentaOrigenId == albaranVentaId, ct);
+    public Task<PedidoCompra?> PorPedidoVentaOrigenAsync(Guid empresaId, Guid pedidoVentaId, CancellationToken ct = default) =>
+        _contexto.Pedidos.SingleOrDefaultAsync(p => p.EmpresaId == empresaId && p.PedidoVentaOrigenId == pedidoVentaId && p.Estado != EstadoPedido.Cancelado, ct);
 
     public async Task<IReadOnlyList<PedidoDto>> ListarAsync(Guid empresaId, CancellationToken ct = default)
     {
@@ -207,6 +245,9 @@ internal sealed class RepositorioAlbaranes : IRepositorioAlbaranes
     public void Agregar(AlbaranCompra albaran) => _contexto.Albaranes.Add(albaran);
 
     public Task<AlbaranCompra?> ObtenerPorIdAsync(Guid id, CancellationToken ct = default) => _contexto.Albaranes.SingleOrDefaultAsync(a => a.Id == id, ct);
+
+    public Task<AlbaranCompra?> PorAlbaranVentaOrigenAsync(Guid empresaId, Guid albaranVentaId, CancellationToken ct = default) =>
+        _contexto.Albaranes.SingleOrDefaultAsync(a => a.EmpresaId == empresaId && a.AlbaranVentaOrigenId == albaranVentaId, ct);
 
     public async Task<IReadOnlyList<AlbaranCompra>> DePedidoAsync(Guid pedidoId, CancellationToken ct = default) =>
         await _contexto.Albaranes.Where(a => a.PedidoId == pedidoId).OrderBy(a => a.Numero).ToListAsync(ct).ConfigureAwait(false);

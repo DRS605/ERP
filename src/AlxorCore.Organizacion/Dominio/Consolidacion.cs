@@ -43,6 +43,20 @@ public sealed class PerimetroConsolidacion : RaizAgregadoGrupo<Guid>
 
     public MetodoConsolidacion Metodo { get; private set; }
 
+    /// <summary>Empresa del grupo que tiene la participación (la inversión que se elimina contra el patrimonio neto).</summary>
+    public Guid? TitularId { get; private set; }
+
+    /// <summary>Cuenta (o prefijo) de la inversión en la titular; por defecto 2403, participaciones en empresas del grupo.</summary>
+    public string? CuentaInversion { get; private set; }
+
+    /// <summary>Coste de la participación; sin él, el saldo de <see cref="CuentaInversion"/> en la titular.</summary>
+    public decimal? CosteInversion { get; private set; }
+
+    /// <summary>Patrimonio neto de la empresa en la fecha de adquisición; sin él, el actual (sin reservas posteriores).</summary>
+    public decimal? PatrimonioAdquisicion { get; private set; }
+
+    public const string CuentaInversionPorDefecto = "2403";
+
     public DateTimeOffset ActualizadoEn { get; private set; }
 
     public static PerimetroConsolidacion Crear(Guid grupoId, Guid empresaId) => new(Guid.NewGuid(), grupoId, empresaId);
@@ -63,6 +77,44 @@ public sealed class PerimetroConsolidacion : RaizAgregadoGrupo<Guid>
         Porcentaje = porcentaje;
         Metodo = metodo;
         ActualizadoEn = reloj.AhoraUtc;
+        return Resultado.Ok();
+    }
+
+    /// <summary>
+    /// Fija la participación que se elimina contra el patrimonio neto: quién la tiene, en qué cuenta, su coste y el
+    /// patrimonio neto de la empresa al adquirirla. Sin titular, no hay eliminación inversión-patrimonio neto.
+    /// </summary>
+    public Resultado FijarInversion(Guid? titularId, string? cuenta, decimal? coste, decimal? patrimonioAdquisicion)
+    {
+        if (titularId is null)
+        {
+            TitularId = null;
+            CuentaInversion = null;
+            CosteInversion = null;
+            PatrimonioAdquisicion = null;
+            return Resultado.Ok();
+        }
+
+        if (titularId == EmpresaId)
+        {
+            return Resultado.Fallo(Error.Validacion("consolidacion.titular", "La participación la tiene otra empresa del grupo, no ella misma."));
+        }
+
+        var c = string.IsNullOrWhiteSpace(cuenta) ? CuentaInversionPorDefecto : cuenta.Trim();
+        if (c.Length is < 3 or > 12 || !c.All(char.IsAsciiDigit))
+        {
+            return Resultado.Fallo(Error.Validacion("consolidacion.cuenta_inversion", "La cuenta de la inversión es un código de 3 a 12 dígitos."));
+        }
+
+        if (coste is < 0m || (coste is { } k && decimal.Round(k, 2) != k) || (patrimonioAdquisicion is { } pn && decimal.Round(pn, 2) != pn))
+        {
+            return Resultado.Fallo(Error.Validacion("consolidacion.importes", "El coste (≥ 0) y el patrimonio neto van en euros con 2 decimales."));
+        }
+
+        TitularId = titularId;
+        CuentaInversion = c;
+        CosteInversion = coste;
+        PatrimonioAdquisicion = patrimonioAdquisicion;
         return Resultado.Ok();
     }
 }

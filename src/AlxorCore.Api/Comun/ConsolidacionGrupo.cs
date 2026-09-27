@@ -25,6 +25,15 @@ public sealed record EliminacionDto(string Empresa, string Documento, string Con
 public sealed record NoEliminadaDto(string Emisor, string Receptor, string Numero, decimal BaseEmitida, decimal BaseContabilizada, string Situacion);
 
 /// <summary>
+/// Eliminación inversión-patrimonio neto de una empresa participada: el coste de la participación en la titular contra
+/// el patrimonio neto de la participada. La diferencia con su parte del patrimonio al adquirirla es el fondo de comercio
+/// (o, si es negativa, reservas); su parte de lo generado después, reservas en sociedades consolidadas; y la parte de
+/// otros socios, patrimonio de socios externos.
+/// </summary>
+public sealed record InversionEliminadaDto(string Participada, string Titular, decimal Porcentaje, string CuentaInversion, decimal Coste,
+    decimal PatrimonioAdquisicion, decimal PatrimonioActual, decimal FondoComercio, decimal Reservas, decimal SociosExternos);
+
+/// <summary>
 /// Consolidación del grupo en un ejercicio: balance de sumas y saldos de todas las empresas, con las operaciones
 /// intragrupo eliminadas (ventas contra compras, y los saldos pendientes de cobro contra los de pago).
 /// </summary>
@@ -32,7 +41,8 @@ public sealed record ConsolidadoDto(int Ejercicio, IReadOnlyList<EmpresaConsolid
     IReadOnlyList<EliminacionDto> Eliminaciones, IReadOnlyList<NoEliminadaDto> NoEliminadas, decimal ResultadoAgregado, decimal ResultadoConsolidado,
     decimal VentasEliminadas, decimal ComprasEliminadas, decimal SaldosEliminados, bool EliminacionesCuadran, IReadOnlyList<string> EmpresasSinAcceso,
     IReadOnlyList<CorrespondenciaConsolidadaDto>? Correspondencias = null, decimal ResultadoSociosExternos = 0m, decimal ResultadoDominante = 0m,
-    IReadOnlyList<string>? EmpresasExcluidas = null);
+    IReadOnlyList<string>? EmpresasExcluidas = null, IReadOnlyList<InversionEliminadaDto>? Inversiones = null, decimal FondoComercio = 0m,
+    decimal ReservasConsolidadas = 0m, decimal PatrimonioSociosExternos = 0m, IReadOnlyList<string>? Avisos = null);
 
 /// <summary>
 /// Consolidación contable del grupo (agregación y eliminaciones), sobre la contabilidad de cada empresa leída en su
@@ -42,7 +52,9 @@ public sealed record ConsolidadoDto(int Ejercicio, IReadOnlyList<EmpresaConsolid
 /// <item>de cada factura intragrupo que cuadra (emitida por una y contabilizada por la otra por la misma base) se
 /// eliminan los apuntes reales de sus asientos: la venta (7xx) en la emisora y la compra o el gasto (6xx) en la
 /// receptora;</item>
-/// <item>se eliminan también lo que queda pendiente de cobro (430) y de pago (400) entre ellas.</item>
+/// <item>se eliminan también lo que queda pendiente de cobro (430) y de pago (400) entre ellas;</item>
+/// <item>y la inversión de la titular en cada participada contra el patrimonio neto de esta (grupos 10 a 13), con el
+/// fondo de comercio, las reservas en sociedades consolidadas y el patrimonio de socios externos.</item>
 /// </list>
 /// Las facturas que no cuadran no se eliminan: se listan para resolverlas (el cuadre intragrupo dice qué falta).
 /// </summary>
@@ -53,6 +65,17 @@ public sealed class ConsolidacionGrupo
     public ConsolidacionGrupo(OperacionesIntragrupo intragrupo) => _intragrupo = intragrupo;
 
     private static string Tres(string cuenta) => cuenta.Length > 3 ? cuenta[..3] : cuenta;
+
+    /// <summary>Línea de reservas en sociedades consolidadas (no es una cuenta del PGC de las empresas).</summary>
+    public const string CuentaReservasConsolidadas = "RSC";
+
+    /// <summary>Línea de patrimonio neto de socios externos.</summary>
+    public const string CuentaSociosExternos = "SOE";
+
+    /// <summary>Fondo de comercio de consolidación.</summary>
+    public const string CuentaFondoComercio = "204";
+
+    private static bool DePatrimonioNeto(string cuenta) => cuenta.Length >= 2 && cuenta[0] == '1' && cuenta[1] is '0' or '1' or '2' or '3';
 
     public async Task<ConsolidadoDto> ConsolidarAsync(Guid empresaActual, Guid usuarioId, int ejercicio, CancellationToken ct = default)
     {
@@ -185,6 +208,74 @@ public sealed class ConsolidacionGrupo
             correspondencias.Add(new CorrespondenciaConsolidadaDto(c.Descripcion, nombreEmpresa[c.EmpresaAId], c.CuentaA, sa, nombreEmpresa[c.EmpresaBId], c.CuentaB, sb, Redondeo.Dos(sa + sb)));
         }
 
+        // Inversión-patrimonio neto de cada participada con titular en el perímetro.
+        var inversiones = new List<InversionEliminadaDto>();
+        var avisos = new List<string>();
+        foreach (var e in empresas)
+        {
+            if (perimetro.GetValueOrDefault(e.Id) is not { TitularId: { } titular } p)
+            {
+                continue;
+            }
+
+            if (!dentro.Contains(titular))
+            {
+                avisos.Add($"{e.RazonSocial}: su titular ({nombreEmpresa.GetValueOrDefault(titular, "—")}) no está en la consolidación; no se elimina la inversión.");
+                continue;
+            }
+
+            var pct = p.Porcentaje / 100m;
+            var cuentaInv = p.CuentaInversion ?? AlxorCore.Organizacion.Dominio.PerimetroConsolidacion.CuentaInversionPorDefecto;
+            var coste = p.CosteInversion
+                ?? hojas[titular].Where(h => h.CuentaCodigo.StartsWith(cuentaInv, StringComparison.Ordinal)).Sum(h => h.SumaDebe - h.SumaHaber);
+            var costeEliminado = Redondeo.Dos(coste * factor[titular]);
+            var pnCuentas = hojas[e.Id].Where(h => DePatrimonioNeto(h.CuentaCodigo)).GroupBy(h => Tres(h.CuentaCodigo), StringComparer.Ordinal)
+                .Select(g => (Cuenta: g.Key, Acreedor: g.Sum(h => h.SumaHaber - h.SumaDebe))).Where(x => x.Acreedor != 0m).ToList();
+            var pnActual = pnCuentas.Sum(x => x.Acreedor);
+            var pnAdquisicion = p.PatrimonioAdquisicion ?? pnActual;
+            if (costeEliminado == 0m && pnActual == 0m)
+            {
+                avisos.Add($"{e.RazonSocial}: ni la inversión ({cuentaInv}) ni su patrimonio neto tienen saldo; no hay nada que eliminar.");
+                continue;
+            }
+
+            var pnEliminado = 0m;
+            foreach (var (cuenta, acreedor) in pnCuentas)
+            {
+                var importe = Redondeo.Dos(acreedor * factor[e.Id]);
+                pnEliminado += importe;
+                eliminaciones.Add(new EliminacionDto(e.RazonSocial, "Inversión-patrimonio neto", "Patrimonio neto de la participada", cuenta,
+                    importe > 0m ? importe : 0m, importe < 0m ? -importe : 0m));
+            }
+
+            eliminaciones.Add(new EliminacionDto(nombreEmpresa[titular], "Inversión-patrimonio neto", $"Participación en {e.RazonSocial}", Tres(cuentaInv),
+                costeEliminado < 0m ? -costeEliminado : 0m, costeEliminado > 0m ? costeEliminado : 0m));
+            var diferencia = Redondeo.Dos(costeEliminado - (pct * pnAdquisicion));
+            var fondo = Math.Max(diferencia, 0m);
+            var reservas = Redondeo.Dos((pct * (pnActual - pnAdquisicion)) + Math.Max(-diferencia, 0m));
+            // Lo que falta para cuadrar es la parte de otros socios: (factor − participación) × patrimonio neto.
+            var externos = Redondeo.Dos(pnEliminado + fondo - costeEliminado - reservas);
+            if (fondo != 0m)
+            {
+                eliminaciones.Add(new EliminacionDto(nombreEmpresa[titular], "Inversión-patrimonio neto", $"Fondo de comercio de {e.RazonSocial}", CuentaFondoComercio, fondo, 0m));
+            }
+
+            foreach (var (cuenta, concepto, importe) in new[] { (CuentaReservasConsolidadas, "Reservas en sociedades consolidadas", reservas), (CuentaSociosExternos, "Socios externos", externos) })
+            {
+                if (importe != 0m)
+                {
+                    eliminaciones.Add(new EliminacionDto(e.RazonSocial, "Inversión-patrimonio neto", concepto, cuenta, importe < 0m ? -importe : 0m, importe > 0m ? importe : 0m));
+                }
+            }
+
+            inversiones.Add(new InversionEliminadaDto(e.RazonSocial, nombreEmpresa[titular], p.Porcentaje, cuentaInv, Redondeo.Dos(coste), Redondeo.Dos(pnAdquisicion),
+                Redondeo.Dos(pnActual), fondo, reservas, externos));
+        }
+
+        nombres.TryAdd(CuentaFondoComercio, "Fondo de comercio de consolidación");
+        nombres[CuentaReservasConsolidadas] = "Reservas en sociedades consolidadas";
+        nombres[CuentaSociosExternos] = "Socios externos (patrimonio neto)";
+
         var eliminado = eliminaciones.GroupBy(x => x.Cuenta, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.Sum(x => x.Debe - x.Haber), StringComparer.Ordinal);
         var cuentas = saldos.Values.SelectMany(s => s.Keys).Concat(eliminado.Keys).Distinct(StringComparer.Ordinal).OrderBy(c => c, StringComparer.Ordinal).ToList();
         var lineas = cuentas.Select(c =>
@@ -209,6 +300,7 @@ public sealed class ConsolidacionGrupo
             eliminaciones, noEliminadas, Redondeo.Dos(agregadoResultado), Redondeo.Dos(consolidadoResultado), Redondeo.Dos(ventas), Redondeo.Dos(compras),
             Redondeo.Dos(pendientes), eliminaciones.Sum(x => x.Debe) == eliminaciones.Sum(x => x.Haber), cuadre.EmpresasSinAcceso,
             correspondencias, Redondeo.Dos(socios), Redondeo.Dos(consolidadoResultado - socios),
-            visibles.Where(e => !dentro.Contains(e.Id)).Select(e => e.RazonSocial).ToList());
+            visibles.Where(e => !dentro.Contains(e.Id)).Select(e => e.RazonSocial).ToList(), inversiones, inversiones.Sum(i => i.FondoComercio),
+            inversiones.Sum(i => i.Reservas), inversiones.Sum(i => i.SociosExternos), avisos);
     }
 }

@@ -103,33 +103,74 @@ prestamista y 5133 en la prestataria.
 - Las ventas, compras y saldos de clientes y proveedores entre empresas ya se eliminan solos: no hace falta
   emparejarlos.
 
+### Inversión – patrimonio neto
+
+En el perímetro de la participada se indica, en «Participación que tiene»:
+
+- la **titular**: la empresa del grupo que tiene la participación;
+- la **cuenta de la inversión**: por defecto 2403, participaciones a largo plazo en empresas del grupo; admite prefijo;
+- el **coste**: sin él, se toma el saldo de esa cuenta en la titular;
+- el **patrimonio neto al adquirirla**: sin él, el actual, y entonces no hay reservas posteriores a la compra.
+
+La consolidación elimina el coste de la inversión, en la titular, contra el patrimonio neto de la participada (grupos
+10 a 13). Con *p* = participación:
+
+| Línea | Importe |
+|---|---|
+| Fondo de comercio de consolidación (204) | coste − *p* × patrimonio al adquirirla, si es positivo |
+| Reservas en sociedades consolidadas (`RSC`) | *p* × (patrimonio actual − al adquirirla), más la diferencia si es negativa |
+| Socios externos (`SOE`) | (100 % − *p*) × patrimonio actual en integración global; 0 en proporcional |
+
+Ejemplo: A compra el 80 % de B por 1.000, cuando el patrimonio neto de B es 900; hoy es 1.000. Salen 280 de fondo de
+comercio, 80 de reservas y 200 de socios externos.
+
+Los apuntes cuadran siempre. El resultado del ejercicio de los socios externos sigue aparte («Atribuido a socios
+externos»). Si la titular no está en la consolidación (excluida o sin acceso), no se elimina y se avisa.
+
 ## 6. Traspaso de existencias
 
 Cuando una empresa entrega mercancía a otra del grupo (albarán de venta a un cliente enlazado), la receptora recibe
 la mercancía sola:
 
-1. Se crea en la receptora un **pedido de compra confirmado**:
+1. Con la **primera entrega** se crea en la receptora el **pedido de compra espejo** del pedido de venta, confirmado:
    - proveedor: el enlazado con la empresa de origen;
-   - líneas: las del albarán, al precio del pedido de venta con su descuento aplicado (precio neto).
-2. Se registra su **albarán de recepción**, con la referencia «Albarán N de …».
-3. Hay **entrada en el almacén** activo de la receptora con el código más bajo. Si no tiene almacén, se registra el
-   albarán sin movimiento de existencias.
-4. El pedido lleva la marca **Traspaso intragrupo**. No se factura desde compras (409 `pedido.intragrupo`): la factura
-   llega a la bandeja de facturas recibidas cuando la emisora factura (§ 2).
-5. Es **idempotente**: un albarán de venta solo genera un pedido (índice único `ux_pedido_compra_albaran_origen`).
+   - líneas: todas las del pedido de venta, al precio con su descuento aplicado (precio neto); cada una queda
+     enlazada con su línea de venta.
+2. Cada albarán de venta es un **albarán de recepción** de ese pedido, con la referencia «Albarán N de …». Las
+   **entregas parciales** se acumulan en el mismo pedido hasta completarlo.
+3. Hay **entrada en el almacén** que la receptora haya elegido (ver abajo).
+4. El pedido lleva la marca **Traspaso intragrupo**. No se recibe, edita, cancela ni factura a mano (409
+   `pedido.intragrupo`): la factura llega a la bandeja de facturas recibidas cuando la emisora factura (§ 2).
+5. Es **idempotente**: cada albarán de venta genera un solo albarán de recepción
+   (`ux_albaran_compra_albaran_venta_origen`), y hay un solo pedido vivo por pedido de venta
+   (`ux_pedido_compra_pedido_venta_origen`).
 
-Al **anular el albarán de venta** en la empresa de origen:
+### Almacén de entrada
 
-- en la receptora se anula el albarán de compra;
-- la mercancía sale del almacén;
-- el pedido se cancela.
+En «Entre empresas» → «Traspasos de existencias: almacén de entrada» (`/intragrupo/traspasos/almacenes`), la receptora
+elige dónde entra lo que le llega:
 
-Si la receptora ya ha consumido esas existencias, la anulación se rechaza (`albaran.existencias_usadas`) y no se
-deshace nada. El albarán de compra del traspaso no se anula desde la receptora (409 `albaran.intragrupo`).
+- un almacén **por empresa de origen**, o uno **general** para el resto;
+- **Sin entrada en inventario**: se registra el albarán sin movimiento de existencias;
+- sin elegir, o si el almacén elegido se ha desactivado: el almacén activo con el código más bajo. Si no hay ninguno,
+  no hay entrada.
+
+### Anulación
+
+Al **anular un albarán de venta** en la empresa de origen, en la receptora:
+
+- se anula **solo su albarán de recepción**;
+- la mercancía sale del almacén y la cantidad vuelve a quedar pendiente en el pedido;
+- si el pedido se queda sin recepciones vivas, se cancela, y la siguiente entrega abre otro.
+
+El albarán de compra del traspaso no se anula desde la receptora (409 `albaran.intragrupo`).
+
+Si la receptora ya ha gastado esas existencias, en ella no se deshace nada (`albaran.existencias_usadas`): el albarán
+de venta queda anulado en origen y la recepción sigue viva en destino. El fallo queda en el registro de la API. Hay
+que regularizar el almacén de la receptora y repetir la anulación con
+`POST /intragrupo/albaranes/{id}/deshacer-traspaso`, que solo funciona con el albarán de venta ya anulado.
 
 ## 7. Pendiente
 
-- Patrimonio de socios externos y eliminación inversión-patrimonio neto (la consolidación da el resultado atribuido,
-  no la eliminación de la participación en el capital).
-- Traspaso a un almacén elegido por la receptora (hoy entra en el de código más bajo) y traspasos parciales por
-  líneas.
+- Comprobar las existencias de la receptora **antes** de anular el albarán de venta, para no dejar la recepción viva.
+- Consolidación en cadena (participaciones indirectas) y por fecha de adquisición a mitad de ejercicio.

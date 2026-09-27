@@ -223,6 +223,11 @@ internal sealed class ConfiguracionPerimetroConsolidacion : IEntityTypeConfigura
         builder.Property(p => p.ActualizadoEn).HasColumnName("actualizado_en").IsRequired();
         builder.HasIndex(p => new { p.GrupoId, p.EmpresaId }).IsUnique().HasDatabaseName("ux_perimetro_grupo_empresa");
         builder.HasIndex(p => p.EmpresaId).HasDatabaseName("ix_perimetro_empresa");
+        builder.Property(p => p.TitularId).HasColumnName("titular_id");
+        builder.Property(p => p.CuentaInversion).HasColumnName("cuenta_inversion").HasMaxLength(12);
+        builder.Property(p => p.CosteInversion).HasColumnName("coste_inversion").HasColumnType("numeric(18,2)");
+        builder.Property(p => p.PatrimonioAdquisicion).HasColumnName("patrimonio_adquisicion").HasColumnType("numeric(18,2)");
+        builder.HasIndex(p => p.TitularId).HasDatabaseName("ix_perimetro_titular");
         builder.Ignore(p => p.EventosDominio);
     }
 }
