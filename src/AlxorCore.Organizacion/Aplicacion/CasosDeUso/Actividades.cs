@@ -1,3 +1,4 @@
+using AlxorCore.Nucleo.Aplicacion;
 using AlxorCore.Nucleo.Resultados;
 using AlxorCore.Nucleo.Tiempo;
 using AlxorCore.Organizacion.Aplicacion.Puertos;
@@ -26,6 +27,8 @@ public interface IRepositorioActividades
     Task<ActividadNegocio?> ObtenerPorIdAsync(Guid id, CancellationToken ct = default);
 
     Task<IReadOnlyList<ActividadNegocio>> ListarAsync(Guid grupoId, CancellationToken ct = default);
+
+    void Eliminar(ActividadNegocio actividad);
 }
 
 /// <summary>Repositorio de reglas de visibilidad de actividades por usuario y área.</summary>
@@ -38,6 +41,8 @@ public interface IRepositorioVisibilidad
     Task<IReadOnlyList<VisibilidadActividad>> ListarPorUsuarioAsync(Guid usuarioId, CancellationToken ct = default);
 
     Task<IReadOnlyList<VisibilidadActividad>> ListarPorUsuarioYAreaAsync(Guid usuarioId, AreaVisibilidad area, CancellationToken ct = default);
+
+    Task<IReadOnlyList<VisibilidadActividad>> ListarPorActividadAsync(Guid actividadId, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -124,6 +129,50 @@ public sealed class ActualizarActividad
         actividad.FijarActiva(activa, _reloj);
         await _uow.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return Resultado.Ok();
+    }
+}
+
+/// <summary>
+/// Caso de uso: eliminar una actividad que nada ha usado (artículos, terceros, facturas, gastos, reglas…). Sus reglas
+/// de visibilidad se borran con ella. Si está en uso, se desactiva en su lugar.
+/// </summary>
+public sealed class EliminarActividad
+{
+    private readonly IRepositorioActividades _actividades;
+    private readonly IRepositorioVisibilidad _visibilidad;
+    private readonly IComprobadorUso _uso;
+    private readonly IUnidadDeTrabajoOrganizacion _uow;
+
+    public EliminarActividad(IRepositorioActividades actividades, IRepositorioVisibilidad visibilidad, IComprobadorUso uso, IUnidadDeTrabajoOrganizacion uow)
+    {
+        _actividades = actividades;
+        _visibilidad = visibilidad;
+        _uso = uso;
+        _uow = uow;
+    }
+
+    public async Task<Resultado<BajaDto>> EjecutarAsync(Guid id, CancellationToken ct = default)
+    {
+        var actividad = await _actividades.ObtenerPorIdAsync(id, ct).ConfigureAwait(false);
+        if (actividad is null)
+        {
+            return Resultado.Fallo<BajaDto>(Error.NoEncontrado("actividad.no_encontrada", "La actividad no existe."));
+        }
+
+        var uso = await _uso.BuscarUsoAsync(TiposRegistro.Actividad, id, ct).ConfigureAwait(false);
+        if (uso is not null)
+        {
+            return Resultado.Fallo<BajaDto>(Bajas.EnUso("actividad", actividad.Nombre, uso));
+        }
+
+        foreach (var v in await _visibilidad.ListarPorActividadAsync(id, ct).ConfigureAwait(false))
+        {
+            _visibilidad.Eliminar(v);
+        }
+
+        _actividades.Eliminar(actividad);
+        await _uow.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(new BajaDto(id, true, false));
     }
 }
 

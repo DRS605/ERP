@@ -89,14 +89,21 @@ public sealed class PosterDocumento
     public async Task<Resultado<Asiento>> ConstruirAsync(DocumentoPendiente doc, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(doc);
-        var cuentaResultado = await _resolver.CuentaResultadoAsync(doc.EmpresaId, doc.Sentido, doc.Familia, doc.TipoTercero, ct).ConfigureAwait(false);
+        var esTesoreria = doc.Sentido is SentidoContable.Cobro or SentidoContable.Pago;
+        var cuentaResultado = esTesoreria ? string.Empty
+            : await _resolver.CuentaResultadoAsync(doc.EmpresaId, doc.Sentido, doc.Familia, doc.TipoTercero, ct).ConfigureAwait(false);
         var concepto = doc.Referencia + (string.IsNullOrWhiteSpace(doc.TerceroNombre) ? "" : " · " + doc.TerceroNombre);
 
         // Cuenta del tercero: su subcuenta individual si la tiene asignada; si no, la raíz genérica
         // (430 clientes / 400 proveedores). Así el mayor y el balance muestran el saldo por tercero.
-        var cuentaGenerica = doc.Sentido == SentidoContable.Venta ? PlanBasico.CuentaClientes : PlanBasico.CuentaProveedores;
+        // Un cobro o un pago puede ir contra otra cuenta (438 anticipos de clientes).
+        var cuentaGenerica = doc.Sentido is SentidoContable.Venta or SentidoContable.Cobro ? PlanBasico.CuentaClientes : PlanBasico.CuentaProveedores;
         var cuentaTercero = cuentaGenerica;
-        if (doc.TerceroId is Guid terceroId)
+        if (!string.IsNullOrWhiteSpace(doc.CuentaTercero))
+        {
+            cuentaTercero = doc.CuentaTercero;
+        }
+        else if (doc.TerceroId is Guid terceroId)
         {
             var sub = await _cuentas.ObtenerPorTerceroAsync(doc.EmpresaId, terceroId, ct).ConfigureAwait(false);
             if (sub is not null)
@@ -106,13 +113,18 @@ public sealed class PosterDocumento
         }
 
         // Compras: con prorrata solo es deducible parte de la cuota; la no deducible es más gasto.
-        var cuotaDeducible = doc.Sentido == SentidoContable.Venta || doc.CuotaIva <= 0m
+        var cuotaDeducible = doc.Sentido != SentidoContable.Compra || doc.CuotaIva <= 0m
             ? doc.CuotaIva
             : await _deduccion.CuotaDeducibleAsync(doc.EmpresaId, doc.FechaRegistro.Year, doc.CuotaIva, doc.Afectacion, ct).ConfigureAwait(false);
 
-        var lineas = doc.Sentido == SentidoContable.Venta
-            ? LineasVenta(doc, cuentaResultado, cuentaTercero, concepto)
-            : LineasCompra(doc, cuentaResultado, cuentaTercero, concepto, cuotaDeducible);
+        var tesoreria = string.IsNullOrWhiteSpace(doc.CuentaTesoreria) ? PlanBasico.CuentaBancos : doc.CuentaTesoreria;
+        var lineas = doc.Sentido switch
+        {
+            SentidoContable.Venta => LineasVenta(doc, cuentaResultado, cuentaTercero, concepto),
+            SentidoContable.Compra => LineasCompra(doc, cuentaResultado, cuentaTercero, concepto, cuotaDeducible),
+            SentidoContable.Cobro => [new LineaAsiento(tesoreria, doc.Total, 0m, concepto), new LineaAsiento(cuentaTercero, 0m, doc.Total, concepto)],
+            _ => [new LineaAsiento(cuentaTercero, doc.Total, 0m, concepto), new LineaAsiento(tesoreria, 0m, doc.Total, concepto)],
+        };
 
         // Anulación: el contraasiento, con el debe y el haber cambiados.
         if (doc.Anulacion)
@@ -123,7 +135,7 @@ public sealed class PosterDocumento
         await SembradorPlan.AsegurarAsync(doc.EmpresaId, _cuentas, ct).ConfigureAwait(false);
         var ejercicio = doc.FechaRegistro.Year;
         var numero = await _asientos.SiguienteNumeroAsync(doc.EmpresaId, ejercicio, ct).ConfigureAwait(false);
-        var origen = doc.Sentido == SentidoContable.Venta ? "Venta" : "Compra";
+        var origen = doc.Sentido.ToString();
         return Asiento.Crear(doc.EmpresaId, ejercicio, numero, doc.FechaRegistro, concepto, origen, lineas, _reloj);
     }
 

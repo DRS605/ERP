@@ -35,6 +35,7 @@ son **del grupo**: los usan documentos de cualquiera de sus empresas, que la RLS
 | Almacenes · ubicaciones | ✅ | Eliminar sin movimientos · baja (almacén) | — |
 | Familias · formas de pago · tipos de IVA | ✅ | ✅ | — |
 | Tarifas de precios (pantalla nueva) | ✅ | Eliminar si ningún cliente la tiene | — |
+| Actividades de negocio (pantalla nueva, con visibilidad por usuario) | ✅ (renombrar, activar/desactivar) | Eliminar si nada la usa (sus reglas de visibilidad se borran con ella); si está en uso, se desactiva | — |
 | Series de numeración | — (el prefijo no cambia) | Eliminar si no ha numerado nada | — |
 | Tipos de cambio | ✅ (se vuelve a registrar) | ✅ (los documentos guardan su tasa) | — |
 | Analítica: centros, partidas, claves, reglas | ✅ (activar/desactivar) | Eliminar sin imputaciones | — |
@@ -55,7 +56,7 @@ son **del grupo**: los usan documentos de cualquiera de sus empresas, que la RLS
 | Anticipos | — | — | Anular si no hay nada aplicado |
 | Efectos de cartera | — | — | Anular si no tiene cobros ni pagos vivos |
 | Palés (agro) | Reabrir si está cerrado | — | **Anular la expedición**: vuelve a cerrado |
-| Cartas de porte | — | — | Anular (el número queda usado) |
+| Cartas de porte (pantalla nueva: alta, PDF, anular) | — | — | Anular con motivo (el número queda usado) |
 | Movimientos de almacén, ajustes de partida, envases | — | — | Se corrigen con el movimiento contrario |
 
 ## Garantías en la base de datos

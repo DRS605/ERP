@@ -52,6 +52,8 @@ public sealed class DocumentoPendiente : RaizAgregadoEmpresa<Guid>
         Afectacion = d.Afectacion;
         ActividadNegocioId = d.ActividadNegocioId;
         Anulacion = d.Anulacion;
+        CuentaTesoreria = d.CuentaTesoreria;
+        CuentaTercero = d.CuentaTercero;
         Estado = EstadoContabilizacion.Pendiente;
         CreadoEn = ahora;
     }
@@ -102,6 +104,12 @@ public sealed class DocumentoPendiente : RaizAgregadoEmpresa<Guid>
 
     /// <summary>Anula otro documento: se contabiliza con el asiento inverso.</summary>
     public bool Anulacion { get; private set; }
+
+    /// <summary>Cobros y pagos: cuenta de caja o banco (por defecto 572).</summary>
+    public string? CuentaTesoreria { get; private set; }
+
+    /// <summary>Cobros y pagos: cuenta que sustituye a la del tercero (p. ej. 438 anticipos de clientes).</summary>
+    public string? CuentaTercero { get; private set; }
 
     public EstadoContabilizacion Estado { get; private set; }
 

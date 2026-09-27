@@ -36,6 +36,11 @@ public static class EndpointsActividades
             .WithSummary("Renombra o activa/desactiva una actividad de negocio.")
             .RequierePermiso(Permisos.ActividadGestionar);
 
+        g.MapDelete("/{id:guid}", async (Guid id, EliminarActividad caso, CancellationToken ct) =>
+                (await caso.EjecutarAsync(id, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Elimina una actividad que nada ha usado (si está en uso, se desactiva).")
+            .RequierePermiso(Permisos.ActividadGestionar);
+
         g.MapGet("/visibilidad/{usuarioId:guid}", ConsultarVisibilidadAsync)
             .WithSummary("Consulta las actividades que un usuario puede ver por área (pantalla).")
             .RequierePermiso(Permisos.ActividadGestionar);

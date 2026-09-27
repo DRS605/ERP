@@ -61,6 +61,23 @@ Para una factura de base `B`, IVA `i %` y retención `r %`:
 Ambos asientos **cuadran** por construcción (Σ debe = Σ haber). El número es correlativo por empresa y
 ejercicio (el ejercicio se deriva del año de la **fecha de registro**).
 
+## Asientos de cobros, pagos y anticipos (modo Completo)
+
+Tesorería deja cada movimiento en su bandeja de salida (en la misma transacción que el cobro o el pago) y el despachador
+lo entrega a la cola de contabilización, con las mismas reglas que las facturas: en modo Simple no hay asiento; en
+modo Completo queda pendiente o, con la contabilización automática, se contabiliza en el acto.
+
+| Operación | Debe | Haber |
+|---|---|---|
+| Cobro de una factura o de un efecto a cobrar | 572 Bancos (570 Caja si el método es efectivo) | Cliente (su subcuenta 430…) |
+| Pago de un gasto o de un efecto a pagar | Proveedor (su subcuenta 400…/410…) | 572 Bancos (570 Caja en efectivo) |
+| Anticipo recibido de un cliente | 572 / 570 | 438 Anticipos de clientes |
+| Aplicación del anticipo a una factura | 438 Anticipos de clientes | Cliente |
+| Anulación de cualquiera de ellos | el contraasiento (debe y haber cambiados) | |
+
+Los asientos llevan el origen `Cobro` o `Pago` y, como los de las facturas, se anulan anulando el movimiento (no a mano).
+La cartera migrada cobra contra la subcuenta del cliente que abrió el asiento de apertura, así que ambas cuadran.
+
 ## Reglas de contabilización (cuenta por familia / tipo)
 
 La cuenta de resultado (ingreso 7xx en ventas, gasto 6xx en compras) se elige con **reglas

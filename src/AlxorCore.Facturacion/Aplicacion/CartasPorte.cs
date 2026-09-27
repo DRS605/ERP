@@ -50,7 +50,8 @@ public sealed record CartaPorteDto(
 }
 
 /// <summary>Resumen de una carta de porte para listados.</summary>
-public sealed record CartaPorteResumen(Guid Id, string NumeroCompleto, DateOnly FechaExpedicion, string DestinatarioNombre, string LugarDestino, int TotalBultos, decimal TotalPesoKg);
+public sealed record CartaPorteResumen(Guid Id, string NumeroCompleto, DateOnly FechaExpedicion, string DestinatarioNombre, string LugarDestino, int TotalBultos, decimal TotalPesoKg,
+    string LugarOrigen = "", string? TransportistaNombre = null, string? Matricula = null, bool Anulada = false, string? MotivoAnulacion = null);
 
 /// <summary>Repositorio de cartas de porte (escritura y numeración).</summary>
 public interface IRepositorioCartasPorte

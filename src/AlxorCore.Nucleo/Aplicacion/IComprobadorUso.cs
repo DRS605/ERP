@@ -31,6 +31,7 @@ public static class TiposRegistro
     public const string Parcela = "parcela";
     public const string Agricultor = "agricultor";
     public const string TarifaCoste = "tarifa_coste";
+    public const string Actividad = "actividad_negocio";
 
     /// <summary>Gasto generado por otro documento (se anula desde ese documento).</summary>
     public const string Gasto = "gasto";

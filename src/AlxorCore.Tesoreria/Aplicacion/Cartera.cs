@@ -39,8 +39,12 @@ public sealed class GestionCartera
     private readonly IUnidadDeTrabajoTesoreria _unidad;
     private readonly IReloj _reloj;
 
-    public GestionCartera(IRepositorioCartera cartera, IRepositorioMovimientos movimientos, IConsultaTesoreria consulta, IUnidadDeTrabajoTesoreria unidad, IReloj reloj)
+    private readonly ContabilizacionTesoreria? _contabilizacion;
+
+    public GestionCartera(IRepositorioCartera cartera, IRepositorioMovimientos movimientos, IConsultaTesoreria consulta, IUnidadDeTrabajoTesoreria unidad, IReloj reloj,
+        ContabilizacionTesoreria? contabilizacion = null)
     {
+        _contabilizacion = contabilizacion;
         _cartera = cartera;
         _movimientos = movimientos;
         _consulta = consulta;
@@ -113,7 +117,7 @@ public sealed class GestionCartera
 
         return await RegistrarCobro.RegistrarAsync(empresaId, TipoDocumentoTesoreria.Cartera, efecto.Id,
             efecto.Sentido == SentidoCartera.Cobro ? SentidoMovimiento.Cobro : SentidoMovimiento.Pago,
-            c.Importe, efecto.Importe, c.Fecha, c.Metodo, _movimientos, _unidad, _reloj, ct).ConfigureAwait(false);
+            c.Importe, efecto.Importe, c.Fecha, c.Metodo, _movimientos, _unidad, _reloj, ct, contabilizacion: _contabilizacion).ConfigureAwait(false);
     }
 
     private static EfectoCarteraDto Dto(EfectoCartera e, decimal liquidado, bool anulado = false) => new(

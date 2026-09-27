@@ -133,6 +133,8 @@ internal sealed class ConfiguracionDocumentoPendiente : IEntityTypeConfiguration
         builder.Property(d => d.Id).HasColumnName("id").ValueGeneratedNever();
         builder.Property(d => d.EmpresaId).HasColumnName("empresa_id").IsRequired();
         builder.Property(d => d.Sentido).HasColumnName("sentido").HasMaxLength(10).HasConversion<string>().IsRequired();
+        builder.Property(d => d.CuentaTesoreria).HasColumnName("cuenta_tesoreria").HasMaxLength(Cuenta.LongitudMaximaCodigo);
+        builder.Property(d => d.CuentaTercero).HasColumnName("cuenta_tercero").HasMaxLength(Cuenta.LongitudMaximaCodigo);
         builder.Property(d => d.OrigenTipo).HasColumnName("origen_tipo").HasMaxLength(40).IsRequired();
         builder.Property(d => d.OrigenId).HasColumnName("origen_id").IsRequired();
         builder.Property(d => d.Referencia).HasColumnName("referencia").HasMaxLength(80).IsRequired();

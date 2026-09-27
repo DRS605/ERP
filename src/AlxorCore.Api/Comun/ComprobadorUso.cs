@@ -147,6 +147,16 @@ public static class ReferenciasRegistros
             [
                 ("agro.liquidacion.gasto_id", "la autofactura de una liquidación agrícola"),
             ],
+            [TiposRegistro.Actividad] =
+            [
+                ("catalogo.producto.actividad_negocio_id", "artículos"),
+                ("terceros.cliente.actividad_negocio_id", "clientes"),
+                ("terceros.proveedor.actividad_negocio_id", "proveedores"),
+                ("facturacion.factura.actividad_negocio_id", "facturas"),
+                ("gastos.gasto.actividad_negocio_id", "gastos"),
+                ("contabilidad.documento_pendiente.actividad_negocio_id", "documentos pendientes de contabilizar"),
+                ("contabilidad.regla_analitica.actividad_negocio_id", "reglas de imputación analítica"),
+            ],
             [TiposRegistro.Tarifa] =
             [
                 ("terceros.cliente.tarifa_id", "clientes que la tienen asignada"),
@@ -169,6 +179,7 @@ public static class ReferenciasRegistros
         "agro.articulo_campana.campana_id",
         "agro.precio_liquidacion.campana_id",
         "agro.parcela.agricultor_id",
+        "organizacion.visibilidad_actividad.actividad_negocio_id",
     ];
 }
 

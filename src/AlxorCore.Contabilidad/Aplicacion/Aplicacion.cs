@@ -107,6 +107,9 @@ public static class PlanBasico
     public const string CuentaProveedores = "400";  // Proveedores
     public const string CuentaVentas = "705";        // Prestaciones de servicios (ingreso genérico)
     public const string CuentaClientes = "430";      // Clientes
+    public const string CuentaAnticiposClientes = "438"; // Anticipos de clientes
+    public const string CuentaBancos = "572";        // Bancos
+    public const string CuentaCaja = "570";          // Caja
     public const string CuentaIvaRepercutido = "477"; // H.P. IVA repercutido
     public const string CuentaRetencionVenta = "473"; // H.P. retenciones y pagos a cuenta (ventas)
     public const string CuentaTrabajadores = "465";   // Remuneraciones pendientes de pago (raíz de trabajadores)
@@ -118,6 +121,7 @@ public static class PlanBasico
     {
         ("129", "Resultado del ejercicio"),
         ("430", "Clientes"),
+        ("438", "Anticipos de clientes"),
         ("400", "Proveedores"),
         ("410", "Acreedores por prestaciones de servicios"),
         ("472", "H.P. IVA soportado"),

@@ -54,6 +54,8 @@ internal sealed class RepositorioActividades : IRepositorioActividades
 
     public void Agregar(ActividadNegocio actividad) => _contexto.Actividades.Add(actividad);
 
+    public void Eliminar(ActividadNegocio actividad) => _contexto.Actividades.Remove(actividad);
+
     public Task<ActividadNegocio?> ObtenerPorIdAsync(Guid id, CancellationToken ct = default) =>
         _contexto.Actividades.SingleOrDefaultAsync(a => a.Id == id, ct);
 
@@ -74,6 +76,9 @@ internal sealed class RepositorioVisibilidad : IRepositorioVisibilidad, IConsult
     public void Agregar(VisibilidadActividad visibilidad) => _contexto.Visibilidades.Add(visibilidad);
 
     public void Eliminar(VisibilidadActividad visibilidad) => _contexto.Visibilidades.Remove(visibilidad);
+
+    public async Task<IReadOnlyList<VisibilidadActividad>> ListarPorActividadAsync(Guid actividadId, CancellationToken ct = default) =>
+        await _contexto.Visibilidades.Where(v => v.ActividadNegocioId == actividadId).ToListAsync(ct).ConfigureAwait(false);
 
     public async Task<IReadOnlyList<VisibilidadActividad>> ListarPorUsuarioAsync(Guid usuarioId, CancellationToken ct = default) =>
         await _contexto.Visibilidades.Where(v => v.UsuarioId == usuarioId)

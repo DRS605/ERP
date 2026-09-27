@@ -30,6 +30,8 @@ public sealed class TesoreriaDbContext : DbContextEmpresaBase, IUnidadDeTrabajoT
 
     public DbSet<AnulacionEfecto> AnulacionesCartera => Set<AnulacionEfecto>();
 
+    public DbSet<MensajeSalida> MensajesSalida => Set<MensajeSalida>();
+
     public DbSet<Reclamacion> Reclamaciones => Set<Reclamacion>();
 
     public DbSet<ConfiguracionReclamaciones> ConfiguracionesReclamacion => Set<ConfiguracionReclamaciones>();
@@ -362,4 +364,37 @@ internal sealed class RepositorioReclamaciones : IRepositorioReclamaciones
         _contexto.ConfiguracionesReclamacion.SingleOrDefaultAsync(ct);
 
     public void AgregarConfiguracion(ConfiguracionReclamaciones configuracion) => _contexto.ConfiguracionesReclamacion.Add(configuracion);
+}
+
+/// <summary>Mapeo de la bandeja de salida (outbox) de Tesorería: los asientos de cobros, pagos y anticipos.</summary>
+internal sealed class ConfiguracionMensajeSalida : IEntityTypeConfiguration<MensajeSalida>
+{
+    public void Configure(EntityTypeBuilder<MensajeSalida> builder)
+    {
+        builder.ToTable("mensaje_salida");
+        builder.HasKey(m => m.Id);
+        builder.Property(m => m.Id).HasColumnName("id").ValueGeneratedNever();
+        builder.Property(m => m.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        builder.Property(m => m.Tipo).HasColumnName("tipo").HasMaxLength(40).IsRequired();
+        builder.Property(m => m.Carga).HasColumnName("carga").HasColumnType("jsonb").IsRequired();
+        builder.Property(m => m.Procesado).HasColumnName("procesado").IsRequired();
+        builder.Property(m => m.Intentos).HasColumnName("intentos").IsRequired();
+        builder.Property(m => m.UltimoError).HasColumnName("ultimo_error").HasMaxLength(500);
+        builder.Property(m => m.CreadoEn).HasColumnName("creado_en").IsRequired();
+        builder.Property(m => m.ProcesadoEn).HasColumnName("procesado_en");
+        builder.HasIndex(m => new { m.EmpresaId, m.Procesado }).HasDatabaseName("ix_mensaje_salida_empresa_procesado");
+        builder.Ignore(m => m.EventosDominio);
+    }
+}
+
+internal sealed class RepositorioSalidaTesoreria : IRepositorioSalidaTesoreria
+{
+    private readonly TesoreriaDbContext _ctx;
+
+    public RepositorioSalidaTesoreria(TesoreriaDbContext ctx) => _ctx = ctx;
+
+    public void Agregar(MensajeSalida mensaje) => _ctx.MensajesSalida.Add(mensaje);
+
+    public async Task<IReadOnlyList<MensajeSalida>> PendientesAsync(int maximo, CancellationToken ct = default) =>
+        await _ctx.MensajesSalida.Where(m => !m.Procesado).OrderBy(m => m.CreadoEn).Take(maximo).ToListAsync(ct).ConfigureAwait(false);
 }

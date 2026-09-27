@@ -220,7 +220,8 @@ internal sealed class RepositorioCartasPorte : IRepositorioCartasPorte, IConsult
             .OrderByDescending(c => c.FechaExpedicion).ThenByDescending(c => c.Numero)
             .ToListAsync(ct).ConfigureAwait(false);
         return cartas
-            .Select(c => new CartaPorteResumen(c.Id, c.NumeroCompleto, c.FechaExpedicion, c.DestinatarioNombre, c.LugarDestino, c.TotalBultos, c.TotalPesoKg))
+            .Select(c => new CartaPorteResumen(c.Id, c.NumeroCompleto, c.FechaExpedicion, c.DestinatarioNombre, c.LugarDestino, c.TotalBultos, c.TotalPesoKg,
+                c.LugarOrigen, c.TransportistaNombre, c.Matricula, c.AnuladaEn is not null, c.MotivoAnulacion))
             .ToList();
     }
 }

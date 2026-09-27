@@ -439,7 +439,7 @@
     // Menú agrupado en carpetas: Ventas, Compras y Artículos.
     const NAV = [
       { t:"item", k:"inicio", l:"Inicio" },
-      { t:"grupo", k:"ventas", l:"Ventas", items:[["presupuestos","Presupuestos"],["pedidosventa","Pedidos de venta"],["facturas","Facturas"],["tpv","TPV · Tickets"],["recurrentes","Periódicas"],["clientes","Clientes"],["cobros","Cobros"],["cartera","Efectos de cartera"],["impagados","Impagados"],["anticipos","Anticipos"],["remesas","Remesas SEPA"]] },
+      { t:"grupo", k:"ventas", l:"Ventas", items:[["presupuestos","Presupuestos"],["pedidosventa","Pedidos de venta"],["facturas","Facturas"],["tpv","TPV · Tickets"],["recurrentes","Periódicas"],["clientes","Clientes"],["cobros","Cobros"],["cartera","Efectos de cartera"],["impagados","Impagados"],["anticipos","Anticipos"],["cartasporte","Cartas de porte"],["remesas","Remesas SEPA"]] },
       { t:"grupo", k:"compras", l:"Compras", items:[["solicitudes","Solicitudes"],["pedidos","Pedidos de compra"],["recepcion","Buzón de facturas"],["gastos","Gastos"],["proveedores","Proveedores"],["pagos","Pagos"],["conciliacion","Conciliación banco"]] },
       { t:"grupo", k:"articulos", l:"Artículos", items:[["productos","Productos"],["familias","Familias"],["tarifas","Tarifas de precios"],["inventario","Inventario / Almacenes"],["produccion","Producción"]] },
       { t:"item", k:"personal", l:"Personal" },
@@ -454,9 +454,10 @@
       { t:"item", k:"divisas", l:"Divisas" },
       { t:"item", k:"aprobaciones", l:"Aprobaciones" },
       { t:"item", k:"integraciones", l:"API y webhooks" },
+      { t:"item", k:"actividades", l:"Actividades de negocio" },
       { t:"item", k:"ajustes", l:"Ajustes" },
     ];
-    const TITULOS = { cartera:"Efectos de cartera", agrorecepciones:"Agro · recepciones de fruta", agropartidas:"Agro · partidas y palés", agroconfeccion:"Agro · confección", agroliquidaciones:"Agro · liquidaciones al agricultor", agrotrazabilidad:"Agro · trazabilidad", agroinforme:"Agro · informe de campaña", agromaestros:"Agro · campañas, agricultores y precios", analitica:"Analítica · resultados", analiticapend:"Analítica · pendientes de imputar", analiticamaestros:"Analítica · centros, partidas y reglas", presupuestoscont:"Presupuestos contables", impagados:"Impagados y reclamaciones", anticipos:"Anticipos de clientes", inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos",tarifas:"Tarifas de precios", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", gestion:"Análisis de gestión", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", divisas:"Divisas y tipos de cambio", aprobaciones:"Aprobaciones y control de firmas", integraciones:"API pública y webhooks", ajustes:"Ajustes" };
+    const TITULOS = { cartera:"Efectos de cartera", agrorecepciones:"Agro · recepciones de fruta", agropartidas:"Agro · partidas y palés", agroconfeccion:"Agro · confección", agroliquidaciones:"Agro · liquidaciones al agricultor", agrotrazabilidad:"Agro · trazabilidad", agroinforme:"Agro · informe de campaña", agromaestros:"Agro · campañas, agricultores y precios", analitica:"Analítica · resultados", analiticapend:"Analítica · pendientes de imputar", analiticamaestros:"Analítica · centros, partidas y reglas", presupuestoscont:"Presupuestos contables", impagados:"Impagados y reclamaciones", anticipos:"Anticipos de clientes", cartasporte:"Cartas de porte", actividades:"Actividades de negocio", inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos",tarifas:"Tarifas de precios", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", gestion:"Análisis de gestión", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", divisas:"Divisas y tipos de cambio", aprobaciones:"Aprobaciones y control de firmas", integraciones:"API pública y webhooks", ajustes:"Ajustes" };
     // Plan contratado de la empresa activa (lo devuelve /empresas/{id}/seleccionar).
     let plan = null;
     // Vista → módulo contratable que necesita. Las vistas que no están aquí son de la base.
@@ -575,7 +576,7 @@
       document.getElementById("viewTitle").textContent=TITULOS[k]||k;
       if(!contratado(k)){ const m=NOMBRE_MODULO[MODULO_VISTA[k]]||MODULO_VISTA[k];
         view(panel("No incluido en tu plan",`<p class="muted" style="margin:0 0 14px">Esta pantalla forma parte del módulo <strong>${m}</strong>, que tu plan no incluye.</p><button class="btn small" onclick="ir('ajustes')">Ver planes en Ajustes →</button>`)); return; }
-      ({cartera:vCartera,agrorecepciones:vAgroRecepciones,agropartidas:vAgroPartidas,agroconfeccion:vAgroConfeccion,agroliquidaciones:vAgroLiquidaciones,agrotrazabilidad:vAgroTrazabilidad,agroinforme:()=>vAgroInforme(),agromaestros:()=>vAgroMaestros(),analitica:vAnalitica,analiticapend:vAnaliticaPend,analiticamaestros:vAnaliticaMaestros,presupuestoscont:vPresupuestosCont,impagados:vImpagados,anticipos:vAnticipos,inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:vPedidosVenta,clientes:vClientes,productos:vProductos,familias:vFamilias,tarifas:vTarifas,gastos:vGastos,solicitudes:vSolicitudes,pedidos:vPedidos,inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,gestion:vGestion,contabilidad:vContabilidad,inmovilizado:vInmovilizado,divisas:vDivisas,aprobaciones:vAprobaciones,integraciones:vIntegraciones,ajustes:vAjustes}[k])();
+      ({cartera:vCartera,agrorecepciones:vAgroRecepciones,agropartidas:vAgroPartidas,agroconfeccion:vAgroConfeccion,agroliquidaciones:vAgroLiquidaciones,agrotrazabilidad:vAgroTrazabilidad,agroinforme:()=>vAgroInforme(),agromaestros:()=>vAgroMaestros(),analitica:vAnalitica,analiticapend:vAnaliticaPend,analiticamaestros:vAnaliticaMaestros,presupuestoscont:vPresupuestosCont,impagados:vImpagados,anticipos:vAnticipos,cartasporte:vCartasPorte,actividades:vActividades,inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:vPedidosVenta,clientes:vClientes,productos:vProductos,familias:vFamilias,tarifas:vTarifas,gastos:vGastos,solicitudes:vSolicitudes,pedidos:vPedidos,inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,gestion:vGestion,contabilidad:vContabilidad,inmovilizado:vInmovilizado,divisas:vDivisas,aprobaciones:vAprobaciones,integraciones:vIntegraciones,ajustes:vAjustes}[k])();
     }
     const view = h => { document.getElementById("view").innerHTML=h; try{ mejorarTablas(); }catch(e){} };
 
@@ -2346,6 +2347,108 @@
       }catch(e){ toast(e.message,"err"); } }
 
     // ---- Anticipos de clientes (entregas a cuenta) ----
+    /* ---------- Cartas de porte (documento de control del transporte) ---------- */
+    async function vCartasPorte(){
+      view('<div class="muted">Cargando…</div>');
+      const lista=await api("/cartas-porte"); window._cartas=lista;
+      const filas=lista.map(c=>{ const est=c.anulada?`<span class="pill neg" title="${agEsc(c.motivoAnulacion||"")}">Anulada</span>`:'<span class="pill ok">Emitida</span>';
+        const anular=c.anulada?"":` <button class="btn small ghost" onclick="anularCartaPorte('${c.id}','${agEsc(c.numeroCompleto)}')">Anular</button>`;
+        return `<tr><td class="mono"><strong>${agEsc(c.numeroCompleto)}</strong></td><td class="muted">${fdate(c.fechaExpedicion)}</td><td>${agEsc(c.destinatarioNombre)}</td>
+          <td class="muted">${agEsc(c.lugarOrigen)} → ${agEsc(c.lugarDestino)}</td><td class="muted">${agEsc(c.transportistaNombre||"—")}${c.matricula?" · "+agEsc(c.matricula):""}</td>
+          <td class="num">${c.totalBultos}</td><td class="num">${kg(c.totalPesoKg)}</td><td>${est}</td>
+          <td class="right" style="white-space:nowrap"><button class="btn small secondary" onclick="pdfCartaPorte('${c.id}')">PDF</button>${anular}</td></tr>`; }).join("");
+      const nueva=`<button class="btn small" onclick="modalCartaPorte()">+ Nueva carta de porte</button>`;
+      view(panel("Cartas de porte",lista.length?`<table><thead><tr><th>Número</th><th>Fecha</th><th>Destinatario</th><th>Recorrido</th><th>Transportista</th><th class="num">Bultos</th><th class="num">Peso</th><th>Estado</th><th></th></tr></thead><tbody>${filas}</tbody></table>`
+        :vacio("facturas","Sin cartas de porte","Emite la carta de porte que acompaña a la mercancía: remitente (tu empresa), destinatario, transportista, recorrido, bultos y peso.",nueva),nueva));
+    }
+    function lineaCartaHtml(){
+      return `<div class="cp-lin" style="display:grid;grid-template-columns:2.5fr .8fr 1fr auto;gap:6px;margin-bottom:6px;align-items:center">
+        <input class="cl-des" placeholder="Mercancía (p. ej. Naranja en cajas)"/><input class="cl-bul" type="number" step="1" min="0" placeholder="Bultos"/>
+        <input class="cl-kg" type="number" step="0.001" min="0" placeholder="Peso (kg)"/><button class="btn small ghost" onclick="this.parentElement.remove()" title="Quitar">✕</button></div>`;
+    }
+    async function modalCartaPorte(){
+      const clientes=await api("/clientes").catch(()=>[]);
+      const hoy=new Date().toISOString().slice(0,10);
+      abrir("Nueva carta de porte",`<div class="grid2"><div><label>Destinatario (cliente)</label><select id="cp_cli"><option value="">— Otro (escribe los datos) —</option>${clientes.map(c=>`<option value="${c.id}">${agEsc(c.nombre)}</option>`).join("")}</select></div>
+          <div><label>Fecha de carga</label><input id="cp_fec" type="date" value="${hoy}"/></div></div>
+        <div class="grid2" id="cp_libre"><div><label>Nombre del destinatario</label><input id="cp_dnom"/></div><div><label>NIF del destinatario</label><input id="cp_dnif"/></div></div>
+        <div class="grid2"><div><label>Lugar de origen</label><input id="cp_ori" placeholder="Almacén, dirección de carga"/></div><div><label>Lugar de destino</label><input id="cp_des" placeholder="Dirección de entrega"/></div></div>
+        <div class="grid2"><div><label>Transportista</label><input id="cp_tnom"/></div><div><label>NIF del transportista</label><input id="cp_tnif"/></div></div>
+        <div class="grid2"><div><label>Matrícula</label><input id="cp_mat" placeholder="1234 ABC"/></div><div><label>Observaciones</label><input id="cp_obs"/></div></div>
+        <label style="margin-top:12px">Mercancía</label><div id="cp_lineas">${lineaCartaHtml()}</div>
+        <button class="btn small ghost" style="margin-top:4px" onclick="document.getElementById('cp_lineas').insertAdjacentHTML('beforeend',lineaCartaHtml())">+ Añadir línea</button>`,
+        async()=>{ const lineas=[...document.querySelectorAll('#cp_lineas .cp-lin')].map(r=>({descripcion:r.querySelector('.cl-des').value,bultos:Number(r.querySelector('.cl-bul').value||0),pesoKg:Number(r.querySelector('.cl-kg').value||0)}))
+            .filter(l=>l.descripcion||l.bultos||l.pesoKg);
+          if(!lineas.length) throw new Error("Indica al menos una línea de mercancía.");
+          const cli=val("cp_cli")||null;
+          const c=await api("/cartas-porte",{method:"POST",body:JSON.stringify({destinatarioClienteId:cli,destinatarioNombre:cli?null:(val("cp_dnom")||null),destinatarioNif:cli?null:(val("cp_dnif")||null),
+            transportistaNombre:val("cp_tnom")||null,transportistaNif:val("cp_tnif")||null,matricula:val("cp_mat")||null,lugarOrigen:val("cp_ori"),lugarDestino:val("cp_des"),
+            fechaCarga:val("cp_fec")||null,observaciones:val("cp_obs")||null,lineas})});
+          toast(`Carta de porte ${c.numeroCompleto} emitida.`,"ok"); vCartasPorte(); });
+      const sel=document.getElementById("cp_cli"); const libre=()=>document.getElementById("cp_libre").style.display=sel.value?"none":""; sel.onchange=libre; libre();
+    }
+    async function pdfCartaPorte(id){ try{
+        const r=await fetch(`/cartas-porte/${id}/pdf`,{headers:{Authorization:"Bearer "+token}});
+        if(!r.ok) throw new Error("No se pudo generar el PDF");
+        const u=URL.createObjectURL(await r.blob()); window.open(u,"_blank");
+        setTimeout(()=>URL.revokeObjectURL(u),60000);
+      }catch(e){ toast(e.message,"err"); } }
+    async function anularCartaPorte(id,numero){ const motivo=prompt(`Motivo de la anulación de la carta de porte ${numero}:`); if(motivo===null) return;
+      try{ await api(`/cartas-porte/${id}/anular`,{method:"POST",body:JSON.stringify({motivo:motivo||null})}); toast("Carta de porte anulada.","ok"); vCartasPorte(); }catch(e){ toast(e.message,"err"); } }
+
+    /* ---------- Actividades de negocio (clasificación del grupo) y su visibilidad por usuario ---------- */
+    const AREAS_ACTIVIDAD=[["Ventas","Ventas"],["Compras","Compras"],["Articulos","Artículos"],["General","General"]];
+    async function vActividades(){
+      view('<div class="muted">Cargando…</div>');
+      const [acts,usuarios]=await Promise.all([api("/actividades"),api("/usuarios").catch(()=>[])]);
+      window._actividades=acts;
+      const filas=acts.map(a=>`<tr><td><strong>${agEsc(a.nombre)}</strong>${a.activa?"":' <span class="pill wait">Inactiva</span>'}</td>
+        <td class="right" style="white-space:nowrap"><button class="btn small secondary" onclick="modalActividad('${a.id}')">Editar</button>
+        <button class="btn small ghost" onclick="eliminarActividad('${a.id}')" title="Eliminar">🗑</button></td></tr>`).join("");
+      const nueva=`<button class="btn small" onclick="modalActividad()">+ Nueva actividad</button>`;
+      const intro=`<p class="muted" style="margin:0 0 12px">Clasifica artículos, clientes, proveedores, facturas y gastos por línea de negocio (p. ej. Cítricos, Hortalizas, Servicios). Son comunes a todas las empresas del grupo y sirven para filtrar informes e imputar la analítica.</p>`;
+      const pActs=panel("Actividades de negocio",intro+(acts.length?`<table><thead><tr><th>Actividad</th><th></th></tr></thead><tbody>${filas}</tbody></table>`
+        :vacio("productos","Sin actividades","Crea las líneas de negocio de tu grupo para clasificar la operativa.",nueva)),nueva);
+      const filasU=usuarios.filter(u=>u.estado!=="Revocada").map(u=>`<tr><td><strong>${agEsc(u.nombre||u.email)}</strong>${u.esYo?' <span class="muted">(tú)</span>':""}</td><td class="muted">${agEsc(u.email)}</td>
+        <td class="right"><button class="btn small secondary" onclick="modalVisibilidad('${u.usuarioId}','${agEsc(u.nombre||u.email).replace(/'/g,"")}')">Qué ve</button></td></tr>`).join("");
+      const pVis=acts.length&&usuarios.length?panel("Visibilidad por usuario",`<p class="muted" style="margin:0 0 12px">Limita qué actividades puede elegir cada usuario en cada área. Sin reglas en un área, el usuario ve todas.</p>
+        <table><thead><tr><th>Usuario</th><th>Correo</th><th></th></tr></thead><tbody>${filasU}</tbody></table>`):"";
+      view(pActs+pVis);
+    }
+    function modalActividad(id){
+      const a=id?(window._actividades||[]).find(x=>x.id===id):null;
+      abrir(a?"Editar actividad":"Nueva actividad",`<label>Nombre</label><input id="ac_nom" value="${a?agEsc(a.nombre):""}" placeholder="Cítricos"/>
+        ${a?`<label style="display:flex;gap:8px;align-items:center;margin-top:8px"><input id="ac_act" type="checkbox" style="width:auto" ${a.activa?"checked":""}/> Activa (las inactivas no se ofrecen en las altas nuevas)</label>`:""}`,
+        async()=>{ if(a) await api("/actividades/"+a.id,{method:"PUT",body:JSON.stringify({nombre:val("ac_nom"),activa:document.getElementById("ac_act").checked})});
+          else await api("/actividades",{method:"POST",body:JSON.stringify({nombre:val("ac_nom")})});
+          toast(a?"Actividad guardada.":"Actividad creada.","ok"); vActividades(); });
+    }
+    async function eliminarActividad(id){
+      const a=(window._actividades||[]).find(x=>x.id===id); if(!a) return;
+      if(!confirm(`¿Eliminar la actividad «${a.nombre}»?\n\nSi ya se ha usado, podrás desactivarla en su lugar.`)) return;
+      try{ await api("/actividades/"+id,{method:"DELETE"}); toast("Actividad eliminada.","ok"); vActividades(); }
+      catch(e){
+        if((e.codigo||"").endsWith(".en_uso") && confirm(`${e.message}\n\n¿Desactivarla ahora?`)){
+          try{ await api("/actividades/"+id,{method:"PUT",body:JSON.stringify({nombre:a.nombre,activa:false})}); toast("Actividad desactivada.","ok"); vActividades(); }catch(e2){ toast(e2.message,"err"); }
+        } else if(!(e.codigo||"").endsWith(".en_uso")) toast(e.message,"err");
+      }
+    }
+    async function modalVisibilidad(usuarioId,nombre){
+      const vis=await api(`/actividades/visibilidad/${usuarioId}`).catch(()=>[]);
+      const acts=(window._actividades||[]).filter(a=>a.activa);
+      const bloques=AREAS_ACTIVIDAD.map(([area,et])=>{ const regla=vis.find(v=>v.area===area); const ids=regla?regla.actividades:[];
+        return `<div class="vis-area" data-area="${area}" style="margin-bottom:12px"><label>${et}</label>
+          <label style="display:flex;gap:8px;align-items:center;font-weight:400"><input type="checkbox" class="va-todas" style="width:auto" ${regla?"":"checked"} onchange="this.closest('.vis-area').querySelector('.va-lista').style.display=this.checked?'none':''"/> Todas</label>
+          <div class="va-lista" style="display:${regla?"":"none"};padding-left:24px">${acts.map(a=>`<label style="display:flex;gap:8px;align-items:center;font-weight:400"><input type="checkbox" class="va-act" value="${a.id}" style="width:auto" ${ids.includes(a.id)?"checked":""}/> ${agEsc(a.nombre)}</label>`).join("")}</div></div>`; }).join("");
+      abrir(`Qué ve ${nombre}`,bloques,async()=>{
+        for(const b of document.querySelectorAll("#modalBody .vis-area")){
+          const todas=b.querySelector(".va-todas").checked;
+          const actividades=todas?[]:[...b.querySelectorAll(".va-act:checked")].map(x=>x.value);
+          if(!todas && !actividades.length) throw new Error("Marca al menos una actividad o «Todas» en cada área.");
+          await api(`/actividades/visibilidad/${usuarioId}`,{method:"PUT",body:JSON.stringify({area:b.dataset.area,actividades})});
+        }
+        toast("Visibilidad guardada.","ok"); });
+    }
     async function vAnticipos() {
       view('<div class="muted">Cargando…</div>');
       const [lista, clientes]=await Promise.all([api("/anticipos"), api("/clientes")]);

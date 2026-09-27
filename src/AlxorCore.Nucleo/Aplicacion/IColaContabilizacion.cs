@@ -1,10 +1,16 @@
 namespace AlxorCore.Nucleo.Aplicacion;
 
-/// <summary>Sentido contable de un documento: venta (ingreso) o compra (gasto).</summary>
+/// <summary>Sentido contable de un documento: venta (ingreso), compra (gasto), cobro o pago.</summary>
 public enum SentidoContable
 {
     Venta = 1,
     Compra = 2,
+
+    /// <summary>Cobro de un cliente: tesorería (Debe) contra la cuenta del cliente (Haber).</summary>
+    Cobro = 3,
+
+    /// <summary>Pago a un proveedor: la cuenta del proveedor (Debe) contra tesorería (Haber).</summary>
+    Pago = 4,
 }
 
 /// <summary>
@@ -12,6 +18,8 @@ public enum SentidoContable
 /// de compra). Los módulos de negocio los envían a la <see cref="IColaContabilizacion"/> sin conocer
 /// el módulo de Contabilidad. Con <c>Anulacion</c>, el documento anula otro ya encolado: se contabiliza con
 /// el asiento inverso (contraasiento), con los mismos importes en positivo.
+/// En cobros y pagos, <c>Total</c> es el importe; <c>CuentaTesoreria</c> la cuenta de caja o banco (572 por defecto)
+/// y <c>CuentaTercero</c> sustituye a la del tercero cuando no es la de clientes o proveedores (438 en anticipos).
 /// </summary>
 public sealed record DocumentoContabilizable(
     SentidoContable Sentido,
@@ -32,7 +40,9 @@ public sealed record DocumentoContabilizable(
     string? TipoTercero = null,
     string? Afectacion = null,
     Guid? ActividadNegocioId = null,
-    bool Anulacion = false);
+    bool Anulacion = false,
+    string? CuentaTesoreria = null,
+    string? CuentaTercero = null);
 
 /// <summary>
 /// Cola de contabilización: recibe los documentos contabilizables y los deja <b>pendientes</b> de que

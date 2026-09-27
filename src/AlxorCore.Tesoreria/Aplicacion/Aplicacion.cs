@@ -77,13 +77,16 @@ public sealed class RegistrarCobro
     private readonly IRepositorioMovimientos _movimientos;
     private readonly IUnidadDeTrabajoTesoreria _unidadDeTrabajo;
     private readonly IReloj _reloj;
+    private readonly ContabilizacionTesoreria? _contabilizacion;
 
-    public RegistrarCobro(IConsultaFacturas facturas, IRepositorioMovimientos movimientos, IUnidadDeTrabajoTesoreria unidadDeTrabajo, IReloj reloj)
+    public RegistrarCobro(IConsultaFacturas facturas, IRepositorioMovimientos movimientos, IUnidadDeTrabajoTesoreria unidadDeTrabajo, IReloj reloj,
+        ContabilizacionTesoreria? contabilizacion = null)
     {
         _facturas = facturas;
         _movimientos = movimientos;
         _unidadDeTrabajo = unidadDeTrabajo;
         _reloj = reloj;
+        _contabilizacion = contabilizacion;
     }
 
     public async Task<Resultado<SaldoDto>> EjecutarAsync(Guid empresaId, RegistrarCobroComando comando, CancellationToken ct = default)
@@ -97,13 +100,14 @@ public sealed class RegistrarCobro
         }
 
         return await RegistrarAsync(empresaId, TipoDocumentoTesoreria.Factura, comando.FacturaId, SentidoMovimiento.Cobro,
-            comando.Importe, factura.Total, comando.Fecha, comando.Metodo, _movimientos, _unidadDeTrabajo, _reloj, ct).ConfigureAwait(false);
+            comando.Importe, factura.Total, comando.Fecha, comando.Metodo, _movimientos, _unidadDeTrabajo, _reloj, ct,
+            contabilizacion: _contabilizacion).ConfigureAwait(false);
     }
 
     internal static async Task<Resultado<SaldoDto>> RegistrarAsync(
         Guid empresaId, TipoDocumentoTesoreria tipo, Guid documentoId, SentidoMovimiento sentido, decimal importe, decimal totalDocumento,
         DateOnly? fecha, string? metodo, IRepositorioMovimientos movimientos, IUnidadDeTrabajo unidadDeTrabajo, IReloj reloj, CancellationToken ct,
-        Action<Movimiento>? antesDeGuardar = null)
+        Action<Movimiento>? antesDeGuardar = null, ContabilizacionTesoreria? contabilizacion = null, bool aplicacionAnticipo = false)
     {
         var importeRedondeado = Redondeo.Dos(importe);
         if (importeRedondeado <= 0)
@@ -126,7 +130,17 @@ public sealed class RegistrarCobro
 
         movimientos.Agregar(movimiento.Valor);
         antesDeGuardar?.Invoke(movimiento.Valor);   // p. ej. anotar la aplicación de un anticipo en la misma transacción
+        if (contabilizacion is not null)
+        {
+            // Su asiento, en la bandeja de salida de la misma transacción.
+            await contabilizacion.EncolarMovimientoAsync(movimiento.Valor, aplicacionAnticipo, ct: ct).ConfigureAwait(false);
+        }
+
         await unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        if (contabilizacion is not null)
+        {
+            await contabilizacion.DespacharAsync(ct: ct).ConfigureAwait(false);
+        }
 
         var nuevoLiquidado = Redondeo.Dos(liquidado + importeRedondeado);
         var pendiente = Redondeo.Dos(totalDocumento - nuevoLiquidado);
@@ -142,13 +156,16 @@ public sealed class RegistrarPago
     private readonly IRepositorioMovimientos _movimientos;
     private readonly IUnidadDeTrabajoTesoreria _unidadDeTrabajo;
     private readonly IReloj _reloj;
+    private readonly ContabilizacionTesoreria? _contabilizacion;
 
-    public RegistrarPago(IConsultaGastos gastos, IRepositorioMovimientos movimientos, IUnidadDeTrabajoTesoreria unidadDeTrabajo, IReloj reloj)
+    public RegistrarPago(IConsultaGastos gastos, IRepositorioMovimientos movimientos, IUnidadDeTrabajoTesoreria unidadDeTrabajo, IReloj reloj,
+        ContabilizacionTesoreria? contabilizacion = null)
     {
         _gastos = gastos;
         _movimientos = movimientos;
         _unidadDeTrabajo = unidadDeTrabajo;
         _reloj = reloj;
+        _contabilizacion = contabilizacion;
     }
 
     public async Task<Resultado<SaldoDto>> EjecutarAsync(Guid empresaId, RegistrarPagoComando comando, CancellationToken ct = default)
@@ -162,7 +179,7 @@ public sealed class RegistrarPago
         }
 
         return await RegistrarCobro.RegistrarAsync(empresaId, TipoDocumentoTesoreria.Gasto, comando.GastoId, SentidoMovimiento.Pago,
-            comando.Importe, gasto.Total, comando.Fecha, comando.Metodo, _movimientos, _unidadDeTrabajo, _reloj, ct).ConfigureAwait(false);
+            comando.Importe, gasto.Total, comando.Fecha, comando.Metodo, _movimientos, _unidadDeTrabajo, _reloj, ct, contabilizacion: _contabilizacion).ConfigureAwait(false);
     }
 }
 
@@ -224,12 +241,14 @@ public sealed class AnularMovimiento
     private readonly IRepositorioMovimientos _movimientos;
     private readonly IUnidadDeTrabajoTesoreria _unidad;
     private readonly IReloj _reloj;
+    private readonly ContabilizacionTesoreria? _contabilizacion;
 
-    public AnularMovimiento(IRepositorioMovimientos movimientos, IUnidadDeTrabajoTesoreria unidad, IReloj reloj)
+    public AnularMovimiento(IRepositorioMovimientos movimientos, IUnidadDeTrabajoTesoreria unidad, IReloj reloj, ContabilizacionTesoreria? contabilizacion = null)
     {
         _movimientos = movimientos;
         _unidad = unidad;
         _reloj = reloj;
+        _contabilizacion = contabilizacion;
     }
 
     public async Task<Resultado<MovimientoDto>> EjecutarAsync(Guid empresaId, Guid movimientoId, DateOnly? fecha, CancellationToken ct = default)
@@ -259,7 +278,16 @@ public sealed class AnularMovimiento
             anticipo.AnotarAplicacion(aplicacion.FacturaId, -aplicacion.Importe, anulacion.Valor.Fecha, anulacion.Valor.Id);
         }
 
+        if (_contabilizacion is not null)
+        {
+            await _contabilizacion.EncolarMovimientoAsync(anulacion.Valor, anticipo is not null, original, ct).ConfigureAwait(false);
+        }
+
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        if (_contabilizacion is not null)
+        {
+            await _contabilizacion.DespacharAsync(ct: ct).ConfigureAwait(false);
+        }
         return Resultado.Ok(MovimientoDto.Desde(anulacion.Valor));
     }
 }

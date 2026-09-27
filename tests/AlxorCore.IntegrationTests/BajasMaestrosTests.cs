@@ -25,6 +25,7 @@ public sealed class BajasMaestrosTests : IClassFixture<FabricaApiPruebas>
     private sealed record TerceroResp(Guid Id, string Nombre, bool Activo);
     private sealed record BajaResp(Guid Id, bool Eliminado, bool Activo);
     private sealed record ProblemaResp(string Title, string Codigo);
+    private sealed record MiembroResp(Guid UsuarioId, bool EsYo);
 
     private static async Task<Guid> CrearAsync(HttpClient cli, string ruta, object cuerpo)
     {
@@ -139,6 +140,25 @@ public sealed class BajasMaestrosTests : IClassFixture<FabricaApiPruebas>
         (await cli.DeleteAsync(new Uri($"/inventario/almacenes/{vacio}", UriKind.Relative))).StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
+    [Fact]
+    public async Task Una_actividad_sin_uso_se_elimina_con_su_visibilidad_y_una_usada_no()
+    {
+        var (cli, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+        var libre = await CrearAsync(cli, "/actividades", new { Nombre = "Por error" });
+        var usada = await CrearAsync(cli, "/actividades", new { Nombre = "Cítricos" });
+        var yo = (await cli.GetFromJsonAsync<List<MiembroResp>>("/usuarios"))!.First(u => u.EsYo).UsuarioId;
+        (await cli.PutAsJsonAsync($"/actividades/visibilidad/{yo}", new { Area = "Ventas", Actividades = new[] { libre, usada } })).IsSuccessStatusCode.Should().BeTrue();
+        await CrearAsync(cli, "/clientes", new { Nombre = "Frutas", NifFiscal = Ayudas.GenerarNif(), ActividadNegocioId = usada });
+
+        var r = await cli.DeleteAsync(new Uri($"/actividades/{libre}", UriKind.Relative));
+        r.StatusCode.Should().Be(HttpStatusCode.OK, await r.Content.ReadAsStringAsync());
+        var enUso = await ConflictoAsync(await cli.DeleteAsync(new Uri($"/actividades/{usada}", UriKind.Relative)));
+        enUso.Codigo.Should().Be("actividad.en_uso");
+        enUso.Title.Should().Contain("clientes");
+
+        (await cli.GetFromJsonAsync<List<IdResp>>("/actividades"))!.Select(a => a.Id).Should().BeEquivalentTo([usada]);
+    }
+
     /// <summary>
     /// Guardia: toda columna de la base de datos que referencia a un maestro está en el mapa de referencias
     /// (o declarada como propia del maestro). Si un módulo nuevo añade una, esta prueba obliga a mapearla; si no,
@@ -159,6 +179,7 @@ public sealed class BajasMaestrosTests : IClassFixture<FabricaApiPruebas>
             [@"^tercero_id$"] = "tercero",
             [@"^centro(_origen|_analitico)?_id$"] = "centro_coste",
             [@"^clave_reparto_id$"] = "clave_reparto",
+            [@"^actividad_negocio_id$"] = "actividad_negocio",
         };
         var columnas = await db.Database.SqlQueryRaw<string>("""
             SELECT table_schema || '.' || table_name || '.' || column_name AS "Value"

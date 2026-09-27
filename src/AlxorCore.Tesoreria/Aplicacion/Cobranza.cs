@@ -45,8 +45,12 @@ public sealed class RegistrarAnticipo
     private readonly IUnidadDeTrabajoTesoreria _unidadDeTrabajo;
     private readonly IReloj _reloj;
 
-    public RegistrarAnticipo(IConsultaClientes clientes, IRepositorioAnticipos anticipos, IUnidadDeTrabajoTesoreria unidadDeTrabajo, IReloj reloj)
+    private readonly ContabilizacionTesoreria? _contabilizacion;
+
+    public RegistrarAnticipo(IConsultaClientes clientes, IRepositorioAnticipos anticipos, IUnidadDeTrabajoTesoreria unidadDeTrabajo, IReloj reloj,
+        ContabilizacionTesoreria? contabilizacion = null)
     {
+        _contabilizacion = contabilizacion;
         _clientes = clientes;
         _anticipos = anticipos;
         _unidadDeTrabajo = unidadDeTrabajo;
@@ -57,7 +61,8 @@ public sealed class RegistrarAnticipo
     {
         ArgumentNullException.ThrowIfNull(comando);
 
-        if (await _clientes.ObtenerAsync(comando.ClienteId, ct).ConfigureAwait(false) is null)
+        var cliente = await _clientes.ObtenerAsync(comando.ClienteId, ct).ConfigureAwait(false);
+        if (cliente is null)
         {
             return Resultado.Fallo<AnticipoDto>(Error.NoEncontrado("cliente.no_encontrado", "El cliente no existe."));
         }
@@ -70,7 +75,13 @@ public sealed class RegistrarAnticipo
         }
 
         _anticipos.Agregar(anticipo.Valor);
+        _contabilizacion?.EncolarAnticipo(anticipo.Valor, cliente.Nombre, anulacion: false);
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        if (_contabilizacion is not null)
+        {
+            await _contabilizacion.DespacharAsync(ct: ct).ConfigureAwait(false);
+        }
+
         return Resultado.Ok(AnticipoDto.Desde(anticipo.Valor));
     }
 }
@@ -86,8 +97,11 @@ public sealed class AnularAnticipo
     private readonly IUnidadDeTrabajoTesoreria _unidad;
     private readonly IReloj _reloj;
 
-    public AnularAnticipo(IRepositorioAnticipos anticipos, IUnidadDeTrabajoTesoreria unidad, IReloj reloj)
+    private readonly ContabilizacionTesoreria? _contabilizacion;
+
+    public AnularAnticipo(IRepositorioAnticipos anticipos, IUnidadDeTrabajoTesoreria unidad, IReloj reloj, ContabilizacionTesoreria? contabilizacion = null)
     {
+        _contabilizacion = contabilizacion;
         _anticipos = anticipos;
         _unidad = unidad;
         _reloj = reloj;
@@ -107,7 +121,12 @@ public sealed class AnularAnticipo
             return Resultado.Fallo<AnticipoDto>(r.Error);
         }
 
+        _contabilizacion?.EncolarAnticipo(a, null, anulacion: true);
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        if (_contabilizacion is not null)
+        {
+            await _contabilizacion.DespacharAsync(ct: ct).ConfigureAwait(false);
+        }
         return Resultado.Ok(AnticipoDto.Desde(a));
     }
 }
@@ -120,9 +139,13 @@ public sealed class AplicarAnticipo
     private readonly IUnidadDeTrabajoTesoreria _unidadDeTrabajo;
     private readonly IReloj _reloj;
 
+    private readonly ContabilizacionTesoreria? _contabilizacion;
+
     public AplicarAnticipo(
-        IRepositorioAnticipos anticipos, IConsultaFacturas facturas, IRepositorioMovimientos movimientos, IUnidadDeTrabajoTesoreria unidadDeTrabajo, IReloj reloj)
+        IRepositorioAnticipos anticipos, IConsultaFacturas facturas, IRepositorioMovimientos movimientos, IUnidadDeTrabajoTesoreria unidadDeTrabajo, IReloj reloj,
+        ContabilizacionTesoreria? contabilizacion = null)
     {
+        _contabilizacion = contabilizacion;
         _anticipos = anticipos;
         _facturas = facturas;
         _movimientos = movimientos;
@@ -157,7 +180,7 @@ public sealed class AplicarAnticipo
         var cobro = await RegistrarCobro.RegistrarAsync(
             empresaId, TipoDocumentoTesoreria.Factura, factura.Id, SentidoMovimiento.Cobro, importe.Valor, factura.Total, fecha,
             $"Anticipo del {anticipo.Fecha:dd/MM/yyyy}", _movimientos, _unidadDeTrabajo, _reloj, ct,
-            antesDeGuardar: m => anticipo.AnotarAplicacion(factura.Id, importe.Valor, fecha, m.Id)).ConfigureAwait(false);
+            antesDeGuardar: m => anticipo.AnotarAplicacion(factura.Id, importe.Valor, fecha, m.Id), contabilizacion: _contabilizacion, aplicacionAnticipo: true).ConfigureAwait(false);
         return cobro.EsFallo ? Resultado.Fallo<AnticipoDto>(cobro.Error) : Resultado.Ok(AnticipoDto.Desde(anticipo));
     }
 }
