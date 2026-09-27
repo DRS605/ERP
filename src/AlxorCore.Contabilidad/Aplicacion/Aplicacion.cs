@@ -93,6 +93,13 @@ public interface IRepositorioAsientos
 
     /// <summary>Último día de los meses cerrados de la empresa (null: ninguno).</summary>
     Task<DateOnly?> CerradoHastaAsync(Guid empresaId, CancellationToken ct = default) => Task.FromResult<DateOnly?>(null);
+
+    /// <summary>
+    /// Suma de debe y haber de unas cuentas en todos los asientos con fecha hasta la indicada (todos los ejercicios:
+    /// el cierre y la apertura se compensan). La usa Tesorería para el saldo de cada banco.
+    /// </summary>
+    Task<IReadOnlyList<SaldoCuentaAgregado>> SaldosHastaAsync(Guid empresaId, IReadOnlyCollection<string> codigos, DateOnly hasta, CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<SaldoCuentaAgregado>>([]);
 }
 
 public interface IRepositorioConfigContabilidad
@@ -120,6 +127,7 @@ public static class PlanBasico
     public const string CuentaAnticiposClientes = "438"; // Anticipos de clientes
     public const string CuentaBancos = "572";        // Bancos
     public const string CuentaCaja = "570";          // Caja
+    public const string CuentaServiciosBancarios = "626"; // Servicios bancarios y similares (comisiones, gastos de devolución)
     public const string CuentaIvaRepercutido = "477"; // H.P. IVA repercutido
     public const string CuentaRetencionVenta = "473"; // H.P. retenciones y pagos a cuenta (ventas)
     public const string CuentaTrabajadores = "465";   // Remuneraciones pendientes de pago (raíz de trabajadores)
@@ -144,6 +152,10 @@ public static class PlanBasico
         ("465", "Remuneraciones pendientes de pago"),
         ("570", "Caja"),
         ("572", "Bancos"),
+        ("626", "Servicios bancarios y similares"),
+        ("662", "Intereses de deudas"),
+        ("669", "Otros gastos financieros"),
+        ("769", "Otros ingresos financieros"),
         ("600", "Compras de mercaderías"),
         ("621", "Arrendamientos y cánones"),
         ("622", "Reparaciones y conservación"),

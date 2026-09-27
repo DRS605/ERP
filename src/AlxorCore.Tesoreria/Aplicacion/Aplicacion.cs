@@ -9,9 +9,10 @@ using AlxorCore.Tesoreria.Dominio;
 namespace AlxorCore.Tesoreria.Aplicacion;
 
 /// <summary>Vista de un movimiento de tesorería.</summary>
-public sealed record MovimientoDto(Guid Id, string Sentido, decimal Importe, DateOnly Fecha, string? Metodo, Guid? AnulaMovimientoId = null, bool Anulado = false)
+public sealed record MovimientoDto(Guid Id, string Sentido, decimal Importe, DateOnly Fecha, string? Metodo, Guid? AnulaMovimientoId = null, bool Anulado = false,
+    Guid? CuentaBancariaId = null)
 {
-    public static MovimientoDto Desde(Movimiento m) => new(m.Id, m.Sentido.ToString(), m.Importe, m.Fecha, m.Metodo, m.AnulaMovimientoId);
+    public static MovimientoDto Desde(Movimiento m) => new(m.Id, m.Sentido.ToString(), m.Importe, m.Fecha, m.Metodo, m.AnulaMovimientoId, CuentaBancariaId: m.CuentaBancariaId);
 
     /// <summary>Lista de movimientos de un documento, marcando los que ya tienen su anulación.</summary>
     public static IReadOnlyList<MovimientoDto> DesdeLista(IReadOnlyList<Movimiento> movimientos)
@@ -64,11 +65,14 @@ public interface IConsultaTesoreria
     Task<IReadOnlyDictionary<Guid, decimal>> LiquidadoPorDocumentosAsync(TipoDocumentoTesoreria tipo, IReadOnlyCollection<Guid> documentoIds, CancellationToken ct = default);
 }
 
-/// <summary>Datos para registrar un cobro contra una factura.</summary>
-public sealed record RegistrarCobroComando(Guid FacturaId, decimal Importe, DateOnly? Fecha = null, string? Metodo = null);
+/// <summary>
+/// Datos para registrar un cobro contra una factura. <paramref name="CuentaBancariaId"/> es el banco o la caja por la
+/// que entra el dinero (sin indicarla: la caja en efectivo, el banco predeterminado en lo demás).
+/// </summary>
+public sealed record RegistrarCobroComando(Guid FacturaId, decimal Importe, DateOnly? Fecha = null, string? Metodo = null, Guid? CuentaBancariaId = null);
 
-/// <summary>Datos para registrar un pago contra un gasto.</summary>
-public sealed record RegistrarPagoComando(Guid GastoId, decimal Importe, DateOnly? Fecha = null, string? Metodo = null);
+/// <summary>Datos para registrar un pago contra un gasto (con la cuenta de tesorería por la que sale, opcional).</summary>
+public sealed record RegistrarPagoComando(Guid GastoId, decimal Importe, DateOnly? Fecha = null, string? Metodo = null, Guid? CuentaBancariaId = null);
 
 /// <summary>Caso de uso: registrar un cobro contra una factura (total o parcial, sin sobrepago).</summary>
 public sealed class RegistrarCobro
@@ -78,15 +82,17 @@ public sealed class RegistrarCobro
     private readonly IUnidadDeTrabajoTesoreria _unidadDeTrabajo;
     private readonly IReloj _reloj;
     private readonly ContabilizacionTesoreria? _contabilizacion;
+    private readonly ResolutorCuentaTesoreria? _resolutor;
 
     public RegistrarCobro(IConsultaFacturas facturas, IRepositorioMovimientos movimientos, IUnidadDeTrabajoTesoreria unidadDeTrabajo, IReloj reloj,
-        ContabilizacionTesoreria? contabilizacion = null)
+        ContabilizacionTesoreria? contabilizacion = null, ResolutorCuentaTesoreria? resolutor = null)
     {
         _facturas = facturas;
         _movimientos = movimientos;
         _unidadDeTrabajo = unidadDeTrabajo;
         _reloj = reloj;
         _contabilizacion = contabilizacion;
+        _resolutor = resolutor;
     }
 
     public async Task<Resultado<SaldoDto>> EjecutarAsync(Guid empresaId, RegistrarCobroComando comando, CancellationToken ct = default)
@@ -104,15 +110,34 @@ public sealed class RegistrarCobro
             return Resultado.Fallo<SaldoDto>(Error.Conflicto("factura.anulada", $"La factura {factura.NumeroCompleto} está anulada: no admite cobros."));
         }
 
+        var cuenta = await ResolverCuentaAsync(_resolutor, comando.CuentaBancariaId, comando.Metodo, ct).ConfigureAwait(false);
+        if (cuenta.EsFallo)
+        {
+            return Resultado.Fallo<SaldoDto>(cuenta.Error);
+        }
+
         return await RegistrarAsync(empresaId, TipoDocumentoTesoreria.Factura, comando.FacturaId, SentidoMovimiento.Cobro,
             comando.Importe, factura.Total, comando.Fecha, comando.Metodo, _movimientos, _unidadDeTrabajo, _reloj, ct,
-            contabilizacion: _contabilizacion).ConfigureAwait(false);
+            contabilizacion: _contabilizacion, cuentaBancariaId: cuenta.Valor).ConfigureAwait(false);
+    }
+
+    /// <summary>Cuenta de tesorería del movimiento (null si no hay cuentas o no hay resolutor: asiento a 570/572).</summary>
+    internal static async Task<Resultado<Guid?>> ResolverCuentaAsync(ResolutorCuentaTesoreria? resolutor, Guid? cuentaBancariaId, string? metodo, CancellationToken ct)
+    {
+        if (resolutor is null)
+        {
+            return Resultado.Ok(cuentaBancariaId);
+        }
+
+        var r = await resolutor.ResolverAsync(cuentaBancariaId, metodo, ct).ConfigureAwait(false);
+        return r.EsFallo ? Resultado.Fallo<Guid?>(r.Error) : Resultado.Ok(r.Valor?.Id);
     }
 
     internal static async Task<Resultado<SaldoDto>> RegistrarAsync(
         Guid empresaId, TipoDocumentoTesoreria tipo, Guid documentoId, SentidoMovimiento sentido, decimal importe, decimal totalDocumento,
         DateOnly? fecha, string? metodo, IRepositorioMovimientos movimientos, IUnidadDeTrabajo unidadDeTrabajo, IReloj reloj, CancellationToken ct,
-        Action<Movimiento>? antesDeGuardar = null, ContabilizacionTesoreria? contabilizacion = null, bool aplicacionAnticipo = false)
+        Action<Movimiento>? antesDeGuardar = null, ContabilizacionTesoreria? contabilizacion = null, bool aplicacionAnticipo = false,
+        Guid? cuentaBancariaId = null)
     {
         var importeRedondeado = Redondeo.Dos(importe);
         if (importeRedondeado <= 0)
@@ -127,7 +152,7 @@ public sealed class RegistrarCobro
         }
 
         var fechaMovimiento = fecha ?? DateOnly.FromDateTime(reloj.AhoraUtc.UtcDateTime);
-        var movimiento = Movimiento.Crear(empresaId, tipo, documentoId, sentido, importeRedondeado, fechaMovimiento, metodo, reloj);
+        var movimiento = Movimiento.Crear(empresaId, tipo, documentoId, sentido, importeRedondeado, fechaMovimiento, metodo, reloj, cuentaBancariaId);
         if (movimiento.EsFallo)
         {
             return Resultado.Fallo<SaldoDto>(movimiento.Error);
@@ -162,15 +187,17 @@ public sealed class RegistrarPago
     private readonly IUnidadDeTrabajoTesoreria _unidadDeTrabajo;
     private readonly IReloj _reloj;
     private readonly ContabilizacionTesoreria? _contabilizacion;
+    private readonly ResolutorCuentaTesoreria? _resolutor;
 
     public RegistrarPago(IConsultaGastos gastos, IRepositorioMovimientos movimientos, IUnidadDeTrabajoTesoreria unidadDeTrabajo, IReloj reloj,
-        ContabilizacionTesoreria? contabilizacion = null)
+        ContabilizacionTesoreria? contabilizacion = null, ResolutorCuentaTesoreria? resolutor = null)
     {
         _gastos = gastos;
         _movimientos = movimientos;
         _unidadDeTrabajo = unidadDeTrabajo;
         _reloj = reloj;
         _contabilizacion = contabilizacion;
+        _resolutor = resolutor;
     }
 
     public async Task<Resultado<SaldoDto>> EjecutarAsync(Guid empresaId, RegistrarPagoComando comando, CancellationToken ct = default)
@@ -188,8 +215,15 @@ public sealed class RegistrarPago
             return Resultado.Fallo<SaldoDto>(Error.Conflicto("gasto.anulado", "El gasto está anulado: no admite pagos."));
         }
 
+        var cuenta = await RegistrarCobro.ResolverCuentaAsync(_resolutor, comando.CuentaBancariaId, comando.Metodo, ct).ConfigureAwait(false);
+        if (cuenta.EsFallo)
+        {
+            return Resultado.Fallo<SaldoDto>(cuenta.Error);
+        }
+
         return await RegistrarCobro.RegistrarAsync(empresaId, TipoDocumentoTesoreria.Gasto, comando.GastoId, SentidoMovimiento.Pago,
-            comando.Importe, gasto.Total, comando.Fecha, comando.Metodo, _movimientos, _unidadDeTrabajo, _reloj, ct, contabilizacion: _contabilizacion).ConfigureAwait(false);
+            comando.Importe, gasto.Total, comando.Fecha, comando.Metodo, _movimientos, _unidadDeTrabajo, _reloj, ct, contabilizacion: _contabilizacion,
+            cuentaBancariaId: cuenta.Valor).ConfigureAwait(false);
     }
 }
 
@@ -336,7 +370,7 @@ public sealed class AnularMovimiento
 
         if (_contabilizacion is not null)
         {
-            await _contabilizacion.EncolarMovimientoAsync(anulacion.Valor, anticipo is not null, original, ct).ConfigureAwait(false);
+            await _contabilizacion.EncolarMovimientoAsync(anulacion.Valor, anticipo is not null, original, ct: ct).ConfigureAwait(false);
         }
 
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);

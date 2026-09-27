@@ -80,10 +80,16 @@ public sealed class Movimiento : RaizAgregadoEmpresa<Guid>
     /// </summary>
     public Guid? AnulaMovimientoId { get; private set; }
 
+    /// <summary>
+    /// Cuenta de tesorería (banco o caja) por la que entra o sale el dinero; su subcuenta es la del asiento. Null en los
+    /// movimientos anteriores a las cuentas bancarias o cuando la empresa no tiene ninguna (asiento a 572 o 570).
+    /// </summary>
+    public Guid? CuentaBancariaId { get; private set; }
+
     public const string MetodoAnulacion = "Anulación";
 
     /// <summary>Anulación de un cobro o pago: mismo documento y sentido, importe en negativo.</summary>
-    public static Resultado<Movimiento> CrearAnulacion(Movimiento original, DateOnly fecha, IReloj reloj)
+    public static Resultado<Movimiento> CrearAnulacion(Movimiento original, DateOnly fecha, IReloj reloj, string? metodo = null)
     {
         ArgumentNullException.ThrowIfNull(original);
         ArgumentNullException.ThrowIfNull(reloj);
@@ -98,15 +104,17 @@ public sealed class Movimiento : RaizAgregadoEmpresa<Guid>
         }
 
         var anulacion = new Movimiento(Guid.NewGuid(), original.EmpresaId, original.TipoDocumento, original.DocumentoId, original.Sentido,
-            -original.Importe, fecha, MetodoAnulacion, reloj.AhoraUtc)
+            -original.Importe, fecha, string.IsNullOrWhiteSpace(metodo) ? MetodoAnulacion : Recortar(metodo.Trim()), reloj.AhoraUtc)
         {
             AnulaMovimientoId = original.Id,
+            CuentaBancariaId = original.CuentaBancariaId,
         };
         return Resultado.Ok(anulacion);
     }
 
     public static Resultado<Movimiento> Crear(
-        Guid empresaId, TipoDocumentoTesoreria tipoDocumento, Guid documentoId, SentidoMovimiento sentido, decimal importe, DateOnly fecha, string? metodo, IReloj reloj)
+        Guid empresaId, TipoDocumentoTesoreria tipoDocumento, Guid documentoId, SentidoMovimiento sentido, decimal importe, DateOnly fecha, string? metodo, IReloj reloj,
+        Guid? cuentaBancariaId = null)
     {
         ArgumentNullException.ThrowIfNull(reloj);
 
@@ -117,10 +125,15 @@ public sealed class Movimiento : RaizAgregadoEmpresa<Guid>
 
         var movimiento = new Movimiento(
             Guid.NewGuid(), empresaId, tipoDocumento, documentoId, sentido, Redondeo.Dos(importe), fecha,
-            string.IsNullOrWhiteSpace(metodo) ? null : metodo.Trim(), reloj.AhoraUtc);
+            string.IsNullOrWhiteSpace(metodo) ? null : Recortar(metodo.Trim()), reloj.AhoraUtc)
+        {
+            CuentaBancariaId = cuentaBancariaId,
+        };
         movimiento.RegistrarEvento(new MovimientoRegistrado(movimiento.Id, empresaId, movimiento.Importe, reloj.AhoraUtc));
         return Resultado.Ok(movimiento);
     }
+
+    private static string Recortar(string texto) => texto.Length > 40 ? texto[..40] : texto;
 
     /// <summary>Deriva el estado de saldo de un documento a partir de su total y lo ya liquidado (P2).</summary>
     public static EstadoSaldo DerivarEstado(decimal total, decimal liquidado)

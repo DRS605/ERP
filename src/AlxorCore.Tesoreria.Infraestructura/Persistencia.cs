@@ -36,6 +36,16 @@ public sealed class TesoreriaDbContext : DbContextEmpresaBase, IUnidadDeTrabajoT
 
     public DbSet<ConfiguracionReclamaciones> ConfiguracionesReclamacion => Set<ConfiguracionReclamaciones>();
 
+    public DbSet<CuentaBancaria> CuentasBancarias => Set<CuentaBancaria>();
+
+    public DbSet<Remesa> Remesas => Set<Remesa>();
+
+    public DbSet<DevolucionRecibo> Devoluciones => Set<DevolucionRecibo>();
+
+    public DbSet<ExtractoImportado> Extractos => Set<ExtractoImportado>();
+
+    public DbSet<ApunteBancario> Apuntes => Set<ApunteBancario>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Esquema);
@@ -61,6 +71,9 @@ internal sealed class ConfiguracionMovimiento : IEntityTypeConfiguration<Movimie
         builder.Property(m => m.CreadoEn).HasColumnName("creado_en").IsRequired();
 
         builder.Property(m => m.AnulaMovimientoId).HasColumnName("anula_movimiento_id");
+        builder.Property(m => m.CuentaBancariaId).HasColumnName("cuenta_bancaria_id");
+        builder.HasOne<CuentaBancaria>().WithMany().HasForeignKey(m => m.CuentaBancariaId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(m => m.CuentaBancariaId).HasDatabaseName("ix_movimiento_cuenta_bancaria");
 
         builder.HasIndex(m => new { m.EmpresaId, m.TipoDocumento, m.DocumentoId }).HasDatabaseName("ix_movimiento_documento");
         builder.HasIndex(m => m.AnulaMovimientoId).IsUnique().HasFilter("anula_movimiento_id IS NOT NULL").HasDatabaseName("ux_movimiento_anula");

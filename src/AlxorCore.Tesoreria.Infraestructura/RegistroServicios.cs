@@ -57,8 +57,15 @@ public static class RegistroServicios
         servicios.AddScoped<ListarPrevisiones>();
         servicios.AddScoped<EliminarPrevision>();
         servicios.AddScoped<ConciliarExtracto>();
-        servicios.AddScoped<GenerarRemesaSepa>();
-        servicios.AddScoped<GenerarTransferenciasSepa>();
+        servicios.AddScoped<IRepositorioCuentasBancarias, RepositorioCuentasBancarias>();
+        servicios.AddScoped<ResolutorCuentaTesoreria>();
+        servicios.AddScoped<GestionCuentasBancarias>();
+        servicios.AddScoped<IRepositorioRemesas, RepositorioRemesas>();
+        servicios.AddScoped<GestionRemesas>();
+        servicios.AddScoped<IRepositorioDevoluciones, RepositorioDevoluciones>();
+        servicios.AddScoped<GestionDevoluciones>();
+        servicios.AddScoped<IRepositorioConciliacion, RepositorioConciliacion>();
+        servicios.AddScoped<ConciliacionBancaria>();
         servicios.AddScoped<GenerarCuaderno19>();
         servicios.AddScoped<GenerarConfirming>();
 

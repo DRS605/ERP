@@ -91,6 +91,7 @@ public static class RegistroServicios
         servicios.AddScoped<PosterDocumento>();
         servicios.AddScoped<EncolarDocumento>();
         servicios.AddScoped<AlxorCore.Nucleo.Aplicacion.IColaContabilizacion>(sp => sp.GetRequiredService<EncolarDocumento>());
+        servicios.AddScoped<AlxorCore.Nucleo.Aplicacion.IPlanCuentasTesoreria, PlanCuentasTesoreria>();
         servicios.AddScoped<ObtenerConfigContabilidad>();
         servicios.AddScoped<CambiarContabilizacionAutomatica>();
         servicios.AddScoped<ListarPendientesContabilizar>();

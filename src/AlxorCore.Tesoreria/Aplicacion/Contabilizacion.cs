@@ -38,10 +38,12 @@ public sealed class ContabilizacionTesoreria
     private readonly IColaContabilizacion _cola;
     private readonly IUnidadDeTrabajoTesoreria _unidad;
     private readonly IReloj _reloj;
+    private readonly IRepositorioCuentasBancarias? _bancos;
 
     public ContabilizacionTesoreria(IRepositorioSalidaTesoreria salida, IConsultaFacturas facturas, IConsultaGastos gastos, IRepositorioCartera cartera,
-        IColaContabilizacion cola, IUnidadDeTrabajoTesoreria unidad, IReloj reloj)
+        IColaContabilizacion cola, IUnidadDeTrabajoTesoreria unidad, IReloj reloj, IRepositorioCuentasBancarias? bancos = null)
     {
+        _bancos = bancos;
         _salida = salida;
         _facturas = facturas;
         _gastos = gastos;
@@ -56,21 +58,50 @@ public sealed class ContabilizacionTesoreria
         metodo is not null && metodo.Contains("efectivo", StringComparison.OrdinalIgnoreCase) ? "570" : "572";
 
     /// <summary>
-    /// Encola el asiento de un movimiento (o de su anulación, con <paramref name="original"/>). Si el cobro es la
-    /// aplicación de un anticipo, la contrapartida es 438 en lugar de la tesorería.
+    /// Subcuenta de tesorería de un movimiento: la de su cuenta bancaria o caja; sin ella, 570 en efectivo y 572 en lo demás.
     /// </summary>
-    public async Task EncolarMovimientoAsync(Movimiento movimiento, bool aplicacionAnticipo, Movimiento? original = null, CancellationToken ct = default)
+    public async Task<string> CuentaTesoreriaAsync(Guid? cuentaBancariaId, string? metodo, CancellationToken ct = default)
+    {
+        if (cuentaBancariaId is { } id && _bancos is not null && await _bancos.ObtenerAsync(id, ct).ConfigureAwait(false) is { } banco)
+        {
+            return banco.Subcuenta;
+        }
+
+        return CuentaTesoreria(metodo);
+    }
+
+    /// <summary>
+    /// Encola el asiento de un movimiento (o de su anulación, con <paramref name="original"/>). Si el cobro es la
+    /// aplicación de un anticipo, la contrapartida es 438 en lugar de la tesorería. <paramref name="prefijo"/> cambia el
+    /// «Anulación:» del concepto (p. ej. «Devolución AM04:»).
+    /// </summary>
+    public async Task EncolarMovimientoAsync(Movimiento movimiento, bool aplicacionAnticipo, Movimiento? original = null, string? prefijo = null,
+        CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(movimiento);
         var datos = original ?? movimiento;
         var (terceroId, tercero, documento) = await DocumentoAsync(datos, ct).ConfigureAwait(false);
         var sentido = datos.Sentido == SentidoMovimiento.Cobro ? SentidoContable.Cobro : SentidoContable.Pago;
         var tipo = sentido == SentidoContable.Cobro ? "Cobro" : "Pago";
-        var referencia = Recortar((original is null ? "" : "Anulación: ") + $"{tipo} {documento}".Trim());
-        var tesoreria = aplicacionAnticipo ? "438" : CuentaTesoreria(datos.Metodo);
+        var referencia = Recortar((original is null ? "" : (prefijo ?? "Anulación") + ": ") + $"{tipo} {documento}".Trim());
+        var tesoreria = aplicacionAnticipo ? "438" : await CuentaTesoreriaAsync(datos.CuentaBancariaId, datos.Metodo, ct).ConfigureAwait(false);
         _salida.Agregar(MensajeSalida.Crear(movimiento.EmpresaId, MensajeSalida.TipoContabilizacion, SalidaJson.Serializar(new DocumentoContabilizable(
             sentido, OrigenMovimiento, movimiento.Id, referencia, terceroId, tercero, movimiento.Fecha,
             0m, string.Empty, 0m, 0m, 0m, Math.Abs(movimiento.Importe), Anulacion: original is not null, CuentaTesoreria: tesoreria)), _reloj.AhoraUtc));
+    }
+
+    /// <summary>
+    /// Encola un asiento de tesorería contra una cuenta concreta (sin documento de tercero): gastos bancarios, intereses o
+    /// comisiones de un apunte del extracto, o gastos de devolución de un recibo. Un cobro va de la tesorería
+    /// (<paramref name="cuentaTesoreria"/>) a la <paramref name="contrapartida"/>; un pago, de la contrapartida a la tesorería.
+    /// </summary>
+    public void EncolarAsientoDirecto(Guid empresaId, string origenTipo, Guid origenId, SentidoMovimiento sentido, string referencia, DateOnly fecha,
+        decimal importe, string cuentaTesoreria, string contrapartida, bool anulacion = false, Guid? terceroId = null, string? terceroNombre = null)
+    {
+        _salida.Agregar(MensajeSalida.Crear(empresaId, MensajeSalida.TipoContabilizacion, SalidaJson.Serializar(new DocumentoContabilizable(
+            sentido == SentidoMovimiento.Cobro ? SentidoContable.Cobro : SentidoContable.Pago, origenTipo, origenId, Recortar(referencia), terceroId,
+            terceroNombre ?? string.Empty, fecha, 0m, string.Empty, 0m, 0m, 0m, Math.Abs(importe), Anulacion: anulacion,
+            CuentaTesoreria: cuentaTesoreria, CuentaTercero: string.IsNullOrWhiteSpace(contrapartida) ? null : contrapartida)), _reloj.AhoraUtc));
     }
 
     /// <summary>Encola el asiento de un anticipo recibido (tesorería a 438) o de su anulación.</summary>

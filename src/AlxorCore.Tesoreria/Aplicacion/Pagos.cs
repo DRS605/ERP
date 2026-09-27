@@ -9,14 +9,15 @@ using AlxorCore.Tesoreria.Dominio;
 namespace AlxorCore.Tesoreria.Aplicacion;
 
 /// <summary>Un pago a un proveedor (línea de una remesa de transferencias o de confirming).</summary>
-public sealed record PagoProveedor(string Referencia, string ProveedorNombre, string? Iban, decimal Importe, string Concepto);
+public sealed record PagoProveedor(string Referencia, string ProveedorNombre, string? Iban, decimal Importe, string Concepto, Guid GastoId = default);
 
 /// <summary>Recopila los pagos pendientes a proveedores para las remesas de pago. Compartido.</summary>
 internal static class Pagos
 {
     public static async Task<Resultado<(EmpresaDto Empresa, List<PagoProveedor> Lista, List<string> Omitidos)>> RecopilarAsync(
         Guid empresaId, GenerarPagosComando comando, IConsultaGastos gastos, IConsultaProveedores proveedores,
-        IConsultaEmpresas empresas, IRepositorioMovimientos movimientos, bool exigeIban, CancellationToken ct)
+        IConsultaEmpresas empresas, IRepositorioMovimientos movimientos, bool exigeIban, CancellationToken ct,
+        bool ibanOrdenanteAparte = false, IReadOnlyDictionary<Guid, string>? bloqueados = null)
     {
         if (comando.GastoIds is null || comando.GastoIds.Count == 0)
         {
@@ -29,7 +30,7 @@ internal static class Pagos
             return Resultado.Fallo<(EmpresaDto, List<PagoProveedor>, List<string>)>(Error.NoEncontrado("empresa.no_encontrada", "La empresa no existe."));
         }
 
-        if (string.IsNullOrWhiteSpace(empresa.Iban))
+        if (!ibanOrdenanteAparte && string.IsNullOrWhiteSpace(empresa.Iban))
         {
             return Resultado.Fallo<(EmpresaDto, List<PagoProveedor>, List<string>)>(Error.Validacion("pagos.empresa_sin_iban", "Configura el IBAN de la empresa (Ajustes → Datos de cobro)."));
         }
@@ -51,6 +52,12 @@ internal static class Pagos
                 continue;
             }
 
+            if (bloqueados is not null && bloqueados.TryGetValue(gastoId, out var remesa))
+            {
+                omitidos.Add($"{gasto.Concepto}: ya está en la remesa {remesa}.");
+                continue;
+            }
+
             var liquidado = await movimientos.SumaAsync(TipoDocumentoTesoreria.Gasto, gastoId, ct).ConfigureAwait(false);
             var pendiente = Redondeo.Dos(gasto.Total - liquidado);
             if (pendiente <= 0m)
@@ -67,7 +74,7 @@ internal static class Pagos
             }
 
             var nombre = proveedor?.Nombre ?? gasto.ProveedorTexto ?? gasto.Concepto;
-            lista.Add(new PagoProveedor(gastoId.ToString("N")[..12], nombre, proveedor?.Iban, pendiente, gasto.Concepto));
+            lista.Add(new PagoProveedor(gastoId.ToString("N")[..12], nombre, proveedor?.Iban, pendiente, gasto.Concepto, gastoId));
         }
 
         if (lista.Count == 0)

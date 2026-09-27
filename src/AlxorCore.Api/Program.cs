@@ -275,6 +275,7 @@ app.MapearProduccion();
 app.MapearPersonal();
 app.MapearProyectos();
 app.MapearTesoreria();
+app.MapearBancos();
 app.MapearAgro();
 app.MapearMigracion();
 app.MapearCobranza();

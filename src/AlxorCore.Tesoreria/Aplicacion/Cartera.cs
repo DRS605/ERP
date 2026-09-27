@@ -13,7 +13,7 @@ public sealed record CrearEfectoCarteraComando(
     SentidoCartera Sentido, string TerceroNombre, string Documento, DateOnly Vencimiento, decimal Importe, Guid? TerceroId = null,
     DateOnly? FechaDocumento = null, string? Origen = null, string? OrigenReferencia = null);
 
-public sealed record MovimientoCarteraComando(decimal Importe, DateOnly? Fecha = null, string? Metodo = null);
+public sealed record MovimientoCarteraComando(decimal Importe, DateOnly? Fecha = null, string? Metodo = null, Guid? CuentaBancariaId = null);
 
 public interface IRepositorioCartera
 {
@@ -40,10 +40,12 @@ public sealed class GestionCartera
     private readonly IReloj _reloj;
 
     private readonly ContabilizacionTesoreria? _contabilizacion;
+    private readonly ResolutorCuentaTesoreria? _resolutor;
 
     public GestionCartera(IRepositorioCartera cartera, IRepositorioMovimientos movimientos, IConsultaTesoreria consulta, IUnidadDeTrabajoTesoreria unidad, IReloj reloj,
-        ContabilizacionTesoreria? contabilizacion = null)
+        ContabilizacionTesoreria? contabilizacion = null, ResolutorCuentaTesoreria? resolutor = null)
     {
+        _resolutor = resolutor;
         _contabilizacion = contabilizacion;
         _cartera = cartera;
         _movimientos = movimientos;
@@ -115,9 +117,16 @@ public sealed class GestionCartera
             return Resultado.Fallo<SaldoDto>(Error.Conflicto("cartera.anulado", "El efecto está anulado: no se cobra ni se paga."));
         }
 
+        var cuenta = await RegistrarCobro.ResolverCuentaAsync(_resolutor, c.CuentaBancariaId, c.Metodo, ct).ConfigureAwait(false);
+        if (cuenta.EsFallo)
+        {
+            return Resultado.Fallo<SaldoDto>(cuenta.Error);
+        }
+
         return await RegistrarCobro.RegistrarAsync(empresaId, TipoDocumentoTesoreria.Cartera, efecto.Id,
             efecto.Sentido == SentidoCartera.Cobro ? SentidoMovimiento.Cobro : SentidoMovimiento.Pago,
-            c.Importe, efecto.Importe, c.Fecha, c.Metodo, _movimientos, _unidad, _reloj, ct, contabilizacion: _contabilizacion).ConfigureAwait(false);
+            c.Importe, efecto.Importe, c.Fecha, c.Metodo, _movimientos, _unidad, _reloj, ct, contabilizacion: _contabilizacion,
+            cuentaBancariaId: cuenta.Valor).ConfigureAwait(false);
     }
 
     private static EfectoCarteraDto Dto(EfectoCartera e, decimal liquidado, bool anulado = false) => new(

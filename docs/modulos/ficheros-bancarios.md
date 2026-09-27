@@ -1,37 +1,55 @@
 # Ficheros bancarios (remesas de cobro y pago)
 
-Generación de ficheros para el banco desde Tesorería. Estado actual:
+Generación de ficheros para el banco desde Tesorería. Las remesas SEPA (adeudos y transferencias) quedan
+**registradas** con su fichero, su cuenta bancaria y su estado (ver [Tesorería](tesoreria.md#remesas-sepa-registradas)):
+`POST /tesoreria/remesas` con `tipo` = `Cobro` o `Pago`, y `GET /tesoreria/remesas/{id}/fichero` para volver a
+descargar el XML. El IBAN (y el BIC, si se conoce) del acreedor u ordenante es el de la **cuenta bancaria** elegida
+(o la predeterminada); sin cuentas dadas de alta, el de la ficha de la empresa. Estado actual:
 
 ## Cobros a clientes — Adeudos SEPA (pain.008 / Norma 19.14)
 
-`GenerarRemesaSepa` produce el fichero `pain.008.001.02` de adeudos directos con **esquema** y
+`XmlSepa.Adeudos` (desde `GestionRemesas`) produce el fichero `pain.008.001.02` de adeudos directos con **esquema** y
 **secuencia** elegibles:
 
 - **Esquema**: `CORE` (deudores particulares) o `B2B` (deudores empresa).
 - **Secuencia**: `OOFF` (único), `FRST` (primero), `RCUR` (recurrente), `FNAL` (último).
 
 Requiere IBAN + identificador de acreedor de la empresa y, por cliente, IBAN + mandato + fecha de
-mandato. Cobra el pendiente de cada factura; omite (informando) las no domiciliables.
-`POST /tesoreria/remesa` con `{ facturaIds, fechaCobro?, esquema?, secuencia? }`.
+mandato. Cobra el pendiente de cada factura (o efecto de cartera a cobrar); omite (informando) las no
+domiciliables y las que ya están en otra remesa viva. `POST /tesoreria/remesas` con
+`{ tipo: "Cobro", facturaIds, efectoIds?, fechaCargo?, esquema?, secuencia?, cuentaBancariaId? }`; la ruta antigua
+`POST /tesoreria/remesa` con `{ facturaIds, fechaCobro?, esquema?, secuencia? }` sigue funcionando y también registra
+la remesa.
 
 ## Pagos a proveedores — Transferencias SEPA (pain.001 / Cuaderno 34.14)
 
-`GenerarTransferenciasSepa` produce el fichero `pain.001.001.03` de transferencias para pagar el
+`XmlSepa.Transferencias` produce el fichero `pain.001.001.03` de transferencias para pagar el
 pendiente de los gastos indicados. Requiere IBAN de la empresa (ordenante) y de cada proveedor
 (beneficiario); omite los gastos ya pagados o de proveedores sin IBAN.
-`POST /tesoreria/transferencias` con `{ gastoIds, fechaPago? }`.
+`POST /tesoreria/remesas` con `{ tipo: "Pago", gastoIds, fechaCargo?, cuentaBancariaId? }` (o la ruta antigua
+`POST /tesoreria/transferencias` con `{ gastoIds, fechaPago? }`, que también la registra).
 
 El proveedor incorpora un campo **IBAN** (`terceros.proveedor.iban`, migración `ProveedorIban`).
 
 ## UI
 
-En **Ventas → Remesas SEPA**: un panel de adeudos (cobros, con selector de esquema/secuencia) y un
-panel de transferencias (pagos a proveedores). El fichero se descarga para subirlo al banco.
+En **Tesorería → Remesas SEPA**: la lista de remesas registradas (ver, volver a descargar el XML, marcar
+presentada, cobrada o pagada, anular; devoluciones por línea) y los paneles para crear una remesa de adeudos
+(esquema, secuencia, fecha y cuenta de abono) o de transferencias (fecha y cuenta de cargo). El fichero se descarga
+para subirlo al banco.
+
+## Extractos — Norma 43
+
+Los extractos Norma 43 se importan y guardan por cuenta bancaria para conciliarlos (ver
+[Tesorería](tesoreria.md#conciliación-bancaria-persistente)). El lector interpreta los registros 11 (cabecera),
+22 (apunte: fecha, fecha valor, concepto común, importe, documento y referencias 1 y 2), 23 (conceptos
+ampliados) y 33 (saldo final).
 
 ## Cobros — Cuaderno 19 clásico (CSB, texto de 162 posiciones)
 
 `GenerarCuaderno19` produce el fichero heredado de ancho fijo (registros 5180 presentador, 5170
-ordenante, 5670 adeudos, 5870/5980 totales). `POST /tesoreria/cuaderno19` con `{ facturaIds }`.
+ordenante, 5670 adeudos, 5870/5980 totales). `POST /tesoreria/cuaderno19` con `{ facturaIds }`. No se registra como
+remesa (formato heredado, a validar con el banco).
 
 ## Pagos — Confirming (Cuaderno 68, texto de 100 posiciones)
 
