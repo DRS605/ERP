@@ -226,6 +226,13 @@ public sealed class IntragrupoTests : IClassFixture<FabricaApiPruebas>
 
     private static async Task AsientoAsync(HttpClient api, string concepto, params (string Cuenta, decimal Debe, decimal Haber)[] lineas)
     {
+        // El asiento manual solo admite cuentas del plan: se dan de alta las que no trae el plan básico.
+        foreach (var cuenta in lineas.Select(l => l.Cuenta).Distinct())
+        {
+            var alta = await api.PostAsJsonAsync("/contabilidad/cuentas", new { Codigo = cuenta, Nombre = "Cuenta " + cuenta });
+            alta.StatusCode.Should().BeOneOf(HttpStatusCode.Created, HttpStatusCode.Conflict);
+        }
+
         var r = await api.PostAsJsonAsync("/contabilidad/asientos", new
         {
             Fecha = new DateOnly(DateTime.UtcNow.Year, 2, 1), Concepto = concepto,

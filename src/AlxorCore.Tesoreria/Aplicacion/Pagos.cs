@@ -45,6 +45,12 @@ internal static class Pagos
                 continue;
             }
 
+            if (gasto.Estado == "Anulado")
+            {
+                omitidos.Add($"{gasto.Concepto}: está anulado.");
+                continue;
+            }
+
             var liquidado = await movimientos.SumaAsync(TipoDocumentoTesoreria.Gasto, gastoId, ct).ConfigureAwait(false);
             var pendiente = Redondeo.Dos(gasto.Total - liquidado);
             if (pendiente <= 0m)

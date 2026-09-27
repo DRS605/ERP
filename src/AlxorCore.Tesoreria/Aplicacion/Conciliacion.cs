@@ -265,7 +265,7 @@ public sealed class ConciliarExtracto
     {
         var gastos = await _gastos.ListarAsync(empresaId, ct).ConfigureAwait(false);
         var pendientes = new List<(Guid, string, decimal)>();
-        foreach (var g in gastos)
+        foreach (var g in gastos.Where(g => g.Estado != "Anulado"))
         {
             var liquidado = await _movimientos.SumaAsync(TipoDocumentoTesoreria.Gasto, g.Id, ct).ConfigureAwait(false);
             var pendiente = Redondeo.Dos(g.Total - liquidado);

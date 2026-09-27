@@ -77,6 +77,12 @@ public sealed class GenerarRemesaSepa
                 continue;
             }
 
+            if (factura.Estado == "Anulada")
+            {
+                omitidas.Add($"{factura.NumeroCompleto}: está anulada.");
+                continue;
+            }
+
             var liquidado = await _movimientos.SumaAsync(TipoDocumentoTesoreria.Factura, facturaId, ct).ConfigureAwait(false);
             var pendiente = Redondeo.Dos(factura.Total - liquidado);
             if (pendiente <= 0)

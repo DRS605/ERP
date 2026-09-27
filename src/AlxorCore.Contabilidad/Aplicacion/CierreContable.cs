@@ -219,6 +219,15 @@ public sealed class CerrarEjercicio
 
     public async Task<Resultado<CierreEjercicioDto>> EjecutarAsync(Guid empresaId, int ejercicio, CancellationToken ct = default)
     {
+        // Solo se cierra un ejercicio terminado: cerrar el año en curso regularizaría a mitad de
+        // ejercicio y abriría el siguiente con saldos incompletos.
+        var hoy = DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
+        if (hoy <= new DateOnly(ejercicio, 12, 31))
+        {
+            return Resultado.Fallo<CierreEjercicioDto>(Error.Conflicto(
+                "cierre.ejercicio_abierto", $"El ejercicio {ejercicio} aún no ha terminado: solo se puede cerrar a partir del 1 de enero de {ejercicio + 1}."));
+        }
+
         if (await _asientos.TieneCierreAsync(empresaId, ejercicio, ct).ConfigureAwait(false))
         {
             return Resultado.Fallo<CierreEjercicioDto>(Error.Conflicto("cierre.ya_cerrado", $"El ejercicio {ejercicio} ya está cerrado."));

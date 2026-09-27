@@ -99,6 +99,11 @@ public sealed class RegistrarCobro
             return Resultado.Fallo<SaldoDto>(Error.NoEncontrado("factura.no_encontrada", "La factura no existe."));
         }
 
+        if (factura.Estado == "Anulada")
+        {
+            return Resultado.Fallo<SaldoDto>(Error.Conflicto("factura.anulada", $"La factura {factura.NumeroCompleto} está anulada: no admite cobros."));
+        }
+
         return await RegistrarAsync(empresaId, TipoDocumentoTesoreria.Factura, comando.FacturaId, SentidoMovimiento.Cobro,
             comando.Importe, factura.Total, comando.Fecha, comando.Metodo, _movimientos, _unidadDeTrabajo, _reloj, ct,
             contabilizacion: _contabilizacion).ConfigureAwait(false);
@@ -178,6 +183,11 @@ public sealed class RegistrarPago
             return Resultado.Fallo<SaldoDto>(Error.NoEncontrado("gasto.no_encontrado", "El gasto no existe."));
         }
 
+        if (gasto.Estado == "Anulado")
+        {
+            return Resultado.Fallo<SaldoDto>(Error.Conflicto("gasto.anulado", "El gasto está anulado: no admite pagos."));
+        }
+
         return await RegistrarCobro.RegistrarAsync(empresaId, TipoDocumentoTesoreria.Gasto, comando.GastoId, SentidoMovimiento.Pago,
             comando.Importe, gasto.Total, comando.Fecha, comando.Metodo, _movimientos, _unidadDeTrabajo, _reloj, ct, contabilizacion: _contabilizacion).ConfigureAwait(false);
     }
@@ -228,6 +238,52 @@ public sealed class ConsultarSaldo
         return Resultado.Ok(new SaldoDto(
             tipo.ToString(), documentoId, total, liquidado, pendiente, estado.ToString(),
             MovimientoDto.DesdeLista(movimientos)));
+    }
+}
+
+/// <summary>Saldo resumido de un documento (sin sus movimientos), para listados.</summary>
+public sealed record SaldoDocumentoDto(Guid DocumentoId, decimal Total, decimal Liquidado, decimal Pendiente, string Estado, string EstadoDocumento);
+
+/// <summary>
+/// Saldos de todos los documentos de un tipo (facturas o gastos) de la empresa en una sola consulta
+/// agrupada: evita que los listados de cobros, pagos y previsión pidan el saldo documento a documento.
+/// </summary>
+public sealed class ConsultarSaldos
+{
+    private readonly IConsultaFacturas _facturas;
+    private readonly IConsultaGastos _gastos;
+    private readonly IConsultaTesoreria _tesoreria;
+
+    public ConsultarSaldos(IConsultaFacturas facturas, IConsultaGastos gastos, IConsultaTesoreria tesoreria)
+    {
+        _facturas = facturas;
+        _gastos = gastos;
+        _tesoreria = tesoreria;
+    }
+
+    /// <param name="ids">Si se indica, solo esos documentos; si no, todos los del tipo.</param>
+    public async Task<IReadOnlyList<SaldoDocumentoDto>> EjecutarAsync(Guid empresaId, TipoDocumentoTesoreria tipo, IReadOnlyCollection<Guid>? ids, CancellationToken ct = default)
+    {
+        List<(Guid Id, decimal Total, string Estado)> documentos = tipo switch
+        {
+            TipoDocumentoTesoreria.Factura => (await _facturas.ListarAsync(empresaId, ct).ConfigureAwait(false)).Select(f => (f.Id, f.Total, f.Estado)).ToList(),
+            TipoDocumentoTesoreria.Gasto => (await _gastos.ListarAsync(empresaId, ct).ConfigureAwait(false)).Select(g => (g.Id, g.Total, g.Estado)).ToList(),
+            _ => [],
+        };
+
+        if (ids is { Count: > 0 })
+        {
+            var filtro = ids.ToHashSet();
+            documentos = documentos.Where(d => filtro.Contains(d.Id)).ToList();
+        }
+
+        var liquidados = await _tesoreria.LiquidadoPorDocumentosAsync(tipo, documentos.Select(d => d.Id).ToList(), ct).ConfigureAwait(false);
+        return documentos.Select(d =>
+        {
+            var liquidado = Redondeo.Dos(liquidados.GetValueOrDefault(d.Id));
+            return new SaldoDocumentoDto(d.Id, d.Total, liquidado, Redondeo.Dos(d.Total - liquidado),
+                Movimiento.DerivarEstado(d.Total, liquidado).ToString(), d.Estado);
+        }).ToList();
     }
 }
 

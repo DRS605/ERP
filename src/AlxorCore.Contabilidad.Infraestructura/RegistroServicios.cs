@@ -46,6 +46,7 @@ public static class RegistroServicios
         servicios.AddScoped<SeguimientoPresupuesto>();
 
         servicios.AddScoped<ListarCuentas>();
+        servicios.AddScoped<GestionCuentas>();
         servicios.AddScoped<CrearAsiento>();
         servicios.AddScoped<AnularAsiento>();
         servicios.AddScoped<ListarDiario>();

@@ -2,6 +2,7 @@ using System.Text;
 using AlxorCore.Facturacion.Aplicacion;
 using AlxorCore.Gastos.Aplicacion;
 using AlxorCore.Nucleo.Comun;
+using AlxorCore.Terceros.Aplicacion;
 
 namespace AlxorCore.Informes.Aplicacion;
 
@@ -27,11 +28,13 @@ public sealed class GenerarLibroIva
 {
     private readonly IConsultaFacturas _facturas;
     private readonly IConsultaGastos _gastos;
+    private readonly IConsultaProveedores? _proveedores;
 
-    public GenerarLibroIva(IConsultaFacturas facturas, IConsultaGastos gastos)
+    public GenerarLibroIva(IConsultaFacturas facturas, IConsultaGastos gastos, IConsultaProveedores? proveedores = null)
     {
         _facturas = facturas;
         _gastos = gastos;
+        _proveedores = proveedores;
     }
 
     public async Task<LibroIvaDto> EjecutarAsync(Guid empresaId, TipoLibroIva tipo, DateOnly desde, DateOnly hasta, CancellationToken ct = default)
@@ -49,11 +52,23 @@ public sealed class GenerarLibroIva
         }
         else
         {
-            var gastos = await _gastos.ListarAsync(empresaId, ct).ConfigureAwait(false);
-            asientos = gastos
+            var gastos = (await _gastos.ListarAsync(empresaId, ct).ConfigureAwait(false))
                 .Where(g => g.Fecha >= desde && g.Fecha <= hasta && !string.Equals(g.Estado, "Anulado", StringComparison.OrdinalIgnoreCase))
-                .OrderBy(g => g.Fecha)
-                .Select(g => new AsientoIva(g.Fecha, g.Concepto, g.ProveedorTexto ?? string.Empty, null, g.BaseImponible, g.CuotaIva))
+                .OrderBy(g => g.Fecha).ToList();
+
+            // NIF del proveedor desde su ficha (una consulta por proveedor distinto, no por gasto).
+            var nifs = new Dictionary<Guid, string?>();
+            if (_proveedores is not null)
+            {
+                foreach (var id in gastos.Where(g => g.ProveedorId is not null).Select(g => g.ProveedorId!.Value).Distinct())
+                {
+                    nifs[id] = (await _proveedores.ObtenerAsync(id, ct).ConfigureAwait(false))?.NifFiscal;
+                }
+            }
+
+            asientos = gastos
+                .Select(g => new AsientoIva(g.Fecha, g.Concepto, g.ProveedorTexto ?? string.Empty,
+                    g.ProveedorId is { } pid ? nifs.GetValueOrDefault(pid) : null, g.BaseImponible, g.CuotaIva))
                 .ToList();
         }
 
