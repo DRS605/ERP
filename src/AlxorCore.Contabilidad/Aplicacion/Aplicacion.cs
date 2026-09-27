@@ -18,13 +18,13 @@ public sealed record CuentaDto(Guid Id, string Codigo, string Nombre, int Grupo)
 public sealed record ApunteDto(string CuentaCodigo, string? Concepto, decimal Debe, decimal Haber, Guid Id = default);
 
 public sealed record AsientoDto(Guid Id, int Ejercicio, int Numero, DateOnly Fecha, string Concepto,
-    string Origen, decimal Total, IReadOnlyList<ApunteDto> Apuntes, Guid? AnulaAsientoId = null, Guid? AnuladoPorId = null)
+    string Origen, decimal Total, IReadOnlyList<ApunteDto> Apuntes, Guid? AnulaAsientoId = null, Guid? AnuladoPorId = null, string? Diario = null, int NumeroDiario = 0)
 {
     public static AsientoDto Desde(Asiento a) => Desde(a, null);
 
     public static AsientoDto Desde(Asiento a, Guid? anuladoPorId) => new(a.Id, a.Ejercicio, a.Numero, a.Fecha, a.Concepto,
         a.Origen, a.TotalDebe, a.Apuntes.Select(p => new ApunteDto(p.CuentaCodigo, p.Concepto, p.Debe, p.Haber, p.Id)).ToList(),
-        a.AnulaAsientoId, anuladoPorId);
+        a.AnulaAsientoId, anuladoPorId, a.Diario, a.NumeroDiario);
 }
 
 /// <summary>Línea del libro mayor de una cuenta.</summary>
@@ -90,6 +90,9 @@ public interface IRepositorioAsientos
 
     /// <summary>¿El ejercicio tiene algún asiento de cierre? (para saber si está cerrado sin cargarlos todos).</summary>
     Task<bool> TieneCierreAsync(Guid empresaId, int ejercicio, CancellationToken ct = default);
+
+    /// <summary>Último día de los meses cerrados de la empresa (null: ninguno).</summary>
+    Task<DateOnly?> CerradoHastaAsync(Guid empresaId, CancellationToken ct = default) => Task.FromResult<DateOnly?>(null);
 }
 
 public interface IRepositorioConfigContabilidad
@@ -277,7 +280,7 @@ public sealed class CambiarModoContabilidad
 public sealed record LineaAsientoComando(string CuentaCodigo, decimal Debe, decimal Haber, string? Concepto = null, Guid? CentroId = null, Guid? PartidaId = null);
 
 /// <summary>Crea un asiento manual.</summary>
-public sealed record CrearAsientoComando(DateOnly Fecha, string Concepto, IReadOnlyList<LineaAsientoComando> Lineas);
+public sealed record CrearAsientoComando(DateOnly Fecha, string Concepto, IReadOnlyList<LineaAsientoComando> Lineas, string? Diario = null);
 
 /// <summary>
 /// Anula un asiento <b>manual</b> con su contraasiento (los asientos no se borran ni se modifican). Los asientos que
@@ -332,6 +335,11 @@ public sealed class AnularAsiento
             return Resultado.Fallo<AsientoDto>(Error.Conflicto("asiento.ejercicio_cerrado", $"El ejercicio {dia.Year} está cerrado; indica una fecha de un ejercicio abierto."));
         }
 
+        if (await PeriodosContables.ComprobarAsync(_asientos, empresaId, dia, ct).ConfigureAwait(false) is { } cerrado)
+        {
+            return Resultado.Fallo<AsientoDto>(cerrado);
+        }
+
         var numero = await _asientos.SiguienteNumeroAsync(empresaId, dia.Year, ct).ConfigureAwait(false);
         var contra = Asiento.CrearAnulacion(original, numero, dia, _reloj);
         if (contra.EsFallo)
@@ -353,10 +361,12 @@ public sealed class CrearAsiento
 
     private readonly IRepositorioAnalitica? _analitica;
     private readonly ImputadorAnalitico? _imputador;
+    private readonly IRepositorioDiarios? _diarios;
 
     public CrearAsiento(IRepositorioAsientos asientos, IUnidadDeTrabajoContabilidad unidad, IReloj reloj,
-        IRepositorioAnalitica? analitica = null, ImputadorAnalitico? imputador = null)
+        IRepositorioAnalitica? analitica = null, ImputadorAnalitico? imputador = null, IRepositorioDiarios? diarios = null)
     {
+        _diarios = diarios;
         _asientos = asientos;
         _unidad = unidad;
         _reloj = reloj;
@@ -375,11 +385,22 @@ public sealed class CrearAsiento
             return Resultado.Fallo<AsientoDto>(Error.Conflicto("asiento.ejercicio_cerrado", $"El ejercicio {ejercicio} está cerrado; no admite nuevos asientos."));
         }
 
+        if (await PeriodosContables.ComprobarAsync(_asientos, empresaId, comando.Fecha, ct).ConfigureAwait(false) is { } cerrado)
+        {
+            return Resultado.Fallo<AsientoDto>(cerrado);
+        }
+
+        if (!string.IsNullOrWhiteSpace(comando.Diario) && _diarios is not null
+            && !await _diarios.ExisteActivoAsync(empresaId, comando.Diario.Trim().ToUpperInvariant(), ct).ConfigureAwait(false))
+        {
+            return Resultado.Fallo<AsientoDto>(Error.Validacion("asiento.diario", $"El diario «{comando.Diario}» no existe o está de baja."));
+        }
+
         var numero = await _asientos.SiguienteNumeroAsync(empresaId, ejercicio, ct).ConfigureAwait(false);
         var lineas = (comando.Lineas ?? Array.Empty<LineaAsientoComando>())
             .Select(l => new LineaAsiento(l.CuentaCodigo, l.Debe, l.Haber, l.Concepto)).ToList();
 
-        var asiento = Asiento.Crear(empresaId, ejercicio, numero, comando.Fecha, comando.Concepto, "Manual", lineas, _reloj);
+        var asiento = Asiento.Crear(empresaId, ejercicio, numero, comando.Fecha, comando.Concepto, "Manual", lineas, _reloj, comando.Diario);
         if (asiento.EsFallo)
         {
             return Resultado.Fallo<AsientoDto>(asiento.Error);
@@ -454,6 +475,14 @@ public sealed class ListarDiario
 
     public Task<IReadOnlyList<AsientoDto>> EjecutarAsync(Guid empresaId, int ejercicio, CancellationToken ct = default) =>
         _asientos.DiarioAsync(empresaId, ejercicio, ct);
+
+    /// <summary>Los asientos de un diario (serie), en su orden.</summary>
+    public async Task<IReadOnlyList<AsientoDto>> EjecutarAsync(Guid empresaId, int ejercicio, string? diario, CancellationToken ct = default)
+    {
+        var todos = await _asientos.DiarioAsync(empresaId, ejercicio, ct).ConfigureAwait(false);
+        return string.IsNullOrWhiteSpace(diario) ? todos
+            : todos.Where(a => string.Equals(a.Diario, diario.Trim(), StringComparison.OrdinalIgnoreCase)).OrderBy(a => a.NumeroDiario).ToList();
+    }
 }
 
 /// <summary>Libro mayor de una cuenta: sus movimientos con saldo acumulado.</summary>
@@ -558,6 +587,11 @@ public sealed class GenerarAsientoCompra
         }
 
         lineas.Add(new LineaAsiento(PlanBasico.CuentaProveedores, 0m, totalProveedor, concepto));
+
+        if (await PeriodosContables.ComprobarAsync(_asientos, empresaId, fecha, ct).ConfigureAwait(false) is { } cerrado)
+        {
+            return Resultado.Fallo<AsientoDto>(cerrado);
+        }
 
         await SembradorPlan.AsegurarAsync(empresaId, _cuentas, ct).ConfigureAwait(false);
         var ejercicio = fecha.Year;

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using AlxorCore.Contabilidad.Infraestructura;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AlxorCore.Contabilidad.Infraestructura.Persistencia.Migraciones
 {
     [DbContext(typeof(ContabilidadDbContext))]
-    partial class ContabilidadDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260927173738_DiariosYCierreMensual")]
+    partial class DiariosYCierreMensual
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

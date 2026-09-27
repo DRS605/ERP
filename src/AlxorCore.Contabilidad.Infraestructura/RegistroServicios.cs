@@ -29,6 +29,7 @@ public static class RegistroServicios
         servicios.AddScoped<IUnidadDeTrabajoContabilidad>(sp => sp.GetRequiredService<ContabilidadDbContext>());
         servicios.AddScoped<IRepositorioCuentas, RepositorioCuentas>();
         servicios.AddScoped<IRepositorioAsientos, RepositorioAsientos>();
+        servicios.AddScoped<IRepositorioDiarios, RepositorioDiarios>();
         servicios.AddScoped<IRepositorioConfigContabilidad, RepositorioConfigContabilidad>();
         servicios.AddScoped<IRepositorioDocumentosPendientes, RepositorioDocumentosPendientes>();
         servicios.AddScoped<IRepositorioReglasContabilizacion, RepositorioReglasContabilizacion>();
@@ -47,6 +48,8 @@ public static class RegistroServicios
         servicios.AddScoped<CrearAsiento>();
         servicios.AddScoped<AnularAsiento>();
         servicios.AddScoped<ListarDiario>();
+        servicios.AddScoped<GestionDiarios>();
+        servicios.AddScoped<CierreMensual>();
         servicios.AddScoped<MayorCuenta>();
         servicios.AddScoped<BalanceSumasYSaldos>();
         servicios.AddScoped<GenerarPerdidasGanancias>();

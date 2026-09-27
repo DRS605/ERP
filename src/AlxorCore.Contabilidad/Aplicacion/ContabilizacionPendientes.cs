@@ -132,6 +132,12 @@ public sealed class PosterDocumento
             lineas = lineas.Select(l => l with { Debe = l.Haber, Haber = l.Debe }).ToList();
         }
 
+        // Mes cerrado: el documento sigue pendiente (se contabiliza con otra fecha de registro o al reabrir el mes).
+        if (await PeriodosContables.ComprobarAsync(_asientos, doc.EmpresaId, doc.FechaRegistro, ct).ConfigureAwait(false) is { } cerrado)
+        {
+            return Resultado.Fallo<Asiento>(cerrado);
+        }
+
         await SembradorPlan.AsegurarAsync(doc.EmpresaId, _cuentas, ct).ConfigureAwait(false);
         var ejercicio = doc.FechaRegistro.Year;
         var numero = await _asientos.SiguienteNumeroAsync(doc.EmpresaId, ejercicio, ct).ConfigureAwait(false);

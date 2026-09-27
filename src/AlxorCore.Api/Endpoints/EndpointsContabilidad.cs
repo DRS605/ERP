@@ -40,8 +40,38 @@ public static class EndpointsContabilidad
             .RequierePermiso(Permisos.ContabilidadLeer);
 
         grupo.MapGet("/diario", DiarioAsync)
-            .WithSummary("Libro diario: asientos del ejercicio.")
+            .WithSummary("Libro diario: asientos del ejercicio (con ?diario=VEN, solo los de ese diario, por su número en él).")
             .RequierePermiso(Permisos.ContabilidadLeer);
+
+        grupo.MapGet("/diarios", async (IContextoEmpresa contexto, GestionDiarios caso, CancellationToken ct) =>
+                contexto.EmpresaId is { } e ? Results.Ok(await caso.ListarAsync(e, ct).ConfigureAwait(false)) : SinEmpresa())
+            .WithSummary("Diarios de asientos: los de sistema y los propios, con los orígenes que recoge cada uno.")
+            .RequierePermiso(Permisos.ContabilidadLeer);
+        grupo.MapPost("/diarios", async (DatosDiario datos, IContextoEmpresa contexto, GestionDiarios caso, CancellationToken ct) =>
+                contexto.EmpresaId is { } e ? (await caso.CrearAsync(e, datos, ct).ConfigureAwait(false)).ACreado("/contabilidad/diarios") : SinEmpresa())
+            .WithSummary("Crea un diario propio (puede recoger los asientos de algunos orígenes).")
+            .RequierePermiso(Permisos.ContabilidadGestionar);
+        grupo.MapPut("/diarios/{id:guid}", async (Guid id, DatosDiario datos, IContextoEmpresa contexto, GestionDiarios caso, CancellationToken ct) =>
+                contexto.EmpresaId is { } e ? (await caso.ModificarAsync(e, id, datos, ct).ConfigureAwait(false)).AOk() : SinEmpresa())
+            .WithSummary("Modifica un diario propio: nombre, orígenes y alta o baja.")
+            .RequierePermiso(Permisos.ContabilidadGestionar);
+        grupo.MapDelete("/diarios/{id:guid}", async (Guid id, IContextoEmpresa contexto, GestionDiarios caso, CancellationToken ct) =>
+                contexto.EmpresaId is { } e ? (await caso.EliminarAsync(e, id, ct).ConfigureAwait(false)).ASinContenido() : SinEmpresa())
+            .WithSummary("Elimina un diario propio sin asientos (el que tiene asientos se da de baja).")
+            .RequierePermiso(Permisos.ContabilidadGestionar);
+
+        grupo.MapGet("/periodos", async (int? ejercicio, IContextoEmpresa contexto, CierreMensual caso, IReloj reloj, CancellationToken ct) =>
+                contexto.EmpresaId is { } e ? Results.Ok(await caso.EstadoAsync(e, Ejercicio(ejercicio, reloj), ct).ConfigureAwait(false)) : SinEmpresa())
+            .WithSummary("Meses del ejercicio: cerrados o abiertos, con sus asientos y documentos pendientes de contabilizar.")
+            .RequierePermiso(Permisos.ContabilidadLeer);
+        grupo.MapPost("/periodos/cerrar", async (PeticionPeriodo peticion, IContextoEmpresa contexto, CierreMensual caso, CancellationToken ct) =>
+                contexto.EmpresaId is { } e ? (await caso.CerrarAsync(e, peticion.Anio, peticion.Mes, peticion.Forzar, ct).ConfigureAwait(false)).AOk() : SinEmpresa())
+            .WithSummary("Cierra hasta el final de un mes: no se registran asientos con fecha de ese mes o anterior.")
+            .RequierePermiso(Permisos.ContabilidadGestionar);
+        grupo.MapPost("/periodos/reabrir", async (PeticionPeriodo peticion, IContextoEmpresa contexto, CierreMensual caso, CancellationToken ct) =>
+                contexto.EmpresaId is { } e ? (await caso.ReabrirAsync(e, peticion.Anio, peticion.Mes, ct).ConfigureAwait(false)).AOk() : SinEmpresa())
+            .WithSummary("Reabre desde un mes (y los posteriores).")
+            .RequierePermiso(Permisos.ContabilidadGestionar);
 
         grupo.MapGet("/mayor/{codigo}", MayorAsync)
             .WithSummary("Libro mayor de una cuenta.")
@@ -161,14 +191,14 @@ public static class EndpointsContabilidad
         return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, ct).ConfigureAwait(false));
     }
 
-    private static async Task<IResult> DiarioAsync(int? ejercicio, IContextoEmpresa contexto, ListarDiario caso, IReloj reloj, CancellationToken ct)
+    private static async Task<IResult> DiarioAsync(int? ejercicio, string? diario, IContextoEmpresa contexto, ListarDiario caso, IReloj reloj, CancellationToken ct)
     {
         if (contexto.EmpresaId is null)
         {
             return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
         }
 
-        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, Ejercicio(ejercicio, reloj), ct).ConfigureAwait(false));
+        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, Ejercicio(ejercicio, reloj), diario, ct).ConfigureAwait(false));
     }
 
     private static async Task<IResult> MayorAsync(string codigo, int? ejercicio, IContextoEmpresa contexto, MayorCuenta caso, IReloj reloj, CancellationToken ct)
@@ -435,4 +465,9 @@ public static class EndpointsContabilidad
 
     /// <summary>Fecha del contraasiento (por defecto, la del asiento que anula).</summary>
     public sealed record PeticionAnularAsiento(DateOnly? Fecha);
+
+    /// <summary>Mes que se cierra (hasta él) o se reabre (desde él).</summary>
+    public sealed record PeticionPeriodo(int Anio, int Mes, bool Forzar = false);
+
+    private static IResult SinEmpresa() => ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
 }

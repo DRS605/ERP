@@ -1708,7 +1708,7 @@
     async function vContabilidad() {
       view('<div class="muted">Cargando…</div>');
       const anio=new Date().getFullYear();
-      const [cfg,diario,balance,pendientes,reglas,cuentas,pyg,balsit,anuales,is200]=await Promise.all([
+      const [cfg,diario,balance,pendientes,reglas,cuentas,pyg,balsit,anuales,is200,diarios,periodos]=await Promise.all([
         api("/contabilidad/config"),
         api("/contabilidad/diario?ejercicio="+anio),
         api("/contabilidad/balance?ejercicio="+anio),
@@ -1719,7 +1719,10 @@
         api("/contabilidad/balance-situacion?ejercicio="+anio).catch(()=>null),
         api("/contabilidad/cuentas-anuales?ejercicio="+anio).catch(()=>null),
         api("/contabilidad/modelo-200?ejercicio="+anio).catch(()=>null),
+        api("/contabilidad/diarios").catch(()=>[]),
+        api("/contabilidad/periodos?ejercicio="+anio).catch(()=>null),
       ]);
+      window._diarios=diarios; window._diarioTodos=diario;
       window._ctaOpts=cuentas;
       const modo=cfg.modo||"Simple";
       const auto=!!cfg.contabilizacionAutomatica;
@@ -1776,8 +1779,9 @@
         const ap=a.apuntes.map(p=>`<tr><td style="padding-left:24px" class="muted">${p.cuentaCodigo}${p.concepto?(' · '+p.concepto):''}</td><td class="num">${p.debe>0?eur(p.debe):''}</td><td class="num">${p.haber>0?eur(p.haber):''}</td></tr>`).join("");
         const anul=a.anuladoPorId?' <span class="pill neg" style="font-size:10px">anulado</span>':(a.anulaAsientoId?' <span class="pill neg" style="font-size:10px">anulación</span>':'');
         const btn=a.origen==="Manual"&&!a.anuladoPorId?` <button class="btn small ghost" style="margin-left:6px" onclick="anularAsiento('${a.id}',${a.numero})">Anular</button>`:'';
-        return `<tr><td><strong>#${a.numero}</strong> · ${fdate(a.fecha)} <span class="pill ${a.origen==="Compra"?"part":"ok"}" style="margin-left:6px">${a.origen}</span>${anul}${btn}<div class="muted" style="font-size:12.5px">${a.concepto}</div></td><td class="num"></td><td class="num"><strong>${eur(a.total)}</strong></td></tr>${ap}`;
+        return `<tr><td><strong>#${a.numero}</strong>${a.diario?` <span class="pill" style="font-size:10px" title="Diario ${agEsc(a.diario)}, asiento ${a.numeroDiario}">${agEsc(a.diario)}-${a.numeroDiario}</span>`:''} · ${fdate(a.fecha)} <span class="pill ${a.origen==="Compra"?"part":"ok"}" style="margin-left:6px">${a.origen}</span>${anul}${btn}<div class="muted" style="font-size:12.5px">${a.concepto}</div></td><td class="num"></td><td class="num"><strong>${eur(a.total)}</strong></td></tr>${ap}`;
       };
+      window._asientoHtml=asientoHtml;
       const diarioTabla=diario.length
         ? `<table><thead><tr><th>Asiento</th><th class="num">Debe</th><th class="num">Haber</th></tr></thead><tbody>${diario.map(asientoHtml).join("")}</tbody></table>`
         : vacio("informes","Sin asientos en "+anio,"Los asientos aparecerán aquí (manuales o generados al contabilizar facturas en modo Completo).",`<button class="btn small" onclick="modalAsiento()">+ Nuevo asiento</button>`);
@@ -1869,7 +1873,8 @@
       view(banner
         +panelPend
         +panelReglas
-        +panel("Libro diario · "+anio,diarioTabla,`<button class="btn small" onclick="modalAsiento()">+ Nuevo asiento</button>`)
+        +panel("Libro diario · "+anio,`<div id="diario_cuerpo">${diarioTabla}</div>`,agBotones((diarios||[]).length?`<select style="width:auto" onchange="filtrarDiario(this.value)"><option value="">Todos los diarios</option>${diarios.map(d=>`<option value="${d.codigo}">${agEsc(d.codigo)} · ${agEsc(d.nombre)}</option>`).join("")}</select>`:"",`<button class="btn small" onclick="modalAsiento()">+ Nuevo asiento</button>`))
+        +(modo==="Completo"?panelPeriodos(periodos,anio)+panelDiarios(diarios):"")
         +panel("Balance de sumas y saldos · "+anio,balTabla)
         +panelPyg
         +panelBalSit
@@ -1941,10 +1946,63 @@
         <input class="asi-debe" type="number" step="0.01" placeholder="Debe"/>
         <input class="asi-haber" type="number" step="0.01" placeholder="Haber"/></div>`;
     }
+    function filtrarDiario(codigo){
+      const lista=(window._diarioTodos||[]).filter(a=>!codigo||a.diario===codigo).sort((x,y)=>codigo?x.numeroDiario-y.numeroDiario:0);
+      const el=document.getElementById("diario_cuerpo"); if(!el) return;
+      el.innerHTML=lista.length?`<table><thead><tr><th>Asiento</th><th class="num">Debe</th><th class="num">Haber</th></tr></thead><tbody>${lista.map(window._asientoHtml).join("")}</tbody></table>`
+        :`<p class="muted" style="margin:0">Sin asientos en el diario ${agEsc(codigo)}.</p>`;
+      mejorarTablas();
+    }
+    function panelPeriodos(p,anio){
+      if(!p) return "";
+      const nombres=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+      const primeroAbierto=p.meses.find(m=>!m.cerrado);
+      const filas=p.meses.map(m=>`<tr><td>${nombres[m.mes-1]}</td><td>${m.cerrado?'<span class="pill neg">Cerrado</span>':'<span class="pill ok">Abierto</span>'}</td>
+        <td class="num">${m.asientos||'<span class="muted">—</span>'}</td><td class="num">${m.pendientes?`<span class="pill part">${m.pendientes}</span>`:'<span class="muted">—</span>'}</td>
+        <td class="right">${m.cerrado?`<button class="btn small ghost" onclick="reabrirMes(${anio},${m.mes})">Reabrir desde aquí</button>`:(primeroAbierto&&m.mes>=primeroAbierto.mes?`<button class="btn small secondary" onclick="cerrarMes(${anio},${m.mes},${m.pendientes||0})">Cerrar hasta aquí</button>`:'')}</td></tr>`).join("");
+      return panel("Cierre mensual · "+anio,`<p class="muted" style="margin:0 0 10px">Un mes cerrado no admite asientos con su fecha (ni anteriores): ciérralo al presentar el IVA. Los documentos pendientes de un mes cerrado se contabilizan con otra fecha de registro o reabriendo el mes.${p.cerradoHasta?` Cerrado hasta el <strong>${fdate(p.cerradoHasta)}</strong>.`:''}</p>
+        <table><thead><tr><th>Mes</th><th>Estado</th><th class="num">Asientos</th><th class="num">Pendientes</th><th></th></tr></thead><tbody>${filas}</tbody></table>`);
+    }
+    async function cerrarMes(anio,mes,pend){
+      const cerrar=async forzar=>api("/contabilidad/periodos/cerrar",{method:"POST",body:JSON.stringify({anio,mes,forzar})});
+      try{ await cerrar(false); toast("Mes cerrado.","ok"); vContabilidad(); }
+      catch(e){ if(/pendiente/.test(e.message)&&confirm(e.message+"\n\n¿Cerrar igualmente?")){ try{ await cerrar(true); toast("Mes cerrado.","ok"); vContabilidad(); }catch(e2){ toast(e2.message,"err"); } } else toast(e.message,"err"); }
+    }
+    async function reabrirMes(anio,mes){
+      if(!confirm("Se reabre este mes y todos los posteriores. ¿Continuar?")) return;
+      try{ await api("/contabilidad/periodos/reabrir",{method:"POST",body:JSON.stringify({anio,mes})}); toast("Mes reabierto.","ok"); vContabilidad(); }catch(e){ toast(e.message,"err"); }
+    }
+    const ORIGENES_ASIENTO={Manual:"Asientos manuales",Venta:"Facturas de venta",Compra:"Facturas de compra",Cobro:"Cobros",Pago:"Pagos",Amortizacion:"Amortizaciones",BajaInmovilizado:"Bajas de inmovilizado",Enajenacion:"Ventas de inmovilizado",ImpuestoDiferido:"Impuesto diferido",Regularizacion:"Regularización",Cierre:"Cierre",Apertura:"Apertura"};
+    function panelDiarios(diarios){
+      if(!diarios||!diarios.length) return "";
+      const filas=diarios.map(d=>`<tr><td class="mono"><strong>${agEsc(d.codigo)}</strong></td><td>${agEsc(d.nombre)}${d.deSistema?' <span class="muted" style="font-size:12px">· de sistema</span>':''}${d.activo?'':' <span class="pill wait">De baja</span>'}</td>
+        <td class="muted" style="font-size:12.5px">${d.origenes.map(o=>ORIGENES_ASIENTO[o]||o).join(", ")||"—"}</td><td class="num">${d.asientos||'<span class="muted">—</span>'}</td>
+        <td class="right" style="white-space:nowrap">${d.deSistema?"":`<button class="btn small ghost" onclick="modalDiario('${d.id}')">Editar</button>${d.asientos?"":` <button class="btn small ghost" onclick="eliminarDiario('${d.id}')" title="Eliminar">✕</button>`}`}</td></tr>`).join("");
+      return panel("Diarios de asientos",`<p class="muted" style="margin:0 0 10px">Cada asiento va a un diario y lleva su número en él, además del número correlativo del libro diario. Crea diarios propios (p. ej. «BAN» para los cobros y pagos) y elige qué asientos recogen.</p>
+        <table><thead><tr><th>Código</th><th>Diario</th><th>Recoge</th><th class="num">Asientos</th><th></th></tr></thead><tbody>${filas}</tbody></table>`,`<button class="btn small" onclick="modalDiario()">+ Nuevo diario</button>`);
+    }
+    function modalDiario(id){
+      const d=id?(window._diarios||[]).find(x=>x.id===id):null;
+      const asignables=["Manual","Venta","Compra","Cobro","Pago","Amortizacion","BajaInmovilizado","Enajenacion","ImpuestoDiferido"];
+      abrir(d?"Editar diario "+d.codigo:"Nuevo diario",`<div class="grid2"><div><label>Código</label><input id="di_cod" maxlength="10" value="${d?agEsc(d.codigo):""}"${d?" disabled":""} placeholder="BAN"/></div>
+        <div><label>Nombre</label><input id="di_nom" value="${d?agEsc(d.nombre):""}" placeholder="Bancos"/></div></div>
+        <label style="margin-top:12px">Recoge los asientos de <span class="muted" style="font-weight:400;font-size:12px">— en lugar de su diario de sistema</span></label>
+        ${asignables.map(o=>`<label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:4px 0"><input type="checkbox" class="di-or" value="${o}" style="width:auto;margin:0"${d&&d.origenes.includes(o)?" checked":""}/> ${ORIGENES_ASIENTO[o]}</label>`).join("")}
+        ${d?`<label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="di_act" style="width:auto;margin:0"${d.activo?" checked":""}/> Activo</label>`:""}`,
+        async()=>{ const b={codigo:val("di_cod"),nombre:val("di_nom"),origenes:[...document.querySelectorAll(".di-or:checked")].map(x=>x.value),activo:d?document.getElementById("di_act").checked:true};
+          if(d) await api(`/contabilidad/diarios/${d.id}`,{method:"PUT",body:JSON.stringify(b)}); else await api("/contabilidad/diarios",{method:"POST",body:JSON.stringify(b)});
+          toast("Diario guardado.","ok"); setTimeout(vContabilidad); });
+    }
+    async function eliminarDiario(id){
+      if(!confirm("¿Eliminar este diario?")) return;
+      try{ await api(`/contabilidad/diarios/${id}`,{method:"DELETE"}); toast("Diario eliminado.","ok"); vContabilidad(); }catch(e){ toast(e.message,"err"); }
+    }
     function modalAsiento(){
       const hoy=new Date().toISOString().slice(0,10);
+      const dOpts=(window._diarios||[]).filter(d=>d.activo).map(d=>`<option value="${d.codigo}">${agEsc(d.codigo)} · ${agEsc(d.nombre)}</option>`).join("");
       abrir("Nuevo asiento",`
         <div class="grid2"><div><label>Fecha</label><input id="asi_fecha" type="date" value="${hoy}"/></div><div><label>Concepto</label><input id="asi_concepto" placeholder="Descripción del asiento"/></div></div>
+        ${dOpts?`<label>Diario</label><select id="asi_diario"><option value="">Automático (el de los asientos manuales)</option>${dOpts}</select>`:""}
         <label style="margin-top:14px">Apuntes (la suma del debe debe igualar la del haber)</label>
         <div id="asi_lineas">${asientoLineaHtml()+asientoLineaHtml()}</div>
         <button class="btn small secondary" style="margin-top:4px" onclick="document.getElementById('asi_lineas').insertAdjacentHTML('beforeend', asientoLineaHtml())">+ Añadir línea</button>`,
@@ -1954,7 +2012,7 @@
             debe:Number(r.querySelector('.asi-debe').value||0),
             haber:Number(r.querySelector('.asi-haber').value||0),
           })).filter(l=>l.cuentaCodigo && (l.debe>0||l.haber>0));
-          await api("/contabilidad/asientos",{method:"POST",body:JSON.stringify({fecha:val("asi_fecha"),concepto:val("asi_concepto"),lineas})});
+          await api("/contabilidad/asientos",{method:"POST",body:JSON.stringify({fecha:val("asi_fecha"),concepto:val("asi_concepto"),diario:(document.getElementById("asi_diario")||{}).value||null,lineas})});
           toast("Asiento registrado.","ok"); vContabilidad();
         });
     }

@@ -1,4 +1,5 @@
 using AlxorCore.Nucleo.Dominio;
+using AlxorCore.Nucleo.Resultados;
 
 namespace AlxorCore.Contabilidad.Dominio;
 
@@ -49,6 +50,51 @@ public sealed class ConfiguracionContabilidad : RaizAgregadoEmpresa<Guid>
     /// terceros comparten la cuenta raíz (430/400/465).
     /// </summary>
     public int LongitudSubcuenta { get; private set; } = LongitudSubcuentaDefecto;
+
+    /// <summary>
+    /// Último día de los meses cerrados: no se registran asientos con fecha igual o anterior (salvo la regularización y
+    /// el cierre del ejercicio). Nulo: ningún mes cerrado.
+    /// </summary>
+    public DateOnly? CerradoHasta { get; private set; }
+
+    /// <summary>¿Se pueden registrar asientos con esta fecha?</summary>
+    public bool Admite(DateOnly fecha) => CerradoHasta is not { } h || fecha > h;
+
+    /// <summary>Cierra hasta el final del mes indicado (no deja abrir huecos: solo avanza).</summary>
+    public Resultado CerrarHasta(int anio, int mes)
+    {
+        if (mes is < 1 or > 12 || anio is < 2000 or > 2100)
+        {
+            return Resultado.Fallo(Error.Validacion("periodo.mes", "Indica un mes válido."));
+        }
+
+        var fin = new DateOnly(anio, mes, DateTime.DaysInMonth(anio, mes));
+        if (CerradoHasta is { } h && fin <= h)
+        {
+            return Resultado.Fallo(Error.Conflicto("periodo.ya_cerrado", $"Ya está cerrado hasta el {h:dd/MM/yyyy}."));
+        }
+
+        CerradoHasta = fin;
+        return Resultado.Ok();
+    }
+
+    /// <summary>Reabre desde el mes indicado (y todos los posteriores).</summary>
+    public Resultado ReabrirDesde(int anio, int mes)
+    {
+        if (mes is < 1 or > 12 || anio is < 2000 or > 2100)
+        {
+            return Resultado.Fallo(Error.Validacion("periodo.mes", "Indica un mes válido."));
+        }
+
+        var inicio = new DateOnly(anio, mes, 1);
+        if (CerradoHasta is not { } h || inicio > h)
+        {
+            return Resultado.Fallo(Error.Conflicto("periodo.abierto", "Ese mes ya está abierto."));
+        }
+
+        CerradoHasta = inicio.AddDays(-1) is var anterior && anterior.Year >= 2000 ? anterior : null;
+        return Resultado.Ok();
+    }
 
     public void CambiarModo(ModoContabilidad modo) => Modo = modo;
 

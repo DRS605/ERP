@@ -56,6 +56,8 @@ public sealed class OperacionesRegistrosTests : IClassFixture<FabricaApiPruebas>
         ["/recepcion/buzon/procesar"] = "lee el buzón de correo",
         ["/contabilidad/pendientes/contabilizar"] = "contabiliza (los asientos se anulan desde su documento)",
         ["/contabilidad/cierre"] = "cierre del ejercicio",
+        ["/contabilidad/periodos/cerrar"] = "cierre mensual: se deshace con /contabilidad/periodos/reabrir",
+        ["/contabilidad/periodos/reabrir"] = "es la corrección del cierre mensual",
         ["/contabilidad/inmovilizado/amortizar"] = "dotaciones del periodo (asientos de amortización)",
         ["/contabilidad/analitica/imputar-pendientes"] = "imputa con las reglas (las imputaciones se corrigen una a una)",
         ["/contabilidad/analitica/repartos"] = "se deshace con DELETE /contabilidad/analitica/ejecuciones/{id}",

@@ -215,6 +215,7 @@ public sealed class GenerarAmortizacion
         await SembradorPlan.AsegurarAsync(empresaId, _cuentas, ct).ConfigureAwait(false);
         var activos = await _inmovilizados.ListarActivosAsync(empresaId, ct).ConfigureAwait(false);
         var numero = await _asientos.SiguienteNumeroAsync(empresaId, ejercicio, ct).ConfigureAwait(false);
+        _cerradoHasta = await _asientos.CerradoHastaAsync(empresaId, ct).ConfigureAwait(false);
 
         var generados = 0;
         decimal totalDotado = 0m, totalImpuesto = 0m;
@@ -278,6 +279,11 @@ public sealed class GenerarAmortizacion
                 {
                     var lineas = patas.Select(p => new LineaAsiento(p.CuentaCodigo, p.Debe, p.Haber, "Impuesto diferido")).ToList();
                     var fecha = new DateOnly(ejercicio, 12, 31);
+                    if (PeriodosContables.Cerrado(_cerradoHasta, fecha) is { } cerrado)
+                    {
+                        return Resultado.Fallo<ResultadoAmortizacionDto>(cerrado);
+                    }
+
                     var asiento = Asiento.Crear(empresaId, ejercicio, numero, fecha,
                         $"Impuesto diferido amortización · {inmo.Codigo}", "ImpuestoDiferido", lineas, _reloj);
                     if (asiento.EsFallo)
@@ -303,8 +309,16 @@ public sealed class GenerarAmortizacion
         return Resultado.Ok(new ResultadoAmortizacionDto(ejercicio, generados, totalDotado, totalImpuesto));
     }
 
+    private DateOnly? _cerradoHasta;
+
     private Resultado<Asiento> CrearDotacion(Guid empresaId, int ejercicio, ref int numero, DateOnly fecha, Inmovilizado inmo, decimal importe)
     {
+        // Mes cerrado: no se genera nada (la amortización se genera antes de cerrar el mes, o se reabre).
+        if (PeriodosContables.Cerrado(_cerradoHasta, fecha) is { } cerrado)
+        {
+            return Resultado.Fallo<Asiento>(cerrado);
+        }
+
         var lineas = new List<LineaAsiento>
         {
             new(inmo.CuentaDotacion, importe, 0m, $"Amortización {inmo.Codigo}"),
@@ -389,6 +403,11 @@ public sealed class DarDeBajaInmovilizado
             return Resultado.Fallo<AsientoDto>(Error.Conflicto("asiento.ejercicio_cerrado", $"El ejercicio {ejercicio} está cerrado; no admite nuevos asientos."));
         }
 
+        if (await PeriodosContables.ComprobarAsync(_asientos, empresaId, comando.Fecha, ct).ConfigureAwait(false) is { } cerrado)
+        {
+            return Resultado.Fallo<AsientoDto>(cerrado);
+        }
+
         var baja = inmo.DarDeBaja(comando.Fecha);
         if (baja.EsFallo)
         {
@@ -452,6 +471,11 @@ public sealed class EnajenarInmovilizado
         if (await GuardaEjercicio.EstaCerradoAsync(_asientos, empresaId, ejercicio, ct).ConfigureAwait(false))
         {
             return Resultado.Fallo<AsientoDto>(Error.Conflicto("asiento.ejercicio_cerrado", $"El ejercicio {ejercicio} está cerrado; no admite nuevos asientos."));
+        }
+
+        if (await PeriodosContables.ComprobarAsync(_asientos, empresaId, comando.Fecha, ct).ConfigureAwait(false) is { } cerrado)
+        {
+            return Resultado.Fallo<AsientoDto>(cerrado);
         }
 
         var enajena = inmo.Enajenar(comando.Fecha, comando.ValorEnajenacion);

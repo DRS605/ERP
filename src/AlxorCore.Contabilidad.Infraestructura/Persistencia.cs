@@ -48,6 +48,8 @@ public sealed class ContabilidadDbContext : DbContextEmpresaBase, IUnidadDeTraba
 
     public DbSet<PresupuestoContable> PresupuestosContables => Set<PresupuestoContable>();
 
+    public DbSet<DiarioContable> Diarios => Set<DiarioContable>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Esquema);
@@ -91,6 +93,12 @@ internal sealed class ConfiguracionAsiento : IEntityTypeConfiguration<Asiento>
         builder.Property(a => a.CreadoEn).HasColumnName("creado_en").IsRequired();
         builder.Property(a => a.AnulaAsientoId).HasColumnName("anula_asiento_id");
         builder.HasIndex(a => a.AnulaAsientoId).IsUnique().HasFilter("anula_asiento_id IS NOT NULL").HasDatabaseName("ux_asiento_anula");
+        // Diario y número dentro del diario: los asigna el trigger contabilidad.asiento_diario al insertar.
+        builder.Property(a => a.Diario).HasColumnName("diario").HasMaxLength(DiarioContable.LongitudCodigo).IsRequired().ValueGeneratedOnAdd();
+        builder.Property(a => a.NumeroDiario).HasColumnName("numero_diario").ValueGeneratedOnAdd()
+            .HasAnnotation("Npgsql:ValueGenerationStrategy",
+                Npgsql.EntityFrameworkCore.PostgreSQL.Metadata.NpgsqlValueGenerationStrategy.None);
+        builder.HasIndex(a => new { a.EmpresaId, a.Ejercicio, a.Diario, a.NumeroDiario }).IsUnique().HasDatabaseName("ux_asiento_diario_numero");
 
         builder.OwnsMany(a => a.Apuntes, apunte =>
         {
@@ -120,8 +128,47 @@ internal sealed class ConfiguracionConfigContabilidad : IEntityTypeConfiguration
         builder.Property(c => c.Modo).HasColumnName("modo").HasMaxLength(20).HasConversion<string>().IsRequired();
         builder.Property(c => c.ContabilizacionAutomatica).HasColumnName("contabilizacion_automatica").IsRequired();
         builder.Property(c => c.LongitudSubcuenta).HasColumnName("longitud_subcuenta").IsRequired().HasDefaultValue(ConfiguracionContabilidad.LongitudSubcuentaDefecto);
+        builder.Property(c => c.CerradoHasta).HasColumnName("cerrado_hasta");
         builder.Ignore(c => c.EventosDominio);
     }
+}
+
+internal sealed class ConfiguracionDiarioContable : IEntityTypeConfiguration<DiarioContable>
+{
+    public void Configure(EntityTypeBuilder<DiarioContable> builder)
+    {
+        builder.ToTable("diario_contable");
+        builder.HasKey(d => d.Id);
+        builder.Property(d => d.Id).HasColumnName("id").ValueGeneratedNever();
+        builder.Property(d => d.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        builder.Property(d => d.Codigo).HasColumnName("codigo").HasMaxLength(DiarioContable.LongitudCodigo).IsRequired();
+        builder.Property(d => d.Nombre).HasColumnName("nombre").HasMaxLength(DiarioContable.LongitudNombre).IsRequired();
+        builder.Property<List<string>>("_origenes").HasColumnName("origenes").HasColumnType("text[]").IsRequired();
+        builder.Ignore(d => d.Origenes);
+        builder.Property(d => d.Activo).HasColumnName("activo").IsRequired();
+        builder.HasIndex(d => new { d.EmpresaId, d.Codigo }).IsUnique().HasDatabaseName("ux_diario_empresa_codigo");
+        builder.Ignore(d => d.EventosDominio);
+    }
+}
+
+internal sealed class RepositorioDiarios : IRepositorioDiarios
+{
+    private readonly ContabilidadDbContext _contexto;
+
+    public RepositorioDiarios(ContabilidadDbContext contexto) => _contexto = contexto;
+
+    public async Task<IReadOnlyList<DiarioContable>> ListarAsync(Guid empresaId, CancellationToken ct = default) =>
+        await _contexto.Diarios.Where(d => d.EmpresaId == empresaId).ToListAsync(ct).ConfigureAwait(false);
+
+    public Task<DiarioContable?> ObtenerAsync(Guid id, CancellationToken ct = default) => _contexto.Diarios.SingleOrDefaultAsync(d => d.Id == id, ct);
+
+    public void Agregar(DiarioContable diario) => _contexto.Diarios.Add(diario);
+
+    public void Eliminar(DiarioContable diario) => _contexto.Diarios.Remove(diario);
+
+    public async Task<IReadOnlyDictionary<string, int>> AsientosPorDiarioAsync(Guid empresaId, CancellationToken ct = default) =>
+        await _contexto.Asientos.AsNoTracking().Where(a => a.EmpresaId == empresaId && a.Diario != null).GroupBy(a => a.Diario!)
+            .Select(g => new { g.Key, N = g.Count() }).ToDictionaryAsync(x => x.Key, x => x.N, StringComparer.Ordinal, ct).ConfigureAwait(false);
 }
 
 internal sealed class ConfiguracionDocumentoPendiente : IEntityTypeConfiguration<DocumentoPendiente>
@@ -275,6 +322,9 @@ internal sealed class RepositorioAsientos : IRepositorioAsientos
     public RepositorioAsientos(ContabilidadDbContext contexto) => _contexto = contexto;
 
     public void Agregar(Asiento asiento) => _contexto.Asientos.Add(asiento);
+
+    public async Task<DateOnly?> CerradoHastaAsync(Guid empresaId, CancellationToken ct = default) =>
+        await _contexto.Configuraciones.AsNoTracking().Where(c => c.EmpresaId == empresaId).Select(c => c.CerradoHasta).FirstOrDefaultAsync(ct).ConfigureAwait(false);
 
     public async Task<int> SiguienteNumeroAsync(Guid empresaId, int ejercicio, CancellationToken ct = default)
     {

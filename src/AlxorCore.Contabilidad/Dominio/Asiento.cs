@@ -77,6 +77,15 @@ public sealed class Asiento : RaizAgregadoEmpresa<Guid>
 
     public DateTimeOffset CreadoEn { get; private set; }
 
+    /// <summary>
+    /// Diario (serie) del asiento. Si no se indica, la base de datos lo asigna por su origen (el de un contraasiento,
+    /// el del asiento que anula). Ver <see cref="DiariosContables"/>.
+    /// </summary>
+    public string? Diario { get; private set; }
+
+    /// <summary>Número correlativo dentro del diario y el ejercicio (lo asigna la base de datos).</summary>
+    public int NumeroDiario { get; private set; }
+
     /// <summary>Si es un contraasiento: el asiento que anula (un asiento solo se anula una vez: índice único).</summary>
     public Guid? AnulaAsientoId { get; private set; }
 
@@ -112,7 +121,7 @@ public sealed class Asiento : RaizAgregadoEmpresa<Guid>
     public decimal TotalHaber => Redondeo.Dos(_apuntes.Sum(a => a.Haber));
 
     public static Resultado<Asiento> Crear(Guid empresaId, int ejercicio, int numero, DateOnly fecha,
-        string? concepto, string? origen, IReadOnlyList<LineaAsiento> lineas, IReloj reloj)
+        string? concepto, string? origen, IReadOnlyList<LineaAsiento> lineas, IReloj reloj, string? diario = null)
     {
         ArgumentNullException.ThrowIfNull(reloj);
         ArgumentNullException.ThrowIfNull(lineas);
@@ -160,7 +169,10 @@ public sealed class Asiento : RaizAgregadoEmpresa<Guid>
         }
 
         var asiento = new Asiento(Guid.NewGuid(), empresaId, ejercicio, numero, fecha, concepto.Trim(),
-            string.IsNullOrWhiteSpace(origen) ? "Manual" : origen.Trim(), reloj.AhoraUtc);
+            string.IsNullOrWhiteSpace(origen) ? "Manual" : origen.Trim(), reloj.AhoraUtc)
+        {
+            Diario = string.IsNullOrWhiteSpace(diario) ? null : diario.Trim().ToUpperInvariant(),
+        };
         foreach (var linea in lineas)
         {
             asiento._apuntes.Add(new Apunte(Guid.NewGuid(), linea.CuentaCodigo.Trim(), string.IsNullOrWhiteSpace(linea.Concepto) ? null : linea.Concepto.Trim(),

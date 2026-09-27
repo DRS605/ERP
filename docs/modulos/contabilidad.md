@@ -139,12 +139,67 @@ La respuesta (`CierreEjercicioDto`) devuelve el `resultado` y los ids de los tre
 cerrar dos veces** (409 `cierre.ya_cerrado`) ni cerrar un ejercicio **sin movimientos**
 (400 `cierre.sin_movimientos`).
 
+## Diarios de asientos
+
+El libro diario es **uno** por empresa y ejercicio, con numeración correlativa sin huecos. Además, cada asiento va a
+un **diario** (serie) y lleva su **número dentro del diario**, correlativo por ejercicio. Sirven para listar y
+revisar por tipo de operación (el `AsientosSerieNumero` de Hispatec). No son libros paralelos.
+
+Diarios de sistema, que existen siempre:
+
+| Código | Diario | Recoge |
+|---|---|---|
+| `GEN` | General | Asientos manuales (y lo que no tenga otro) |
+| `VEN` | Ventas | Facturas y tickets de venta |
+| `COM` | Compras | Facturas de compra y gastos |
+| `TES` | Cobros y pagos | Cobros, pagos y anticipos |
+| `INM` | Inmovilizado | Amortizaciones, impuesto diferido, bajas y ventas de inmovilizado |
+| `CIE` | Regularización y cierre | Regularización y cierre del ejercicio |
+| `APE` | Apertura | Apertura del ejercicio |
+
+**Diarios propios** (`/contabilidad/diarios`):
+
+- La empresa crea los suyos, por ejemplo `BAN` para bancos o `REG` para regularizaciones.
+- Cada diario propio puede **recoger los asientos de unos orígenes** en lugar de su diario de sistema: manuales,
+  ventas, compras, cobros, pagos o inmovilizado. Cada origen va a un solo diario propio.
+- Un asiento manual puede indicar su diario; si no lo indica, va al de los manuales.
+- Un **contraasiento** va siempre al diario del asiento que anula.
+- Un diario con asientos no se elimina: se da de baja, y sus orígenes vuelven a su diario de sistema.
+
+La base de datos asigna el diario y el número al dar de alta el asiento (trigger `contabilidad.asiento_diario`). Así
+lo cumplen todos los orígenes. El número es correlativo porque el alta ya tiene el bloqueo del ejercicio. Índice
+único `ux_asiento_diario_numero`.
+
+Al migrar, los asientos existentes recibieron su diario por el origen y su número en orden.
+
+## Cierre mensual
+
+Al presentar el IVA de un mes, se **cierra** (`POST /contabilidad/periodos/cerrar` con `{anio, mes}`). Desde entonces
+no se registra **ningún asiento con fecha de ese mes ni anterior**: ni manual, ni de documentos, ni amortizaciones,
+ni anulaciones (409 `asiento.periodo_cerrado`). La regularización y el cierre del ejercicio sí se registran a
+31/12.
+
+- Se cierra **hasta** un mes, sin huecos: cerrar marzo cierra también enero y febrero. No se cierra hacia atrás.
+- Si hay **documentos pendientes de contabilizar** con fecha hasta ese mes, el cierre pide confirmación (409
+  `periodo.pendientes`; con `forzar: true` cierra igualmente). Esos documentos se contabilizan después con otra fecha
+  de registro, o reabriendo el mes.
+- Con **contabilización automática**, un documento con fecha de un mes cerrado se registra igual, pero su asiento se
+  queda **pendiente**.
+- **Reabrir** (`POST /contabilidad/periodos/reabrir`) reabre desde un mes y todos los posteriores. Los meses de un
+  ejercicio ya cerrado no se reabren.
+- `GET /contabilidad/periodos?ejercicio=` da los doce meses con su estado, sus asientos y sus pendientes (pantalla
+  «Contabilidad» → «Cierre mensual»).
+
+La fecha de cierre es `config_contabilidad.cerrado_hasta`. El mismo trigger de alta la comprueba, de modo que ningún
+camino puede saltársela.
+
 ## Invariantes
 
 - **Cuadre**: un asiento no se crea si la suma del debe ≠ la suma del haber, o si su importe es cero.
 - **Apunte válido**: cada apunte carga en el debe **o** abona en el haber (no ambos ni ninguno), con
   importes no negativos. Mínimo dos apuntes.
 - **Inmutable**: un asiento no se edita una vez creado (las correcciones se hacen con otro asiento).
+- **Mes cerrado**: no admite asientos con su fecha (409 `asiento.periodo_cerrado`, ver «Cierre mensual»).
 - **Ejercicio cerrado**: una vez generado el asiento de cierre, el ejercicio **no admite nuevos
   asientos** (409 `asiento.ejercicio_cerrado`), ni manuales ni de contabilización. La contabilidad de
   ese año queda congelada.
@@ -154,7 +209,14 @@ cerrar dos veces** (409 `cierre.ya_cerrado`) ni cerrar un ejercicio **sin movimi
 | Método | Ruta | Auth | Descripción |
 |---|---|---|---|
 | `GET` | `/contabilidad/cuentas` | `contabilidad.leer` | Plan de cuentas (se siembra si falta). |
-| `GET` | `/contabilidad/diario?ejercicio=` | `contabilidad.leer` | Libro diario del ejercicio. |
+| `GET` | `/contabilidad/diario?ejercicio=&diario=` | `contabilidad.leer` | Libro diario del ejercicio; con `diario`, solo ese diario, por su número. |
+| `GET` | `/contabilidad/diarios` | `contabilidad.leer` | Diarios de sistema y propios, con lo que recoge cada uno. |
+| `POST` | `/contabilidad/diarios` | `contabilidad.gestionar` | Crea un diario propio. **201** |
+| `PUT` | `/contabilidad/diarios/{id}` | `contabilidad.gestionar` | Nombre, orígenes y alta o baja de un diario propio. |
+| `DELETE` | `/contabilidad/diarios/{id}` | `contabilidad.gestionar` | Elimina un diario propio sin asientos. **204** |
+| `GET` | `/contabilidad/periodos?ejercicio=` | `contabilidad.leer` | Meses del ejercicio: cerrados o abiertos, asientos y pendientes. |
+| `POST` | `/contabilidad/periodos/cerrar` | `contabilidad.gestionar` | Cierra hasta un mes (`{anio, mes, forzar}`). |
+| `POST` | `/contabilidad/periodos/reabrir` | `contabilidad.gestionar` | Reabre desde un mes (`{anio, mes}`). |
 | `GET` | `/contabilidad/mayor/{codigo}?ejercicio=` | `contabilidad.leer` | Libro mayor de una cuenta (con saldo acumulado). |
 | `GET` | `/contabilidad/balance?ejercicio=` | `contabilidad.leer` | Balance de sumas y saldos. |
 | `GET` | `/contabilidad/pyg?ejercicio=` | `contabilidad.leer` | Cuenta de Pérdidas y Ganancias (grupos 6 y 7). |
