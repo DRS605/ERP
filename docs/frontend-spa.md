@@ -69,3 +69,34 @@ por tráfico: productos, TPV/tickets, gastos y proveedores, tesorería (cobros/p
 análisis de gestión, contabilidad e inmovilizado, y las pantallas de administración (series,
 usuarios, divisas, aprobaciones, integraciones, ajustes). Cuando la SPA alcance paridad, pasará a
 servirse en la raíz y la interfaz clásica se retirará.
+
+## Módulo de documentos (dentro de la interfaz clásica)
+
+Los documentos de venta y compra (presupuestos, pedidos de venta, facturas y pedidos de compra) son un módulo React
+(`frontend/src/documentos/`). Se compila como librería con `npm run build:docs`, que genera
+`wwwroot/app-docs/documentos.js`. La interfaz clásica lo carga al abrir esas pantallas y lo monta en su vista con
+`montar(elemento, { token, aviso, irA }, ruta)`, así que comparte el menú, la sesión, los avisos y los estilos.
+
+- **Listados**:
+  - búsqueda por número, cliente o NIF, y filtros por estado y fechas;
+  - suma de lo visible;
+  - en facturas, paginados en el servidor.
+- **Editor**:
+  - Cabecera con el cliente o proveedor (buscador por nombre o NIF) y su ficha: tarifa, recargo, límite de riesgo y
+    aviso de riesgo.
+  - Rejilla de líneas:
+    - buscador de artículos por referencia o nombre, con precio, unidad y stock;
+    - cantidad, precio, descuento e impuesto;
+    - importe, margen (ventas) o coste de entrada en almacén (compras);
+    - conceptos de cada línea, y aparte los del documento.
+  - Teclado: Intro pasa a la siguiente casilla (y en la última, a una línea nueva), ↑↓ cambian de línea y F2 abre el
+    buscador.
+  - Mientras se edita, el documento se calcula en el servidor sin guardarlo (`POST /facturas/simular`,
+    `POST /compras/pedidos/simular`): precio de tarifa, conceptos, impuestos por tipo, recargo, IRPF, margen y riesgo.
+    Lo que se ve es lo que se emite; al guardar se fijan esos precios.
+- **Vista de cada documento con sus acciones**:
+  - factura: PDF, Facturae, duplicar, rectificar (en el mismo editor), anular con motivo y estado de cobro;
+  - presupuesto: PDF, editar, pasar a pedido, aceptar y facturar, rechazar;
+  - pedido de venta: confirmar, entrega parcial con albarán, facturar, cancelar, anular albarán;
+  - pedido de compra: confirmar, recepción por almacén con lote, facturar (gasto), cancelar, anular albarán;
+  - enlaces entre documentos: presupuesto → pedido → factura.

@@ -81,3 +81,18 @@ proveedor X y en la ubicación estándar del almacén para el resto.
 La recepción de un albarán de compra podrá dar **entrada automática** al almacén, resolviendo la
 ubicación por defecto por proveedor+almacén. Requiere que las líneas de compra referencien el
 artículo del catálogo (hoy son texto); es la evolución natural de esta base.
+
+## Una sola existencia por artículo
+
+Cuando la empresa tiene almacenes, **la verdad es el inventario por almacén**:
+
+- Una venta facturada sale del almacén. Empieza por el principal, que es el primero por código, y dentro de cada
+  almacén va por lotes. Si no hay existencias suficientes, el resto queda en negativo en el almacén principal: la
+  factura es la verdad fiscal y no se rechaza, así que hay que regularizarlo con una entrada o un recuento.
+- La existencia de la ficha del artículo refleja el total de los almacenes después de cada movimiento: entradas,
+  salidas, recuentos, montajes, recepciones de compra y ventas.
+- El stock inicial al dar de alta un artículo y los movimientos desde la ficha van al almacén principal. Un recuento
+  desde la ficha solo se admite si el artículo está entero en el almacén principal, sin ubicación ni lote (409
+  `inventario.recuento_por_almacen`).
+
+Sin almacenes, el artículo lleva su existencia simple, como hasta ahora.

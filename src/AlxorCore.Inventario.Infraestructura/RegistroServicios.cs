@@ -38,6 +38,12 @@ public static class RegistroServicios
         servicios.AddScoped<TrazabilidadLote>();
         servicios.AddScoped<IConsultaComposicion, ConsultaComposicionCatalogo>();
         servicios.AddScoped<MontajeArticulo>();
+
+        // Una sola existencia: las ventas salen del almacén y la ficha del artículo refleja el total de los almacenes.
+        servicios.AddScoped<IAvisoExistencias, ReflejoExistenciasCatalogo>();
+        servicios.AddScoped<AlxorCore.Catalogo.Aplicacion.IExistenciasAlmacen, ExistenciasAlmacenCatalogo>();
+        servicios.AddScoped<AlxorCore.Catalogo.Aplicacion.StockVentas>();
+        servicios.AddScoped<AlxorCore.Catalogo.Aplicacion.IStockVentas, StockVentasPorAlmacen>();
         servicios.AddScoped<ValoracionArticulos>();
         servicios.AddScoped<AlxorCore.Nucleo.Aplicacion.IValoracionArticulos>(sp => sp.GetRequiredService<ValoracionArticulos>());
         servicios.AddScoped<IInformeValoracion>(sp => sp.GetRequiredService<ValoracionArticulos>());

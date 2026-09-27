@@ -21,6 +21,13 @@ public static class EndpointsFacturacion
             .WithSummary("Emite una factura.")
             .RequierePermiso(Permisos.FacturaEmitir);
 
+        facturas.MapPost("/simular", async (EmitirFacturaComando comando, IContextoEmpresa contexto, EmitirFactura caso, CancellationToken ct) =>
+                contexto.EmpresaId is { } e
+                    ? (await caso.SimularAsync(e, comando, ct).ConfigureAwait(false)).AOk()
+                    : ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero.")))
+            .WithSummary("Calcula un documento de venta sin guardarlo: precios de tarifa, conceptos, impuestos y totales exactos.")
+            .RequireAuthorization();
+
         facturas.MapGet("", ListarAsync)
             .WithSummary("Lista las facturas de la empresa activa.")
             .RequierePermiso(Permisos.FacturaLeer);

@@ -36,6 +36,10 @@ public static class EndpointsCompras
             .WithSummary("Anula un albarán de recepción: lo recibido vuelve a quedar pendiente y sale del almacén (si las existencias siguen ahí).")
             .RequierePermiso(Permisos.CompraGestionar);
         ped.MapGet("/{id:guid}/albaranes", AlbaranesAsync).WithSummary("Albaranes de recepción del pedido.").RequierePermiso(Permisos.CompraLeer);
+        ped.MapPost("/simular", async (CrearPedidoComando cmd, IContextoEmpresa c, CrearPedido caso, CancellationToken ct) =>
+                c.EmpresaId is { } e ? (await caso.SimularAsync(e, cmd, ct).ConfigureAwait(false)).AOk()
+                    : ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero.")))
+            .WithSummary("Calcula un pedido de compra sin guardarlo (conceptos, importes y coste de entrada).").RequierePermiso(Permisos.CompraLeer);
         ped.MapPost("", CrearPedidoAsync).WithSummary("Crea un pedido de compra (opcionalmente desde una solicitud).").RequierePermiso(Permisos.CompraGestionar);
         ped.MapPut("/{id:guid}", async (Guid id, CrearPedidoComando cmd, CrearPedido caso, CancellationToken ct) =>
             (await caso.ModificarAsync(id, cmd, ct).ConfigureAwait(false)).AOk()).WithSummary("Modifica fecha y líneas de un pedido sin recepciones ni factura.").RequierePermiso(Permisos.CompraGestionar);

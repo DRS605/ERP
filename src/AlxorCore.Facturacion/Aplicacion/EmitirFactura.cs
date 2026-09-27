@@ -97,7 +97,17 @@ public sealed class EmitirFactura
         _reloj = reloj;
     }
 
-    public async Task<Resultado<FacturaDto>> EjecutarAsync(Guid empresaId, EmitirFacturaComando comando, CancellationToken ct = default)
+    public Task<Resultado<FacturaDto>> EjecutarAsync(Guid empresaId, EmitirFacturaComando comando, CancellationToken ct = default) =>
+        EjecutarInternoAsync(empresaId, comando, false, ct);
+
+    /// <summary>
+    /// Calcula la factura tal como se emitiría (precios de tarifa, conceptos de línea, impuestos, recargo, IRPF y aviso
+    /// de riesgo) sin numerarla ni guardarla: lo usa la pantalla para enseñar los importes exactos mientras se edita.
+    /// </summary>
+    public Task<Resultado<FacturaDto>> SimularAsync(Guid empresaId, EmitirFacturaComando comando, CancellationToken ct = default) =>
+        EjecutarInternoAsync(empresaId, comando, true, ct);
+
+    private async Task<Resultado<FacturaDto>> EjecutarInternoAsync(Guid empresaId, EmitirFacturaComando comando, bool simular, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(comando);
 
@@ -163,6 +173,29 @@ public sealed class EmitirFactura
         // Control de riesgo del cliente: se comprueba ANTES de numerar (para no consumir número si se
         // bloquea). El total proyectado se calcula con una factura provisional (número 0) que se descarta.
         string? avisoRiesgo = null;
+        if (simular)
+        {
+            var prefijo = string.IsNullOrWhiteSpace(serie) ? "FA" : serie!;
+            var borrador = Factura.Emitir(empresaId, new NumeroFactura(prefijo, fechaEmision.Year, 0), fechaEmision, fechaOperacion, clienteFacturado, lineas, porcentajeIrpf, _reloj, fechaVencimiento);
+            if (borrador.EsFallo)
+            {
+                return Resultado.Fallo<FacturaDto>(borrador.Error);
+            }
+
+            borrador.Valor.EstablecerMencionFiscal(mencionFiscal);
+            borrador.Valor.EstablecerImpuesto(impuesto);
+            if (cliente.LimiteRiesgo is { } limite)
+            {
+                var vivo = await _riesgo.RiesgoVivoClienteAsync(empresaId, cliente.Id, ct).ConfigureAwait(false);
+                if (vivo + borrador.Valor.Total > limite)
+                {
+                    avisoRiesgo = $"El cliente supera su límite de riesgo ({limite:F2} €): riesgo vivo {vivo:F2} € + este documento {borrador.Valor.Total:F2} €.";
+                }
+            }
+
+            return Resultado.Ok(FacturaDto.Desde(borrador.Valor) with { AvisoRiesgo = avisoRiesgo });
+        }
+
         if (cliente.LimiteRiesgo is { } limiteRiesgo)
         {
             var prefijoProvisional = string.IsNullOrWhiteSpace(serie) ? "FA" : serie!;

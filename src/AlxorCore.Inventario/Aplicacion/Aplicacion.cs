@@ -61,6 +61,15 @@ public interface IRepositorioUbicacionesDefecto
 
 public interface IUnidadDeTrabajoInventario : IUnidadDeTrabajo;
 
+/// <summary>
+/// Aviso de que han cambiado las existencias de unos artículos, para que la ficha del artículo (Catálogo) muestre el
+/// total de los almacenes. Lo implementa la infraestructura.
+/// </summary>
+public interface IAvisoExistencias
+{
+    Task CambiaronAsync(Guid empresaId, IReadOnlyCollection<Guid> productos, CancellationToken ct = default);
+}
+
 // ---------------------------------------------------------------------------- Comandos
 public sealed record CrearAlmacenComando(string Codigo, string Nombre);
 public sealed record CrearUbicacionComando(Guid AlmacenId, string Codigo, string? Nombre = null);
@@ -228,10 +237,72 @@ public sealed class MovimientosInventario
     private readonly IRepositorioMovimientos _movimientos;
     private readonly IUnidadDeTrabajoInventario _unidad;
     private readonly IReloj _reloj;
+    private readonly IRepositorioAlmacenes? _almacenes;
+    private readonly IAvisoExistencias? _aviso;
 
-    public MovimientosInventario(IRepositorioExistencias existencias, IRepositorioMovimientos movimientos, IUnidadDeTrabajoInventario unidad, IReloj reloj)
+    public MovimientosInventario(IRepositorioExistencias existencias, IRepositorioMovimientos movimientos, IUnidadDeTrabajoInventario unidad, IReloj reloj,
+        IRepositorioAlmacenes? almacenes = null, IAvisoExistencias? aviso = null)
     {
-        _existencias = existencias; _movimientos = movimientos; _unidad = unidad; _reloj = reloj;
+        _existencias = existencias; _movimientos = movimientos; _unidad = unidad; _reloj = reloj; _almacenes = almacenes; _aviso = aviso;
+    }
+
+    private Task AvisarAsync(Guid empresaId, Guid productoId, CancellationToken ct) =>
+        _aviso?.CambiaronAsync(empresaId, [productoId], ct) ?? Task.CompletedTask;
+
+    /// <summary>Almacenes activos de la empresa, el principal (primero por código) delante. Vacío si no trabaja con almacenes.</summary>
+    public async Task<IReadOnlyList<AlmacenDto>> AlmacenesActivosAsync(Guid empresaId, CancellationToken ct = default) =>
+        _almacenes is null ? [] : (await _almacenes.ListarAsync(empresaId, ct).ConfigureAwait(false)).Where(a => a.Activo).OrderBy(a => a.Codigo, StringComparer.Ordinal).ToList();
+
+    /// <summary>
+    /// Salida por una venta facturada: consume las existencias del artículo empezando por el almacén principal (y en
+    /// cada almacén, por lote en orden), y si no alcanzan deja el resto en negativo en el almacén principal (la venta
+    /// ya está facturada y no se puede rechazar). Devuelve false si la empresa no trabaja con almacenes.
+    /// </summary>
+    public async Task<bool> SalidaVentaAsync(Guid empresaId, Guid productoId, decimal cantidad, string motivo, string? referencia, DateOnly? fecha, CancellationToken ct = default)
+    {
+        var almacenes = await AlmacenesActivosAsync(empresaId, ct).ConfigureAwait(false);
+        if (almacenes.Count == 0 || cantidad <= 0m)
+        {
+            return almacenes.Count > 0;
+        }
+
+        var orden = almacenes.Select((a, i) => (a.Id, i)).ToDictionary(x => x.Id, x => x.i);
+        var disponibles = (await _existencias.ListarPorProductoAsync(empresaId, productoId, ct).ConfigureAwait(false))
+            .Where(e => e.Cantidad > 0m && orden.ContainsKey(e.AlmacenId))
+            .OrderBy(e => orden[e.AlmacenId]).ThenBy(e => e.Lote ?? string.Empty, StringComparer.Ordinal).ToList();
+        var dia = fecha ?? Hoy();
+        var pendiente = cantidad;
+        foreach (var d in disponibles)
+        {
+            if (pendiente <= 0m)
+            {
+                break;
+            }
+
+            var e = await _existencias.ObtenerAsync(empresaId, productoId, d.AlmacenId, d.UbicacionId, d.Lote, ct).ConfigureAwait(false);
+            if (e is null || e.Cantidad <= 0m)
+            {
+                continue;
+            }
+
+            var toma = Math.Min(e.Cantidad, pendiente);
+            e.Disminuir(toma);
+            pendiente = Math.Round(pendiente - toma, 3, MidpointRounding.AwayFromZero);
+            _movimientos.Agregar(MovimientoInventario.Registrar(empresaId, productoId, e.AlmacenId, e.UbicacionId, TipoMovimientoInventario.Salida, -toma, dia, motivo, referencia, _reloj, e.Lote));
+        }
+
+        if (pendiente > 0m)
+        {
+            var principal = almacenes[0].Id;
+            var general = await ObtenerOCrearAsync(empresaId, productoId, principal, null, null, ct).ConfigureAwait(false);
+            general.ForzarSalida(pendiente);
+            _movimientos.Agregar(MovimientoInventario.Registrar(empresaId, productoId, principal, null, TipoMovimientoInventario.Salida, -pendiente, dia,
+                motivo + " (sin existencias registradas)", referencia, _reloj));
+        }
+
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        await AvisarAsync(empresaId, productoId, ct).ConfigureAwait(false);
+        return true;
     }
 
     private async Task<Existencia> ObtenerOCrearAsync(Guid empresaId, Guid productoId, Guid almacenId, Guid? ubicacionId, string? lote, CancellationToken ct)
@@ -259,6 +330,7 @@ public sealed class MovimientosInventario
         _movimientos.Agregar(MovimientoInventario.Registrar(empresaId, c.ProductoId, c.AlmacenId, c.UbicacionId,
             TipoMovimientoInventario.Entrada, c.Cantidad, c.Fecha ?? Hoy(), c.Motivo, c.Referencia, _reloj, c.Lote, c.CosteUnitario));
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        await AvisarAsync(empresaId, c.ProductoId, ct).ConfigureAwait(false);
         return Resultado.Ok(new ExistenciaDto(e.ProductoId, e.AlmacenId, string.Empty, e.UbicacionId, null, e.Cantidad, e.Lote));
     }
 
@@ -285,6 +357,7 @@ public sealed class MovimientosInventario
         _movimientos.Agregar(MovimientoInventario.Registrar(empresaId, c.ProductoId, c.AlmacenId, c.UbicacionId,
             TipoMovimientoInventario.Salida, -c.Cantidad, c.Fecha ?? Hoy(), c.Motivo, c.Referencia, _reloj, c.Lote));
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        await AvisarAsync(empresaId, c.ProductoId, ct).ConfigureAwait(false);
         return Resultado.Ok(new ExistenciaDto(e.ProductoId, e.AlmacenId, string.Empty, e.UbicacionId, null, e.Cantidad, e.Lote));
     }
 
@@ -307,6 +380,7 @@ public sealed class MovimientosInventario
         }
 
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        await AvisarAsync(empresaId, c.ProductoId, ct).ConfigureAwait(false);
         return Resultado.Ok(new ExistenciaDto(e.ProductoId, e.AlmacenId, string.Empty, e.UbicacionId, null, e.Cantidad, e.Lote));
     }
 
@@ -415,10 +489,12 @@ public sealed class MontajeArticulo
     private readonly IConsultaComposicion _composicion;
     private readonly IUnidadDeTrabajoInventario _unidad;
     private readonly IReloj _reloj;
+    private readonly IAvisoExistencias? _aviso;
 
-    public MontajeArticulo(IRepositorioExistencias existencias, IRepositorioMovimientos movimientos, IConsultaComposicion composicion, IUnidadDeTrabajoInventario unidad, IReloj reloj)
+    public MontajeArticulo(IRepositorioExistencias existencias, IRepositorioMovimientos movimientos, IConsultaComposicion composicion, IUnidadDeTrabajoInventario unidad, IReloj reloj,
+        IAvisoExistencias? aviso = null)
     {
-        _existencias = existencias; _movimientos = movimientos; _composicion = composicion; _unidad = unidad; _reloj = reloj;
+        _existencias = existencias; _movimientos = movimientos; _composicion = composicion; _unidad = unidad; _reloj = reloj; _aviso = aviso;
     }
 
     public async Task<Resultado<ExistenciaDto>> EjecutarAsync(Guid empresaId, MontajeComando c, CancellationToken ct = default)
@@ -470,6 +546,10 @@ public sealed class MontajeArticulo
             TipoMovimientoInventario.Entrada, c.Cantidad, fecha, "Montaje", null, _reloj, c.Lote));
 
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        if (_aviso is not null)
+        {
+            await _aviso.CambiaronAsync(empresaId, [c.ProductoId, .. componentes.Select(x => x.ComponenteId)], ct).ConfigureAwait(false);
+        }
         return Resultado.Ok(new ExistenciaDto(destino.ProductoId, destino.AlmacenId, string.Empty, destino.UbicacionId, null, destino.Cantidad, destino.Lote));
     }
 }

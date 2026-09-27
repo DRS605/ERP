@@ -267,7 +267,14 @@ public sealed class CrearPedido
         return puestos.EsFallo ? puestos.Error : null;
     }
 
-    public async Task<Resultado<PedidoDto>> EjecutarAsync(Guid empresaId, CrearPedidoComando comando, CancellationToken ct = default)
+    public Task<Resultado<PedidoDto>> EjecutarAsync(Guid empresaId, CrearPedidoComando comando, CancellationToken ct = default) =>
+        EjecutarInternoAsync(empresaId, comando, false, ct);
+
+    /// <summary>Calcula el pedido tal como quedaría (conceptos, importes y coste de entrada) sin numerarlo ni guardarlo.</summary>
+    public Task<Resultado<PedidoDto>> SimularAsync(Guid empresaId, CrearPedidoComando comando, CancellationToken ct = default) =>
+        EjecutarInternoAsync(empresaId, comando, true, ct);
+
+    private async Task<Resultado<PedidoDto>> EjecutarInternoAsync(Guid empresaId, CrearPedidoComando comando, bool simular, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(comando);
         var proveedorTexto = comando.ProveedorTexto;
@@ -293,7 +300,7 @@ public sealed class CrearPedido
         }
 
         var fecha = comando.Fecha ?? DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
-        var numero = await _pedidos.SiguienteNumeroAsync(empresaId, fecha.Year, comando.ProveedorId, ct).ConfigureAwait(false);
+        var numero = simular ? 0 : await _pedidos.SiguienteNumeroAsync(empresaId, fecha.Year, comando.ProveedorId, ct).ConfigureAwait(false);
         var serie = await _resolverSerie.ResolverPrefijoAsync(empresaId, TipoDocumento.PedidoCompra, comando.ProveedorId, ct).ConfigureAwait(false);
         var lineas = (comando.Lineas ?? Array.Empty<LineaPedidoComando>())
             .Select(l => (l.ProductoId, l.Descripcion, l.Cantidad, l.PrecioUnitario)).ToList();
@@ -306,6 +313,11 @@ public sealed class CrearPedido
         if (await PonerConceptosAsync(pedido.Valor, comando, ct).ConfigureAwait(false) is { } errorConceptos)
         {
             return Resultado.Fallo<PedidoDto>(errorConceptos);
+        }
+
+        if (simular)
+        {
+            return Resultado.Ok(PedidoDto.Desde(pedido.Valor));
         }
 
         if (solicitud is not null)

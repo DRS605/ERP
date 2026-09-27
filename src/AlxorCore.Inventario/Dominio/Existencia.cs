@@ -59,6 +59,12 @@ public sealed class Existencia : RaizAgregadoEmpresa<Guid>
         return Resultado.Ok();
     }
 
+    /// <summary>
+    /// Salida de una venta ya facturada: la factura es la verdad fiscal y no se puede rechazar, así que si no hay
+    /// existencias registradas la cantidad queda en negativo (hay que regularizar con una entrada o un recuento).
+    /// </summary>
+    public void ForzarSalida(decimal cantidad) => Cantidad = Math.Round(Cantidad - cantidad, 3, MidpointRounding.AwayFromZero);
+
     public void Fijar(decimal cantidad) => Cantidad = Math.Round(cantidad, 3, MidpointRounding.AwayFromZero);
 }
 

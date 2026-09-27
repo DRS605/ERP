@@ -100,6 +100,24 @@ public sealed class ExistenciaSimple : RaizAgregadoEmpresa<Guid>
     /// <see cref="TipoMovimientoStock.Ajuste"/> fija la cantidad al valor contado; el resto suman o
     /// restan la cantidad indicada. Devuelve el movimiento inmutable (histórico) resultante.
     /// </summary>
+    /// <summary>
+    /// Refleja el total de existencias de los almacenes (módulo Inventario), que es la verdad cuando la empresa trabaja con
+    /// almacenes. Puede ser negativo si se ha vendido sin existencias registradas. Null si no cambia.
+    /// </summary>
+    public MovimientoStock? Reflejar(decimal total, string? motivo, IReloj reloj)
+    {
+        ArgumentNullException.ThrowIfNull(reloj);
+        var delta = Math.Round(total, 3, MidpointRounding.AwayFromZero) - Cantidad;
+        if (delta == 0m)
+        {
+            return null;
+        }
+
+        Cantidad += delta;
+        ActualizadoEn = reloj.AhoraUtc;
+        return MovimientoStock.Registrar(EmpresaId, ProductoId, TipoMovimientoStock.Ajuste, delta, Cantidad, motivo, reloj.AhoraUtc);
+    }
+
     public Resultado<MovimientoStock> Aplicar(TipoMovimientoStock tipo, decimal cantidad, string? motivo, IReloj reloj)
     {
         ArgumentNullException.ThrowIfNull(reloj);

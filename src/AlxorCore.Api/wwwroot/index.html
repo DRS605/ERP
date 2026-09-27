@@ -578,9 +578,24 @@
       document.getElementById("viewTitle").textContent=TITULOS[k]||k;
       if(!contratado(k)){ const m=NOMBRE_MODULO[MODULO_VISTA[k]]||MODULO_VISTA[k];
         view(panel("No incluido en tu plan",`<p class="muted" style="margin:0 0 14px">Esta pantalla forma parte del módulo <strong>${m}</strong>, que tu plan no incluye.</p><button class="btn small" onclick="ir('ajustes')">Ver planes en Ajustes →</button>`)); return; }
-      ({cartera:vCartera,agrorecepciones:vAgroRecepciones,agropartidas:vAgroPartidas,agroconfeccion:vAgroConfeccion,agroliquidaciones:vAgroLiquidaciones,agrotrazabilidad:vAgroTrazabilidad,agroinforme:()=>vAgroInforme(),agromaestros:()=>vAgroMaestros(),analitica:vAnalitica,analiticapend:vAnaliticaPend,analiticamaestros:vAnaliticaMaestros,presupuestoscont:vPresupuestosCont,impagados:vImpagados,anticipos:vAnticipos,cartasporte:vCartasPorte,aduanas:vAduanas,intragrupo:vIntragrupo,actividades:vActividades,inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:vPedidosVenta,clientes:vClientes,productos:vProductos,familias:vFamilias,tarifas:vTarifas,conceptoslinea:vConceptosLinea,gastos:vGastos,solicitudes:vSolicitudes,pedidos:vPedidos,inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,gestion:vGestion,contabilidad:vContabilidad,inmovilizado:vInmovilizado,divisas:vDivisas,aprobaciones:vAprobaciones,integraciones:vIntegraciones,ajustes:vAjustes}[k])();
+      ({cartera:vCartera,agrorecepciones:vAgroRecepciones,agropartidas:vAgroPartidas,agroconfeccion:vAgroConfeccion,agroliquidaciones:vAgroLiquidaciones,agrotrazabilidad:vAgroTrazabilidad,agroinforme:()=>vAgroInforme(),agromaestros:()=>vAgroMaestros(),analitica:vAnalitica,analiticapend:vAnaliticaPend,analiticamaestros:vAnaliticaMaestros,presupuestoscont:vPresupuestosCont,impagados:vImpagados,anticipos:vAnticipos,cartasporte:vCartasPorte,aduanas:vAduanas,intragrupo:vIntragrupo,actividades:vActividades,inicio:vInicio,presupuestos:()=>irDocumento("presupuesto"),facturas:()=>irDocumento("factura"),tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:()=>irDocumento("pedido"),clientes:vClientes,productos:vProductos,familias:vFamilias,tarifas:vTarifas,conceptoslinea:vConceptosLinea,gastos:vGastos,solicitudes:vSolicitudes,pedidos:()=>irDocumento("compra"),inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,gestion:vGestion,contabilidad:vContabilidad,inmovilizado:vInmovilizado,divisas:vDivisas,aprobaciones:vAprobaciones,integraciones:vIntegraciones,ajustes:vAjustes}[k])();
     }
-    const view = h => { document.getElementById("view").innerHTML=h; try{ mejorarTablas(); }catch(e){} };
+    const view = h => { desmontarDocs(); document.getElementById("view").innerHTML=h; try{ mejorarTablas(); }catch(e){} };
+
+    /* ---------- Documentos de venta y compra (módulo React montado en la vista) ---------- */
+    let _docsModulo=null, _docsDesmontar=null;
+    const VISTA_DOC={presupuesto:"presupuestos",pedido:"pedidosventa",factura:"facturas",compra:"pedidos"};
+    function desmontarDocs(){ if(_docsDesmontar){ try{ _docsDesmontar(); }catch(e){} _docsDesmontar=null; } }
+    // Abre una pantalla de documentos: lista (por defecto), editor ({pantalla:"editor",semilla}) o vista ({pantalla:"vista",id}).
+    async function irDocumento(tipo,ruta){
+      const k=VISTA_DOC[tipo]; if(vista!==k){ vista=k; document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("active",a.dataset.k===k));
+        document.querySelectorAll("#nav .navgroup").forEach(g=>g.classList.toggle("closed",!g.querySelector(`a[data-k="${k}"]`))); document.getElementById("viewTitle").textContent=TITULOS[k]||k; }
+      desmontarDocs(); const el=document.getElementById("view"); el.innerHTML='<div class="muted">Cargando…</div>';
+      try{ _docsModulo=_docsModulo||await import("/app-docs/documentos.js"); }
+      catch(e){ el.innerHTML=panel("No se pudo cargar la pantalla",`<p class="muted" style="margin:0">${agEsc(e.message)}</p>`); return; }
+      el.innerHTML=""; const cont=document.createElement("div"); el.appendChild(cont);
+      _docsDesmontar=_docsModulo.montar(cont,{token:()=>token,aviso:(m,t)=>toast(m,t||""),irA:v=>ir(v)},Object.assign({tipo,pantalla:"lista"},ruta||{}));
+    }
 
     // Normaliza texto para buscar/ordenar sin acentos ni mayúsculas.
     const _norm = s => (s||"").toString().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").trim();
@@ -696,7 +711,7 @@
       {tag:"Ir a",label:"Inventario",ico:"🏬",go:()=>ir("inventario")},
       {tag:"Ir a",label:"Contabilidad",ico:"📊",go:()=>ir("contabilidad")},
       {tag:"Ir a",label:"Informes",ico:"📈",go:()=>ir("informes")},
-      {tag:"Acción",label:"Nueva factura",ico:"✚",go:()=>{ir("facturas");setTimeout(modalFactura,60);}},
+      {tag:"Acción",label:"Nueva factura",ico:"✚",go:()=>irDocumento("factura",{pantalla:"editor"})},
       {tag:"Acción",label:"Nuevo cliente",ico:"✚",go:()=>{ir("clientes");setTimeout(()=>modalCliente(),60);}},
       {tag:"Acción",label:"Nuevo artículo",ico:"✚",go:()=>{ir("productos");setTimeout(()=>modalProducto(),60);}},
     ]; }
@@ -730,7 +745,8 @@
     function cmdkIr(i){ const it=_cmdkItems[i]; if(!it)return; cmdkCerrar(); it.go(); }
 
     /* ---------- Detalle de factura (documento) ---------- */
-    async function abrirFactura(id){
+    async function abrirFactura(id){ return irDocumento("factura",{pantalla:"vista",id}); }
+    async function abrirFacturaModal(id){
       try{
         const f=await api("/facturas/"+id);
         const tipoPill=f.tipo==="Simplificada"?'<span class="pill part">Ticket</span>':(f.tipo==="Rectificativa"?'<span class="pill part">Rectificativa</span>':"");
@@ -826,7 +842,7 @@
         <h1>${saludo}, ${nombre} 👋</h1>
         <p>Este es el pulso de <strong>${empresa.razonSocial}</strong>. Emite una factura, registra un gasto o deja que ALXOR facture solo por ti.</p>
         <div class="acciones">
-          <button class="btn light" onclick="modalFactura()">＋ Nueva factura</button>
+          <button class="btn light" onclick="irDocumento('factura',{pantalla:'editor'})">＋ Nueva factura</button>
           <button class="btn line" onclick="ir('recurrentes')">↻ Facturación periódica</button>
           <button class="btn line" onclick="modalGasto()">＋ Registrar gasto</button>
         </div></div>`;
@@ -1713,7 +1729,8 @@
     }
     async function modalPedidoDesde(solId){
       const s=(await api("/compras/solicitudes")).find(x=>x.id===solId); if(!s){ toast("Solicitud no encontrada","err"); return; }
-      modalPedido(s.proveedorSugerido, s.lineas.map(l=>({d:l.descripcion,c:l.cantidad,p:''})), solId);
+      irDocumento("compra",{pantalla:"editor",semilla:{proveedorId:null,proveedorTexto:s.proveedorSugerido||"",fecha:new Date().toISOString().slice(0,10),solicitudOrigenId:solId,
+        lineas:s.lineas.map(l=>({descripcion:l.descripcion,cantidad:l.cantidad,precioUnitario:0,productoId:null,conceptos:null}))}});
     }
 
     async function vPedidos(){

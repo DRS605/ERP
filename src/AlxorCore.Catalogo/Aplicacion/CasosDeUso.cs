@@ -39,9 +39,12 @@ public sealed class CrearProducto
     private readonly IConsultaFamilias _familias;
     private readonly IUnidadDeTrabajoCatalogo _unidadDeTrabajo;
     private readonly IReloj _reloj;
+    private readonly IExistenciasAlmacen? _almacen;
 
-    public CrearProducto(IRepositorioProductos productos, IRepositorioHistoricoPrecios historico, IRepositorioExistenciasSimples existencias, IRepositorioMovimientosStock movimientos, IConsultaFamilias familias, IUnidadDeTrabajoCatalogo unidadDeTrabajo, IReloj reloj)
+    public CrearProducto(IRepositorioProductos productos, IRepositorioHistoricoPrecios historico, IRepositorioExistenciasSimples existencias, IRepositorioMovimientosStock movimientos, IConsultaFamilias familias, IUnidadDeTrabajoCatalogo unidadDeTrabajo, IReloj reloj,
+        IExistenciasAlmacen? almacen = null)
     {
+        _almacen = almacen;
         _productos = productos;
         _historico = historico;
         _existencias = existencias;
@@ -87,6 +90,15 @@ public sealed class CrearProducto
         _historico.Agregar(HistoricoPrecio.Registrar(grupoId, producto.Valor.Id, producto.Valor.PrecioUnitario, producto.Valor.PrecioCompra, _reloj.AhoraUtc));
 
         var stock = 0m;
+        var enAlmacen = datos.ControlarStock && datos.StockInicial > 0m && _almacen is not null && await _almacen.TrabajaConAlmacenesAsync(empresaId, ct).ConfigureAwait(false);
+        if (enAlmacen)
+        {
+            // Con almacenes, el stock inicial entra en el almacén principal (y la ficha refleja el total).
+            await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
+            var entrada = await _almacen!.MovimientoAsync(empresaId, producto.Valor.Id, TipoMovimientoStock.Entrada, datos.StockInicial, "Stock inicial", ct).ConfigureAwait(false);
+            return Resultado.Ok(ProductoDto.Desde(producto.Valor, entrada.EsCorrecto ? datos.StockInicial : 0m));
+        }
+
         if (datos.ControlarStock && datos.StockInicial != 0m)
         {
             var existencia = ExistenciaSimple.Crear(empresaId, producto.Valor.Id, _reloj);
@@ -452,9 +464,12 @@ public sealed class RegistrarMovimientoStock
     private readonly IRepositorioMovimientosStock _movimientos;
     private readonly IUnidadDeTrabajoCatalogo _unidadDeTrabajo;
     private readonly IReloj _reloj;
+    private readonly IExistenciasAlmacen? _almacen;
 
-    public RegistrarMovimientoStock(IRepositorioProductos productos, IRepositorioExistenciasSimples existencias, IRepositorioMovimientosStock movimientos, IUnidadDeTrabajoCatalogo unidadDeTrabajo, IReloj reloj)
+    public RegistrarMovimientoStock(IRepositorioProductos productos, IRepositorioExistenciasSimples existencias, IRepositorioMovimientosStock movimientos, IUnidadDeTrabajoCatalogo unidadDeTrabajo, IReloj reloj,
+        IExistenciasAlmacen? almacen = null)
     {
+        _almacen = almacen;
         _productos = productos;
         _existencias = existencias;
         _movimientos = movimientos;
@@ -475,6 +490,18 @@ public sealed class RegistrarMovimientoStock
         if (!producto.ControlarStock)
         {
             return Resultado.Fallo<ProductoDto>(Error.Conflicto("producto.sin_control_stock", "Este artículo no lleva control de stock."));
+        }
+
+        if (_almacen is not null && await _almacen.TrabajaConAlmacenesAsync(empresaId, ct).ConfigureAwait(false))
+        {
+            var r = await _almacen.MovimientoAsync(empresaId, productoId, datos.Tipo, datos.Cantidad, datos.Motivo, ct).ConfigureAwait(false);
+            if (r.EsFallo)
+            {
+                return Resultado.Fallo<ProductoDto>(r.Error);
+            }
+
+            var reflejada = await _existencias.ObtenerPorProductoAsync(productoId, ct).ConfigureAwait(false);
+            return Resultado.Ok(ProductoDto.Desde(producto, reflejada?.Cantidad ?? 0m));
         }
 
         var existencia = await _existencias.ObtenerPorProductoAsync(productoId, ct).ConfigureAwait(false);
@@ -537,6 +564,38 @@ public sealed class StockVentas : IStockVentas
 
     public async Task DescontarVentaAsync(Guid empresaId, IReadOnlyList<LineaVenta> lineas, CancellationToken ct = default)
     {
+        var afectados = false;
+        foreach (var (productoId, (cantidadVendida, motivo)) in await SalidasAsync(lineas, ct).ConfigureAwait(false))
+        {
+            var existencia = await _existencias.ObtenerPorProductoAsync(productoId, ct).ConfigureAwait(false);
+            var nueva = existencia is null;
+            existencia ??= ExistenciaSimple.Crear(empresaId, productoId, _reloj);
+
+            var movimiento = existencia.Aplicar(TipoMovimientoStock.Venta, cantidadVendida, motivo, _reloj);
+            if (movimiento.EsCorrecto)
+            {
+                if (nueva)
+                {
+                    _existencias.Agregar(existencia);
+                }
+
+                _movimientos.Agregar(movimiento.Valor);
+                afectados = true;
+            }
+        }
+
+        if (afectados)
+        {
+            await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Lo que sale del almacén por unas líneas de venta: los artículos con control de existencias y, de un kit, sus
+    /// componentes (en todos los niveles), agrupado por artículo.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<Guid, (decimal Cantidad, string Motivo)>> SalidasAsync(IReadOnlyList<LineaVenta> lineas, CancellationToken ct = default)
+    {
         ArgumentNullException.ThrowIfNull(lineas);
 
         // Un kit no tiene existencias propias: se descuentan sus componentes (en todos los niveles de kits). Las
@@ -560,35 +619,16 @@ public sealed class StockVentas : IStockVentas
             }
         }
 
-        var afectados = false;
+        var salidas = new Dictionary<Guid, (decimal Cantidad, string Motivo)>();
         foreach (var (productoId, (cantidadVendida, motivo)) in aDescontar)
         {
             var producto = await _productos.ObtenerPorIdAsync(productoId, ct).ConfigureAwait(false);
-            if (producto is null || !producto.ControlarStock || cantidadVendida <= 0m)
+            if (producto is { ControlarStock: true } && cantidadVendida > 0m)
             {
-                continue;
-            }
-
-            var existencia = await _existencias.ObtenerPorProductoAsync(productoId, ct).ConfigureAwait(false);
-            var nueva = existencia is null;
-            existencia ??= ExistenciaSimple.Crear(empresaId, productoId, _reloj);
-
-            var movimiento = existencia.Aplicar(TipoMovimientoStock.Venta, cantidadVendida, motivo, _reloj);
-            if (movimiento.EsCorrecto)
-            {
-                if (nueva)
-                {
-                    _existencias.Agregar(existencia);
-                }
-
-                _movimientos.Agregar(movimiento.Valor);
-                afectados = true;
+                salidas[productoId] = (cantidadVendida, motivo);
             }
         }
 
-        if (afectados)
-        {
-            await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
-        }
+        return salidas;
     }
 }

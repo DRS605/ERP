@@ -1,3 +1,4 @@
+using AlxorCore.Nucleo.Resultados;
 using AlxorCore.Catalogo.Dominio;
 using AlxorCore.Nucleo.Aplicacion;
 using AlxorCore.Nucleo.Comun;
@@ -179,6 +180,17 @@ public sealed record LineaVenta(Guid ProductoId, decimal Cantidad);
 public interface IStockVentas
 {
     Task DescontarVentaAsync(Guid empresaId, IReadOnlyList<LineaVenta> lineas, CancellationToken ct = default);
+}
+
+/// <summary>
+/// Existencias por almacén (módulo Inventario). Cuando la empresa trabaja con almacenes, los movimientos de la ficha del
+/// artículo van al almacén principal y la existencia simple solo refleja el total.
+/// </summary>
+public interface IExistenciasAlmacen
+{
+    Task<bool> TrabajaConAlmacenesAsync(Guid empresaId, CancellationToken ct = default);
+
+    Task<Resultado> MovimientoAsync(Guid empresaId, Guid productoId, TipoMovimientoStock tipo, decimal cantidad, string? motivo, CancellationToken ct = default);
 }
 
 /// <summary>Unidad de trabajo del módulo Catálogo.</summary>
