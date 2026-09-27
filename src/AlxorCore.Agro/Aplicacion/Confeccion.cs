@@ -67,7 +67,7 @@ public sealed record DatosMontaje(Guid PlantillaId, Guid PartidaId, int? NumeroP
 /// </summary>
 public sealed record DatosExpedicion(IReadOnlyList<Guid> PaleIds, Guid? ClienteId = null, DateOnly? Fecha = null, string? Referencia = null,
     bool CartaPorte = false, string? Transportista = null, string? Matricula = null, string? LugarOrigen = null, string? LugarDestino = null, string? Observaciones = null,
-    Guid? PedidoVentaId = null);
+    Guid? PedidoVentaId = null, Guid? TransportistaId = null, Guid? VehiculoId = null, decimal? TemperaturaConsigna = null, string? Termografo = null);
 
 /// <summary>Lo que se imprime en la etiqueta del palé.</summary>
 public sealed record EtiquetaPaleDto(string Sscc, string? Producto, string? Marca, string? TipoPale, int Cajas, decimal Kilos, string? Lote, DateOnly Fecha, string? Destinatario);
@@ -1054,16 +1054,19 @@ public sealed class PalesAgro
     {
         var partidas = (await _repo.PartidasAsync(cargado.Select(c => c.Contenido.PartidaId).Distinct().ToList(), ct).ConfigureAwait(false)).ToDictionary(p => p.Id);
         var lineas = new List<(string, int, decimal)>();
+        var detalle = new List<(Guid?, int)>();
         foreach (var grupo in cargado.GroupBy(c => partidas.GetValueOrDefault(c.Contenido.PartidaId)?.ProductoId ?? Guid.Empty))
         {
             var nombre = (await _productos.ObtenerAsync(grupo.Key, ct).ConfigureAwait(false))?.Nombre ?? "Mercancía";
             var pales = grupo.Select(c => c.PaleId).Distinct().Count();
             var cajas = grupo.Sum(c => Math.Max(c.Contenido.Cajas, 0));
             lineas.Add(($"{nombre} · {pales} palé(s)", cajas > 0 ? cajas : pales, grupo.Sum(c => c.Contenido.Kilos)));
+            detalle.Add((grupo.Key == Guid.Empty ? null : grupo.Key, pales));
         }
 
         return await _documentos!.EmitirCartaPorteAsync(empresaId, new CartaPorteExpedicion(datos.ClienteId!.Value, fecha, datos.Transportista, datos.Matricula,
-            datos.LugarOrigen, datos.LugarDestino, datos.Observaciones ?? datos.Referencia, lineas, albaranId), ct).ConfigureAwait(false);
+            datos.LugarOrigen, datos.LugarDestino, datos.Observaciones ?? datos.Referencia, lineas, albaranId,
+            datos.TransportistaId, datos.VehiculoId, datos.TemperaturaConsigna, datos.Termografo, detalle), ct).ConfigureAwait(false);
     }
 
     private async Task<PaleDto> DtoAsync(Pale p, CancellationToken ct)

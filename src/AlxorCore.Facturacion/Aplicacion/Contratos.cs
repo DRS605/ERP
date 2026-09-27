@@ -13,7 +13,7 @@ public sealed record DesgloseImpuestoDto(TipoImpuesto Impuesto, string CodigoIva
 public sealed record LineaFacturaDto(
     string Descripcion, decimal Cantidad, decimal PrecioUnitario, decimal PorcentajeDescuento,
     string CodigoIva, decimal PorcentajeIva, decimal Base, decimal CuotaIva,
-    decimal CosteUnitario, decimal Margen, decimal PorcentajeRecargo, decimal CuotaRecargo);
+    decimal CosteUnitario, decimal Margen, decimal PorcentajeRecargo, decimal CuotaRecargo, Guid? ProductoId = null);
 
 /// <summary>Datos de una línea de venta para el cálculo de márgenes (informe de beneficio).</summary>
 public sealed record LineaMargenDto(Guid? ProductoId, string Descripcion, decimal Cantidad, decimal Ingreso, decimal Coste);
@@ -64,7 +64,7 @@ public sealed record FacturaDto(
         f.RectificaFacturaId, f.MotivoRectificacion, f.MotivoAnulacion,
         f.Lineas.Select(l => new LineaFacturaDto(
             l.Descripcion, l.Cantidad, l.PrecioUnitario, l.PorcentajeDescuento, l.CodigoIva, l.PorcentajeIva, l.Base, l.CuotaIva,
-            l.CosteUnitario, l.Margen, l.PorcentajeRecargo, l.CuotaRecargo)).ToList(),
+            l.CosteUnitario, l.Margen, l.PorcentajeRecargo, l.CuotaRecargo, l.ProductoId)).ToList(),
         MencionFiscal: f.MencionFiscal,
         Impuesto: f.Impuesto);
 }

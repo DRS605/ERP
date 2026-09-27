@@ -259,6 +259,7 @@ app.MapearTiposIva();
 app.MapearFacturacion();
 app.MapearVentas();
 app.MapearCartasPorte();
+app.MapearTransporteYAduanas();
 app.MapearIntragrupo();
 app.MapearGastos();
 app.MapearRecepcion();

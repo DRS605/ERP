@@ -78,6 +78,11 @@ public sealed class CrearProveedor
     {
         ArgumentNullException.ThrowIfNull(datos);
 
+        if (!Direccion.PaisValido(datos.Pais))
+        {
+            return Resultado.Fallo<ProveedorDto>(Error.Validacion("tercero.pais", "Indica el país con su código de dos letras (ES, FR, GB…)."));
+        }
+
         var direccion = Direccion.Crear(datos.Calle, datos.CodigoPostal, datos.Poblacion, datos.Provincia, datos.Pais);
         var proveedor = Proveedor.Crear(grupoId, datos.Nombre, datos.NifFiscal, datos.Email, direccion, datos.PorcentajeIrpfDefecto, datos.FormaPago, _reloj, datos.NifIva);
         if (proveedor.EsFallo)
@@ -119,6 +124,11 @@ public sealed class ActualizarProveedor
         if (proveedor is null)
         {
             return Resultado.Fallo<ProveedorDto>(Error.NoEncontrado("proveedor.no_encontrado", "El proveedor no existe."));
+        }
+
+        if (!Direccion.PaisValido(datos.Pais))
+        {
+            return Resultado.Fallo<ProveedorDto>(Error.Validacion("tercero.pais", "Indica el país con su código de dos letras (ES, FR, GB…)."));
         }
 
         var direccion = Direccion.Crear(datos.Calle, datos.CodigoPostal, datos.Poblacion, datos.Provincia, datos.Pais);

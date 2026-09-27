@@ -29,7 +29,10 @@ public sealed record DatosCliente(
     string? Dir3OrganoGestor = null,
     string? Dir3UnidadTramitadora = null,
     Guid? ActividadNegocioId = null,
-    Guid? EmpresaVinculadaId = null);
+    Guid? EmpresaVinculadaId = null,
+    string? Eori = null,
+    string? Incoterm = null,
+    string? LugarIncoterm = null);
 
 /// <summary>Caso de uso: crear un cliente en la empresa activa.</summary>
 public sealed class CrearCliente
@@ -49,6 +52,11 @@ public sealed class CrearCliente
     {
         ArgumentNullException.ThrowIfNull(datos);
 
+        if (!Direccion.PaisValido(datos.Pais))
+        {
+            return Resultado.Fallo<ClienteDto>(Error.Validacion("tercero.pais", "Indica el país con su código de dos letras (ES, FR, GB…)."));
+        }
+
         var direccion = Direccion.Crear(datos.Calle, datos.CodigoPostal, datos.Poblacion, datos.Provincia, datos.Pais);
         var cliente = Cliente.Crear(grupoId, datos.Nombre, datos.NifFiscal, datos.Email, direccion, datos.PorcentajeIrpfDefecto, _reloj, datos.RecargoEquivalencia, datos.Iban, datos.MandatoReferencia, datos.MandatoFecha, datos.NifIva);
         if (cliente.EsFallo)
@@ -62,6 +70,11 @@ public sealed class CrearCliente
         cliente.Valor.EstablecerCentrosDir3(datos.EsAdministracionPublica, datos.Dir3OficinaContable, datos.Dir3OrganoGestor, datos.Dir3UnidadTramitadora);
         cliente.Valor.EstablecerActividad(datos.ActividadNegocioId);
         cliente.Valor.EstablecerEmpresaVinculada(datos.EmpresaVinculadaId);
+        if (cliente.Valor.EstablecerComercioExterior(datos.Eori, datos.Incoterm, datos.LugarIncoterm) is { EsFallo: true } exterior)
+        {
+            return Resultado.Fallo<ClienteDto>(exterior.Error);
+        }
+
         _clientes.Agregar(cliente.Valor);
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return Resultado.Ok(ClienteDto.Desde(cliente.Valor));
@@ -92,6 +105,11 @@ public sealed class ActualizarCliente
             return Resultado.Fallo<ClienteDto>(Error.NoEncontrado("cliente.no_encontrado", "El cliente no existe."));
         }
 
+        if (!Direccion.PaisValido(datos.Pais))
+        {
+            return Resultado.Fallo<ClienteDto>(Error.Validacion("tercero.pais", "Indica el país con su código de dos letras (ES, FR, GB…)."));
+        }
+
         var direccion = Direccion.Crear(datos.Calle, datos.CodigoPostal, datos.Poblacion, datos.Provincia, datos.Pais);
         var actualizado = cliente.Actualizar(datos.Nombre, datos.NifFiscal, datos.Email, direccion, datos.PorcentajeIrpfDefecto, _reloj, datos.RecargoEquivalencia, datos.Iban, datos.MandatoReferencia, datos.MandatoFecha, datos.NifIva);
         if (actualizado.EsFallo)
@@ -105,6 +123,11 @@ public sealed class ActualizarCliente
         cliente.EstablecerCentrosDir3(datos.EsAdministracionPublica, datos.Dir3OficinaContable, datos.Dir3OrganoGestor, datos.Dir3UnidadTramitadora);
         cliente.EstablecerActividad(datos.ActividadNegocioId);
         cliente.EstablecerEmpresaVinculada(datos.EmpresaVinculadaId);
+        if (cliente.EstablecerComercioExterior(datos.Eori, datos.Incoterm, datos.LugarIncoterm) is { EsFallo: true } exterior)
+        {
+            return Resultado.Fallo<ClienteDto>(exterior.Error);
+        }
+
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return Resultado.Ok(ClienteDto.Desde(cliente));
     }

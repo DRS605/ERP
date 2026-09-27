@@ -10,6 +10,9 @@ public static class Redondeo
 {
     // Formato español (coma decimal, punto de miles) definido de forma explícita para no depender
     // de que la cultura es-ES esté instalada (la app se ejecuta en modo de globalización invariante).
+    /// <summary>Formato numérico español (coma decimal, punto de miles), para documentos y ficheros.</summary>
+    public static NumberFormatInfo NumeroEspanol => FormatoEspanol;
+
     private static readonly NumberFormatInfo FormatoEspanol = new()
     {
         NumberDecimalSeparator = ",",

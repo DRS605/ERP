@@ -39,7 +39,10 @@ public sealed record ClienteDto(
     string? Dir3UnidadTramitadora = null,
     Guid? ActividadNegocioId = null,
     Guid? TarifaId = null,
-    Guid? EmpresaVinculadaId = null)
+    Guid? EmpresaVinculadaId = null,
+    string? Eori = null,
+    string? Incoterm = null,
+    string? LugarIncoterm = null)
 {
     /// <summary>¿Tiene los tres centros DIR3 necesarios para enviar la Facturae por FACe?</summary>
     public bool CentrosDir3Completos =>
@@ -52,7 +55,8 @@ public sealed record ClienteDto(
         c.Id, c.Nombre, c.NifFiscal, c.Email,
         c.Direccion.Calle, c.Direccion.CodigoPostal, c.Direccion.Poblacion, c.Direccion.Provincia, c.Direccion.Pais,
         c.PorcentajeIrpfDefecto, c.Activo, c.RecargoEquivalencia, c.Iban, c.MandatoReferencia, c.MandatoFecha, c.NifIva, c.Tipo, c.FormaPagoDefectoId, c.LimiteRiesgo,
-        c.EsAdministracionPublica, c.Dir3OficinaContable, c.Dir3OrganoGestor, c.Dir3UnidadTramitadora, c.ActividadNegocioId, c.TarifaId, c.EmpresaVinculadaId);
+        c.EsAdministracionPublica, c.Dir3OficinaContable, c.Dir3OrganoGestor, c.Dir3UnidadTramitadora, c.ActividadNegocioId, c.TarifaId, c.EmpresaVinculadaId,
+        c.Eori, c.Incoterm, c.LugarIncoterm);
 }
 
 /// <summary>Repositorio de clientes (escritura).</summary>

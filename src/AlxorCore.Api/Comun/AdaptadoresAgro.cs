@@ -96,10 +96,22 @@ public sealed class DocumentosExpedicionFacturacion : IDocumentosExpedicion
     public async Task<Resultado<(Guid Id, string Numero)>> EmitirCartaPorteAsync(Guid empresaId, CartaPorteExpedicion carta, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(carta);
-        var r = await _crear.EjecutarAsync(empresaId, new CrearCartaPorteComando(
-            carta.Lineas.Select(l => new LineaCartaPorteComando(l.Descripcion, l.Bultos, l.Kilos)).ToList(),
+        // Cada línea: los kilos de fruta son el peso neto (y, sin la tara de envases y palés, también el bruto), el
+        // embalaje son sus cajas en palés y el código arancelario sale del artículo.
+        var lineas = carta.Lineas.Select((l, i) =>
+        {
+            var d = carta.Detalle is { } det && i < det.Count ? det[i] : (ProductoId: (Guid?)null, Pales: 0);
+            return new LineaCartaPorteComando(l.Descripcion, l.Bultos, l.Kilos, Embalaje: d.Pales > 0 ? $"Cajas en {d.Pales} palé(s)" : null,
+                PesoNetoKg: l.Kilos, ProductoId: d.ProductoId);
+        }).ToList();
+        var transporte = new AlxorCore.Facturacion.Dominio.TransporteCarta
+        {
+            TransportistaId = carta.TransportistaId, VehiculoId = carta.VehiculoId, TemperaturaConsigna = carta.TemperaturaConsigna, Termografo = carta.Termografo,
+        };
+        var r = await _crear.EjecutarAsync(empresaId, new CrearCartaPorteComando(lineas,
             FechaExpedicion: carta.Fecha, DestinatarioClienteId: carta.ClienteId, TransportistaNombre: carta.Transportista, Matricula: carta.Matricula,
-            LugarOrigen: carta.LugarOrigen, LugarDestino: carta.LugarDestino, FechaCarga: carta.Fecha, Observaciones: carta.Observaciones, AlbaranId: carta.AlbaranId), ct).ConfigureAwait(false);
+            LugarOrigen: carta.LugarOrigen, LugarDestino: carta.LugarDestino, FechaCarga: carta.Fecha, Observaciones: carta.Observaciones, AlbaranId: carta.AlbaranId,
+            Transporte: transporte), ct).ConfigureAwait(false);
         return r.EsFallo ? Resultado.Fallo<(Guid, string)>(r.Error) : Resultado.Ok((r.Valor.Id, r.Valor.NumeroCompleto));
     }
 

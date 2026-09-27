@@ -36,6 +36,12 @@ public sealed class FacturacionDbContext : DbContextEmpresaBase, IUnidadDeTrabaj
 
     public DbSet<CartaPorte> CartasPorte => Set<CartaPorte>();
 
+    public DbSet<Transportista> Transportistas => Set<Transportista>();
+
+    public DbSet<Vehiculo> Vehiculos => Set<Vehiculo>();
+
+    public DbSet<DespachoAduanero> Despachos => Set<DespachoAduanero>();
+
     public DbSet<MensajeSalida> MensajesSalida => Set<MensajeSalida>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

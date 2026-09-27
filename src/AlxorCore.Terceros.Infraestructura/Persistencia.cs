@@ -61,6 +61,9 @@ internal sealed class ConfiguracionCliente : IEntityTypeConfiguration<Cliente>
         builder.Property(c => c.Tipo).HasColumnName("tipo").HasMaxLength(Cliente.LongitudMaximaTipo);
         builder.Property(c => c.FormaPagoDefectoId).HasColumnName("forma_pago_defecto_id");
         builder.Property(c => c.ActividadNegocioId).HasColumnName("actividad_negocio_id");
+        builder.Property(c => c.Eori).HasColumnName("eori").HasMaxLength(17);
+        builder.Property(c => c.Incoterm).HasColumnName("incoterm").HasMaxLength(3);
+        builder.Property(c => c.LugarIncoterm).HasColumnName("lugar_incoterm").HasMaxLength(100);
         builder.Property(c => c.EmpresaVinculadaId).HasColumnName("empresa_vinculada_id");
         builder.HasIndex(c => c.EmpresaVinculadaId).HasDatabaseName("ix_cliente_empresa_vinculada");
         builder.Property(c => c.LimiteRiesgo).HasColumnName("limite_riesgo").HasColumnType("numeric(14,2)");

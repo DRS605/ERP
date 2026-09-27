@@ -22,6 +22,8 @@ public static class RutasModulos
             ("/pedidos-venta", CatalogoModulos.Ventas),
             ("/presupuestos", CatalogoModulos.Ventas),
             ("/cartas-porte", CatalogoModulos.Ventas),
+            ("/transporte", CatalogoModulos.Ventas),
+            ("/aduanas", CatalogoModulos.Ventas),
             ("/tarifas", CatalogoModulos.Ventas),
             ("/precios", CatalogoModulos.Ventas),
             ("/compras", CatalogoModulos.Compras),

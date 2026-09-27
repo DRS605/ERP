@@ -233,6 +233,32 @@ public sealed class Producto : RaizAgregadoGrupo<Guid>
         return Resultado.Ok();
     }
 
+    /// <summary>Código arancelario (NC de 8 dígitos o TARIC de 10) para la aduana, el CMR e Intrastat.</summary>
+    public string? CodigoArancelario { get; private set; }
+
+    /// <summary>País de origen de la mercancía (ISO alfa-2).</summary>
+    public string? PaisOrigen { get; private set; }
+
+    /// <summary>Fija los datos de comercio exterior (código arancelario y país de origen; nulos = sin indicar).</summary>
+    public Resultado EstablecerComercioExterior(string? codigoArancelario, string? paisOrigen)
+    {
+        var codigo = CodigosArancelarios.Normalizar(codigoArancelario);
+        if (!string.IsNullOrWhiteSpace(codigoArancelario) && codigo is null)
+        {
+            return Resultado.Fallo(Error.Validacion("producto.codigo_arancelario", "El código arancelario tiene 8 dígitos (NC) o 10 (TARIC)."));
+        }
+
+        var pais = Paises.Codigo(paisOrigen);
+        if (!string.IsNullOrWhiteSpace(paisOrigen) && pais is null)
+        {
+            return Resultado.Fallo(Error.Validacion("producto.pais_origen", "Indica el país de origen con su código de dos letras (ES, MA…)."));
+        }
+
+        CodigoArancelario = codigo;
+        PaisOrigen = pais;
+        return Resultado.Ok();
+    }
+
     /// <summary>Aplica el precio calculado desde los componentes (solo si el compuesto lo tiene así configurado).</summary>
     public void FijarPrecioSegunComponentes(decimal precio, IReloj reloj)
     {

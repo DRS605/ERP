@@ -83,6 +83,11 @@ public static class RegistroServicios
         servicios.AddScoped<RepositorioCartasPorte>();
         servicios.AddScoped<IRepositorioCartasPorte>(sp => sp.GetRequiredService<RepositorioCartasPorte>());
         servicios.AddScoped<IConsultaCartasPorte>(sp => sp.GetRequiredService<RepositorioCartasPorte>());
+        servicios.AddScoped<IRepositorioTransporte, RepositorioTransporte>();
+        servicios.AddScoped<IRepositorioDespachos, RepositorioDespachos>();
+        servicios.AddScoped<IConsultaFacturasPorIva, ConsultaFacturasPorIva>();
+        servicios.AddScoped<GestionTransporte>();
+        servicios.AddScoped<Aduanas>();
         servicios.AddScoped<CrearCartaPorte>();
         servicios.AddScoped<AnularCartaPorte>();
         servicios.AddScoped<ListarCartasPorte>();

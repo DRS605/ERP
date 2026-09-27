@@ -151,6 +151,35 @@ public sealed class Cliente : RaizAgregadoGrupo<Guid>
     public void EstablecerActividad(Guid? actividadNegocioId) =>
         ActividadNegocioId = actividadNegocioId is { } a && a != Guid.Empty ? a : null;
 
+    /// <summary>Número EORI del cliente (aduanas, fuera de la UE): país + identificador, hasta 17 caracteres.</summary>
+    public string? Eori { get; private set; }
+
+    /// <summary>Incoterm 2020 habitual con este cliente (se propone en la carta de porte).</summary>
+    public string? Incoterm { get; private set; }
+
+    public string? LugarIncoterm { get; private set; }
+
+    /// <summary>Fija el EORI y el Incoterm habitual (nulos = sin indicar).</summary>
+    public Resultado EstablecerComercioExterior(string? eori, string? incoterm, string? lugarIncoterm)
+    {
+        var e = string.IsNullOrWhiteSpace(eori) ? null : new string(eori.Where(char.IsAsciiLetterOrDigit).ToArray()).ToUpperInvariant();
+        if (e is not null && (e.Length is < 3 or > 17 || !char.IsAsciiLetter(e[0]) || !char.IsAsciiLetter(e[1])))
+        {
+            return Resultado.Fallo(Error.Validacion("cliente.eori", "El EORI empieza por el código del país y tiene hasta 17 caracteres (p. ej. GB123456789000)."));
+        }
+
+        var i = Incoterms.Normalizar(incoterm);
+        if (!Incoterms.EsValido(i))
+        {
+            return Resultado.Fallo(Error.Validacion("cliente.incoterm", $"«{incoterm}» no es un Incoterm 2020."));
+        }
+
+        Eori = e;
+        Incoterm = i;
+        LugarIncoterm = i is null || string.IsNullOrWhiteSpace(lugarIncoterm) ? null : lugarIncoterm.Trim() is var l && l.Length > 100 ? l[..100] : lugarIncoterm.Trim();
+        return Resultado.Ok();
+    }
+
     /// <summary>Enlaza el cliente con una empresa del grupo (null o vacío = tercero externo).</summary>
     public void EstablecerEmpresaVinculada(Guid? empresaId) =>
         EmpresaVinculadaId = empresaId is { } e && e != Guid.Empty ? e : null;

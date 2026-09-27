@@ -441,7 +441,7 @@
     // Menú agrupado en carpetas: Ventas, Compras y Artículos.
     const NAV = [
       { t:"item", k:"inicio", l:"Inicio" },
-      { t:"grupo", k:"ventas", l:"Ventas", items:[["presupuestos","Presupuestos"],["pedidosventa","Pedidos de venta"],["facturas","Facturas"],["tpv","TPV · Tickets"],["recurrentes","Periódicas"],["clientes","Clientes"],["cobros","Cobros"],["cartera","Efectos de cartera"],["impagados","Impagados"],["anticipos","Anticipos"],["cartasporte","Cartas de porte"],["remesas","Remesas SEPA"]] },
+      { t:"grupo", k:"ventas", l:"Ventas", items:[["presupuestos","Presupuestos"],["pedidosventa","Pedidos de venta"],["facturas","Facturas"],["tpv","TPV · Tickets"],["recurrentes","Periódicas"],["clientes","Clientes"],["cobros","Cobros"],["cartera","Efectos de cartera"],["impagados","Impagados"],["anticipos","Anticipos"],["cartasporte","Cartas de porte · CMR"],["aduanas","Aduanas · exportación"],["remesas","Remesas SEPA"]] },
       { t:"grupo", k:"compras", l:"Compras", items:[["solicitudes","Solicitudes"],["pedidos","Pedidos de compra"],["recepcion","Buzón de facturas"],["gastos","Gastos"],["proveedores","Proveedores"],["pagos","Pagos"],["conciliacion","Conciliación banco"]] },
       { t:"grupo", k:"articulos", l:"Artículos", items:[["productos","Productos"],["familias","Familias"],["tarifas","Tarifas de precios"],["inventario","Inventario / Almacenes"],["produccion","Producción"]] },
       { t:"item", k:"personal", l:"Personal" },
@@ -460,7 +460,7 @@
       { t:"item", k:"actividades", l:"Actividades de negocio" },
       { t:"item", k:"ajustes", l:"Ajustes" },
     ];
-    const TITULOS = { cartera:"Efectos de cartera", agrorecepciones:"Agro · recepciones de fruta", agropartidas:"Agro · partidas y palés", agroconfeccion:"Agro · confección", agroliquidaciones:"Agro · liquidaciones al agricultor", agrotrazabilidad:"Agro · trazabilidad", agroinforme:"Agro · informe de campaña", agromaestros:"Agro · campañas, agricultores y precios", analitica:"Analítica · resultados", analiticapend:"Analítica · pendientes de imputar", analiticamaestros:"Analítica · centros, partidas y reglas", presupuestoscont:"Presupuestos contables", impagados:"Impagados y reclamaciones", anticipos:"Anticipos de clientes", cartasporte:"Cartas de porte", intragrupo:"Operaciones entre empresas del grupo", actividades:"Actividades de negocio", inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos",tarifas:"Tarifas de precios", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", gestion:"Análisis de gestión", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", divisas:"Divisas y tipos de cambio", aprobaciones:"Aprobaciones y control de firmas", integraciones:"API pública y webhooks", ajustes:"Ajustes" };
+    const TITULOS = { cartera:"Efectos de cartera", agrorecepciones:"Agro · recepciones de fruta", agropartidas:"Agro · partidas y palés", agroconfeccion:"Agro · confección", agroliquidaciones:"Agro · liquidaciones al agricultor", agrotrazabilidad:"Agro · trazabilidad", agroinforme:"Agro · informe de campaña", agromaestros:"Agro · campañas, agricultores y precios", analitica:"Analítica · resultados", analiticapend:"Analítica · pendientes de imputar", analiticamaestros:"Analítica · centros, partidas y reglas", presupuestoscont:"Presupuestos contables", impagados:"Impagados y reclamaciones", anticipos:"Anticipos de clientes", cartasporte:"Cartas de porte · CMR", aduanas:"Aduanas · exportación", intragrupo:"Operaciones entre empresas del grupo", actividades:"Actividades de negocio", inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos",tarifas:"Tarifas de precios", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", gestion:"Análisis de gestión", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", divisas:"Divisas y tipos de cambio", aprobaciones:"Aprobaciones y control de firmas", integraciones:"API pública y webhooks", ajustes:"Ajustes" };
     // Plan contratado de la empresa activa (lo devuelve /empresas/{id}/seleccionar).
     let plan = null;
     // Vista → módulo contratable que necesita. Las vistas que no están aquí son de la base.
@@ -579,7 +579,7 @@
       document.getElementById("viewTitle").textContent=TITULOS[k]||k;
       if(!contratado(k)){ const m=NOMBRE_MODULO[MODULO_VISTA[k]]||MODULO_VISTA[k];
         view(panel("No incluido en tu plan",`<p class="muted" style="margin:0 0 14px">Esta pantalla forma parte del módulo <strong>${m}</strong>, que tu plan no incluye.</p><button class="btn small" onclick="ir('ajustes')">Ver planes en Ajustes →</button>`)); return; }
-      ({cartera:vCartera,agrorecepciones:vAgroRecepciones,agropartidas:vAgroPartidas,agroconfeccion:vAgroConfeccion,agroliquidaciones:vAgroLiquidaciones,agrotrazabilidad:vAgroTrazabilidad,agroinforme:()=>vAgroInforme(),agromaestros:()=>vAgroMaestros(),analitica:vAnalitica,analiticapend:vAnaliticaPend,analiticamaestros:vAnaliticaMaestros,presupuestoscont:vPresupuestosCont,impagados:vImpagados,anticipos:vAnticipos,cartasporte:vCartasPorte,intragrupo:vIntragrupo,actividades:vActividades,inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:vPedidosVenta,clientes:vClientes,productos:vProductos,familias:vFamilias,tarifas:vTarifas,gastos:vGastos,solicitudes:vSolicitudes,pedidos:vPedidos,inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,gestion:vGestion,contabilidad:vContabilidad,inmovilizado:vInmovilizado,divisas:vDivisas,aprobaciones:vAprobaciones,integraciones:vIntegraciones,ajustes:vAjustes}[k])();
+      ({cartera:vCartera,agrorecepciones:vAgroRecepciones,agropartidas:vAgroPartidas,agroconfeccion:vAgroConfeccion,agroliquidaciones:vAgroLiquidaciones,agrotrazabilidad:vAgroTrazabilidad,agroinforme:()=>vAgroInforme(),agromaestros:()=>vAgroMaestros(),analitica:vAnalitica,analiticapend:vAnaliticaPend,analiticamaestros:vAnaliticaMaestros,presupuestoscont:vPresupuestosCont,impagados:vImpagados,anticipos:vAnticipos,cartasporte:vCartasPorte,aduanas:vAduanas,intragrupo:vIntragrupo,actividades:vActividades,inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:vPedidosVenta,clientes:vClientes,productos:vProductos,familias:vFamilias,tarifas:vTarifas,gastos:vGastos,solicitudes:vSolicitudes,pedidos:vPedidos,inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,gestion:vGestion,contabilidad:vContabilidad,inmovilizado:vInmovilizado,divisas:vDivisas,aprobaciones:vAprobaciones,integraciones:vIntegraciones,ajustes:vAjustes}[k])();
     }
     const view = h => { document.getElementById("view").innerHTML=h; try{ mejorarTablas(); }catch(e){} };
 
@@ -2589,43 +2589,148 @@
     /* ---------- Cartas de porte (documento de control del transporte) ---------- */
     async function vCartasPorte(){
       view('<div class="muted">Cargando…</div>');
-      const lista=await api("/cartas-porte"); window._cartas=lista;
+      const [lista,transportistas,vehiculos]=await Promise.all([api("/cartas-porte"),api("/transporte/transportistas").catch(()=>[]),api("/transporte/vehiculos").catch(()=>[])]);
+      window._cartas=lista; window._transportistas=transportistas; window._vehiculos=vehiculos;
       const filas=lista.map(c=>{ const est=c.anulada?`<span class="pill neg" title="${agEsc(c.motivoAnulacion||"")}">Anulada</span>`:'<span class="pill ok">Emitida</span>';
         const anular=c.anulada?"":` <button class="btn small ghost" onclick="anularCartaPorte('${c.id}','${agEsc(c.numeroCompleto)}')">Anular</button>`;
-        return `<tr><td class="mono"><strong>${agEsc(c.numeroCompleto)}</strong></td><td class="muted">${fdate(c.fechaExpedicion)}</td><td>${agEsc(c.destinatarioNombre)}</td>
-          <td class="muted">${agEsc(c.lugarOrigen)} → ${agEsc(c.lugarDestino)}</td><td class="muted">${agEsc(c.transportistaNombre||"—")}${c.matricula?" · "+agEsc(c.matricula):""}</td>
+        const tipo=c.tipo==="Internacional"?`<span class="pill part" title="Carta de porte internacional (CMR)">CMR${c.paisDestino?" · "+c.paisDestino:""}</span>`:'<span class="pill">Nacional</span>';
+        return `<tr><td class="mono"><strong>${agEsc(c.numeroCompleto)}</strong> ${tipo}</td><td class="muted">${fdate(c.fechaExpedicion)}</td><td>${agEsc(c.destinatarioNombre)}</td>
+          <td class="muted">${agEsc(c.lugarOrigen)} → ${agEsc(c.lugarDestino)}${c.incoterm?` <span class="muted">(${c.incoterm})</span>`:""}</td><td class="muted">${agEsc(c.transportistaNombre||"—")}${c.matricula?" · "+agEsc(c.matricula):""}</td>
           <td class="num">${c.totalBultos}</td><td class="num">${kg(c.totalPesoKg)}</td><td>${est}</td>
           <td class="right" style="white-space:nowrap"><button class="btn small secondary" onclick="pdfCartaPorte('${c.id}')">PDF</button>${anular}</td></tr>`; }).join("");
       const nueva=`<button class="btn small" onclick="modalCartaPorte()">+ Nueva carta de porte</button>`;
-      view(panel("Cartas de porte",lista.length?`<table><thead><tr><th>Número</th><th>Fecha</th><th>Destinatario</th><th>Recorrido</th><th>Transportista</th><th class="num">Bultos</th><th class="num">Peso</th><th>Estado</th><th></th></tr></thead><tbody>${filas}</tbody></table>`
-        :vacio("facturas","Sin cartas de porte","Emite la carta de porte que acompaña a la mercancía: remitente (tu empresa), destinatario, transportista, recorrido, bultos y peso.",nueva),nueva));
+      const nomT=id=>(transportistas.find(t=>t.id===id)||{}).nombre||"—";
+      const pT=panel("Transportistas",transportistas.length?`<table><thead><tr><th>Transportista</th><th>NIF</th><th>País</th><th>Teléfono</th><th></th></tr></thead><tbody>${transportistas.map(t=>`<tr><td><strong>${agEsc(t.nombre)}</strong>${t.activo?"":' <span class="pill wait">De baja</span>'}</td><td class="mono">${agEsc(t.nif||"—")}</td><td>${t.pais||"—"}</td><td class="muted">${agEsc(t.telefono||"")}</td>
+        <td class="right" style="white-space:nowrap"><button class="btn small ghost" onclick="modalTransportista('${t.id}')">Editar</button> <button class="btn small ghost" onclick="eliminarTransporte('transportistas','${t.id}')" title="Eliminar">✕</button></td></tr>`).join("")}</tbody></table>`
+        :'<p class="muted" style="margin:0">Da de alta tus transportistas habituales: su nombre y NIF pasan solos a la carta de porte.</p>',`<button class="btn small secondary" onclick="modalTransportista()">+ Transportista</button>`);
+      const pV=panel("Vehículos",vehiculos.length?`<table><thead><tr><th>Matrícula</th><th>Remolque</th><th>Descripción</th><th class="num">Tara</th><th>Frío</th><th>Transportista</th><th></th></tr></thead><tbody>${vehiculos.map(v=>`<tr><td class="mono"><strong>${v.matricula}</strong>${v.activo?"":' <span class="pill wait">De baja</span>'}</td><td class="mono">${v.matriculaRemolque||"—"}</td><td class="muted">${agEsc(v.descripcion||"")}</td><td class="num">${v.taraKg?kg(v.taraKg):"—"}</td><td>${v.frigorifico?'<span class="pill ok">Frigorífico</span>':"—"}</td><td class="muted">${agEsc(v.transportistaId?nomT(v.transportistaId):"—")}</td>
+        <td class="right" style="white-space:nowrap"><button class="btn small ghost" onclick="modalVehiculo('${v.id}')">Editar</button> <button class="btn small ghost" onclick="eliminarTransporte('vehiculos','${v.id}')" title="Eliminar">✕</button></td></tr>`).join("")}</tbody></table>`
+        :'<p class="muted" style="margin:0">Tractoras y camiones con su remolque, tara y si son frigoríficos: la matrícula pasa sola a la carta de porte.</p>',`<button class="btn small secondary" onclick="modalVehiculo()">+ Vehículo</button>`);
+      view(panel("Cartas de porte",`<p class="muted" style="margin:0 0 10px">Si el destino es otro país, la carta de porte es un <strong>CMR</strong> (las 24 casillas del Convenio, tres ejemplares). El Incoterm y los países salen de la ficha del cliente.</p>`+(lista.length?`<table><thead><tr><th>Número</th><th>Fecha</th><th>Destinatario</th><th>Recorrido</th><th>Transportista</th><th class="num">Bultos</th><th class="num">Peso</th><th>Estado</th><th></th></tr></thead><tbody>${filas}</tbody></table>`
+        :vacio("facturas","Sin cartas de porte","Emite la carta de porte que acompaña a la mercancía: remitente (tu empresa), destinatario, transportista, recorrido, bultos y peso.",nueva)),nueva)+pT+pV);
+    }
+    function modalTransportista(id){
+      const t=id?(window._transportistas||[]).find(x=>x.id===id):null;
+      abrir(t?"Editar transportista":"Nuevo transportista",`<div class="grid2"><div><label>Nombre</label><input id="tr_nom" value="${t?agEsc(t.nombre):""}"/></div><div><label>NIF</label><input id="tr_nif" value="${t?agEsc(t.nif||""):""}"/></div></div>
+        <label>Dirección</label><input id="tr_dir" value="${t?agEsc(t.direccion||""):""}"/>
+        <div class="grid2"><div><label>País (ES, FR…)</label><input id="tr_pais" maxlength="30" value="${t?(t.pais||""):"ES"}"/></div><div><label>Teléfono</label><input id="tr_tel" value="${t?agEsc(t.telefono||""):""}"/></div></div>
+        ${t?`<label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="tr_act" style="width:auto;margin:0"${t.activo?" checked":""}/> Activo</label>`:""}`,
+        async()=>{ const b={nombre:val("tr_nom"),nif:val("tr_nif")||null,direccion:val("tr_dir")||null,pais:val("tr_pais")||null,telefono:val("tr_tel")||null,activo:t?document.getElementById("tr_act").checked:true};
+          await api(t?`/transporte/transportistas/${t.id}`:"/transporte/transportistas",{method:t?"PUT":"POST",body:JSON.stringify(b)}); toast("Transportista guardado.","ok"); setTimeout(vCartasPorte); });
+    }
+    function modalVehiculo(id){
+      const v=id?(window._vehiculos||[]).find(x=>x.id===id):null;
+      const opts=(window._transportistas||[]).filter(t=>t.activo||(v&&v.transportistaId===t.id)).map(t=>`<option value="${t.id}"${v&&v.transportistaId===t.id?" selected":""}>${agEsc(t.nombre)}</option>`).join("");
+      abrir(v?"Editar vehículo":"Nuevo vehículo",`<div class="grid2"><div><label>Matrícula</label><input id="ve_mat" value="${v?v.matricula:""}" placeholder="1234 ABC"/></div><div><label>Remolque</label><input id="ve_rem" value="${v?(v.matriculaRemolque||""):""}" placeholder="R 1234 BCD"/></div></div>
+        <div class="grid2"><div><label>Descripción</label><input id="ve_des" value="${v?agEsc(v.descripcion||""):""}" placeholder="Tráiler frigorífico"/></div><div><label>Tara (kg)</label><input id="ve_tara" type="number" step="0.1" min="0" value="${v&&v.taraKg?v.taraKg:""}"/></div></div>
+        <label>Transportista</label><select id="ve_tr"><option value="">— Propio o sin indicar —</option>${opts}</select>
+        <label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="ve_frio" style="width:auto;margin:0"${v&&v.frigorifico?" checked":""}/> Frigorífico</label>
+        ${v?`<label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="ve_act" style="width:auto;margin:0"${v.activo?" checked":""}/> Activo</label>`:""}`,
+        async()=>{ const b={matricula:val("ve_mat"),matriculaRemolque:val("ve_rem")||null,descripcion:val("ve_des")||null,taraKg:val("ve_tara")===""?null:Number(val("ve_tara")),
+            transportistaId:val("ve_tr")||null,frigorifico:document.getElementById("ve_frio").checked,activo:v?document.getElementById("ve_act").checked:true};
+          await api(v?`/transporte/vehiculos/${v.id}`:"/transporte/vehiculos",{method:v?"PUT":"POST",body:JSON.stringify(b)}); toast("Vehículo guardado.","ok"); setTimeout(vCartasPorte); });
+    }
+    async function eliminarTransporte(tipo,id){
+      if(!confirm("¿Eliminar? (si ya se usa en cartas de porte, dalo de baja)")) return;
+      try{ await api(`/transporte/${tipo}/${id}`,{method:"DELETE"}); toast("Eliminado.","ok"); vCartasPorte(); }catch(e){ toast(e.message,"err"); }
     }
     function lineaCartaHtml(){
-      return `<div class="cp-lin" style="display:grid;grid-template-columns:2.5fr .8fr 1fr auto;gap:6px;margin-bottom:6px;align-items:center">
-        <input class="cl-des" placeholder="Mercancía (p. ej. Naranja en cajas)"/><input class="cl-bul" type="number" step="1" min="0" placeholder="Bultos"/>
-        <input class="cl-kg" type="number" step="0.001" min="0" placeholder="Peso (kg)"/><button class="btn small ghost" onclick="this.parentElement.remove()" title="Quitar">✕</button></div>`;
+      const prods=(window._prodCarta||[]).map(p=>`<option value="${p.id}">${agEsc(p.nombre)}</option>`).join("");
+      return `<div class="cp-lin" style="display:grid;grid-template-columns:2fr 1.3fr .7fr .9fr .9fr auto;gap:6px;margin-bottom:6px;align-items:center">
+        <input class="cl-des" placeholder="Mercancía (p. ej. Naranja en cajas)"/><select class="cl-prod" title="Artículo (su código arancelario pasa al CMR)"><option value="">— Artículo —</option>${prods}</select>
+        <input class="cl-bul" type="number" step="1" min="0" placeholder="Bultos"/><input class="cl-kg" type="number" step="0.001" min="0" placeholder="Peso bruto kg"/><input class="cl-neto" type="number" step="0.001" min="0" placeholder="Neto kg"/>
+        <button class="btn small ghost" onclick="this.parentElement.remove()" title="Quitar">✕</button>
+        <input class="cl-emb" placeholder="Embalaje (palés, cajas…)" style="grid-column:1/3"/><input class="cl-mar" placeholder="Marcas" style="grid-column:3/5"/><input class="cl-tar" placeholder="Código arancelario" style="grid-column:5/7"/></div>`;
     }
     async function modalCartaPorte(){
-      const clientes=await api("/clientes").catch(()=>[]);
+      const [clientes,prods,inco]=await Promise.all([api("/clientes").catch(()=>[]),api("/productos").catch(()=>[]),api("/transporte/incoterms").catch(()=>[])]);
+      window._prodCarta=prods;
+      const trs=(window._transportistas||[]).filter(t=>t.activo), ves=(window._vehiculos||[]).filter(v=>v.activo);
       const hoy=new Date().toISOString().slice(0,10);
-      abrir("Nueva carta de porte",`<div class="grid2"><div><label>Destinatario (cliente)</label><select id="cp_cli"><option value="">— Otro (escribe los datos) —</option>${clientes.map(c=>`<option value="${c.id}">${agEsc(c.nombre)}</option>`).join("")}</select></div>
+      abrir("Nueva carta de porte",`<div class="grid2"><div><label>Destinatario (cliente)</label><select id="cp_cli"><option value="">— Otro (escribe los datos) —</option>${clientes.map(c=>`<option value="${c.id}">${agEsc(c.nombre)}${c.pais&&c.pais!=="ES"?" · "+c.pais:""}</option>`).join("")}</select></div>
           <div><label>Fecha de carga</label><input id="cp_fec" type="date" value="${hoy}"/></div></div>
         <div class="grid2" id="cp_libre"><div><label>Nombre del destinatario</label><input id="cp_dnom"/></div><div><label>NIF del destinatario</label><input id="cp_dnif"/></div></div>
         <div class="grid2"><div><label>Lugar de origen</label><input id="cp_ori" placeholder="Almacén, dirección de carga"/></div><div><label>Lugar de destino</label><input id="cp_des" placeholder="Dirección de entrega"/></div></div>
-        <div class="grid2"><div><label>Transportista</label><input id="cp_tnom"/></div><div><label>NIF del transportista</label><input id="cp_tnif"/></div></div>
-        <div class="grid2"><div><label>Matrícula</label><input id="cp_mat" placeholder="1234 ABC"/></div><div><label>Observaciones</label><input id="cp_obs"/></div></div>
+        <div class="grid2"><div><label>Vehículo</label><select id="cp_veh"><option value="">— Escribir la matrícula —</option>${ves.map(v=>`<option value="${v.id}">${v.matricula}${v.matriculaRemolque?" + "+v.matriculaRemolque:""}${v.frigorifico?" · frigorífico":""}</option>`).join("")}</select></div>
+          <div><label>Transportista</label><select id="cp_tr"><option value="">— El del vehículo o escribirlo —</option>${trs.map(t=>`<option value="${t.id}">${agEsc(t.nombre)}</option>`).join("")}</select></div></div>
+        <div class="grid2"><div><label>Matrícula (si no hay vehículo)</label><input id="cp_mat" placeholder="1234 ABC"/></div><div><label>Transportista (nombre y NIF, si no está en la lista)</label><div style="display:flex;gap:6px"><input id="cp_tnom" placeholder="Nombre"/><input id="cp_tnif" placeholder="NIF" style="max-width:120px"/></div></div></div>
+        <div class="grid2"><div><label>Conductor</label><input id="cp_con"/></div><div><label>Temperatura de consigna (°C) · termógrafo</label><div style="display:flex;gap:6px"><input id="cp_temp" type="number" step="0.5" placeholder="p. ej. 6" style="max-width:110px"/><input id="cp_tg" placeholder="Nº de termógrafo"/></div></div></div>
+        <div class="grid2"><div><label>Incoterm (vacío: el del cliente)</label><div style="display:flex;gap:6px"><select id="cp_inc" style="max-width:120px"><option value="">—</option>${inco.map(i=>`<option value="${i.codigo}" title="${agEsc(i.nombre)}">${i.codigo}</option>`).join("")}</select><input id="cp_linc" placeholder="Lugar (p. ej. Rungis)"/></div></div>
+          <div><label>Portes</label><select id="cp_portes"><option value="">—</option><option value="Pagados">Pagados</option><option value="Debidos">Debidos</option></select></div></div>
+        <div class="grid2"><div><label>Documentos anexos</label><input id="cp_docs" placeholder="Factura, certificado fitosanitario…"/></div><div><label>Instrucciones del remitente</label><input id="cp_ins"/></div></div>
+        <details style="margin-top:8px"><summary class="muted" style="cursor:pointer">Tipo, países y envío marítimo o aéreo</summary>
+          <div class="grid2"><div><label>Tipo</label><select id="cp_tipo"><option value="">Automático (CMR si cambia de país)</option><option value="Nacional">Nacional</option><option value="Internacional">Internacional (CMR)</option></select></div>
+            <div><label>Modo</label><select id="cp_modo">${["Carretera","Maritimo","Aereo","Ferrocarril","Multimodal"].map(m=>`<option value="${m}">${{Maritimo:"Marítimo",Aereo:"Aéreo"}[m]||m}</option>`).join("")}</select></div></div>
+          <div class="grid2"><div><label>País de origen · destino (vacío: empresa y cliente)</label><div style="display:flex;gap:6px"><input id="cp_po" placeholder="ES" maxlength="30"/><input id="cp_pd" placeholder="FR" maxlength="30"/></div></div>
+            <div><label>Naviera · buque</label><div style="display:flex;gap:6px"><input id="cp_nav"/><input id="cp_buq"/></div></div></div>
+          <div class="grid2"><div><label>Contenedor · precinto</label><div style="display:flex;gap:6px"><input id="cp_cont" placeholder="MSCU1234567"/><input id="cp_prec"/></div></div>
+            <div><label>Puerto de carga · destino</label><div style="display:flex;gap:6px"><input id="cp_pcar"/><input id="cp_pdes"/></div></div></div>
+          <div class="grid2"><div><label>Compañía aérea · vuelo · AWB</label><div style="display:flex;gap:6px"><input id="cp_aer"/><input id="cp_vue" style="max-width:90px"/><input id="cp_awb" style="max-width:130px"/></div></div>
+            <div><label>Reserva (booking)</label><input id="cp_res"/></div></div>
+        </details>
+        <label>Observaciones</label><input id="cp_obs"/>
         <label style="margin-top:12px">Mercancía</label><div id="cp_lineas">${lineaCartaHtml()}</div>
         <button class="btn small ghost" style="margin-top:4px" onclick="document.getElementById('cp_lineas').insertAdjacentHTML('beforeend',lineaCartaHtml())">+ Añadir línea</button>`,
-        async()=>{ const lineas=[...document.querySelectorAll('#cp_lineas .cp-lin')].map(r=>({descripcion:r.querySelector('.cl-des').value,bultos:Number(r.querySelector('.cl-bul').value||0),pesoKg:Number(r.querySelector('.cl-kg').value||0)}))
+        async()=>{ const n=v=>v===""||v==null?null:Number(v);
+          const lineas=[...document.querySelectorAll('#cp_lineas .cp-lin')].map(r=>({descripcion:r.querySelector('.cl-des').value,productoId:r.querySelector('.cl-prod').value||null,bultos:Number(r.querySelector('.cl-bul').value||0),
+              pesoKg:Number(r.querySelector('.cl-kg').value||0),pesoNetoKg:n(r.querySelector('.cl-neto').value),embalaje:r.querySelector('.cl-emb').value||null,marcas:r.querySelector('.cl-mar').value||null,codigoArancelario:r.querySelector('.cl-tar').value||null}))
             .filter(l=>l.descripcion||l.bultos||l.pesoKg);
           if(!lineas.length) throw new Error("Indica al menos una línea de mercancía.");
           const cli=val("cp_cli")||null;
+          const transporte={tipo:val("cp_tipo")||null,modo:val("cp_modo"),vehiculoId:val("cp_veh")||null,transportistaId:val("cp_tr")||null,conductor:val("cp_con")||null,temperaturaConsigna:n(val("cp_temp")),
+            termografo:val("cp_tg")||null,incoterm:val("cp_inc")||null,lugarIncoterm:val("cp_linc")||null,portes:val("cp_portes")||null,documentosAnexos:val("cp_docs")||null,instrucciones:val("cp_ins")||null,
+            paisOrigen:val("cp_po")||null,paisDestino:val("cp_pd")||null,naviera:val("cp_nav")||null,buque:val("cp_buq")||null,contenedor:val("cp_cont")||null,precinto:val("cp_prec")||null,
+            puertoCarga:val("cp_pcar")||null,puertoDestino:val("cp_pdes")||null,companiaAerea:val("cp_aer")||null,vuelo:val("cp_vue")||null,awb:val("cp_awb")||null,reserva:val("cp_res")||null};
           const c=await api("/cartas-porte",{method:"POST",body:JSON.stringify({destinatarioClienteId:cli,destinatarioNombre:cli?null:(val("cp_dnom")||null),destinatarioNif:cli?null:(val("cp_dnif")||null),
-            transportistaNombre:val("cp_tnom")||null,transportistaNif:val("cp_tnif")||null,matricula:val("cp_mat")||null,lugarOrigen:val("cp_ori"),lugarDestino:val("cp_des"),
-            fechaCarga:val("cp_fec")||null,observaciones:val("cp_obs")||null,lineas})});
-          toast(`Carta de porte ${c.numeroCompleto} emitida.`,"ok"); vCartasPorte(); });
+            transportistaNombre:val("cp_tnom")||null,transportistaNif:val("cp_tnif")||null,matricula:val("cp_mat")||null,lugarOrigen:val("cp_ori")||null,lugarDestino:val("cp_des")||null,
+            fechaCarga:val("cp_fec")||null,observaciones:val("cp_obs")||null,transporte,lineas})});
+          toast(`${c.tipo==="Internacional"?"CMR":"Carta de porte"} ${c.numeroCompleto} emitida.`,"ok"); vCartasPorte(); });
       const sel=document.getElementById("cp_cli"); const libre=()=>document.getElementById("cp_libre").style.display=sel.value?"none":""; sel.onchange=libre; libre();
     }
+    async function vAduanas(){
+      view('<div class="muted">Cargando…</div>');
+      const lista=await api("/aduanas/exportaciones");
+      window._exportaciones=lista;
+      const pill={"Sin DUA":'<span class="pill neg">Sin DUA</span>',"Despachada":'<span class="pill part">Despachada</span>',"Salida confirmada":'<span class="pill ok">Salida confirmada</span>'};
+      const filas=lista.map(e=>`<tr><td class="mono"><strong>${agEsc(e.numero)}</strong></td><td class="muted">${fdate(e.fecha)}</td><td>${agEsc(e.cliente)}${e.paisDestino?` <span class="muted">· ${e.paisDestino}</span>`:""}</td><td class="num">${eur(e.baseExportacion)}</td><td>${pill[e.situacion]||e.situacion}</td>
+        <td class="muted" style="font-size:12px">${e.despachos.map(d=>`<span class="mono">${d.mrn}</span> · ${fdate(d.fechaDespacho)}${d.fechaSalida?` · salida ${fdate(d.fechaSalida)}`:""} <button class="btn small ghost" onclick="modalDespacho('${e.facturaId}','${d.id}')">Editar</button><button class="btn small ghost" onclick="eliminarDespacho('${d.id}')" title="Eliminar">✕</button>`).join("<br>")||"—"}</td>
+        <td class="right" style="white-space:nowrap"><button class="btn small secondary" onclick="verDatosAduana('${e.facturaId}')">Datos para el agente</button> <button class="btn small" onclick="modalDespacho('${e.facturaId}')">+ DUA</button></td></tr>`).join("");
+      view(panel("Aduanas · exportación",`<p class="muted" style="margin:0 0 10px">Facturas exentas por exportación (art. 21 LIVA). La exención se prueba con el DUA de exportación: anota su MRN al despacharlo y la fecha de salida cuando la aduana la confirme. «Datos para el agente» reúne lo que necesita el agente de aduanas (partidas por código arancelario, EORI, Incoterm, bultos y pesos) y avisa de lo que falta.</p>`
+        +(lista.length?`<table><thead><tr><th>Factura</th><th>Fecha</th><th>Cliente</th><th class="num">Base exenta</th><th>Situación</th><th>DUA (MRN)</th><th></th></tr></thead><tbody>${filas}</tbody></table>`
+        :'<p class="muted" style="margin:0">No hay facturas con IVA de exportación (EXPORT).</p>')));
+    }
+    function modalDespacho(facturaId,id){
+      const e=(window._exportaciones||[]).find(x=>x.facturaId===facturaId); const d=id&&e?e.despachos.find(x=>x.id===id):null;
+      abrir(d?"Editar DUA":`DUA de exportación · ${e?agEsc(e.numero):""}`,`<label>MRN (18 caracteres)</label><input id="du_mrn" maxlength="22" value="${d?d.mrn:""}" placeholder="26ES00461120012345"/>
+        <div class="grid2"><div><label>Fecha del despacho</label><input id="du_fd" type="date" value="${d?d.fechaDespacho:new Date().toISOString().slice(0,10)}"/></div><div><label>Salida de la UE (confirmada)</label><input id="du_fs" type="date" value="${d&&d.fechaSalida?d.fechaSalida:""}"/></div></div>
+        <label>Aduana</label><input id="du_adu" value="${d?agEsc(d.aduana||""):""}" placeholder="Valencia (4600)"/><label>Observaciones</label><input id="du_obs" value="${d?agEsc(d.observaciones||""):""}"/>`,
+        async()=>{ const b={mrn:val("du_mrn"),fechaDespacho:val("du_fd"),fechaSalida:val("du_fs")||null,aduana:val("du_adu")||null,observaciones:val("du_obs")||null};
+          await api(d?`/aduanas/despachos/${d.id}`:`/aduanas/facturas/${facturaId}/despachos`,{method:d?"PUT":"POST",body:JSON.stringify(b)}); toast("DUA guardado.","ok"); setTimeout(vAduanas); });
+    }
+    async function eliminarDespacho(id){
+      if(!confirm("¿Eliminar este DUA?")) return;
+      try{ await api(`/aduanas/despachos/${id}`,{method:"DELETE"}); toast("DUA eliminado.","ok"); vAduanas(); }catch(e){ toast(e.message,"err"); }
+    }
+    async function verDatosAduana(facturaId){
+      try{
+        const d=await api(`/aduanas/facturas/${facturaId}`);
+        const fila=(k,v)=>v?`<tr><td class="muted">${k}</td><td>${agEsc(String(v))}</td></tr>`:"";
+        abrir(`Datos para el DUA · ${agEsc(d.factura)}`,`${d.avisos.length?`<div style="margin-bottom:10px">${d.avisos.map(a=>`<p class="muted" style="margin:2px 0;font-size:12.5px">⚠ ${agEsc(a)}</p>`).join("")}</div>`:'<p class="muted" style="margin:0 0 10px"><span class="pill ok">Completo</span></p>'}
+          <table><tbody>${fila("Exportador",`${d.exportador} · NIF ${d.exportadorNif} · EORI ${d.exportadorEori}`)}${fila("Destinatario",`${d.destinatario}${d.destinatarioEori?" · EORI "+d.destinatarioEori:""}`)}${fila("Dirección",d.destinatarioDireccion)}
+          ${fila("País de destino",d.paisDestino)}${fila("Incoterm",d.incoterm?`${d.incoterm} ${d.lugarIncoterm||""}`:"")}${fila("Transporte",[d.modoTransporte,d.matricula,d.contenedor?`contenedor ${d.contenedor}`:"",d.precinto?`precinto ${d.precinto}`:"",d.buque,d.vuelo,d.awb?`AWB ${d.awb}`:""].filter(Boolean).join(" · "))}
+          ${fila("Bultos · peso bruto",d.bultos!=null?`${d.bultos} · ${kg(d.pesoBrutoKg)}`:"")}${fila("Peso neto",d.pesoNetoKg!=null?kg(d.pesoNetoKg):"")}${fila("Cartas de porte",d.cartasPorte.join(", "))}</tbody></table>
+          <table style="margin-top:10px"><thead><tr><th>Código arancelario</th><th>Origen</th><th>Mercancía</th><th class="num">Cantidad</th><th class="num">Neto kg</th><th class="num">Valor</th></tr></thead><tbody>${d.partidas.map(p=>`<tr><td class="mono">${p.codigoArancelario||'<span class="pill neg">falta</span>'}</td><td>${p.paisOrigen||"—"}</td><td>${agEsc(p.descripcion)}</td><td class="num">${numCant(p.cantidad)}</td><td class="num">${p.pesoNetoKg!=null?kg(p.pesoNetoKg):"—"}</td><td class="num">${eur(p.valor)}</td></tr>`).join("")}
+          <tr><td colspan="5"><strong>Total</strong></td><td class="num"><strong>${eur(d.valorTotal)}</strong> ${agEsc(d.moneda)}</td></tr></tbody></table>
+          <button class="btn small secondary" style="margin-top:10px" onclick="descargarCsvAduana('${facturaId}','${agEsc(d.factura)}')">Descargar CSV para el agente</button>`,null);
+        document.getElementById("modalOk").style.display="none";
+      }catch(e){ toast(e.message,"err"); }
+    }
+    async function descargarCsvAduana(facturaId,numero){ try{
+        const r=await fetch(`/aduanas/facturas/${facturaId}?formato=csv`,{headers:{Authorization:"Bearer "+token}});
+        if(!r.ok) throw new Error("No se pudo generar el fichero");
+        const u=URL.createObjectURL(await r.blob()); const a=document.createElement("a"); a.href=u; a.download=`aduana-${numero.replace(/\//g,"-")}.csv`; a.click();
+        setTimeout(()=>URL.revokeObjectURL(u),60000);
+      }catch(e){ toast(e.message,"err"); } }
     async function pdfCartaPorte(id){ try{
         const r=await fetch(`/cartas-porte/${id}/pdf`,{headers:{Authorization:"Bearer "+token}});
         if(!r.ok) throw new Error("No se pudo generar el PDF");
@@ -3889,18 +3994,23 @@
     async function modalAgroExpedir(){
       const cerrados=(window._agPales||[]).filter(p=>p.estado==="Cerrado");
       if(!cerrados.length){ toast("No hay palés cerrados para expedir.","err"); return; }
-      const pedidos=(await api("/pedidos-venta").catch(()=>[])).filter(p=>p.estado==="Confirmado"||p.estado==="Servido");
+      const [pedidosTodos,vehs,trs]=await Promise.all([api("/pedidos-venta").catch(()=>[]),api("/transporte/vehiculos").catch(()=>[]),api("/transporte/transportistas").catch(()=>[])]);
+      const pedidos=pedidosTodos.filter(p=>p.estado==="Confirmado"||p.estado==="Servido");
       abrir("Expedición",`${cerrados.map(p=>`<label style="display:flex;gap:8px;align-items:center"><input type="checkbox" class="aex" value="${p.id}" style="width:auto" checked/> <span class="mono">${p.sscc}</span> · ${kg(p.kilos)}</label>`).join("")}
         <label style="margin-top:12px">Pedido de venta (opcional: se emite su albarán con lo expedido)</label><select id="aex_p"><option value="">— Sin pedido —</option>${pedidos.map(p=>`<option value="${p.id}">${agEsc(p.numeroCompleto)} · ${agEsc(p.clienteNombre)}</option>`).join("")}</select>
         <div class="grid2" style="margin-top:12px"><div><label>Cliente</label><select id="aex_c">${agOpc(_ag.clientes,null,"— Sin cliente —")}</select></div><div><label>Referencia (pedido, albarán…)</label><input id="aex_r"/></div></div><label>Fecha</label><input id="aex_f" type="date" value="${hoyIso()}"/>
         <label style="display:flex;gap:8px;align-items:center;margin-top:12px"><input id="aex_cp" type="checkbox" style="width:auto" checked/> Emitir la carta de porte (una línea por producto con sus cajas y kilos)</label>
-        <div id="aex_tr"><div class="grid2"><div><label>Transportista</label><input id="aex_t"/></div><div><label>Matrícula</label><input id="aex_m" placeholder="1234 ABC"/></div></div>
+        <div id="aex_tr"><div class="grid2"><div><label>Vehículo</label><select id="aex_v"><option value="">— Escribir la matrícula —</option>${vehs.filter(v=>v.activo).map(v=>`<option value="${v.id}">${v.matricula}${v.matriculaRemolque?" + "+v.matriculaRemolque:""}${v.frigorifico?" · frigorífico":""}</option>`).join("")}</select></div>
+          <div><label>Transportista</label><select id="aex_ti"><option value="">— El del vehículo o escribirlo —</option>${trs.filter(t=>t.activo).map(t=>`<option value="${t.id}">${agEsc(t.nombre)}</option>`).join("")}</select></div></div>
+        <div class="grid2"><div><label>Transportista (si no está en la lista)</label><input id="aex_t"/></div><div><label>Matrícula (si no hay vehículo)</label><input id="aex_m" placeholder="1234 ABC"/></div></div>
+        <div class="grid2"><div><label>Temperatura de consigna (°C)</label><input id="aex_temp" type="number" step="0.5" placeholder="p. ej. 6"/></div><div><label>Termógrafo</label><input id="aex_tg"/></div></div>
         <div class="grid2"><div><label>Lugar de carga</label><input id="aex_o"/></div><div><label>Lugar de destino</label><input id="aex_d"/></div></div></div>`,
         async()=>{ const paleIds=[...document.querySelectorAll(".aex:checked")].map(x=>x.value); const carta=document.getElementById("aex_cp").checked;
           const pedido=val("aex_p")||null;
           if(carta&&!val("aex_c")&&!pedido) throw new Error("Para la carta de porte, elige el cliente o el pedido.");
           const r=await api("/agro/expediciones",{method:"POST",body:JSON.stringify({paleIds,pedidoVentaId:pedido,clienteId:pedido?null:(val("aex_c")||null),referencia:val("aex_r")||null,fecha:val("aex_f"),
-            cartaPorte:carta,transportista:val("aex_t")||null,matricula:val("aex_m")||null,lugarOrigen:val("aex_o")||null,lugarDestino:val("aex_d")||null})});
+            cartaPorte:carta,transportista:val("aex_t")||null,matricula:val("aex_m")||null,lugarOrigen:val("aex_o")||null,lugarDestino:val("aex_d")||null,
+            vehiculoId:val("aex_v")||null,transportistaId:val("aex_ti")||null,temperaturaConsigna:val("aex_temp")===""?null:Number(val("aex_temp")),termografo:val("aex_tg")||null})});
           toast(r.length&&r[0].albaranId?`Palés expedidos con el albarán ${r[0].referenciaExpedicion}${carta?" y su carta de porte":""}.`:(carta&&r.length?`Palés expedidos con la carta de porte ${r[0].referenciaExpedicion}.`:"Palés expedidos."),"ok"); setTimeout(vAgroPartidas); });
       const cp=document.getElementById("aex_cp"); cp.onchange=()=>document.getElementById("aex_tr").style.display=cp.checked?"":"none";
     }
@@ -4205,13 +4315,23 @@
       return `<label style="margin-top:14px">Es una empresa del grupo (operaciones entre empresas)</label><select id="${id}"><option value="">— No, tercero externo —</option>${otras.map(e=>`<option value="${e.id}"${sel===e.id?" selected":""}>${agEsc(e.razonSocial)}</option>`).join("")}</select>
         <div class="muted" style="font-size:12px;margin-top:4px">Lo que se facture a este tercero llega a la bandeja de facturas recibidas de esa empresa y cuenta en el cuadre entre empresas.</div>`; }
     const valOpc=id=>{ const e=document.getElementById(id); return e?(e.value||null):undefined; };
-    async function modalCliente(c){ [_cacheFormasPago,_cacheTarifas,window._empresasGrupo]=await Promise.all([api("/formas-pago").catch(()=>[]),api("/tarifas").catch(()=>[]),api("/grupos/actual/empresas").catch(()=>[])]); abrir(c?"Editar cliente":"Nuevo cliente",`<label>Nombre</label><input id="c_nombre" placeholder="Nombre o razón social"/><div class="grid2"><div><label>NIF (opcional)</label><input id="c_nif"/></div><div><label>Email (opcional)</label><input id="c_email"/></div></div><label>IRPF por defecto (%)</label><input id="c_irpf" type="number" value="0"/>
+    // Dirección postal de un tercero (la usan la factura, el CMR y la aduana).
+    const direccionTerceroHtml=pre=>`<label style="margin-top:14px">Dirección</label><input id="${pre}_calle" placeholder="Calle y número"/>
+      <div class="grid2"><div><input id="${pre}_cp" placeholder="Código postal"/></div><div><input id="${pre}_pob" placeholder="Población"/></div></div>
+      <div class="grid2"><div><input id="${pre}_prov" placeholder="Provincia o región"/></div><div><input id="${pre}_pais" placeholder="País (ES, FR, GB…)" maxlength="30"/></div></div>`;
+    const direccionTercero=pre=>({calle:val(pre+"_calle")||null,codigoPostal:val(pre+"_cp")||null,poblacion:val(pre+"_pob")||null,provincia:val(pre+"_prov")||null,pais:val(pre+"_pais")||null});
+    const rellenarDireccion=(pre,t)=>rellenar({[pre+"_calle"]:t.calle,[pre+"_cp"]:t.codigoPostal,[pre+"_pob"]:t.poblacion,[pre+"_prov"]:t.provincia,[pre+"_pais"]:t.pais});
+    async function modalCliente(c){ [_cacheFormasPago,_cacheTarifas,window._empresasGrupo]=await Promise.all([api("/formas-pago").catch(()=>[]),api("/tarifas").catch(()=>[]),api("/grupos/actual/empresas").catch(()=>[])]); abrir(c?"Editar cliente":"Nuevo cliente",`<label>Nombre</label><input id="c_nombre" placeholder="Nombre o razón social"/><div class="grid2"><div><label>NIF (opcional)</label><input id="c_nif"/></div><div><label>Email (opcional)</label><input id="c_email"/></div></div><label>IRPF por defecto (%)</label><input id="c_irpf" type="number" value="0"/>${direccionTerceroHtml("c")}
       <label style="display:flex;align-items:center;gap:8px;margin-top:14px;font-weight:500;cursor:pointer"><input id="c_recargo" type="checkbox" style="width:auto"/> Cliente en recargo de equivalencia (minorista)</label>
       <label style="margin-top:14px">Domiciliación bancaria (opcional, para remesas SEPA)</label>
       <input id="c_iban" placeholder="IBAN del cliente (ES..)"/>
       <div class="grid2"><div><label>Referencia del mandato</label><input id="c_mref" placeholder="Ej. MND-0001"/></div><div><label>Fecha del mandato</label><input id="c_mfecha" type="date"/></div></div>
       <label style="margin-top:14px">NIF-IVA intracomunitario (opcional, para el modelo 349)</label>
       <input id="c_iva" placeholder="Ej. DE123456789"/>
+      <details style="margin-top:14px"><summary style="cursor:pointer;font-weight:600;font-size:13px">Comercio exterior (EORI e Incoterm habitual)</summary>
+        <div class="grid2" style="margin-top:8px"><div><label>EORI (fuera de la UE)</label><input id="c_eori" placeholder="GB123456789000"/></div>
+          <div><label>Incoterm habitual · lugar</label><div style="display:flex;gap:6px"><select id="c_inc" style="max-width:110px"><option value="">—</option>${["EXW","FCA","CPT","CIP","DAP","DPU","DDP","FAS","FOB","CFR","CIF"].map(i=>`<option${c&&c.incoterm===i?" selected":""}>${i}</option>`).join("")}</select><input id="c_linc" placeholder="Lugar"/></div></div></div>
+      </details>
       <label style="display:flex;align-items:center;gap:8px;margin-top:14px;font-weight:500;cursor:pointer"><input id="c_aapp" type="checkbox" style="width:auto" onchange="document.getElementById('c_dir3').style.display=this.checked?'block':'none'"/> Administración Pública (factura electrónica por FACe)</label>
       <div id="c_dir3" style="display:none">
         <p class="muted" style="font-size:12px;margin:6px 0 8px">Códigos DIR3 del organismo (los facilita el propio ente público). Necesarios para remitir la Facturae por FACe.</p>
@@ -4225,13 +4345,13 @@
       <label style="margin-top:14px">Límite de riesgo (€, opcional)</label><input id="c_riesgo" type="number" step="0.01" placeholder="Sin límite"/>
       <label style="margin-top:14px">Tarifa de precios (opcional)</label><select id="c_tarifa"><option value="">— Precio del artículo —</option>${_cacheTarifas.filter(t=>t.activa||(c&&c.tarifaId===t.id)).map(t=>`<option value="${t.id}"${c&&c.tarifaId===t.id?" selected":""}>${agEsc(t.codigo)} · ${agEsc(t.nombre)}</option>`).join("")}</select>
       ${empresaGrupoSel("c_empresa",c&&c.empresaVinculadaId)}`,
-      async()=>{ const r=val("c_riesgo"); const b=JSON.stringify({nombre:val("c_nombre"),nifFiscal:val("c_nif")||null,email:val("c_email")||null,porcentajeIrpfDefecto:Number(val("c_irpf")),recargoEquivalencia:document.getElementById("c_recargo").checked,iban:val("c_iban")||null,mandatoReferencia:val("c_mref")||null,mandatoFecha:val("c_mfecha")||null,nifIva:val("c_iva")||null,tipo:val("c_tipo")||null,formaPagoDefectoId:val("c_forma")||null,limiteRiesgo:r?Number(r):null,esAdministracionPublica:document.getElementById("c_aapp").checked,dir3OficinaContable:val("c_oc")||null,dir3OrganoGestor:val("c_og")||null,dir3UnidadTramitadora:val("c_ut")||null,actividadNegocioId:c?c.actividadNegocioId||null:null,empresaVinculadaId:valOpc("c_empresa")===undefined?(c?c.empresaVinculadaId||null:null):valOpc("c_empresa")}); const resp=await api("/clientes"+(c?"/"+c.id:""),{method:c?"PUT":"POST",body:b}); const cid=c?c.id:(resp&&resp.id);
+      async()=>{ const r=val("c_riesgo"); const b=JSON.stringify({nombre:val("c_nombre"),nifFiscal:val("c_nif")||null,email:val("c_email")||null,porcentajeIrpfDefecto:Number(val("c_irpf")),recargoEquivalencia:document.getElementById("c_recargo").checked,iban:val("c_iban")||null,mandatoReferencia:val("c_mref")||null,mandatoFecha:val("c_mfecha")||null,nifIva:val("c_iva")||null,tipo:val("c_tipo")||null,formaPagoDefectoId:val("c_forma")||null,limiteRiesgo:r?Number(r):null,esAdministracionPublica:document.getElementById("c_aapp").checked,dir3OficinaContable:val("c_oc")||null,dir3OrganoGestor:val("c_og")||null,dir3UnidadTramitadora:val("c_ut")||null,...direccionTercero("c"),eori:val("c_eori")||null,incoterm:val("c_inc")||null,lugarIncoterm:val("c_linc")||null,actividadNegocioId:c?c.actividadNegocioId||null:null,empresaVinculadaId:valOpc("c_empresa")===undefined?(c?c.empresaVinculadaId||null:null):valOpc("c_empresa")}); const resp=await api("/clientes"+(c?"/"+c.id:""),{method:c?"PUT":"POST",body:b}); const cid=c?c.id:(resp&&resp.id);
         if(cid&&(val("c_tarifa")||null)!==((c&&c.tarifaId)||null)) await api(`/clientes/${cid}/tarifa`,{method:"PUT",body:JSON.stringify({tarifaId:val("c_tarifa")||null})});
         await guardarSubcuentaCampo("Cliente", cid, val("c_nombre"), "c_cuenta"); vClientes(); });
-      if(c){ rellenar({c_nombre:c.nombre,c_nif:c.nifFiscal,c_email:c.email,c_irpf:c.porcentajeIrpfDefecto,c_iban:c.iban,c_mref:c.mandatoReferencia,c_mfecha:c.mandatoFecha,c_iva:c.nifIva,c_tipo:c.tipo,c_riesgo:c.limiteRiesgo,c_oc:c.dir3OficinaContable,c_og:c.dir3OrganoGestor,c_ut:c.dir3UnidadTramitadora}); document.getElementById("c_recargo").checked=!!c.recargoEquivalencia; document.getElementById("c_aapp").checked=!!c.esAdministracionPublica; document.getElementById("c_dir3").style.display=c.esAdministracionPublica?"block":"none"; }
+      if(c){ rellenar({c_nombre:c.nombre,c_nif:c.nifFiscal,c_email:c.email,c_irpf:c.porcentajeIrpfDefecto,c_iban:c.iban,c_mref:c.mandatoReferencia,c_mfecha:c.mandatoFecha,c_iva:c.nifIva,c_tipo:c.tipo,c_riesgo:c.limiteRiesgo,c_oc:c.dir3OficinaContable,c_og:c.dir3OrganoGestor,c_ut:c.dir3UnidadTramitadora,c_eori:c.eori,c_linc:c.lugarIncoterm}); rellenarDireccion("c",c); document.getElementById("c_recargo").checked=!!c.recargoEquivalencia; document.getElementById("c_aapp").checked=!!c.esAdministracionPublica; document.getElementById("c_dir3").style.display=c.esAdministracionPublica?"block":"none"; }
       cargarSubcuentaCampo("Cliente", c?c.id:null, "c_cuenta"); }
     async function modalProveedor(pr){ [_cacheFormasPago,window._empresasGrupo]=await Promise.all([api("/formas-pago").catch(()=>[]),api("/grupos/actual/empresas").catch(()=>[])]); const fp=[["NoIndicada","Sin especificar"],["Transferencia","Transferencia"],["Domiciliacion","Domiciliación"],["Efectivo","Efectivo"],["Tarjeta","Tarjeta"],["Pagare","Pagaré"],["Confirming","Confirming"],["Otro","Otro"]].map(o=>`<option value="${o[0]}">${o[1]}</option>`).join("");
-      abrir(pr?"Editar proveedor":"Nuevo proveedor",`<label>Nombre</label><input id="pr_nombre" placeholder="Nombre o razón social"/><div class="grid2"><div><label>NIF (opcional)</label><input id="pr_nif"/></div><div><label>IRPF (opcional)</label><input id="pr_irpf" type="number" value="0"/></div></div>
+      abrir(pr?"Editar proveedor":"Nuevo proveedor",`<label>Nombre</label><input id="pr_nombre" placeholder="Nombre o razón social"/><div class="grid2"><div><label>NIF (opcional)</label><input id="pr_nif"/></div><div><label>IRPF (opcional)</label><input id="pr_irpf" type="number" value="0"/></div></div>${direccionTerceroHtml("pr")}
       <div class="grid2"><div><label>Forma de pago</label><select id="pr_pago">${fp}</select></div><div><label>Email (opcional)</label><input id="pr_email"/></div></div>
       <label style="margin-top:14px">NIF-IVA intracomunitario (opcional, para el modelo 349)</label>
       <input id="pr_iva" placeholder="Ej. IT12345678901"/>
@@ -4242,8 +4362,8 @@
       <label style="margin-top:14px">Límite de riesgo (€, opcional)</label><input id="pr_riesgo" type="number" step="0.01" placeholder="Sin límite"/>
       <label style="margin-top:14px">IBAN (para pagarle por transferencia/confirming, opcional)</label><input id="pr_iban" placeholder="ES.."/>
       ${empresaGrupoSel("pr_empresa",pr&&pr.empresaVinculadaId)}`,
-      async()=>{ const r=val("pr_riesgo"); const b=JSON.stringify({nombre:val("pr_nombre"),nifFiscal:val("pr_nif")||null,email:val("pr_email")||null,porcentajeIrpfDefecto:Number(val("pr_irpf")),formaPago:val("pr_pago"),nifIva:val("pr_iva")||null,tipo:val("pr_tipo")||null,formaPagoDefectoId:val("pr_forma")||null,limiteRiesgo:r?Number(r):null,iban:val("pr_iban")||null,actividadNegocioId:pr?pr.actividadNegocioId||null:null,empresaVinculadaId:valOpc("pr_empresa")===undefined?(pr?pr.empresaVinculadaId||null:null):valOpc("pr_empresa")}); const resp=await api("/proveedores"+(pr?"/"+pr.id:""),{method:pr?"PUT":"POST",body:b}); await guardarSubcuentaCampo("Proveedor", pr?pr.id:(resp&&resp.id), val("pr_nombre"), "pr_cuenta"); vProveedores(); });
-      if(pr) rellenar({pr_nombre:pr.nombre,pr_nif:pr.nifFiscal,pr_email:pr.email,pr_irpf:pr.porcentajeIrpfDefecto,pr_pago:pr.formaPago,pr_iva:pr.nifIva,pr_tipo:pr.tipo,pr_riesgo:pr.limiteRiesgo,pr_iban:pr.iban});
+      async()=>{ const r=val("pr_riesgo"); const b=JSON.stringify({nombre:val("pr_nombre"),nifFiscal:val("pr_nif")||null,email:val("pr_email")||null,porcentajeIrpfDefecto:Number(val("pr_irpf")),formaPago:val("pr_pago"),nifIva:val("pr_iva")||null,tipo:val("pr_tipo")||null,formaPagoDefectoId:val("pr_forma")||null,limiteRiesgo:r?Number(r):null,iban:val("pr_iban")||null,...direccionTercero("pr"),actividadNegocioId:pr?pr.actividadNegocioId||null:null,empresaVinculadaId:valOpc("pr_empresa")===undefined?(pr?pr.empresaVinculadaId||null:null):valOpc("pr_empresa")}); const resp=await api("/proveedores"+(pr?"/"+pr.id:""),{method:pr?"PUT":"POST",body:b}); await guardarSubcuentaCampo("Proveedor", pr?pr.id:(resp&&resp.id), val("pr_nombre"), "pr_cuenta"); vProveedores(); });
+      if(pr) rellenar({pr_nombre:pr.nombre,pr_nif:pr.nifFiscal,pr_email:pr.email,pr_irpf:pr.porcentajeIrpfDefecto,pr_pago:pr.formaPago,pr_iva:pr.nifIva,pr_tipo:pr.tipo,pr_riesgo:pr.limiteRiesgo,pr_iban:pr.iban}); if(pr) rellenarDireccion("pr",pr);
       cargarSubcuentaCampo("Proveedor", pr?pr.id:null, "pr_cuenta"); }
     async function modalProducto(p){ const [provs,prods,fams]=await Promise.all([api("/proveedores").catch(()=>[]),api("/productos").catch(()=>[]),api("/familias").catch(()=>[])]);
       const provOpts=`<option value="">— Sin asignar —</option>`+provs.map(x=>`<option value="${x.id}">${x.nombre}</option>`).join("");
@@ -4274,7 +4394,8 @@
       </details>
       <label style="margin-top:14px">Trazabilidad</label>
       <select id="p_seguimiento"><option value="Ninguno">Sin lote ni número de serie</option><option value="Lote">Por lote (caducidades, sanitario…)</option><option value="Serie">Por número de serie (cada unidad única)</option></select>
-      <label style="margin-top:14px">Peso neto por unidad (kg, opcional)</label><input id="p_peso" type="number" step="0.001" min="0" placeholder="Para la tara y el peso de los compuestos"/>
+      <label style="margin-top:14px">Peso neto por unidad (kg, opcional)</label><input id="p_peso" type="number" step="0.001" min="0" placeholder="Para la tara, el peso de los compuestos y la aduana"/>
+      <div class="grid2"><div><label>Código arancelario (NC 8 · TARIC 10)</label><input id="p_taric" placeholder="0805 10 22"/></div><div><label>País de origen</label><input id="p_origen" placeholder="ES" maxlength="30"/></div></div>
       ${window._compProdOpts?`<details style="margin-top:14px;border:1px solid var(--line);border-radius:11px;padding:10px 12px" ${compIni.length?'open':''}>
         <summary style="cursor:pointer;font-weight:600;font-size:13px">Artículo compuesto (lista de materiales)</summary>
         <div style="margin-top:10px">
@@ -4291,7 +4412,7 @@
       <p class="muted" style="font-size:12px;margin:10px 0 0">El precio de compra sirve para calcular el margen en el informe de beneficio. El stock se descuenta automáticamente al facturar.</p>`,
       async()=>{ const fc=Number(val("p_fcompra")||1)||1, fv=Number(val("p_fventa")||1)||1;
         const b=JSON.stringify({nombre:val("p_nombre"),referencia:val("p_ref")||null,precioUnitario:Number(val("p_precio")),precioCompra:Number(val("p_compra")),codigoIva:val("p_iva"),tipo:(p&&p.tipo)?p.tipo:"Servicio",proveedorHabitualId:val("p_prov")||null,familiaId:val("p_familiaId")||null,unidad:val("p_unidad")||"ud",unidadCompra:val("p_ucompra")||null,factorCompra:fc,unidadVenta:val("p_uventa")||null,factorVenta:fv,seguimiento:val("p_seguimiento"),controlarStock:document.getElementById("p_stock_ctrl").checked,stockInicial:Number(val("p_stock_ini")||0),
-          pesoKg:val("p_peso")===""?null:Number(val("p_peso")),actividadNegocioId:editar?(p.actividadNegocioId||null):null});
+          pesoKg:val("p_peso")===""?null:Number(val("p_peso")),codigoArancelario:val("p_taric")||null,paisOrigen:val("p_origen")||null,actividadNegocioId:editar?(p.actividadNegocioId||null):null});
         const guardado=await api("/productos"+(editar?"/"+p.id:""),{method:editar?"PUT":"POST",body:b});
         // Lista de materiales (si la sección existe): siempre se envía (lista vacía = quitar composición).
         if(document.getElementById("p_comp_lineas")){
@@ -4300,7 +4421,7 @@
           if(c&&c.compuestosIguales&&c.compuestosIguales.length) toast(`Aviso: ya hay compuestos con la misma lista de materiales: ${c.compuestosIguales.join(", ")}.`,"err");
         }
         vProductos(); });
-      if(p){ rellenar({p_nombre:p.nombre,p_ref:p.referencia,p_precio:p.precioUnitario,p_compra:p.precioCompra,p_iva:p.codigoIva,p_prov:p.proveedorHabitualId,p_familiaId:p.familiaId,p_unidad:p.unidad||"ud",p_ucompra:p.unidadCompra,p_fcompra:p.factorCompra??1,p_uventa:p.unidadVenta,p_fventa:p.factorVenta??1,p_seguimiento:p.seguimiento||"Ninguno",p_peso:p.pesoKg});
+      if(p){ rellenar({p_nombre:p.nombre,p_ref:p.referencia,p_precio:p.precioUnitario,p_compra:p.precioCompra,p_iva:p.codigoIva,p_prov:p.proveedorHabitualId,p_familiaId:p.familiaId,p_unidad:p.unidad||"ud",p_ucompra:p.unidadCompra,p_fcompra:p.factorCompra??1,p_uventa:p.unidadVenta,p_fventa:p.factorVenta??1,p_seguimiento:p.seguimiento||"Ninguno",p_peso:p.pesoKg,p_taric:p.codigoArancelario,p_origen:p.paisOrigen});
         if(p.controlarStock){ document.getElementById("p_stock_ctrl").checked=true; document.getElementById("p_stock_box").style.display="block"; } }
       prevEnvase(); prevCompCoste(); }
     function compLineaHtml(prodId,cant){ const po=(window._compProdOpts||''); const opts=prodId?po.replace(`value="${prodId}"`,`value="${prodId}" selected`):po; return `<div class="cmp-comp" style="display:grid;grid-template-columns:3fr 1fr;gap:8px;margin-bottom:6px"><select class="cc-prod" onchange="prevCompCoste()"><option value="">— Componente —</option>${opts}</select><input class="cc-cant" type="number" step="0.001" placeholder="Cantidad" value="${cant??''}" oninput="prevCompCoste()"/></div>`; }

@@ -27,12 +27,15 @@ public sealed class PalesRapidosTests : IClassFixture<FabricaApiPruebas>
     private sealed record PaleResp(Guid Id, string Sscc, string Estado, decimal Kilos, int Cajas, int? CajasPorPale, Guid? PlantillaId, Guid? CartaPorteId,
         string? ReferenciaExpedicion, List<ContenidoResp> Contenido, Guid? AlbaranId = null);
     private sealed record PlantillaResp(Guid Id, string Codigo, int CajasPorPale, decimal KilosPorCaja, int? CajasPorCapa, int? Capas, decimal KilosPorPale);
-    private sealed record LineaCartaResp(string Descripcion, int Bultos, decimal PesoKg);
+    private sealed record LineaCartaResp(string Descripcion, int Bultos, decimal PesoKg, string? Embalaje = null, decimal? PesoNetoKg = null);
+    private sealed record TransporteCartaResp(decimal? TemperaturaConsigna, string? Termografo);
     private sealed record LineaPedidoResp(Guid Id, decimal Cantidad, decimal CantidadServida);
     private sealed record PedidoResp(Guid Id, string Estado, List<LineaPedidoResp> Lineas);
     private sealed record AlbaranResp(Guid Id, string NumeroCompleto, bool Anulado, List<LineaAlbaranResp> Lineas);
     private sealed record LineaAlbaranResp(decimal Cantidad);
-    private sealed record CartaResp(Guid Id, string NumeroCompleto, Guid? DestinatarioClienteId, int TotalBultos, decimal TotalPesoKg, bool Anulada, List<LineaCartaResp> Lineas);
+    private sealed record CartaResp(Guid Id, string NumeroCompleto, Guid? DestinatarioClienteId, int TotalBultos, decimal TotalPesoKg, bool Anulada, List<LineaCartaResp> Lineas,
+        string? Matricula = null, TransporteCartaResp? Transporte = null);
+    private sealed record VehiculoResp(Guid Id);
 
     private static readonly int Anio = DateTime.UtcNow.Year;
 
@@ -173,10 +176,11 @@ public sealed class PalesRapidosTests : IClassFixture<FabricaApiPruebas>
         (await CodigoAsync(await e.Api.PostAsJsonAsync("/agro/expediciones", new { PaleIds = pales.Select(p => p.Id), CartaPorte = true }), HttpStatusCode.BadRequest))
             .Should().Be("expedicion.carta_sin_cliente");
 
+        var camion = (await (await e.Api.PostAsJsonAsync("/transporte/vehiculos", new { Matricula = "1234 BCD", Frigorifico = true })).Content.ReadFromJsonAsync<VehiculoResp>())!;
         var salida = await OkAsync<List<PaleResp>>(await e.Api.PostAsJsonAsync("/agro/expediciones", new
         {
-            PaleIds = pales.Select(p => p.Id), ClienteId = e.Cliente, CartaPorte = true, Transportista = "Transportes Ribera", Matricula = "1234 BCD",
-            LugarOrigen = "Almacén de Alzira", LugarDestino = "Mercabilbao",
+            PaleIds = pales.Select(p => p.Id), ClienteId = e.Cliente, CartaPorte = true, Transportista = "Transportes Ribera", VehiculoId = camion.Id,
+            TemperaturaConsigna = 4m, Termografo = "TG-1", LugarOrigen = "Almacén de Alzira", LugarDestino = "Mercabilbao",
         }));
         salida.Should().OnlyContain(p => p.Estado == "Expedido" && p.CartaPorteId != null && p.Cajas == 80);
         var cartaId = salida[0].CartaPorteId!.Value;
@@ -184,7 +188,10 @@ public sealed class PalesRapidosTests : IClassFixture<FabricaApiPruebas>
         carta.DestinatarioClienteId.Should().Be(e.Cliente);
         carta.TotalBultos.Should().Be(160);
         carta.TotalPesoKg.Should().Be(2_000m);
-        carta.Lineas.Single().Descripcion.Should().Be("Naranja Navel · 2 palé(s)");
+        carta.Lineas.Single().Should().Match<LineaCartaResp>(l => l.Descripcion == "Naranja Navel · 2 palé(s)" && l.Embalaje == "Cajas en 2 palé(s)" && l.PesoNetoKg == 2_000m);
+        carta.Matricula.Should().Be("1234BCD", "la del vehículo");
+        carta.Transporte!.TemperaturaConsigna.Should().Be(4m);
+        carta.Transporte.Termografo.Should().Be("TG-1");
         salida[0].ReferenciaExpedicion.Should().Be(carta.NumeroCompleto);
 
         // Vuelve un palé: la carta sigue viva (el otro salió). Vuelve el otro: se anula.

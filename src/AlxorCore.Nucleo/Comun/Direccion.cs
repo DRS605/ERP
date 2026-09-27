@@ -9,7 +9,10 @@ public sealed record Direccion(string Calle, string CodigoPostal, string Poblaci
             (codigoPostal ?? string.Empty).Trim(),
             (poblacion ?? string.Empty).Trim(),
             (provincia ?? string.Empty).Trim(),
-            string.IsNullOrWhiteSpace(pais) ? "ES" : pais.Trim().ToUpperInvariant());
+            string.IsNullOrWhiteSpace(pais) ? "ES" : Paises.Codigo(pais) ?? pais.Trim().ToUpperInvariant());
+
+    /// <summary>¿El país es reconocible como código ISO de dos letras (o su nombre)? Vacío vale (España).</summary>
+    public static bool PaisValido(string? pais) => string.IsNullOrWhiteSpace(pais) || Paises.Codigo(pais) is not null;
 
     /// <summary>Dirección vacía (solo país España).</summary>
     public static Direccion Vacia => new(string.Empty, string.Empty, string.Empty, string.Empty, "ES");

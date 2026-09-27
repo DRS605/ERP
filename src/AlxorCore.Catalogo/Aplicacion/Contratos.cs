@@ -35,7 +35,9 @@ public sealed record ProductoDto(
     Guid? FamiliaId,
     Guid? ActividadNegocioId = null,
     string TipoComposicion = "Fabricacion",
-    decimal? PesoKg = null)
+    decimal? PesoKg = null,
+    string? CodigoArancelario = null,
+    string? PaisOrigen = null)
 {
     /// <summary>
     /// Construye el DTO. Las existencias (<paramref name="stock"/>) son por empresa (el catálogo se
@@ -47,7 +49,8 @@ public sealed record ProductoDto(
         var porcentaje = Impuesto.PorCodigoImpuesto(p.CodigoIva).Valor.Porcentaje;
         return new ProductoDto(p.Id, p.Referencia, p.Nombre, p.Tipo, p.PrecioUnitario, p.CodigoIva, porcentaje, p.Unidad, p.Activo, p.PrecioCompra, p.ProveedorHabitualId, p.ControlarStock, stock,
             p.UnidadCompra, p.FactorCompra, p.UnidadVenta, p.FactorVenta, p.PrecioCompraPorUnidadCompra, p.PrecioVentaPorUnidadVenta, p.Seguimiento, p.EsCompuesto,
-            p.ProductoPadreId, p.EsPlantilla, p.ResumenVariante, p.Familia, p.FamiliaId, p.ActividadNegocioId, p.Composicion.ToString(), p.PesoKg);
+            p.ProductoPadreId, p.EsPlantilla, p.ResumenVariante, p.Familia, p.FamiliaId, p.ActividadNegocioId, p.Composicion.ToString(), p.PesoKg,
+            p.CodigoArancelario, p.PaisOrigen);
     }
 }
 

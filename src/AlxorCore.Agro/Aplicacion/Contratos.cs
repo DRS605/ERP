@@ -108,7 +108,9 @@ public interface IAutofacturas
 
 /// <summary>Carta de porte de una expedición de palés: destinatario, transporte y una línea por producto.</summary>
 public sealed record CartaPorteExpedicion(Guid ClienteId, DateOnly Fecha, string? Transportista, string? Matricula, string? LugarOrigen, string? LugarDestino,
-    string? Observaciones, IReadOnlyList<(string Descripcion, int Bultos, decimal Kilos)> Lineas, Guid? AlbaranId = null);
+    string? Observaciones, IReadOnlyList<(string Descripcion, int Bultos, decimal Kilos)> Lineas, Guid? AlbaranId = null,
+    Guid? TransportistaId = null, Guid? VehiculoId = null, decimal? TemperaturaConsigna = null, string? Termografo = null,
+    IReadOnlyList<(Guid? ProductoId, int Pales)>? Detalle = null);
 
 /// <summary>
 /// Documentos de transporte de una expedición: emite la carta de porte (y la anula si la expedición no se completa o se

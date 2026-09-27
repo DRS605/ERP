@@ -171,6 +171,37 @@ internal sealed class ConfiguracionCartaPorte : IEntityTypeConfiguration<CartaPo
         builder.Property(c => c.CreadoEn).HasColumnName("creado_en").IsRequired();
         builder.Property(c => c.AnuladaEn).HasColumnName("anulada_en");
         builder.Property(c => c.MotivoAnulacion).HasColumnName("motivo_anulacion").HasMaxLength(CartaPorte.LongitudMaximaTexto);
+        builder.Property(c => c.Tipo).HasColumnName("tipo").HasMaxLength(15).HasConversion<string>().IsRequired().HasDefaultValue(TipoCartaPorte.Nacional).HasSentinel((TipoCartaPorte)0);
+        builder.Property(c => c.Modo).HasColumnName("modo").HasMaxLength(15).HasConversion<string>().IsRequired().HasDefaultValue(ModoTransporte.Carretera).HasSentinel((ModoTransporte)0);
+        builder.Property(c => c.Incoterm).HasColumnName("incoterm").HasMaxLength(3);
+        builder.Property(c => c.LugarIncoterm).HasColumnName("lugar_incoterm").HasMaxLength(100);
+        builder.Property(c => c.Portes).HasColumnName("portes").HasMaxLength(10).HasConversion<string>();
+        builder.Property(c => c.DocumentosAnexos).HasColumnName("documentos_anexos").HasMaxLength(300);
+        builder.Property(c => c.Instrucciones).HasColumnName("instrucciones").HasMaxLength(500);
+        builder.Property(c => c.PaisOrigen).HasColumnName("pais_origen").HasMaxLength(2);
+        builder.Property(c => c.PaisDestino).HasColumnName("pais_destino").HasMaxLength(2);
+        builder.Property(c => c.TransportistaId).HasColumnName("transportista_id");
+        builder.Property(c => c.VehiculoId).HasColumnName("vehiculo_id");
+        builder.Property(c => c.MatriculaRemolque).HasColumnName("matricula_remolque").HasMaxLength(20);
+        builder.Property(c => c.Conductor).HasColumnName("conductor").HasMaxLength(100);
+        builder.Property(c => c.Conductor2).HasColumnName("conductor2").HasMaxLength(100);
+        builder.Property(c => c.TemperaturaConsigna).HasColumnName("temperatura_consigna").HasColumnType("numeric(5,1)");
+        builder.Property(c => c.Termografo).HasColumnName("termografo").HasMaxLength(40);
+        builder.Property(c => c.Naviera).HasColumnName("naviera").HasMaxLength(100);
+        builder.Property(c => c.Buque).HasColumnName("buque").HasMaxLength(100);
+        builder.Property(c => c.Contenedor).HasColumnName("contenedor").HasMaxLength(20);
+        builder.Property(c => c.Precinto).HasColumnName("precinto").HasMaxLength(40);
+        builder.Property(c => c.PuertoCarga).HasColumnName("puerto_carga").HasMaxLength(100);
+        builder.Property(c => c.PuertoDestino).HasColumnName("puerto_destino").HasMaxLength(100);
+        builder.Property(c => c.CompaniaAerea).HasColumnName("compania_aerea").HasMaxLength(100);
+        builder.Property(c => c.Vuelo).HasColumnName("vuelo").HasMaxLength(20);
+        builder.Property(c => c.Awb).HasColumnName("awb").HasMaxLength(20);
+        builder.Property(c => c.Reserva).HasColumnName("reserva").HasMaxLength(40);
+        builder.HasIndex(c => c.TransportistaId).HasDatabaseName("ix_carta_porte_transportista");
+        builder.HasIndex(c => c.VehiculoId).HasDatabaseName("ix_carta_porte_vehiculo");
+        builder.HasIndex(c => c.AlbaranId).HasDatabaseName("ix_carta_porte_albaran");
+        builder.Ignore(c => c.TotalPesoNetoKg);
+        builder.Ignore(c => c.TotalVolumenM3);
 
         builder.OwnsMany(c => c.Lineas, linea =>
         {
@@ -181,6 +212,11 @@ internal sealed class ConfiguracionCartaPorte : IEntityTypeConfiguration<CartaPo
             linea.Property(l => l.Descripcion).HasColumnName("descripcion").HasMaxLength(300).IsRequired();
             linea.Property(l => l.Bultos).HasColumnName("bultos").IsRequired();
             linea.Property(l => l.PesoKg).HasColumnName("peso_kg").HasColumnType("numeric(14,3)").IsRequired();
+            linea.Property(l => l.Marcas).HasColumnName("marcas").HasMaxLength(CartaPorte.LongitudMaximaTexto);
+            linea.Property(l => l.Embalaje).HasColumnName("embalaje").HasMaxLength(CartaPorte.LongitudMaximaTexto);
+            linea.Property(l => l.PesoNetoKg).HasColumnName("peso_neto_kg").HasColumnType("numeric(14,3)");
+            linea.Property(l => l.VolumenM3).HasColumnName("volumen_m3").HasColumnType("numeric(12,3)");
+            linea.Property(l => l.CodigoArancelario).HasColumnName("codigo_arancelario").HasMaxLength(10);
         });
 
         builder.HasIndex(c => new { c.EmpresaId, c.Serie, c.Ejercicio, c.Numero })
@@ -188,6 +224,132 @@ internal sealed class ConfiguracionCartaPorte : IEntityTypeConfiguration<CartaPo
         builder.Ignore(c => c.EventosDominio);
         builder.Ignore(c => c.TotalBultos);
         builder.Ignore(c => c.TotalPesoKg);
+    }
+}
+
+internal sealed class ConfiguracionTransportista : IEntityTypeConfiguration<Transportista>
+{
+    public void Configure(EntityTypeBuilder<Transportista> builder)
+    {
+        builder.ToTable("transportista");
+        builder.HasKey(t => t.Id);
+        builder.Property(t => t.Id).HasColumnName("id").ValueGeneratedNever();
+        builder.Property(t => t.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        builder.Property(t => t.Nombre).HasColumnName("nombre").HasMaxLength(Transportista.LongitudTexto).IsRequired();
+        builder.Property(t => t.Nif).HasColumnName("nif").HasMaxLength(20);
+        builder.Property(t => t.Direccion).HasColumnName("direccion").HasMaxLength(Transportista.LongitudTexto);
+        builder.Property(t => t.Pais).HasColumnName("pais").HasMaxLength(2);
+        builder.Property(t => t.Telefono).HasColumnName("telefono").HasMaxLength(30);
+        builder.Property(t => t.Activo).HasColumnName("activo").IsRequired();
+        builder.HasIndex(t => new { t.EmpresaId, t.Nombre }).HasDatabaseName("ix_transportista_empresa_nombre");
+        builder.Ignore(t => t.EventosDominio);
+    }
+}
+
+internal sealed class ConfiguracionVehiculo : IEntityTypeConfiguration<Vehiculo>
+{
+    public void Configure(EntityTypeBuilder<Vehiculo> builder)
+    {
+        builder.ToTable("vehiculo");
+        builder.HasKey(v => v.Id);
+        builder.Property(v => v.Id).HasColumnName("id").ValueGeneratedNever();
+        builder.Property(v => v.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        builder.Property(v => v.Matricula).HasColumnName("matricula").HasMaxLength(20).IsRequired();
+        builder.Property(v => v.MatriculaRemolque).HasColumnName("matricula_remolque").HasMaxLength(20);
+        builder.Property(v => v.Descripcion).HasColumnName("descripcion").HasMaxLength(Transportista.LongitudTexto);
+        builder.Property(v => v.TaraKg).HasColumnName("tara_kg").HasColumnType("numeric(10,1)");
+        builder.Property(v => v.Frigorifico).HasColumnName("frigorifico").IsRequired();
+        builder.Property(v => v.TransportistaId).HasColumnName("transportista_id");
+        builder.Property(v => v.Activo).HasColumnName("activo").IsRequired();
+        builder.HasIndex(v => new { v.EmpresaId, v.Matricula }).IsUnique().HasDatabaseName("ux_vehiculo_empresa_matricula");
+        builder.HasIndex(v => v.TransportistaId).HasDatabaseName("ix_vehiculo_transportista");
+        builder.Ignore(v => v.EventosDominio);
+    }
+}
+
+internal sealed class ConfiguracionDespachoAduanero : IEntityTypeConfiguration<DespachoAduanero>
+{
+    public void Configure(EntityTypeBuilder<DespachoAduanero> builder)
+    {
+        builder.ToTable("despacho_aduanero");
+        builder.HasKey(d => d.Id);
+        builder.Property(d => d.Id).HasColumnName("id").ValueGeneratedNever();
+        builder.Property(d => d.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        builder.Property(d => d.FacturaId).HasColumnName("factura_id").IsRequired();
+        builder.Property(d => d.Mrn).HasColumnName("mrn").HasMaxLength(DespachoAduanero.LongitudMrn).IsRequired();
+        builder.Property(d => d.FechaDespacho).HasColumnName("fecha_despacho").IsRequired();
+        builder.Property(d => d.FechaSalida).HasColumnName("fecha_salida");
+        builder.Property(d => d.Aduana).HasColumnName("aduana").HasMaxLength(60);
+        builder.Property(d => d.Observaciones).HasColumnName("observaciones").HasMaxLength(300);
+        builder.HasIndex(d => new { d.EmpresaId, d.Mrn }).IsUnique().HasDatabaseName("ux_despacho_empresa_mrn");
+        builder.HasIndex(d => d.FacturaId).HasDatabaseName("ix_despacho_factura");
+        builder.Ignore(d => d.EventosDominio);
+    }
+}
+
+internal sealed class RepositorioTransporte : IRepositorioTransporte
+{
+    private readonly FacturacionDbContext _contexto;
+
+    public RepositorioTransporte(FacturacionDbContext contexto) => _contexto = contexto;
+
+    public async Task<IReadOnlyList<Transportista>> TransportistasAsync(Guid empresaId, CancellationToken ct = default) =>
+        await _contexto.Transportistas.Where(t => t.EmpresaId == empresaId).ToListAsync(ct).ConfigureAwait(false);
+
+    public Task<Transportista?> TransportistaAsync(Guid id, CancellationToken ct = default) => _contexto.Transportistas.SingleOrDefaultAsync(t => t.Id == id, ct);
+
+    public async Task<IReadOnlyList<Vehiculo>> VehiculosAsync(Guid empresaId, CancellationToken ct = default) =>
+        await _contexto.Vehiculos.Where(v => v.EmpresaId == empresaId).ToListAsync(ct).ConfigureAwait(false);
+
+    public Task<Vehiculo?> VehiculoAsync(Guid id, CancellationToken ct = default) => _contexto.Vehiculos.SingleOrDefaultAsync(v => v.Id == id, ct);
+
+    public void Agregar(object entidad) => _contexto.Add(entidad);
+
+    public void Eliminar(object entidad) => _contexto.Remove(entidad);
+
+    public Task<int> CartasConAsync(Guid? transportistaId, Guid? vehiculoId, CancellationToken ct = default) =>
+        _contexto.CartasPorte.CountAsync(c => (transportistaId != null && c.TransportistaId == transportistaId) || (vehiculoId != null && c.VehiculoId == vehiculoId), ct);
+}
+
+internal sealed class RepositorioDespachos : IRepositorioDespachos
+{
+    private readonly FacturacionDbContext _contexto;
+
+    public RepositorioDespachos(FacturacionDbContext contexto) => _contexto = contexto;
+
+    public async Task<IReadOnlyList<DespachoAduanero>> DeFacturaAsync(Guid facturaId, CancellationToken ct = default) =>
+        await _contexto.Despachos.Where(d => d.FacturaId == facturaId).ToListAsync(ct).ConfigureAwait(false);
+
+    public async Task<IReadOnlyList<DespachoAduanero>> ListarAsync(Guid empresaId, CancellationToken ct = default) =>
+        await _contexto.Despachos.AsNoTracking().Where(d => d.EmpresaId == empresaId).ToListAsync(ct).ConfigureAwait(false);
+
+    public Task<DespachoAduanero?> ObtenerAsync(Guid id, CancellationToken ct = default) => _contexto.Despachos.SingleOrDefaultAsync(d => d.Id == id, ct);
+
+    public Task<bool> ExisteMrnAsync(Guid empresaId, string mrn, Guid? salvo, CancellationToken ct = default) =>
+        _contexto.Despachos.AnyAsync(d => d.EmpresaId == empresaId && d.Mrn == mrn && d.Id != salvo, ct);
+
+    public void Agregar(DespachoAduanero despacho) => _contexto.Despachos.Add(despacho);
+
+    public void Eliminar(DespachoAduanero despacho) => _contexto.Despachos.Remove(despacho);
+}
+
+internal sealed class ConsultaFacturasPorIva : IConsultaFacturasPorIva
+{
+    private readonly FacturacionDbContext _contexto;
+
+    public ConsultaFacturasPorIva(FacturacionDbContext contexto) => _contexto = contexto;
+
+    public async Task<IReadOnlyList<(Guid Id, string Numero, DateOnly Fecha, string Cliente, Guid? ClienteId, string Pais, decimal Base)>> ConCodigosAsync(
+        Guid empresaId, IReadOnlyCollection<string> codigosIva, CancellationToken ct = default)
+    {
+        var codigos = codigosIva.Select(c => c.ToUpperInvariant()).ToList();
+        var filas = await _contexto.Facturas.AsNoTracking()
+            .Where(f => f.EmpresaId == empresaId && f.Estado != EstadoFactura.Anulada
+                && f.Lineas.Any(l => codigos.Contains(l.CodigoIva.ToUpper())))
+            .Select(f => new { f.Id, f.NumeroCompleto, f.FechaEmision, f.ClienteNombre, f.ClienteId, f.Pais,
+                Base = f.Lineas.Where(l => codigos.Contains(l.CodigoIva.ToUpper())).Sum(l => l.Base) })
+            .ToListAsync(ct).ConfigureAwait(false);
+        return filas.Select(f => (f.Id, f.NumeroCompleto, f.FechaEmision, f.ClienteNombre, f.ClienteId, f.Pais, f.Base)).ToList();
     }
 }
 
@@ -225,7 +387,15 @@ internal sealed class RepositorioCartasPorte : IRepositorioCartasPorte, IConsult
             .ToListAsync(ct).ConfigureAwait(false);
         return cartas
             .Select(c => new CartaPorteResumen(c.Id, c.NumeroCompleto, c.FechaExpedicion, c.DestinatarioNombre, c.LugarDestino, c.TotalBultos, c.TotalPesoKg,
-                c.LugarOrigen, c.TransportistaNombre, c.Matricula, c.AnuladaEn is not null, c.MotivoAnulacion))
+                c.LugarOrigen, c.TransportistaNombre, c.Matricula, c.AnuladaEn is not null, c.MotivoAnulacion, c.Tipo.ToString(), c.PaisDestino, c.Incoterm))
             .ToList();
+    }
+
+    public async Task<IReadOnlyList<CartaPorteDto>> DeFacturaAsync(Guid facturaId, CancellationToken ct = default)
+    {
+        var albaranes = _contexto.AlbaranesVenta.Where(a => _contexto.PedidosVenta.Any(p => p.Id == a.PedidoId && p.FacturaId == facturaId)).Select(a => a.Id);
+        var cartas = await _contexto.CartasPorte.AsNoTracking().Include(c => c.Lineas)
+            .Where(c => c.AlbaranId != null && albaranes.Contains(c.AlbaranId.Value)).OrderBy(c => c.FechaExpedicion).ToListAsync(ct).ConfigureAwait(false);
+        return cartas.Select(CartaPorteDto.Desde).ToList();
     }
 }

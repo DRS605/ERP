@@ -5,6 +5,13 @@ using AlxorCore.Nucleo.Tiempo;
 
 namespace AlxorCore.Facturacion.Dominio;
 
+/// <summary>
+/// Mercancía de una línea: descripción, bultos y peso bruto, y las casillas del CMR (marcas, embalaje, número
+/// estadístico o código arancelario, volumen) y el peso neto.
+/// </summary>
+public sealed record DatosLineaCarta(string? Descripcion, int Bultos, decimal PesoKg, string? Marcas = null, string? Embalaje = null,
+    decimal? PesoNetoKg = null, decimal? VolumenM3 = null, string? CodigoArancelario = null);
+
 /// <summary>Línea de mercancía de una carta de porte: qué se transporta, en cuántos bultos y su peso.</summary>
 public sealed class LineaCartaPorte
 {
@@ -16,6 +23,29 @@ public sealed class LineaCartaPorte
         Descripcion = descripcion;
         Bultos = bultos;
         PesoKg = pesoKg;
+    }
+
+    /// <summary>Marcas y números de los bultos (casilla 6 del CMR).</summary>
+    public string? Marcas { get; private set; }
+
+    /// <summary>Clase de embalaje: palés, cajas, a granel… (casilla 8).</summary>
+    public string? Embalaje { get; private set; }
+
+    public decimal? PesoNetoKg { get; private set; }
+
+    /// <summary>Volumen en m³ (casilla 12).</summary>
+    public decimal? VolumenM3 { get; private set; }
+
+    /// <summary>Código arancelario (NC de 8 dígitos o TARIC de 10): número estadístico, casilla 10.</summary>
+    public string? CodigoArancelario { get; private set; }
+
+    internal void Completar(DatosLineaCarta d)
+    {
+        Marcas = CartaPorte.Recortar(d.Marcas);
+        Embalaje = CartaPorte.Recortar(d.Embalaje);
+        PesoNetoKg = d.PesoNetoKg;
+        VolumenM3 = d.VolumenM3;
+        CodigoArancelario = CodigosArancelarios.Normalizar(d.CodigoArancelario);
     }
 
     public Guid Id { get; private set; }
@@ -118,6 +148,78 @@ public sealed class CartaPorte : RaizAgregadoEmpresa<Guid>
 
     public string? MotivoAnulacion { get; private set; }
 
+    // --- Tipo y comercio exterior (CMR, Incoterm, portes, países) ---
+    public TipoCartaPorte Tipo { get; private set; } = TipoCartaPorte.Nacional;
+    public ModoTransporte Modo { get; private set; } = ModoTransporte.Carretera;
+    public string? Incoterm { get; private set; }
+    public string? LugarIncoterm { get; private set; }
+    public Portes? Portes { get; private set; }
+    public string? DocumentosAnexos { get; private set; }
+    public string? Instrucciones { get; private set; }
+    public string? PaisOrigen { get; private set; }
+    public string? PaisDestino { get; private set; }
+
+    // --- Vehículo, conductores y frío ---
+    public Guid? TransportistaId { get; private set; }
+    public Guid? VehiculoId { get; private set; }
+    public string? MatriculaRemolque { get; private set; }
+    public string? Conductor { get; private set; }
+    public string? Conductor2 { get; private set; }
+    public decimal? TemperaturaConsigna { get; private set; }
+    public string? Termografo { get; private set; }
+
+    // --- Marítimo y aéreo ---
+    public string? Naviera { get; private set; }
+    public string? Buque { get; private set; }
+    public string? Contenedor { get; private set; }
+    public string? Precinto { get; private set; }
+    public string? PuertoCarga { get; private set; }
+    public string? PuertoDestino { get; private set; }
+    public string? CompaniaAerea { get; private set; }
+    public string? Vuelo { get; private set; }
+    public string? Awb { get; private set; }
+    public string? Reserva { get; private set; }
+
+    /// <summary>
+    /// Aplica los datos de transporte (ya normalizados). Sin tipo indicado, es internacional (CMR) si los países de
+    /// origen y destino son distintos.
+    /// </summary>
+    public void AplicarTransporte(TransporteCarta t)
+    {
+        ArgumentNullException.ThrowIfNull(t);
+        Modo = t.Modo;
+        Incoterm = t.Incoterm;
+        LugarIncoterm = t.LugarIncoterm;
+        Portes = t.Portes;
+        DocumentosAnexos = t.DocumentosAnexos;
+        Instrucciones = t.Instrucciones;
+        PaisOrigen = t.PaisOrigen;
+        PaisDestino = t.PaisDestino;
+        TransportistaId = t.TransportistaId;
+        VehiculoId = t.VehiculoId;
+        MatriculaRemolque = t.MatriculaRemolque;
+        Conductor = t.Conductor;
+        Conductor2 = t.Conductor2;
+        TemperaturaConsigna = t.TemperaturaConsigna;
+        Termografo = t.Termografo;
+        Naviera = t.Naviera;
+        Buque = t.Buque;
+        Contenedor = t.Contenedor;
+        Precinto = t.Precinto;
+        PuertoCarga = t.PuertoCarga;
+        PuertoDestino = t.PuertoDestino;
+        CompaniaAerea = t.CompaniaAerea;
+        Vuelo = t.Vuelo;
+        Awb = t.Awb;
+        Reserva = t.Reserva;
+        Tipo = t.Tipo ?? (PaisOrigen is { } o && PaisDestino is { } d && o != d ? TipoCartaPorte.Internacional : TipoCartaPorte.Nacional);
+    }
+
+    /// <summary>Peso neto total, si todas las líneas lo tienen.</summary>
+    public decimal? TotalPesoNetoKg => _lineas.Count > 0 && _lineas.All(l => l.PesoNetoKg is not null) ? _lineas.Sum(l => l.PesoNetoKg!.Value) : null;
+
+    public decimal? TotalVolumenM3 => _lineas.Any(l => l.VolumenM3 is not null) ? _lineas.Sum(l => l.VolumenM3 ?? 0m) : null;
+
     public Resultado Anular(string? motivo, IReloj reloj)
     {
         ArgumentNullException.ThrowIfNull(reloj);
@@ -146,6 +248,19 @@ public sealed class CartaPorte : RaizAgregadoEmpresa<Guid>
         DateOnly? fechaCarga, string? observaciones, Guid? albaranId,
         IReadOnlyList<(string? Descripcion, int Bultos, decimal PesoKg)> lineas, IReloj reloj)
     {
+        ArgumentNullException.ThrowIfNull(lineas);
+        return Crear(empresaId, serie, ejercicio, numero, fechaExpedicion, remitenteNombre, remitenteNif, destinatarioClienteId, destinatarioNombre, destinatarioNif,
+            transportistaNombre, transportistaNif, matricula, lugarOrigen, lugarDestino, fechaCarga, observaciones, albaranId,
+            lineas.Select(l => new DatosLineaCarta(l.Descripcion, l.Bultos, l.PesoKg)).ToList(), reloj);
+    }
+
+    public static Resultado<CartaPorte> Crear(
+        Guid empresaId, string? serie, int ejercicio, int numero, DateOnly fechaExpedicion,
+        string? remitenteNombre, string? remitenteNif, Guid? destinatarioClienteId, string? destinatarioNombre, string? destinatarioNif,
+        string? transportistaNombre, string? transportistaNif, string? matricula, string? lugarOrigen, string? lugarDestino,
+        DateOnly? fechaCarga, string? observaciones, Guid? albaranId,
+        IReadOnlyList<DatosLineaCarta> lineas, IReloj reloj)
+    {
         ArgumentNullException.ThrowIfNull(reloj);
         ArgumentNullException.ThrowIfNull(lineas);
 
@@ -154,18 +269,20 @@ public sealed class CartaPorte : RaizAgregadoEmpresa<Guid>
             return Resultado.Fallo<CartaPorte>(Error.Validacion("cartaporte.destinatario_vacio", "El destinatario es obligatorio."));
         }
 
-        var limpias = lineas
-            .Where(l => !string.IsNullOrWhiteSpace(l.Descripcion))
-            .Select(l => (Descripcion: l.Descripcion!.Trim(), l.Bultos, l.PesoKg))
-            .ToList();
+        var limpias = lineas.Where(l => !string.IsNullOrWhiteSpace(l.Descripcion)).ToList();
         if (limpias.Count == 0)
         {
             return Resultado.Fallo<CartaPorte>(Error.Validacion("cartaporte.sin_lineas", "La carta de porte necesita al menos una mercancía."));
         }
 
-        if (limpias.Any(l => l.Bultos < 0 || l.PesoKg < 0))
+        if (limpias.Any(l => l.Bultos < 0 || l.PesoKg < 0 || l.PesoNetoKg < 0 || l.VolumenM3 < 0))
         {
-            return Resultado.Fallo<CartaPorte>(Error.Validacion("cartaporte.cantidades", "Los bultos y el peso no pueden ser negativos."));
+            return Resultado.Fallo<CartaPorte>(Error.Validacion("cartaporte.cantidades", "Los bultos, los pesos y el volumen no pueden ser negativos."));
+        }
+
+        if (limpias.FirstOrDefault(l => !string.IsNullOrWhiteSpace(l.CodigoArancelario) && CodigosArancelarios.Normalizar(l.CodigoArancelario) is null) is { } mal)
+        {
+            return Resultado.Fallo<CartaPorte>(Error.Validacion("cartaporte.codigo_arancelario", $"«{mal.CodigoArancelario}» no es un código arancelario (8 dígitos NC o 10 TARIC)."));
         }
 
         var carta = new CartaPorte(
@@ -175,13 +292,15 @@ public sealed class CartaPorte : RaizAgregadoEmpresa<Guid>
             fechaCarga, Recortar(observaciones), albaranId, reloj.AhoraUtc);
         foreach (var l in limpias)
         {
-            carta._lineas.Add(new LineaCartaPorte(Guid.NewGuid(), l.Descripcion, l.Bultos, l.PesoKg));
+            var linea = new LineaCartaPorte(Guid.NewGuid(), l.Descripcion!.Trim(), l.Bultos, l.PesoKg);
+            linea.Completar(l);
+            carta._lineas.Add(linea);
         }
 
         return Resultado.Ok(carta);
     }
 
-    private static string? Recortar(string? valor)
+    internal static string? Recortar(string? valor)
     {
         if (string.IsNullOrWhiteSpace(valor))
         {
