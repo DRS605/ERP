@@ -80,8 +80,31 @@ Además:
 - La consolidación comprueba que los apuntes de eliminación cuadran (debe = haber).
 - Las empresas con contabilidad simple no tienen asientos: se marcan y no aportan saldos.
 
+### Perímetro y participación
+
+`GET/PUT /intragrupo/perimetro/{empresaId}` fija la participación del grupo en cada empresa y su método. Sin fijar, la
+empresa entra por integración global al 100 %.
+
+| Método | Saldos | Resultado | Eliminaciones |
+|---|---|---|---|
+| Global | Al 100 % | La parte de los otros socios (100 % − participación) se atribuye a **socios externos**; el resto, a la sociedad dominante | Completas |
+| Proporcional | En el porcentaje de participación | Todo del grupo | En el menor de los dos porcentajes de la pareja |
+| Excluida | No entra | — | Ninguna: sus operaciones con el grupo son con terceros |
+
+### Correspondencias de cuentas
+
+`/intragrupo/correspondencias` empareja una cuenta de una empresa con la recíproca de otra (la
+`CuentaContableCorrespondenciaEmpresasGrupo` de Hispatec). Sirve, por ejemplo, para un préstamo: 5523 en la
+prestamista y 5133 en la prestataria.
+
+- La cuenta puede ser un prefijo de 3 a 12 dígitos: suma todas las subcuentas que empiezan así.
+- En la consolidación se eliminan los dos saldos.
+- Su suma es el **descuadre**: debería ser 0, y si no lo es, las eliminaciones no cuadran y se señala.
+- Las ventas, compras y saldos de clientes y proveedores entre empresas ya se eliminan solos: no hace falta
+  emparejarlos.
+
 ## 6. Pendiente
 
-- Emparejar las cuentas contables de las dos empresas (la correspondencia de asientos de Hispatec) y el porcentaje de
-  participación (consolidación proporcional, socios externos).
+- Patrimonio de socios externos y eliminación inversión-patrimonio neto (la consolidación da el resultado atribuido,
+  no la eliminación de la participación en el capital).
 - Albarán de compra nacido del albarán de venta intragrupo, con traspaso de existencias entre empresas.

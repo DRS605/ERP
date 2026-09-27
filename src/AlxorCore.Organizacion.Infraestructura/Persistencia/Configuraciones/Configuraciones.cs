@@ -208,3 +208,41 @@ internal sealed class ConfiguracionFormaPago : IEntityTypeConfiguration<FormaPag
         builder.Ignore(f => f.EventosDominio);
     }
 }
+
+internal sealed class ConfiguracionPerimetroConsolidacion : IEntityTypeConfiguration<PerimetroConsolidacion>
+{
+    public void Configure(EntityTypeBuilder<PerimetroConsolidacion> builder)
+    {
+        builder.ToTable("perimetro_consolidacion");
+        builder.HasKey(p => p.Id);
+        builder.Property(p => p.Id).HasColumnName("id");
+        builder.Property(p => p.GrupoId).HasColumnName("grupo_id").IsRequired();
+        builder.Property(p => p.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        builder.Property(p => p.Porcentaje).HasColumnName("porcentaje").HasColumnType("numeric(8,4)").IsRequired();
+        builder.Property(p => p.Metodo).HasColumnName("metodo").HasMaxLength(20).HasConversion<string>().IsRequired();
+        builder.Property(p => p.ActualizadoEn).HasColumnName("actualizado_en").IsRequired();
+        builder.HasIndex(p => new { p.GrupoId, p.EmpresaId }).IsUnique().HasDatabaseName("ux_perimetro_grupo_empresa");
+        builder.HasIndex(p => p.EmpresaId).HasDatabaseName("ix_perimetro_empresa");
+        builder.Ignore(p => p.EventosDominio);
+    }
+}
+
+internal sealed class ConfiguracionCorrespondenciaCuentas : IEntityTypeConfiguration<CorrespondenciaCuentas>
+{
+    public void Configure(EntityTypeBuilder<CorrespondenciaCuentas> builder)
+    {
+        builder.ToTable("correspondencia_cuentas");
+        builder.HasKey(c => c.Id);
+        builder.Property(c => c.Id).HasColumnName("id");
+        builder.Property(c => c.GrupoId).HasColumnName("grupo_id").IsRequired();
+        builder.Property(c => c.EmpresaAId).HasColumnName("empresa_a_id").IsRequired();
+        builder.Property(c => c.CuentaA).HasColumnName("cuenta_a").HasMaxLength(12).IsRequired();
+        builder.Property(c => c.EmpresaBId).HasColumnName("empresa_b_id").IsRequired();
+        builder.Property(c => c.CuentaB).HasColumnName("cuenta_b").HasMaxLength(12).IsRequired();
+        builder.Property(c => c.Descripcion).HasColumnName("descripcion").HasMaxLength(CorrespondenciaCuentas.LongitudDescripcion).IsRequired();
+        builder.HasIndex(c => c.GrupoId).HasDatabaseName("ix_correspondencia_grupo");
+        builder.HasIndex(c => c.EmpresaAId).HasDatabaseName("ix_correspondencia_empresa_a");
+        builder.HasIndex(c => c.EmpresaBId).HasDatabaseName("ix_correspondencia_empresa_b");
+        builder.Ignore(c => c.EventosDominio);
+    }
+}

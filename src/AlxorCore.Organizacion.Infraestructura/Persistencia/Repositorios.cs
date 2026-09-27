@@ -254,3 +254,22 @@ internal sealed class RepositorioFormasPago : IRepositorioFormasPago, IConsultaF
             .Where(f => f.EmpresaId == empresaId && (incluirInactivas || f.Activo))
             .OrderBy(f => f.Nombre).Select(f => FormaPagoDto.Desde(f)).ToListAsync(ct).ConfigureAwait(false);
 }
+
+internal sealed class RepositorioConsolidacion : IRepositorioConsolidacion
+{
+    private readonly OrganizacionDbContext _contexto;
+
+    public RepositorioConsolidacion(OrganizacionDbContext contexto) => _contexto = contexto;
+
+    public async Task<IReadOnlyList<PerimetroConsolidacion>> PerimetroAsync(Guid grupoId, CancellationToken ct = default) =>
+        await _contexto.PerimetroConsolidacion.Where(p => p.GrupoId == grupoId).ToListAsync(ct).ConfigureAwait(false);
+
+    public async Task<IReadOnlyList<CorrespondenciaCuentas>> CorrespondenciasAsync(Guid grupoId, CancellationToken ct = default) =>
+        await _contexto.Correspondencias.Where(c => c.GrupoId == grupoId).OrderBy(c => c.Descripcion).ToListAsync(ct).ConfigureAwait(false);
+
+    public Task<CorrespondenciaCuentas?> CorrespondenciaAsync(Guid id, CancellationToken ct = default) => _contexto.Correspondencias.SingleOrDefaultAsync(c => c.Id == id, ct);
+
+    public void Agregar(object entidad) => _contexto.Add(entidad);
+
+    public void Eliminar(object entidad) => _contexto.Remove(entidad);
+}

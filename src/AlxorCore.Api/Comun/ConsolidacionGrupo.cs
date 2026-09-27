@@ -7,7 +7,10 @@ using AlxorCore.Tesoreria.Aplicacion;
 namespace AlxorCore.Api.Comun;
 
 /// <summary>Empresa incluida en la consolidación.</summary>
-public sealed record EmpresaConsolidadaDto(Guid Id, string Nombre, bool ConContabilidad);
+public sealed record EmpresaConsolidadaDto(Guid Id, string Nombre, bool ConContabilidad, decimal Porcentaje = 100m, string Metodo = "Global");
+
+/// <summary>Saldos de una pareja de cuentas recíprocas en la consolidación y su diferencia (debería ser 0).</summary>
+public sealed record CorrespondenciaConsolidadaDto(string Descripcion, string EmpresaA, string CuentaA, decimal SaldoA, string EmpresaB, string CuentaB, decimal SaldoB, decimal Diferencia);
 
 /// <summary>
 /// Cuenta (a 3 dígitos, nivel del PGC común a todas las empresas) en la consolidación: saldo de cada empresa
@@ -27,7 +30,9 @@ public sealed record NoEliminadaDto(string Emisor, string Receptor, string Numer
 /// </summary>
 public sealed record ConsolidadoDto(int Ejercicio, IReadOnlyList<EmpresaConsolidadaDto> Empresas, IReadOnlyList<LineaConsolidadoDto> Lineas,
     IReadOnlyList<EliminacionDto> Eliminaciones, IReadOnlyList<NoEliminadaDto> NoEliminadas, decimal ResultadoAgregado, decimal ResultadoConsolidado,
-    decimal VentasEliminadas, decimal ComprasEliminadas, decimal SaldosEliminados, bool EliminacionesCuadran, IReadOnlyList<string> EmpresasSinAcceso);
+    decimal VentasEliminadas, decimal ComprasEliminadas, decimal SaldosEliminados, bool EliminacionesCuadran, IReadOnlyList<string> EmpresasSinAcceso,
+    IReadOnlyList<CorrespondenciaConsolidadaDto>? Correspondencias = null, decimal ResultadoSociosExternos = 0m, decimal ResultadoDominante = 0m,
+    IReadOnlyList<string>? EmpresasExcluidas = null);
 
 /// <summary>
 /// Consolidación contable del grupo (agregación y eliminaciones), sobre la contabilidad de cada empresa leída en su
@@ -53,24 +58,37 @@ public sealed class ConsolidacionGrupo
     {
         IReadOnlyList<AlxorCore.Organizacion.Aplicacion.Modelos.EmpresaGrupoDto> delGrupo;
         HashSet<Guid> accesibles;
+        Dictionary<Guid, AlxorCore.Organizacion.Aplicacion.CasosDeUso.PerimetroDto> perimetro;
+        IReadOnlyList<AlxorCore.Organizacion.Aplicacion.CasosDeUso.CorrespondenciaDto> parejas;
         await using (var actual = await _intragrupo.AmbitoAsync(empresaActual, ct).ConfigureAwait(false))
         {
             var grupo = OperacionesIntragrupo.Servicio<IContextoEmpresa>(actual).GrupoId!.Value;
             delGrupo = await OperacionesIntragrupo.Servicio<IConsultaEmpresas>(actual).EmpresasDelGrupoAsync(grupo, ct).ConfigureAwait(false);
             accesibles = (await OperacionesIntragrupo.Servicio<IConsultasOrganizacion>(actual).ListarEmpresasDeUsuarioAsync(usuarioId, ct).ConfigureAwait(false))
                 .Select(e => e.Id).ToHashSet();
+            var config = OperacionesIntragrupo.Servicio<AlxorCore.Organizacion.Aplicacion.CasosDeUso.ConfiguracionConsolidacion>(actual);
+            perimetro = (await config.PerimetroAsync(grupo, ct).ConfigureAwait(false)).ToDictionary(p => p.EmpresaId);
+            parejas = await config.CorrespondenciasAsync(grupo, ct).ConfigureAwait(false);
         }
 
-        var empresas = delGrupo.Where(e => accesibles.Contains(e.Id)).ToList();
+        // Perímetro: las excluidas no entran; las proporcionales, en su porcentaje.
+        static bool Excluida(AlxorCore.Organizacion.Aplicacion.CasosDeUso.PerimetroDto? p) => p?.Metodo == AlxorCore.Organizacion.Dominio.MetodoConsolidacion.Excluida;
+        var visibles = delGrupo.Where(e => accesibles.Contains(e.Id)).ToList();
+        var empresas = visibles.Where(e => !Excluida(perimetro.GetValueOrDefault(e.Id))).ToList();
+        var dentro = empresas.Select(e => e.Id).ToHashSet();
+        var factor = empresas.ToDictionary(e => e.Id, e => perimetro.GetValueOrDefault(e.Id) is { Metodo: AlxorCore.Organizacion.Dominio.MetodoConsolidacion.Proporcional } p ? p.Porcentaje / 100m : 1m);
+        var nombreEmpresa = delGrupo.ToDictionary(e => e.Id, e => e.RazonSocial);
         var nombres = new Dictionary<string, string>(StringComparer.Ordinal);
         var saldos = new Dictionary<Guid, Dictionary<string, decimal>>();
+        var hojas = new Dictionary<Guid, IReadOnlyList<SaldoCuentaDto>>();
         var conContabilidad = new Dictionary<Guid, bool>();
         foreach (var e in empresas)
         {
             await using var ambito = await _intragrupo.AmbitoAsync(e.Id, ct).ConfigureAwait(false);
             var balance = await OperacionesIntragrupo.Servicio<BalanceSumasYSaldos>(ambito).EjecutarAsync(e.Id, ejercicio, ct).ConfigureAwait(false);
+            hojas[e.Id] = balance;
             saldos[e.Id] = balance.GroupBy(b => Tres(b.CuentaCodigo), StringComparer.Ordinal)
-                .ToDictionary(g => g.Key, g => g.Sum(b => b.SumaDebe - b.SumaHaber), StringComparer.Ordinal);
+                .ToDictionary(g => g.Key, g => g.Sum(b => b.SumaDebe - b.SumaHaber) * factor[e.Id], StringComparer.Ordinal);
             conContabilidad[e.Id] = balance.Count > 0;
             foreach (var c in await OperacionesIntragrupo.Servicio<IRepositorioCuentas>(ambito).ListarAsync(e.Id, ct).ConfigureAwait(false))
             {
@@ -95,6 +113,13 @@ public sealed class ConsolidacionGrupo
                     continue;
                 }
 
+                if (!dentro.Contains(pareja.EmisorId) || !dentro.Contains(pareja.ReceptorId))
+                {
+                    continue;
+                }
+
+                // En integración proporcional, la operación se elimina en el menor de los dos porcentajes.
+                var f = Math.Min(factor[pareja.EmisorId], factor[pareja.ReceptorId]);
                 if (l.Situacion != "Cuadrada" || l.GastoId is not { } gastoId)
                 {
                     noEliminadas.Add(new NoEliminadaDto(pareja.Emisor, pareja.Receptor, l.Numero, l.BaseEmitida, l.BaseContabilizada, l.Situacion));
@@ -106,7 +131,7 @@ public sealed class ConsolidacionGrupo
                     var apuntes = await OperacionesIntragrupo.Servicio<IRepositorioAsientos>(emisora).ApuntesDeOrigenesAsync(pareja.EmisorId, [l.FacturaId], ct).ConfigureAwait(false);
                     foreach (var g in apuntes.Where(a => a.CuentaCodigo.StartsWith('7')).GroupBy(a => Tres(a.CuentaCodigo), StringComparer.Ordinal))
                     {
-                        var importe = Redondeo.Dos(g.Sum(a => a.Haber - a.Debe));
+                        var importe = Redondeo.Dos(g.Sum(a => a.Haber - a.Debe) * f);
                         if (importe != 0m)
                         {
                             eliminaciones.Add(new EliminacionDto(pareja.Emisor, l.Numero, $"Venta a {pareja.Receptor}", g.Key, importe, 0m));
@@ -117,8 +142,9 @@ public sealed class ConsolidacionGrupo
                     var saldo = await OperacionesIntragrupo.Servicio<ConsultarSaldo>(emisora).DeFacturaAsync(l.FacturaId, ct).ConfigureAwait(false);
                     if (saldo.EsCorrecto && saldo.Valor.Pendiente != 0m)
                     {
-                        eliminaciones.Add(new EliminacionDto(pareja.Emisor, l.Numero, $"Pendiente de cobro a {pareja.Receptor}", "430", 0m, saldo.Valor.Pendiente));
-                        pendientes += saldo.Valor.Pendiente;
+                        var pendiente = Redondeo.Dos(saldo.Valor.Pendiente * f);
+                        eliminaciones.Add(new EliminacionDto(pareja.Emisor, l.Numero, $"Pendiente de cobro a {pareja.Receptor}", "430", 0m, pendiente));
+                        pendientes += pendiente;
                     }
                 }
 
@@ -127,7 +153,7 @@ public sealed class ConsolidacionGrupo
                     var apuntes = await OperacionesIntragrupo.Servicio<IRepositorioAsientos>(receptora).ApuntesDeOrigenesAsync(pareja.ReceptorId, [gastoId], ct).ConfigureAwait(false);
                     foreach (var g in apuntes.Where(a => a.CuentaCodigo.StartsWith('6')).GroupBy(a => Tres(a.CuentaCodigo), StringComparer.Ordinal))
                     {
-                        var importe = Redondeo.Dos(g.Sum(a => a.Debe - a.Haber));
+                        var importe = Redondeo.Dos(g.Sum(a => a.Debe - a.Haber) * f);
                         if (importe != 0m)
                         {
                             eliminaciones.Add(new EliminacionDto(pareja.Receptor, l.Numero, $"Compra a {pareja.Emisor}", g.Key, 0m, importe));
@@ -138,10 +164,25 @@ public sealed class ConsolidacionGrupo
                     var saldo = await OperacionesIntragrupo.Servicio<ConsultarSaldo>(receptora).DeGastoAsync(gastoId, ct).ConfigureAwait(false);
                     if (saldo.EsCorrecto && saldo.Valor.Pendiente != 0m)
                     {
-                        eliminaciones.Add(new EliminacionDto(pareja.Receptor, l.Numero, $"Pendiente de pago a {pareja.Emisor}", "400", saldo.Valor.Pendiente, 0m));
+                        eliminaciones.Add(new EliminacionDto(pareja.Receptor, l.Numero, $"Pendiente de pago a {pareja.Emisor}", "400", Redondeo.Dos(saldo.Valor.Pendiente * f), 0m));
                     }
                 }
             }
+        }
+
+        // Saldos recíprocos de las correspondencias de cuentas: se eliminan los dos; su suma es el descuadre.
+        var correspondencias = new List<CorrespondenciaConsolidadaDto>();
+        foreach (var c in parejas.Where(c => dentro.Contains(c.EmpresaAId) && dentro.Contains(c.EmpresaBId)))
+        {
+            var f = Math.Min(factor[c.EmpresaAId], factor[c.EmpresaBId]);
+            var sa = Redondeo.Dos(hojas[c.EmpresaAId].Where(h => h.CuentaCodigo.StartsWith(c.CuentaA, StringComparison.Ordinal)).Sum(h => h.SumaDebe - h.SumaHaber) * f);
+            var sb = Redondeo.Dos(hojas[c.EmpresaBId].Where(h => h.CuentaCodigo.StartsWith(c.CuentaB, StringComparison.Ordinal)).Sum(h => h.SumaDebe - h.SumaHaber) * f);
+            foreach (var (empresa, cuenta, saldo) in new[] { (c.EmpresaAId, c.CuentaA, sa), (c.EmpresaBId, c.CuentaB, sb) }.Where(x => x.Item3 != 0m))
+            {
+                eliminaciones.Add(new EliminacionDto(nombreEmpresa[empresa], c.Descripcion, "Saldo recíproco", Tres(cuenta), saldo < 0m ? -saldo : 0m, saldo > 0m ? saldo : 0m));
+            }
+
+            correspondencias.Add(new CorrespondenciaConsolidadaDto(c.Descripcion, nombreEmpresa[c.EmpresaAId], c.CuentaA, sa, nombreEmpresa[c.EmpresaBId], c.CuentaB, sb, Redondeo.Dos(sa + sb)));
         }
 
         var eliminado = eliminaciones.GroupBy(x => x.Cuenta, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.Sum(x => x.Debe - x.Haber), StringComparer.Ordinal);
@@ -158,8 +199,16 @@ public sealed class ConsolidacionGrupo
         static bool DeResultados(string cuenta) => cuenta[0] is '6' or '7';
         var agregadoResultado = -lineas.Where(x => DeResultados(x.Cuenta)).Sum(x => x.Agregado);
         var consolidadoResultado = -lineas.Where(x => DeResultados(x.Cuenta)).Sum(x => x.Consolidado);
-        return new ConsolidadoDto(ejercicio, empresas.Select(e => new EmpresaConsolidadaDto(e.Id, e.RazonSocial, conContabilidad[e.Id])).ToList(), lineas,
+
+        // Socios externos: en integración global con participación menor del 100 %, su parte del resultado de la empresa.
+        var socios = empresas.Where(e => perimetro.GetValueOrDefault(e.Id) is { Metodo: AlxorCore.Organizacion.Dominio.MetodoConsolidacion.Global, Porcentaje: < 100m })
+            .Sum(e => -saldos[e.Id].Where(x => DeResultados(x.Key)).Sum(x => x.Value) * (1m - (perimetro[e.Id].Porcentaje / 100m)));
+        var empresasDto = empresas.Select(e => new EmpresaConsolidadaDto(e.Id, e.RazonSocial, conContabilidad[e.Id],
+            perimetro.GetValueOrDefault(e.Id)?.Porcentaje ?? 100m, (perimetro.GetValueOrDefault(e.Id)?.Metodo ?? AlxorCore.Organizacion.Dominio.MetodoConsolidacion.Global).ToString())).ToList();
+        return new ConsolidadoDto(ejercicio, empresasDto, lineas,
             eliminaciones, noEliminadas, Redondeo.Dos(agregadoResultado), Redondeo.Dos(consolidadoResultado), Redondeo.Dos(ventas), Redondeo.Dos(compras),
-            Redondeo.Dos(pendientes), eliminaciones.Sum(x => x.Debe) == eliminaciones.Sum(x => x.Haber), cuadre.EmpresasSinAcceso);
+            Redondeo.Dos(pendientes), eliminaciones.Sum(x => x.Debe) == eliminaciones.Sum(x => x.Haber), cuadre.EmpresasSinAcceso,
+            correspondencias, Redondeo.Dos(socios), Redondeo.Dos(consolidadoResultado - socios),
+            visibles.Where(e => !dentro.Contains(e.Id)).Select(e => e.RazonSocial).ToList());
     }
 }

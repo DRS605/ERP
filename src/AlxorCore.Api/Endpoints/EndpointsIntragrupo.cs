@@ -3,6 +3,7 @@ using AlxorCore.Api.Comun;
 using AlxorCore.Nucleo.Autorizacion;
 using AlxorCore.Nucleo.Multiempresa;
 using AlxorCore.Nucleo.Resultados;
+using AlxorCore.Organizacion.Aplicacion.CasosDeUso;
 
 namespace AlxorCore.Api.Endpoints;
 
@@ -31,6 +32,39 @@ public static class EndpointsIntragrupo
             .WithSummary("Consolidación del grupo: saldos de todas las empresas por cuenta, con las ventas, compras y saldos intragrupo eliminados.")
             .RequierePermiso(Permisos.ContabilidadLeer);
 
+        g.MapGet("/perimetro", async (IContextoEmpresa contexto, ConfiguracionConsolidacion config, CancellationToken ct) =>
+                contexto.GrupoId is { } grupo ? Results.Ok(await config.PerimetroAsync(grupo, ct).ConfigureAwait(false)) : SinEmpresa())
+            .WithSummary("Participación y método de consolidación de cada empresa del grupo (sin fijar: global al 100 %).")
+            .RequierePermiso(Permisos.ContabilidadLeer);
+        g.MapPut("/perimetro/{empresaId:guid}", async (Guid empresaId, DatosPerimetro datos, IContextoEmpresa contexto, ConfiguracionConsolidacion config, CancellationToken ct) =>
+                contexto.GrupoId is { } grupo ? (await config.FijarPerimetroAsync(grupo, empresaId, datos, ct).ConfigureAwait(false)).AOk() : SinEmpresa())
+            .WithSummary("Fija la participación (%) y el método (Global, Proporcional o Excluida) de una empresa del grupo.")
+            .RequierePermiso(Permisos.ContabilidadGestionar);
+        g.MapGet("/correspondencias", async (IContextoEmpresa contexto, ConfiguracionConsolidacion config, CancellationToken ct) =>
+                contexto.GrupoId is { } grupo ? Results.Ok(await config.CorrespondenciasAsync(grupo, ct).ConfigureAwait(false)) : SinEmpresa())
+            .WithSummary("Correspondencias de cuentas recíprocas entre empresas del grupo.")
+            .RequierePermiso(Permisos.ContabilidadLeer);
+        g.MapPost("/correspondencias", async (DatosCorrespondencia datos, IContextoEmpresa contexto, ConfiguracionConsolidacion config, CancellationToken ct) =>
+            {
+                if (contexto.GrupoId is not { } grupo)
+                {
+                    return SinEmpresa();
+                }
+
+                var r = await config.CrearCorrespondenciaAsync(grupo, datos, ct).ConfigureAwait(false);
+                return r.EsCorrecto ? r.ACreado($"/intragrupo/correspondencias/{r.Valor.Id}") : ResultadosHttp.AProblema(r.Error);
+            })
+            .WithSummary("Empareja una cuenta de una empresa con la recíproca de otra (se eliminan en la consolidación).")
+            .RequierePermiso(Permisos.ContabilidadGestionar);
+        g.MapPut("/correspondencias/{id:guid}", async (Guid id, DatosCorrespondencia datos, IContextoEmpresa contexto, ConfiguracionConsolidacion config, CancellationToken ct) =>
+                contexto.GrupoId is { } grupo ? (await config.ActualizarCorrespondenciaAsync(grupo, id, datos, ct).ConfigureAwait(false)).AOk() : SinEmpresa())
+            .WithSummary("Modifica una correspondencia de cuentas.")
+            .RequierePermiso(Permisos.ContabilidadGestionar);
+        g.MapDelete("/correspondencias/{id:guid}", async (Guid id, ConfiguracionConsolidacion config, CancellationToken ct) =>
+                (await config.EliminarCorrespondenciaAsync(id, ct).ConfigureAwait(false)).ASinContenido())
+            .WithSummary("Elimina una correspondencia de cuentas.")
+            .RequierePermiso(Permisos.ContabilidadGestionar);
+
         g.MapPost("/facturas/{id:guid}/reflejar", async (Guid id, IContextoEmpresa contexto, OperacionesIntragrupo op, CancellationToken ct) =>
             {
                 if (contexto.EmpresaId is not { } empresa)
@@ -56,4 +90,6 @@ public static class EndpointsIntragrupo
 
         return rutas;
     }
+
+    private static IResult SinEmpresa() => ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
 }

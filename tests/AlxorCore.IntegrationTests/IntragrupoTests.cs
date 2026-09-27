@@ -31,8 +31,11 @@ public sealed class IntragrupoTests : IClassFixture<FabricaApiPruebas>
     private sealed record LiquidacionResp(decimal Importe, SaldoResp Cobro, SaldoResp Pago);
     private sealed record EspejoResp(Guid FacturaRecibidaId, string Estado);
     private sealed record LineaConsResp(string Cuenta, List<decimal> PorEmpresa, decimal Agregado, decimal Eliminado, decimal Consolidado);
+    private sealed record CorrespResp(decimal SaldoA, decimal SaldoB, decimal Diferencia);
+    private sealed record EmpresaConsResp(Guid Id, decimal Porcentaje, string Metodo);
     private sealed record ConsolidadoResp(List<LineaConsResp> Lineas, decimal ResultadoAgregado, decimal ResultadoConsolidado, decimal VentasEliminadas,
-        decimal ComprasEliminadas, decimal SaldosEliminados, bool EliminacionesCuadran, List<object> NoEliminadas);
+        decimal ComprasEliminadas, decimal SaldosEliminados, bool EliminacionesCuadran, List<object> NoEliminadas, List<CorrespResp>? Correspondencias = null,
+        decimal ResultadoSociosExternos = 0m, decimal ResultadoDominante = 0m, List<string>? EmpresasExcluidas = null, List<EmpresaConsResp>? Empresas = null);
 
     private sealed record Grupo(HttpClient Api, Guid A, Guid B, Guid ClienteB);
 
@@ -216,5 +219,62 @@ public sealed class IntragrupoTests : IClassFixture<FabricaApiPruebas>
         var tras = (await g.Api.GetFromJsonAsync<ConsolidadoResp>("/intragrupo/consolidado"))!;
         tras.SaldosEliminados.Should().Be(0m);
         Cuenta(tras, "430", l => l.Consolidado).Should().Be(605m);
+    }
+
+    private static async Task AsientoAsync(HttpClient api, string concepto, params (string Cuenta, decimal Debe, decimal Haber)[] lineas)
+    {
+        var r = await api.PostAsJsonAsync("/contabilidad/asientos", new
+        {
+            Fecha = new DateOnly(DateTime.UtcNow.Year, 2, 1), Concepto = concepto,
+            Lineas = lineas.Select(l => new { CuentaCodigo = l.Cuenta, l.Debe, l.Haber }),
+        });
+        r.IsSuccessStatusCode.Should().BeTrue(await r.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task La_consolidacion_elimina_saldos_reciprocos_emparejados_y_atribuye_socios_externos()
+    {
+        var g = await GrupoAsync();
+        await ContabilidadCompletaAsync(g.Api);
+        // A presta 1.000 a B (5523) y vende 500 fuera; B lo recibe (5133) y tiene 200 de gastos.
+        await AsientoAsync(g.Api, "Préstamo a B", ("5523", 1_000m, 0m), ("572", 0m, 1_000m));
+        await AsientoAsync(g.Api, "Venta", ("430", 500m, 0m), ("705", 0m, 500m));
+        await SeleccionarAsync(g.Api, g.B);
+        await ContabilidadCompletaAsync(g.Api);
+        await AsientoAsync(g.Api, "Préstamo de A", ("572", 1_000m, 0m), ("5133", 0m, 1_000m));
+        await AsientoAsync(g.Api, "Gastos", ("629", 200m, 0m), ("572", 0m, 200m));
+        await SeleccionarAsync(g.Api, g.A);
+
+        (await g.Api.PostAsJsonAsync("/intragrupo/correspondencias", new { EmpresaAId = g.A, CuentaA = "5523", EmpresaBId = g.B, CuentaB = "5133", Descripcion = "Préstamo A → B" }))
+            .StatusCode.Should().Be(HttpStatusCode.Created);
+        (await g.Api.PostAsJsonAsync("/intragrupo/correspondencias", new { EmpresaAId = g.A, CuentaA = "55", EmpresaBId = g.B, CuentaB = "5133" }))
+            .StatusCode.Should().Be(HttpStatusCode.BadRequest, "una cuenta tiene al menos 3 dígitos");
+
+        // B participada al 80 % por integración global: el 20 % de su resultado es de socios externos.
+        (await g.Api.PutAsJsonAsync($"/intragrupo/perimetro/{g.B}", new { Porcentaje = 80m, Metodo = "Global" })).EnsureSuccessStatusCode();
+        var c = (await g.Api.GetFromJsonAsync<ConsolidadoResp>("/intragrupo/consolidado"))!;
+        c.Correspondencias!.Single().Should().Be(new CorrespResp(1_000m, -1_000m, 0m));
+        Cuenta(c, "552", l => l.Consolidado).Should().Be(0m);
+        Cuenta(c, "513", l => l.Consolidado).Should().Be(0m);
+        c.EliminacionesCuadran.Should().BeTrue();
+        c.ResultadoConsolidado.Should().Be(300m);
+        c.ResultadoSociosExternos.Should().Be(-40m, "el 20 % de la pérdida de 200 de B");
+        c.ResultadoDominante.Should().Be(340m);
+
+        // Proporcional al 50 %: B entra por la mitad de sus saldos.
+        (await g.Api.PutAsJsonAsync($"/intragrupo/perimetro/{g.B}", new { Porcentaje = 50m, Metodo = "Proporcional" })).EnsureSuccessStatusCode();
+        c = (await g.Api.GetFromJsonAsync<ConsolidadoResp>("/intragrupo/consolidado"))!;
+        Cuenta(c, "629", l => l.Consolidado).Should().Be(100m);
+        c.Correspondencias!.Single().Should().Be(new CorrespResp(500m, -500m, 0m), "la pareja se elimina en el menor de los porcentajes");
+        Cuenta(c, "552", l => l.Consolidado).Should().Be(500m, "la otra mitad del préstamo es con los otros socios de B");
+        c.ResultadoSociosExternos.Should().Be(0m);
+
+        // Excluida: fuera del perímetro.
+        (await g.Api.PutAsJsonAsync($"/intragrupo/perimetro/{g.B}", new { Porcentaje = 10m, Metodo = "Excluida" })).EnsureSuccessStatusCode();
+        c = (await g.Api.GetFromJsonAsync<ConsolidadoResp>("/intragrupo/consolidado"))!;
+        c.Empresas!.Select(e => e.Id).Should().Equal(g.A);
+        c.EmpresasExcluidas.Should().Equal("Empresa B SL");
+        c.Correspondencias.Should().BeEmpty();
+        Cuenta(c, "552", l => l.Consolidado).Should().Be(1_000m);
     }
 }

@@ -2378,18 +2378,54 @@
     async function vConsolidado(anio){
       anio=anio||new Date().getFullYear();
       view('<div class="muted">Cargando…</div>');
-      const c=await api(`/intragrupo/consolidado?ejercicio=${anio}`);
+      const [c,perim,corr]=await Promise.all([api(`/intragrupo/consolidado?ejercicio=${anio}`),api("/intragrupo/perimetro").catch(()=>[]),api("/intragrupo/correspondencias").catch(()=>[])]);
+      window._perimetro=perim; window._consAnio=anio;
       const num=v=>v?eur(v):'<span class="muted">—</span>';
       const cab=c.empresas.map(e=>`<th class="num">${agEsc(e.nombre)}${e.conContabilidad?"":' <span class="muted" title="Sin asientos en el ejercicio (contabilidad simple o sin movimientos)">*</span>'}</th>`).join("");
       const filas=c.lineas.map(l=>`<tr><td class="mono"><strong>${l.cuenta}</strong></td><td>${agEsc(l.nombre)}</td>${l.porEmpresa.map(v=>`<td class="num">${num(v)}</td>`).join("")}<td class="num">${num(l.agregado)}</td><td class="num">${l.eliminado?`<strong>${eur(l.eliminado)}</strong>`:'<span class="muted">—</span>'}</td><td class="num"><strong>${num(l.consolidado)}</strong></td></tr>`).join("");
       const resumen=`<div class="grid2" style="margin-bottom:12px"><div><span class="muted">Resultado sumado</span> <strong>${eur(c.resultadoAgregado)}</strong> · <span class="muted">consolidado</span> <strong>${eur(c.resultadoConsolidado)}</strong></div>
+        ${c.resultadoSociosExternos?`<div><span class="muted">Atribuido a socios externos</span> <strong>${eur(c.resultadoSociosExternos)}</strong> · <span class="muted">a la sociedad dominante</span> <strong>${eur(c.resultadoDominante)}</strong></div>`:""}
         <div class="right"><span class="muted">Eliminado: ventas</span> <strong>${eur(c.ventasEliminadas)}</strong> · <span class="muted">compras</span> <strong>${eur(c.comprasEliminadas)}</strong> · <span class="muted">saldos</span> <strong>${eur(c.saldosEliminados)}</strong> ${c.eliminacionesCuadran?'<span class="pill ok">cuadran</span>':'<span class="pill neg">no cuadran</span>'}</div></div>`;
       const noElim=c.noEliminadas.length?panel("Sin eliminar (no cuadran entre las dos empresas)",`<table><thead><tr><th>Factura</th><th>Emisor → receptor</th><th class="num">Emitido</th><th class="num">Contabilizado</th><th>Situación</th></tr></thead><tbody>${c.noEliminadas.map(n=>`<tr><td class="mono">${agEsc(n.numero)}</td><td>${agEsc(n.emisor)} → ${agEsc(n.receptor)}</td><td class="num">${eur(n.baseEmitida)}</td><td class="num">${eur(n.baseContabilizada)}</td><td>${agEsc(n.situacion)}</td></tr>`).join("")}</tbody></table>`):"";
       const elim=c.eliminaciones.length?panel("Apuntes de eliminación",`<table><thead><tr><th>Empresa</th><th>Documento</th><th>Concepto</th><th>Cuenta</th><th class="num">Debe</th><th class="num">Haber</th></tr></thead><tbody>${c.eliminaciones.map(x=>`<tr><td>${agEsc(x.empresa)}</td><td class="mono">${agEsc(x.documento)}</td><td>${agEsc(x.concepto)}</td><td class="mono">${x.cuenta}</td><td class="num">${num(x.debe)}</td><td class="num">${num(x.haber)}</td></tr>`).join("")}</tbody></table>`):"";
       const volver=`<button class="btn small secondary" onclick="vIntragrupo(${anio})">Ver cuadre</button>`;
+      const nomE=id=>(perim.find(p=>p.empresaId===id)||{}).razonSocial||"—";
+      const metodoTxt={Global:"Integración global",Proporcional:"Proporcional",Excluida:"Excluida"};
+      const pPerim=panel("Perímetro de consolidación",`<p class="muted" style="margin:0 0 10px">Participación del grupo en cada empresa y cómo se consolida. Global: al 100 %, y la parte de otros socios va a socios externos. Proporcional: en su porcentaje. Excluida: no se consolida.</p>
+        <table><thead><tr><th>Empresa</th><th class="num">Participación</th><th>Método</th><th></th></tr></thead><tbody>${perim.map(p=>`<tr><td>${agEsc(p.razonSocial)}</td><td class="num">${numCant(p.porcentaje)} %</td><td>${metodoTxt[p.metodo]||p.metodo}</td>
+        <td class="right"><button class="btn small secondary" onclick="modalPerimetro('${p.empresaId}')">Cambiar</button></td></tr>`).join("")}</tbody></table>
+        ${c.empresasExcluidas&&c.empresasExcluidas.length?`<p class="muted" style="font-size:12px;margin:8px 0 0">Fuera del perímetro: ${c.empresasExcluidas.map(agEsc).join(", ")}.</p>`:""}`);
+      const saldosCorr=c.correspondencias||[];
+      const pCorr=panel("Correspondencias de cuentas",`<p class="muted" style="margin:0 0 10px">Parejas de cuentas recíprocas entre empresas (préstamos, cuentas corrientes…): en la consolidación se eliminan las dos, y la suma de sus saldos es el descuadre.</p>
+        ${corr.length?`<table><thead><tr><th>Descripción</th><th>Empresa A · cuenta</th><th>Empresa B · cuenta</th><th class="num">Saldo A</th><th class="num">Saldo B</th><th class="num">Diferencia</th><th></th></tr></thead><tbody>${corr.map(x=>{ const sc=saldosCorr.find(y=>y.descripcion===x.descripcion)||{};
+          return `<tr><td>${agEsc(x.descripcion)}</td><td>${agEsc(nomE(x.empresaAId))} · <span class="mono">${x.cuentaA}</span></td><td>${agEsc(nomE(x.empresaBId))} · <span class="mono">${x.cuentaB}</span></td>
+          <td class="num">${sc.saldoA!=null?eur(sc.saldoA):"—"}</td><td class="num">${sc.saldoB!=null?eur(sc.saldoB):"—"}</td><td class="num">${sc.diferencia?`<span class="pill neg">${eur(sc.diferencia)}</span>`:(sc.diferencia===0?'<span class="pill ok">cuadra</span>':"—")}</td>
+          <td class="right" style="white-space:nowrap"><button class="btn small secondary" onclick="modalCorrespondencia('${x.id}')">Editar</button> <button class="btn small ghost" onclick="eliminarCorrespondencia('${x.id}')" title="Eliminar">🗑</button></td></tr>`; }).join("")}</tbody></table>`:'<p class="muted" style="margin:0">Sin correspondencias. Las ventas, compras y saldos de clientes y proveedores entre empresas se eliminan solos.</p>'}`,
+        `<button class="btn small secondary" onclick="modalCorrespondencia()">+ Correspondencia</button>`);
+      window._correspondencias=corr;
       view(panel(`Consolidado del grupo ${anio}`,`<p class="muted" style="margin:0 0 12px">Saldos (debe − haber) de cada empresa por cuenta de 3 dígitos, con las ventas, compras y saldos entre empresas del grupo eliminados. Solo se eliminan las facturas que cuadran en las dos empresas.</p>`+resumen+
-        (c.lineas.length?`<div style="overflow-x:auto"><table><thead><tr><th>Cuenta</th><th>Nombre</th>${cab}<th class="num">Suma</th><th class="num">Eliminado</th><th class="num">Consolidado</th></tr></thead><tbody>${filas}</tbody></table></div>`:'<p class="muted" style="margin:0">Sin asientos en el ejercicio (las empresas con contabilidad simple no tienen asientos que consolidar).</p>'),volver)+noElim+elim);
+        (c.lineas.length?`<div style="overflow-x:auto"><table><thead><tr><th>Cuenta</th><th>Nombre</th>${cab}<th class="num">Suma</th><th class="num">Eliminado</th><th class="num">Consolidado</th></tr></thead><tbody>${filas}</tbody></table></div>`:'<p class="muted" style="margin:0">Sin asientos en el ejercicio (las empresas con contabilidad simple no tienen asientos que consolidar).</p>'),volver)+noElim+elim+pPerim+pCorr);
     }
+    function modalPerimetro(empresaId){
+      const p=(window._perimetro||[]).find(x=>x.empresaId===empresaId); if(!p) return;
+      const op=(v,t)=>`<option value="${v}"${p.metodo===v?" selected":""}>${t}</option>`;
+      abrir(`Perímetro · ${p.razonSocial}`,`<div class="grid2"><div><label>Participación (%)</label><input id="pe_pct" type="number" step="0.0001" min="0" max="100" value="${p.porcentaje}"/></div>
+        <div><label>Método</label><select id="pe_met">${op("Global","Integración global")}${op("Proporcional","Integración proporcional")}${op("Excluida","Excluida (no se consolida)")}</select></div></div>`,
+        async()=>{ await api(`/intragrupo/perimetro/${empresaId}`,{method:"PUT",body:JSON.stringify({porcentaje:Number(val("pe_pct")),metodo:val("pe_met")})}); toast("Perímetro guardado.","ok"); setTimeout(()=>vConsolidado(window._consAnio)); });
+    }
+    function modalCorrespondencia(id){
+      const x=id?(window._correspondencias||[]).find(c=>c.id===id):null; const emp=window._perimetro||[];
+      const sel=(nid,v)=>`<select id="${nid}">${emp.map(e=>`<option value="${e.empresaId}"${v===e.empresaId?" selected":""}>${agEsc(e.razonSocial)}</option>`).join("")}</select>`;
+      abrir(x?"Editar correspondencia":"Nueva correspondencia de cuentas",`<label>Descripción</label><input id="co_des" value="${x?agEsc(x.descripcion):""}" placeholder="Préstamo de A a B"/>
+        <div class="grid2"><div><label>Empresa A</label>${sel("co_ea",x?x.empresaAId:(emp[0]||{}).empresaId)}</div><div><label>Cuenta en A</label><input id="co_ca" value="${x?x.cuentaA:""}" placeholder="5523"/></div></div>
+        <div class="grid2"><div><label>Empresa B</label>${sel("co_eb",x?x.empresaBId:(emp[1]||{}).empresaId)}</div><div><label>Cuenta en B</label><input id="co_cb" value="${x?x.cuentaB:""}" placeholder="5133"/></div></div>
+        <p class="muted" style="font-size:12px;margin:8px 0 0">La cuenta puede ser un prefijo (3 a 12 dígitos): se suman todas las subcuentas que empiezan así.</p>`,
+        async()=>{ const b=JSON.stringify({descripcion:val("co_des")||null,empresaAId:val("co_ea"),cuentaA:val("co_ca"),empresaBId:val("co_eb"),cuentaB:val("co_cb")});
+          if(x) await api("/intragrupo/correspondencias/"+x.id,{method:"PUT",body:b}); else await api("/intragrupo/correspondencias",{method:"POST",body:b});
+          toast("Correspondencia guardada.","ok"); setTimeout(()=>vConsolidado(window._consAnio)); });
+    }
+    async function eliminarCorrespondencia(id){ if(!confirm("¿Eliminar la correspondencia?")) return;
+      try{ await api("/intragrupo/correspondencias/"+id,{method:"DELETE"}); toast("Eliminada.","ok"); vConsolidado(window._consAnio); }catch(e){ toast(e.message,"err"); } }
     async function reflejarIntragrupo(id){
       try{ const r=await api(`/intragrupo/facturas/${id}/reflejar`,{method:"POST"}); toast(`Enviada a la bandeja de ${r.empresaDestino}.`,"ok"); vIntragrupo(); }catch(e){ toast(e.message,"err"); } }
     function liquidarIntragrupo(id,numero,receptor){

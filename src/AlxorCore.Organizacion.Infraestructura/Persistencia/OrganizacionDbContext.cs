@@ -41,6 +41,10 @@ public sealed class OrganizacionDbContext : DbContextEmpresaBase, AlxorCore.Orga
 
     public DbSet<VisibilidadActividad> Visibilidades => Set<VisibilidadActividad>();
 
+    public DbSet<PerimetroConsolidacion> PerimetroConsolidacion => Set<PerimetroConsolidacion>();
+
+    public DbSet<CorrespondenciaCuentas> Correspondencias => Set<CorrespondenciaCuentas>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Esquema);

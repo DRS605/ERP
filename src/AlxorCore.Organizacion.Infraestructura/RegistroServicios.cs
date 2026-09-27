@@ -57,6 +57,8 @@ public static class RegistroServicios
         servicios.AddScoped<AlxorCore.Nucleo.Aplicacion.IConfiguracionEmpresa, ConfiguracionEmpresaOrganizacion>();
 
         servicios.AddScoped<CrearActividad>();
+        servicios.AddScoped<IRepositorioConsolidacion, RepositorioConsolidacion>();
+        servicios.AddScoped<ConfiguracionConsolidacion>();
         servicios.AddScoped<EliminarActividad>();
         servicios.AddScoped<ListarActividades>();
         servicios.AddScoped<ActualizarActividad>();
