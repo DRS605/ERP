@@ -90,19 +90,23 @@ public sealed class GenerarResumenesFiscales
         var devengado = facturas.Where(f => f.Impuesto == TipoImpuesto.Iva && f.FechaEmision >= desde && f.FechaEmision <= hasta).ToList();
         var soportado = CuotasSoportadas.De(gastos.Where(g => g.Fecha >= desde && g.Fecha <= hasta), TipoImpuesto.Iva);
 
-        var devBase = Redondeo.Dos(devengado.Sum(f => f.BaseImponible));
-        var devCuota = Redondeo.Dos(devengado.Sum(f => f.CuotaIva));
+        // Devengado: lo facturado y lo autoliquidado en las compras (inversión del sujeto pasivo e intracomunitarias).
+        var autoliquidado = gastos.Where(g => g.Fecha >= desde && g.Fecha <= hasta && Soportado.Cuenta(g, TipoImpuesto.Iva))
+            .SelectMany(g => g.DesgloseIva).Where(d => d.Autoliquidada).ToList();
+        var devBase = Redondeo.Dos(devengado.Sum(f => f.BaseImponible) + autoliquidado.Sum(d => d.Base));
+        var devCuota = Redondeo.Dos(devengado.Sum(f => f.CuotaIva) + autoliquidado.Sum(d => d.Cuota));
         var deduccion = _prorrata is null
             ? new DeduccionTrimestre(null, 100, soportado.Total, 0m)
             : await _prorrata.DeduccionAsync(empresaId, anio, trimestre, TipoImpuesto.Iva, soportado, ct).ConfigureAwait(false);
 
         // Compensaciones pagadas a agricultores en REAGP (casillas 42-43): son parte de lo soportado.
-        var reagp = gastos.Where(g => g.Fecha >= desde && g.Fecha <= hasta && g.CodigoIva.StartsWith("REAGP", StringComparison.OrdinalIgnoreCase)).ToList();
+        var reagp = gastos.Where(g => g.Fecha >= desde && g.Fecha <= hasta && Soportado.Cuenta(g, TipoImpuesto.Iva))
+            .SelectMany(g => g.DesgloseIva).Where(d => d.CodigoIva.StartsWith("REAGP", StringComparison.OrdinalIgnoreCase)).ToList();
 
         return new Modelo303Dto(anio, trimestre, desde, hasta, devBase, devCuota, soportado.Base, deduccion.Deducible,
             Redondeo.Dos(devCuota - deduccion.Deducible - deduccion.Regularizacion),
             soportado.Total, deduccion.Porcentaje, deduccion.Regularizacion,
-            Redondeo.Dos(reagp.Sum(g => g.BaseImponible)), Redondeo.Dos(reagp.Sum(g => g.CuotaIva)));
+            Redondeo.Dos(reagp.Sum(d => d.Base)), Redondeo.Dos(reagp.Sum(d => d.Cuota)));
     }
 
     private static Modelo130Dto Calcular130(int anio, int trimestre, IReadOnlyList<FacturaResumen> facturas, IReadOnlyList<GastoDto> gastos)

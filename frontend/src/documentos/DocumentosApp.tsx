@@ -5,7 +5,8 @@ import { Listado } from "./Listados";
 import { EditorVenta, type SemillaVenta } from "./EditorVenta";
 import { EditorCompra } from "./EditorCompra";
 import { VistaFactura, VistaPedidoCompra, VistaPedidoVenta, VistaPresupuesto } from "./Vistas";
-import type { PedidoCompra } from "./tipos";
+import { EditorGasto, VistaGasto } from "./Gastos";
+import type { Gasto, PedidoCompra } from "./tipos";
 
 export function DocumentosApp(props: { anfitrion: Anfitrion; inicial: Ruta }) {
   const [ruta, setRuta] = useState<Ruta>(props.inicial);
@@ -28,7 +29,12 @@ export function DocumentosApp(props: { anfitrion: Anfitrion; inicial: Ruta }) {
       ruta.tipo === "factura" ? <VistaFactura id={ruta.id} />
       : ruta.tipo === "presupuesto" ? <VistaPresupuesto id={ruta.id} />
       : ruta.tipo === "pedido" ? <VistaPedidoVenta id={ruta.id} />
+      : ruta.tipo === "gasto" ? <VistaGasto id={ruta.id} />
       : <VistaPedidoCompra id={ruta.id} />;
+  } else if (ruta.tipo === "gasto") {
+    pantalla = <EditorGasto id={ruta.id} semilla={ruta.semilla as Gasto | undefined}
+      alGuardar={(id) => navegar({ tipo: "gasto", pantalla: "vista", id })}
+      alCancelar={() => navegar(ruta.id ? { tipo: "gasto", pantalla: "vista", id: ruta.id } : { tipo: "gasto", pantalla: "lista" })} />;
   } else if (ruta.tipo === "compra") {
     pantalla = <EditorCompra id={ruta.id} semilla={ruta.semilla as PedidoCompra | undefined}
       alGuardar={(id) => navegar({ tipo: "compra", pantalla: "vista", id })}

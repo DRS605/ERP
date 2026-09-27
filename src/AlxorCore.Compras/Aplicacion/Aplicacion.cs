@@ -122,7 +122,7 @@ public sealed record RecepcionLineaComando(Guid LineaPedidoId, decimal Cantidad,
 public sealed record RecibirMercanciaComando(IReadOnlyList<RecepcionLineaComando> Lineas, DateOnly? Fecha = null,
     string? Referencia = null, Guid? AlmacenId = null);
 
-public sealed record FacturarPedidoComando(string? CodigoIva = "IVA21", decimal PorcentajeIrpf = 0m);
+public sealed record FacturarPedidoComando(string? CodigoIva = "IVA21", decimal PorcentajeIrpf = 0m, string? NumeroFactura = null, DateOnly? FechaFactura = null);
 
 // ---------------------------------------------------------------------------- Solicitudes
 public sealed class CrearSolicitud
@@ -809,7 +809,7 @@ public sealed class FacturarPedido
         var concepto = $"Compra a {pedido.ProveedorTexto}";
         var datos = new DatosContabilizacion(pedido.ProveedorId, pedido.ProveedorTexto, concepto,
             DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime), facturado.Valor,
-            string.IsNullOrWhiteSpace(comando.CodigoIva) ? "IVA21" : comando.CodigoIva!, comando.PorcentajeIrpf);
+            string.IsNullOrWhiteSpace(comando.CodigoIva) ? "IVA21" : comando.CodigoIva!, comando.PorcentajeIrpf, comando.NumeroFactura, comando.FechaFactura);
 
         var contabilizado = await _contabilizador.ContabilizarAsync(empresaId, datos, ct).ConfigureAwait(false);
         if (contabilizado.EsFallo)

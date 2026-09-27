@@ -17,10 +17,12 @@ public sealed record CuotasSoportadas(decimal Base, decimal Total, decimal Comun
     /// <summary>Suma los gastos registrados (no anulados) del impuesto indicado.</summary>
     public static CuotasSoportadas De(IEnumerable<GastoDto> gastos, TipoImpuesto impuesto)
     {
+        // Por tipo de cada factura: base de las líneas con cuota y cuota deducible (la parte que la línea deja deducir,
+        // antes de la prorrata; incluye la autoliquidada por inversión del sujeto pasivo o intracomunitaria).
         var lista = gastos.Where(g => Soportado.Cuenta(g, impuesto)).ToList();
-        decimal Cuota(AfectacionIva a) => Redondeo.Dos(lista.Where(g => g.Afectacion == a).Sum(g => g.CuotaIva));
+        decimal Cuota(AfectacionIva a) => Redondeo.Dos(lista.Where(g => g.Afectacion == a).Sum(g => g.DesgloseIva.Sum(d => d.CuotaDeducible)));
         return new CuotasSoportadas(
-            Redondeo.Dos(lista.Sum(g => g.BaseImponible)), Redondeo.Dos(lista.Sum(g => g.CuotaIva)),
+            Redondeo.Dos(lista.Sum(g => g.DesgloseIva.Where(d => d.Cuota != 0m).Sum(d => d.Base))), Redondeo.Dos(lista.Sum(g => g.DesgloseIva.Sum(d => d.CuotaDeducible))),
             Cuota(AfectacionIva.Comun), Cuota(AfectacionIva.ConDerecho), Cuota(AfectacionIva.SinDerecho));
     }
 

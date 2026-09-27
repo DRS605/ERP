@@ -294,6 +294,8 @@ export function VistaPedidoCompra(props: { id: string }) {
   const [facturar, setFacturar] = useState(false);
   const [iva, setIva] = useState("IVA21");
   const [irpf, setIrpf] = useState(0);
+  const [numFactura, setNumFactura] = useState("");
+  const [fechaFactura, setFechaFactura] = useState(hoyIso());
   useEffect(() => void api.get<Albaran[]>(`/compras/pedidos/${props.id}/albaranes`).then(setAlbaranes).catch(() => setAlbaranes([])), [api, props.id, p]);
   useEffect(() => {
     api.get<Almacen[]>("/inventario/almacenes").then((a) => (setAlmacenes(a), a[0] && setAlmacenId(a[0].id))).catch(() => setAlmacenes([]));
@@ -372,8 +374,12 @@ export function VistaPedidoCompra(props: { id: string }) {
       {facturar && (
         <Dialogo titulo={`Facturar el pedido ${p.numeroCompleto}`} alCerrar={() => setFacturar(false)}
           acciones={<><button className="btn small secondary" onClick={() => setFacturar(false)}>Cancelar</button>
-            <button className="btn small" onClick={async () => (await accion(() => api.post(`/compras/pedidos/${p.id}/facturar`, { codigoIva: iva, porcentajeIrpf: irpf }), anfitrion.aviso, "Factura del proveedor registrada como gasto.")) && (setFacturar(false), recargar())}>Registrar factura</button></>}>
+            <button className="btn small" onClick={async () => (await accion(() => api.post(`/compras/pedidos/${p.id}/facturar`, { codigoIva: iva, porcentajeIrpf: irpf, numeroFactura: numFactura || null, fechaFactura }), anfitrion.aviso, "Factura del proveedor registrada como gasto.")) && (setFacturar(false), recargar())}>Registrar factura</button></>}>
           <p className="muted" style={{ marginTop: 0 }}>Registra la factura del proveedor por el total del pedido ({eur(p.total)}) como gasto, con su asiento si la contabilidad es automática.</p>
+          <div className="dx-fila">
+            <div><label>Nº de factura del proveedor</label><input value={numFactura} onChange={(e) => setNumFactura(e.target.value)} autoFocus /></div>
+            <div><label>Fecha de la factura</label><input type="date" value={fechaFactura} onChange={(e) => setFechaFactura(e.target.value)} /></div>
+          </div>
           <div className="dx-fila">
             <div><label>Impuesto</label><select value={iva} onChange={(e) => setIva(e.target.value)}>{ivas.map((t) => <option key={t.codigo} value={t.codigo}>{t.nombre}</option>)}</select></div>
             <div><label>Retención IRPF %</label><input type="number" step="0.01" value={irpf} onChange={(e) => setIrpf(Number(e.target.value))} /></div>

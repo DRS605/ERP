@@ -54,6 +54,7 @@ public sealed class DocumentoPendiente : RaizAgregadoEmpresa<Guid>
         Anulacion = d.Anulacion;
         CuentaTesoreria = d.CuentaTesoreria;
         CuentaTercero = d.CuentaTercero;
+        Lineas = d.Lineas?.ToList() ?? [];
         Estado = EstadoContabilizacion.Pendiente;
         CreadoEn = ahora;
     }
@@ -110,6 +111,9 @@ public sealed class DocumentoPendiente : RaizAgregadoEmpresa<Guid>
 
     /// <summary>Cobros y pagos: cuenta que sustituye a la del tercero (p. ej. 438 anticipos de clientes).</summary>
     public string? CuentaTercero { get; private set; }
+
+    /// <summary>Líneas de una factura recibida con varias bases (vacío: una sola base, la de la cabecera).</summary>
+    public IReadOnlyList<LineaContable> Lineas { get; private set; } = [];
 
     public EstadoContabilizacion Estado { get; private set; }
 

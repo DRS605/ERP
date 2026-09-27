@@ -289,3 +289,59 @@ export interface Almacen {
   codigo: string;
   nombre: string;
 }
+
+export interface TipoIvaCompleto extends TipoIva {
+  clase: string;
+  recargoEquivalencia: number;
+}
+
+export interface DesgloseGasto {
+  codigoIva: string;
+  porcentajeIva: number;
+  base: number;
+  cuota: number;
+  cuotaDeducible: number;
+  cuotaRecargo: number;
+  autoliquidada: boolean;
+}
+
+export interface LineaGasto {
+  descripcion?: string | null;
+  cuentaGasto?: string | null;
+  base: number;
+  codigoIva: string;
+  porcentajeIva: number;
+  cuota: number;
+  autoliquidada: boolean;
+  porcentajeRecargo: number;
+  cuotaRecargo: number;
+  porcentajeDeducible: number;
+  cuotaDeducible: number;
+}
+
+export interface Gasto {
+  id: string;
+  proveedorId?: string | null;
+  proveedorTexto?: string | null;
+  concepto: string;
+  fecha: string;
+  numeroFactura?: string | null;
+  fechaFactura?: string | null;
+  baseImponible: number;
+  cuotaIva: number;
+  recargoTotal: number;
+  porcentajeIrpf: number;
+  retencionIrpf: number;
+  total: number;
+  estado: string;
+  avisoRiesgo?: string | null;
+  afectacion?: string;
+  lineas?: LineaGasto[] | null;
+  vencimientos?: { fecha: string; importe: number }[] | null;
+  desglose?: DesgloseGasto[] | null;
+}
+
+export interface Cuenta {
+  codigo: string;
+  nombre: string;
+}

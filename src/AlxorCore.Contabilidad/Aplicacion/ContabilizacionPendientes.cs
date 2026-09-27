@@ -112,15 +112,18 @@ public sealed class PosterDocumento
             }
         }
 
-        // Compras: con prorrata solo es deducible parte de la cuota; la no deducible es más gasto.
-        var cuotaDeducible = doc.Sentido != SentidoContable.Compra || doc.CuotaIva <= 0m
-            ? doc.CuotaIva
-            : await _deduccion.CuotaDeducibleAsync(doc.EmpresaId, doc.FechaRegistro.Year, doc.CuotaIva, doc.Afectacion, ct).ConfigureAwait(false);
+        // Compras: con prorrata solo es deducible parte de la cuota; la no deducible es más gasto. Con líneas, la
+        // prorrata se aplica a la parte que la línea ya deja deducible (p. ej. el 50 % de un turismo).
+        var baseProrrata = doc.Sentido == SentidoContable.Compra && doc.Lineas.Count > 0 ? doc.Lineas.Sum(l => l.CuotaDeducible) : doc.CuotaIva;
+        var cuotaDeducible = doc.Sentido != SentidoContable.Compra || baseProrrata <= 0m
+            ? baseProrrata
+            : await _deduccion.CuotaDeducibleAsync(doc.EmpresaId, doc.FechaRegistro.Year, baseProrrata, doc.Afectacion, ct).ConfigureAwait(false);
 
         var tesoreria = string.IsNullOrWhiteSpace(doc.CuentaTesoreria) ? PlanBasico.CuentaBancos : doc.CuentaTesoreria;
         var lineas = doc.Sentido switch
         {
             SentidoContable.Venta => LineasVenta(doc, cuentaResultado, cuentaTercero, concepto),
+            SentidoContable.Compra when doc.Lineas.Count > 0 => LineasCompraDesglosada(doc, cuentaResultado, cuentaTercero, concepto, cuotaDeducible),
             SentidoContable.Compra => LineasCompra(doc, cuentaResultado, cuentaTercero, concepto, cuotaDeducible),
             SentidoContable.Cobro => [new LineaAsiento(tesoreria, doc.Total, 0m, concepto), new LineaAsiento(cuentaTercero, 0m, doc.Total, concepto)],
             _ => [new LineaAsiento(cuentaTercero, doc.Total, 0m, concepto), new LineaAsiento(tesoreria, 0m, doc.Total, concepto)],
@@ -180,6 +183,52 @@ public sealed class PosterDocumento
             lineas.Add(new LineaAsiento(PlanBasico.CuentaIvaRepercutido, 0m, d.CuotaIva, "IVA repercutido"));
         }
 
+        return lineas;
+    }
+
+    /// <summary>
+    /// Factura recibida con varias bases. Debe: cada cuenta de gasto (base + cuota no deducible + recargo) e IVA soportado
+    /// deducible (tras la prorrata). Haber: IVA autoliquidado (inversión del sujeto pasivo, intracomunitarias), retención y
+    /// proveedor (total a pagar). La parte no deducible se reparte entre las líneas en proporción a su cuota.
+    /// </summary>
+    private static List<LineaAsiento> LineasCompraDesglosada(DocumentoPendiente d, string cuentaGasto, string cuentaProveedor, string concepto, decimal cuotaDeducible)
+    {
+        // Cada línea carga su parte no deducible propia (p. ej. el 50 % del IVA de un turismo); lo que además quita la
+        // prorrata se reparte en proporción a lo que cada línea dejaba deducir.
+        var candidata = d.Lineas.Sum(l => l.CuotaDeducible);
+        var porProrrata = Math.Max(0m, candidata - cuotaDeducible);
+        var cargos = new Dictionary<string, decimal>(StringComparer.Ordinal);
+        var repartida = 0m;
+        var conDeducible = d.Lineas.Select((l, i) => (l, i)).Where(x => x.l.CuotaDeducible != 0m).Select(x => x.i).LastOrDefault(-1);
+        for (var i = 0; i < d.Lineas.Count; i++)
+        {
+            var l = d.Lineas[i];
+            var parte = candidata == 0m ? 0m
+                : i == conDeducible ? porProrrata - repartida
+                : Math.Round(porProrrata * l.CuotaDeducible / candidata, 2, MidpointRounding.AwayFromZero);
+            repartida += parte;
+            var cuenta = string.IsNullOrWhiteSpace(l.CuentaGasto) ? cuentaGasto : l.CuentaGasto!;
+            cargos[cuenta] = cargos.GetValueOrDefault(cuenta) + l.Base + (l.Cuota - l.CuotaDeducible) + parte + l.Recargo;
+        }
+
+        var lineas = cargos.Where(c => c.Value != 0m).Select(c => new LineaAsiento(c.Key, c.Value, 0m, concepto)).ToList();
+        if (cuotaDeducible > 0m)
+        {
+            lineas.Add(new LineaAsiento(PlanBasico.CuentaIvaSoportado, cuotaDeducible, 0m, "IVA soportado"));
+        }
+
+        var autoliquidada = d.Lineas.Where(l => l.Autoliquidada).Sum(l => l.Cuota);
+        if (autoliquidada > 0m)
+        {
+            lineas.Add(new LineaAsiento(PlanBasico.CuentaIvaRepercutido, 0m, autoliquidada, "IVA autoliquidado (inversión del sujeto pasivo / intracomunitaria)"));
+        }
+
+        if (d.RetencionIrpf > 0m)
+        {
+            lineas.Add(new LineaAsiento(PlanBasico.CuentaRetencion, 0m, d.RetencionIrpf, "Retención IRPF"));
+        }
+
+        lineas.Add(new LineaAsiento(cuentaProveedor, 0m, d.Total, concepto));
         return lineas;
     }
 

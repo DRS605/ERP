@@ -35,7 +35,17 @@ public static class EndpointsGastos
             .RequierePermiso(Permisos.GastoLeer);
 
         gastos.MapPost("", RegistrarAsync)
-            .WithSummary("Registra un gasto.")
+            .WithSummary("Registra un gasto o factura recibida (líneas con sus impuestos, nº y fecha de la factura del proveedor, vencimientos).")
+            .RequierePermiso(Permisos.GastoGestionar);
+
+        gastos.MapPost("/simular", async (RegistrarGastoComando comando, IContextoEmpresa contexto, RegistrarGasto caso, CancellationToken ct) =>
+                contexto.EmpresaId is { } e ? (await caso.SimularAsync(e, comando, ct).ConfigureAwait(false)).AOk()
+                    : ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero.")))
+            .WithSummary("Calcula una factura recibida sin guardarla (impuestos por línea, recargo, retención, total y vencimientos).")
+            .RequierePermiso(Permisos.GastoLeer);
+
+        gastos.MapPut("/{id:guid}", ModificarAsync)
+            .WithSummary("Corrige una factura recibida sin pagos: contraasiento de lo registrado y asiento de lo nuevo.")
             .RequierePermiso(Permisos.GastoGestionar);
 
         gastos.MapPut("/{id:guid}/afectacion", async (Guid id, PeticionAfectacion peticion, CambiarAfectacionGasto caso, CancellationToken ct) =>
@@ -93,6 +103,29 @@ public static class EndpointsGastos
 
         var resultado = await caso.EjecutarAsync(contexto.EmpresaId.Value, comando, ct).ConfigureAwait(false);
         return resultado.EsCorrecto ? resultado.ACreado($"/gastos/{resultado.Valor.Id}") : ResultadosHttp.AProblema(resultado.Error);
+    }
+
+    private static async Task<IResult> ModificarAsync(Guid id, RegistrarGastoComando comando, ModificarGasto caso, AlxorCore.Tesoreria.Aplicacion.ConsultarSaldo saldo,
+        IComprobadorUso uso, CancellationToken ct)
+    {
+        var s = await saldo.DeGastoAsync(id, ct).ConfigureAwait(false);
+        if (s.EsFallo)
+        {
+            return ResultadosHttp.AProblema(s.Error);
+        }
+
+        if (s.Valor.Liquidado != 0m)
+        {
+            return ResultadosHttp.AProblema(Error.Conflicto("gasto.con_pagos",
+                $"La factura tiene pagos por {Redondeo.Formatear(s.Valor.Liquidado)} €: anúlalos antes de corregirla."));
+        }
+
+        if (await uso.BuscarUsoAsync(TiposRegistro.Gasto, id, ct).ConfigureAwait(false) is { } origen)
+        {
+            return ResultadosHttp.AProblema(Error.Conflicto("gasto.de_documento", $"Este gasto es {origen}: se corrige desde allí."));
+        }
+
+        return (await caso.EjecutarAsync(id, comando, ct).ConfigureAwait(false)).AOk();
     }
 
     private static async Task<IResult> AnularGastoAsync(Guid id, AnularGasto caso, AlxorCore.Tesoreria.Aplicacion.ConsultarSaldo saldo, IComprobadorUso uso, CancellationToken ct)

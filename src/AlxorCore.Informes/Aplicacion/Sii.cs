@@ -194,8 +194,13 @@ public sealed class GenerarSii
             w.WriteStartElement("IDEmisorFactura", NsLr);
             EscribirIdentificacion(w, nif, nombre);
             w.WriteEndElement();
-            w.WriteElementString("NumSerieFacturaEmisor", NsLr, $"G{ejercicio}-{n:D4}");
-            w.WriteElementString("FechaExpedicionFacturaEmisor", NsLr, g.Fecha.ToString("dd-MM-yyyy", Inv));
+            if (g.NumeroFactura is null)
+            {
+                w.WriteComment(" Gasto sin número de factura del proveedor: completar antes de enviar ");
+            }
+
+            w.WriteElementString("NumSerieFacturaEmisor", NsLr, g.NumeroFactura ?? $"G{ejercicio}-{n:D4}");
+            w.WriteElementString("FechaExpedicionFacturaEmisor", NsLr, (g.FechaFactura ?? g.Fecha).ToString("dd-MM-yyyy", Inv));
             w.WriteEndElement();
 
             w.WriteStartElement("FacturaRecibida", NsLr);
@@ -204,9 +209,31 @@ public sealed class GenerarSii
             w.WriteElementString("ImporteTotal", NsLr, Importe(g.Total));
             w.WriteElementString("DescripcionOperacion", NsLr, string.IsNullOrWhiteSpace(g.Concepto) ? "Gasto" : g.Concepto);
 
-            // El gasto tiene un único tipo de IVA: se declara el suyo, no uno calculado.
+            // Un detalle por tipo; lo autoliquidado (inversión del sujeto pasivo) va en su bloque.
+            static DetalleTipo Detalle(DesgloseIvaDto d) =>
+                new(d.PorcentajeIva, d.Base, d.Cuota, d.Base != 0m ? Redondeo.Dos(d.CuotaRecargo / d.Base * 100m) : 0m, d.CuotaRecargo);
+            var desglose = g.DesgloseIva;
             w.WriteStartElement("DesgloseFactura", NsLr);
-            EscribirDetallesIva(w, "CuotaSoportada", [new DetalleTipo(g.PorcentajeIva, g.BaseImponible, g.CuotaIva, 0m, 0m)]);
+            if (desglose.Any(d => d.Autoliquidada))
+            {
+                w.WriteStartElement("InversionSujetoPasivo", NsLr);
+                foreach (var d in desglose.Where(d => d.Autoliquidada))
+                {
+                    w.WriteStartElement("DetalleIVA", NsLr);
+                    w.WriteElementString("TipoImpositivo", NsLr, d.PorcentajeIva.ToString("0.##", Inv));
+                    w.WriteElementString("BaseImponible", NsLr, Importe(d.Base));
+                    w.WriteElementString("CuotaSoportada", NsLr, Importe(d.Cuota));
+                    w.WriteEndElement();
+                }
+
+                w.WriteEndElement();
+            }
+
+            if (desglose.Any(d => !d.Autoliquidada))
+            {
+                EscribirDetallesIva(w, "CuotaSoportada", desglose.Where(d => !d.Autoliquidada).Select(Detalle).ToList());
+            }
+
             w.WriteEndElement();
 
             w.WriteStartElement("Contraparte", NsLr);
@@ -215,7 +242,7 @@ public sealed class GenerarSii
             w.WriteEndElement();
 
             w.WriteElementString("FechaRegContable", NsLr, g.Fecha.ToString("dd-MM-yyyy", Inv));
-            w.WriteElementString("CuotaDeducible", NsLr, Importe(g.CuotaIva));
+            w.WriteElementString("CuotaDeducible", NsLr, Importe(g.DesgloseIva.Sum(d => d.CuotaDeducible)));
             w.WriteEndElement(); // FacturaRecibida
             w.WriteEndElement(); // RegistroLRFacturasRecibidas
         }

@@ -32,7 +32,9 @@ internal sealed class ContabilizadorSegunModo : IContabilizador
             ProveedorTexto: datos.ProveedorTexto,
             CodigoIva: datos.CodigoIva,
             PorcentajeIrpf: datos.PorcentajeIrpf,
-            Fecha: datos.Fecha);
+            Fecha: datos.Fecha,
+            NumeroFactura: datos.NumeroFactura,
+            FechaFactura: datos.FechaFactura);
 
         var gasto = await _registrarGasto.EjecutarAsync(empresaId, comando, ct).ConfigureAwait(false);
         return gasto.EsFallo

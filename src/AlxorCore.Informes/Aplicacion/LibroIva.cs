@@ -66,9 +66,10 @@ public sealed class GenerarLibroIva
                 }
             }
 
+            // Una fila por cada tipo de la factura, con el número de la factura del proveedor.
             asientos = gastos
-                .Select(g => new AsientoIva(g.Fecha, g.Concepto, g.ProveedorTexto ?? string.Empty,
-                    g.ProveedorId is { } pid ? nifs.GetValueOrDefault(pid) : null, g.BaseImponible, g.CuotaIva))
+                .SelectMany(g => g.DesgloseIva.Select(d => new AsientoIva(g.Fecha, g.NumeroFactura ?? g.Concepto, g.ProveedorTexto ?? string.Empty,
+                    g.ProveedorId is { } pid ? nifs.GetValueOrDefault(pid) : null, d.Base, d.Cuota)))
                 .ToList();
         }
 

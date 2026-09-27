@@ -110,10 +110,12 @@ public sealed class GenerarDeclaracionAnual
 
     private static Modelo390Dto Calcular390(int anio, IReadOnlyList<FacturaResumen> facturas, IReadOnlyList<GastoDto> gastos)
     {
-        var devBase = Redondeo.Dos(facturas.Sum(f => f.BaseImponible));
-        var devCuota = Redondeo.Dos(facturas.Sum(f => f.CuotaIva));
-        var dedBase = Redondeo.Dos(gastos.Sum(g => g.BaseImponible));
-        var dedCuota = Redondeo.Dos(gastos.Sum(g => g.CuotaIva));
+        var vivos = gastos.Where(g => !string.Equals(g.Estado, "Anulado", StringComparison.OrdinalIgnoreCase)).ToList();
+        var autoliquidado = vivos.SelectMany(g => g.DesgloseIva).Where(d => d.Autoliquidada).ToList();
+        var devBase = Redondeo.Dos(facturas.Sum(f => f.BaseImponible) + autoliquidado.Sum(d => d.Base));
+        var devCuota = Redondeo.Dos(facturas.Sum(f => f.CuotaIva) + autoliquidado.Sum(d => d.Cuota));
+        var dedBase = Redondeo.Dos(vivos.SelectMany(g => g.DesgloseIva).Where(d => d.Cuota != 0m).Sum(d => d.Base));
+        var dedCuota = Redondeo.Dos(vivos.SelectMany(g => g.DesgloseIva).Sum(d => d.CuotaDeducible));
         return new Modelo390Dto(anio, devBase, devCuota, dedBase, dedCuota, Redondeo.Dos(devCuota - dedCuota));
     }
 

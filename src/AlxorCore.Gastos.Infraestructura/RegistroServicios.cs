@@ -41,6 +41,7 @@ public static class RegistroServicios
 
         servicios.AddScoped<RegistrarGasto>();
         servicios.AddScoped<AnularGasto>();
+        servicios.AddScoped<ModificarGasto>();
         servicios.AddScoped<CambiarAfectacionGasto>();
         servicios.AddScoped<ListarGastos>();
         servicios.AddScoped<BuscarGastos>();

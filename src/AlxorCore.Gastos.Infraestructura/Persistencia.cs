@@ -61,6 +61,45 @@ internal sealed class ConfiguracionGasto : IEntityTypeConfiguration<Gasto>
         builder.Property(g => g.CreadoEn).HasColumnName("creado_en").IsRequired();
         builder.Property(g => g.ActualizadoEn).HasColumnName("actualizado_en").IsRequired();
 
+        builder.Property(g => g.NumeroFactura).HasColumnName("numero_factura").HasMaxLength(Gasto.LongitudMaximaNumeroFactura);
+        builder.Property(g => g.FechaFactura).HasColumnName("fecha_factura");
+        builder.Property(g => g.Revision).HasColumnName("revision").HasDefaultValue(0).IsRequired();
+        builder.Property(g => g.RecargoTotal).HasColumnName("recargo_total").HasColumnType("numeric(14,2)").HasDefaultValue(0m).IsRequired();
+
+        builder.OwnsMany(g => g.Lineas, l =>
+        {
+            l.ToTable("linea_gasto");
+            l.WithOwner().HasForeignKey("gasto_id");
+            l.HasKey(x => x.Id);
+            l.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+            l.Property(x => x.Orden).HasColumnName("orden").IsRequired();
+            l.Property(x => x.Descripcion).HasColumnName("descripcion").HasMaxLength(Gasto.LongitudMaximaConcepto);
+            l.Property(x => x.CuentaGasto).HasColumnName("cuenta_gasto").HasMaxLength(12);
+            l.Property(x => x.Base).HasColumnName("base").HasColumnType("numeric(14,2)").IsRequired();
+            l.Property(x => x.CodigoIva).HasColumnName("codigo_iva").HasMaxLength(10).IsRequired();
+            l.Property(x => x.PorcentajeIva).HasColumnName("porcentaje_iva").HasColumnType("numeric(5,2)").IsRequired();
+            l.Property(x => x.Cuota).HasColumnName("cuota").HasColumnType("numeric(14,2)").IsRequired();
+            l.Property(x => x.Autoliquidada).HasColumnName("autoliquidada").IsRequired();
+            l.Property(x => x.PorcentajeRecargo).HasColumnName("porcentaje_recargo").HasColumnType("numeric(5,2)").IsRequired();
+            l.Property(x => x.CuotaRecargo).HasColumnName("cuota_recargo").HasColumnType("numeric(14,2)").IsRequired();
+            l.Property(x => x.PorcentajeDeducible).HasColumnName("porcentaje_deducible").HasColumnType("numeric(5,2)").IsRequired();
+            l.Property(x => x.CuotaDeducible).HasColumnName("cuota_deducible").HasColumnType("numeric(14,2)").IsRequired();
+            l.HasIndex("gasto_id").HasDatabaseName("ix_linea_gasto_gasto");
+        });
+        builder.Navigation(g => g.Lineas).UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        builder.OwnsMany(g => g.Vencimientos, v =>
+        {
+            v.ToTable("vencimiento_gasto");
+            v.WithOwner().HasForeignKey("gasto_id");
+            v.Property<Guid>("Id").HasColumnName("id").ValueGeneratedOnAdd();
+            v.HasKey("Id");
+            v.Property(x => x.Fecha).HasColumnName("fecha").IsRequired();
+            v.Property(x => x.Importe).HasColumnName("importe").HasColumnType("numeric(14,2)").IsRequired();
+            v.HasIndex("gasto_id").HasDatabaseName("ix_vencimiento_gasto_gasto");
+        });
+        builder.Navigation(g => g.Vencimientos).UsePropertyAccessMode(PropertyAccessMode.Field);
+
         builder.HasIndex(g => new { g.EmpresaId, g.Fecha }).HasDatabaseName("ix_gasto_empresa_fecha");
         builder.Ignore(g => g.EventosDominio);
     }
@@ -118,6 +157,14 @@ internal sealed class RepositorioGastos : IRepositorioGastos, IConsultaGastos
 
     public void Agregar(Gasto gasto) => _contexto.Gastos.Add(gasto);
 
+    public Task<bool> ExisteFacturaAsync(Guid empresaId, Guid proveedorId, string numero, int anio, Guid? excluirId, CancellationToken ct = default)
+    {
+        // Mismo número sin distinguir mayúsculas (ILIKE sin comodines: se escapan).
+        var patron = numero.Trim().Replace("\\", "\\\\", StringComparison.Ordinal).Replace("%", "\\%", StringComparison.Ordinal).Replace("_", "\\_", StringComparison.Ordinal);
+        return _contexto.Gastos.AnyAsync(g => g.EmpresaId == empresaId && g.ProveedorId == proveedorId && g.Estado == EstadoGasto.Registrado
+            && g.NumeroFactura != null && EF.Functions.ILike(g.NumeroFactura, patron) && (g.FechaFactura ?? g.Fecha).Year == anio && g.Id != excluirId, ct);
+    }
+
     public async Task<GastoDto?> ObtenerAsync(Guid gastoId, CancellationToken ct = default)
     {
         var gasto = await _contexto.Gastos.SingleOrDefaultAsync(g => g.Id == gastoId, ct).ConfigureAwait(false);
@@ -145,7 +192,8 @@ internal sealed class RepositorioGastos : IRepositorioGastos, IConsultaGastos
             var patron = $"%{filtro.Texto.Trim()}%";
             consulta = consulta.Where(g =>
                 EF.Functions.ILike(g.Concepto, patron) ||
-                (g.ProveedorTexto != null && EF.Functions.ILike(g.ProveedorTexto, patron)));
+                (g.ProveedorTexto != null && EF.Functions.ILike(g.ProveedorTexto, patron)) ||
+                (g.NumeroFactura != null && EF.Functions.ILike(g.NumeroFactura, patron)));
         }
 
         if (!string.IsNullOrWhiteSpace(filtro.Estado) && Enum.TryParse<EstadoGasto>(filtro.Estado, ignoreCase: true, out var estado))

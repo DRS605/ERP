@@ -11,7 +11,7 @@ export interface Anfitrion {
   irA?: (vista: string) => void;
 }
 
-export type TipoDocumento = "presupuesto" | "pedido" | "factura" | "compra";
+export type TipoDocumento = "presupuesto" | "pedido" | "factura" | "compra" | "gasto";
 
 export interface Ruta {
   tipo: TipoDocumento;

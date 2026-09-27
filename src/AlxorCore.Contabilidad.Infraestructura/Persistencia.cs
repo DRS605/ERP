@@ -243,6 +243,14 @@ internal sealed class ConfiguracionDocumentoPendiente : IEntityTypeConfiguration
         builder.Property(d => d.Sentido).HasColumnName("sentido").HasMaxLength(10).HasConversion<string>().IsRequired();
         builder.Property(d => d.CuentaTesoreria).HasColumnName("cuenta_tesoreria").HasMaxLength(Cuenta.LongitudMaximaCodigo);
         builder.Property(d => d.CuentaTercero).HasColumnName("cuenta_tercero").HasMaxLength(Cuenta.LongitudMaximaCodigo);
+        builder.Property(d => d.Lineas).HasColumnName("lineas").HasColumnType("jsonb").HasDefaultValueSql("'[]'::jsonb").IsRequired()
+            .HasConversion(
+                v => System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions?)null),
+                s => System.Text.Json.JsonSerializer.Deserialize<List<AlxorCore.Nucleo.Aplicacion.LineaContable>>(s, (System.Text.Json.JsonSerializerOptions?)null) ?? new List<AlxorCore.Nucleo.Aplicacion.LineaContable>(),
+                new Microsoft.EntityFrameworkCore.ChangeTracking.ValueComparer<IReadOnlyList<AlxorCore.Nucleo.Aplicacion.LineaContable>>(
+                    (a, b) => System.Text.Json.JsonSerializer.Serialize(a, (System.Text.Json.JsonSerializerOptions?)null) == System.Text.Json.JsonSerializer.Serialize(b, (System.Text.Json.JsonSerializerOptions?)null),
+                    v => v.Count,
+                    v => v.ToList()));
         builder.Property(d => d.OrigenTipo).HasColumnName("origen_tipo").HasMaxLength(40).IsRequired();
         builder.Property(d => d.OrigenId).HasColumnName("origen_id").IsRequired();
         builder.Property(d => d.Referencia).HasColumnName("referencia").HasMaxLength(80).IsRequired();

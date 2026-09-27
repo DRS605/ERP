@@ -58,7 +58,7 @@ public interface IUnidadDeTrabajoRecepcion : IUnidadDeTrabajo;
 /// <summary>Datos con los que se contabiliza una factura de proveedor.</summary>
 public sealed record DatosContabilizacion(
     Guid? ProveedorId, string? ProveedorTexto, string Concepto, DateOnly Fecha,
-    decimal BaseImponible, string CodigoIva, decimal PorcentajeIrpf);
+    decimal BaseImponible, string CodigoIva, decimal PorcentajeIrpf, string? NumeroFactura = null, DateOnly? FechaFactura = null);
 
 /// <summary>Resultado de contabilizar: el gasto generado (y, en el futuro, el asiento).</summary>
 public sealed record ResultadoContabilizacion(Guid GastoId, Guid? AsientoId = null);
@@ -238,7 +238,7 @@ public sealed class ContabilizarFactura
 
         var concepto = ComponerConcepto(factura);
         var datos = new DatosContabilizacion(factura.ProveedorId, factura.ProveedorTexto, concepto,
-            factura.FechaFactura!.Value, factura.BaseImponible!.Value, factura.CodigoIva!, factura.PorcentajeIrpf ?? 0m);
+            factura.FechaFactura!.Value, factura.BaseImponible!.Value, factura.CodigoIva!, factura.PorcentajeIrpf ?? 0m, factura.NumeroFactura, factura.FechaFactura);
 
         var contabilizado = await _contabilizador.ContabilizarAsync(empresaId, datos, ct).ConfigureAwait(false);
         if (contabilizado.EsFallo)

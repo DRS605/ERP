@@ -42,7 +42,22 @@ public sealed record DocumentoContabilizable(
     Guid? ActividadNegocioId = null,
     bool Anulacion = false,
     string? CuentaTesoreria = null,
-    string? CuentaTercero = null);
+    string? CuentaTercero = null,
+    IReadOnlyList<LineaContable>? Lineas = null);
+
+/// <summary>
+/// Línea de una factura recibida con varias bases: su base, tipo e impuesto, la parte deducible (antes de la prorrata),
+/// el recargo de equivalencia soportado, si la cuota la autoliquida la empresa (inversión del sujeto pasivo o adquisición
+/// intracomunitaria: se carga en la 472 y se abona en la 477) y la cuenta de gasto propia de la línea (null: la regla).
+/// </summary>
+public sealed record LineaContable(
+    decimal Base,
+    string CodigoIva,
+    decimal Cuota,
+    decimal CuotaDeducible,
+    decimal Recargo = 0m,
+    bool Autoliquidada = false,
+    string? CuentaGasto = null);
 
 /// <summary>
 /// Cola de contabilización: recibe los documentos contabilizables y los deja <b>pendientes</b> de que
