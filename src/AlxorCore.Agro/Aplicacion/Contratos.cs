@@ -67,6 +67,7 @@ public interface IRepositorioAgro
     Task<IReadOnlyList<Pale>> PalesAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default);
     Task<int> PalesCreadosAsync(Guid empresaId, CancellationToken ct = default);
     Task<IReadOnlyList<Pale>> PalesDeCartaPorteAsync(Guid cartaPorteId, CancellationToken ct = default);
+    Task<IReadOnlyList<Pale>> PalesDeAlbaranAsync(Guid albaranId, CancellationToken ct = default);
     Task<IReadOnlyList<PlantillaPale>> PlantillasPaleAsync(Guid empresaId, CancellationToken ct = default);
     Task<PlantillaPale?> PlantillaPaleAsync(Guid id, CancellationToken ct = default);
     Task<bool> PlantillaPaleEnUsoAsync(Guid plantillaId, CancellationToken ct = default);
@@ -107,7 +108,7 @@ public interface IAutofacturas
 
 /// <summary>Carta de porte de una expedición de palés: destinatario, transporte y una línea por producto.</summary>
 public sealed record CartaPorteExpedicion(Guid ClienteId, DateOnly Fecha, string? Transportista, string? Matricula, string? LugarOrigen, string? LugarDestino,
-    string? Observaciones, IReadOnlyList<(string Descripcion, int Bultos, decimal Kilos)> Lineas);
+    string? Observaciones, IReadOnlyList<(string Descripcion, int Bultos, decimal Kilos)> Lineas, Guid? AlbaranId = null);
 
 /// <summary>
 /// Documentos de transporte de una expedición: emite la carta de porte (y la anula si la expedición no se completa o se
@@ -118,7 +119,19 @@ public interface IDocumentosExpedicion
     Task<Resultado<(Guid Id, string Numero)>> EmitirCartaPorteAsync(Guid empresaId, CartaPorteExpedicion carta, CancellationToken ct = default);
 
     Task<Resultado> AnularCartaPorteAsync(Guid cartaPorteId, string motivo, CancellationToken ct = default);
+
+    /// <summary>Cliente del pedido de venta (null si el pedido no existe).</summary>
+    Task<Guid?> ClienteDePedidoAsync(Guid pedidoVentaId, CancellationToken ct = default) => Task.FromResult<Guid?>(null);
+
+    /// <summary>Albarán de venta del pedido con lo expedido (kilos o cajas según la unidad del artículo).</summary>
+    Task<Resultado<(Guid Id, string Numero)>> EmitirAlbaranAsync(Guid empresaId, AlbaranExpedicion albaran, CancellationToken ct = default) =>
+        Task.FromResult(Resultado.Fallo<(Guid, string)>(Error.Validacion("expedicion.sin_albaran", "No se pueden emitir albaranes.")));
+
+    Task<Resultado> AnularAlbaranAsync(Guid albaranId, string motivo, CancellationToken ct = default) => Task.FromResult(Resultado.Ok());
 }
+
+/// <summary>Albarán de venta de una expedición: pedido y, por producto, los kilos y las cajas expedidos.</summary>
+public sealed record AlbaranExpedicion(Guid PedidoVentaId, DateOnly Fecha, string? Referencia, IReadOnlyList<(Guid ProductoId, decimal Kilos, int Cajas)> Lineas);
 
 /// <summary>Gastos e ingresos imputados en analítica a unos centros (con sus descendientes) en unas fechas.</summary>
 public interface ICosteAnalitico

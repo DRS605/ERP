@@ -48,6 +48,11 @@ public static class EndpointsVentas
             .WithSummary("Registra un albarán de entrega contra el pedido.")
             .RequierePermiso(Permisos.FacturaEmitir);
 
+        pedidos.MapPost("/{id:guid}/albaranes/{albaranId:guid}/anular", async (Guid id, Guid albaranId, AnularAlbaranPeticion? peticion, AnularAlbaranVenta caso, CancellationToken ct) =>
+                (await caso.EjecutarAsync(id, albaranId, peticion?.Motivo, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Anula un albarán de entrega: sus cantidades vuelven a quedar pendientes de servir (si el pedido no está facturado).")
+            .RequierePermiso(Permisos.FacturaEmitir);
+
         pedidos.MapGet("/{id:guid}/albaranes", AlbaranesAsync)
             .WithSummary("Lista los albaranes de entrega del pedido.")
             .RequierePermiso(Permisos.FacturaLeer);
@@ -156,3 +161,6 @@ public static class EndpointsVentas
         return r.EsCorrecto ? r.ACreado($"/facturas/{r.Valor.Id}") : ResultadosHttp.AProblema(r.Error);
     }
 }
+
+/// <summary>Cuerpo de la anulación de un albarán de venta.</summary>
+public sealed record AnularAlbaranPeticion(string? Motivo);

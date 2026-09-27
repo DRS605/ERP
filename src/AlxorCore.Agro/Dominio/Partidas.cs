@@ -259,6 +259,9 @@ public sealed class Pale : RaizAgregadoEmpresa<Guid>
     /// <summary>Carta de porte que se emitió al expedirlo.</summary>
     public Guid? CartaPorteId { get; private set; }
 
+    /// <summary>Albarán de venta (del pedido) con que salió.</summary>
+    public Guid? AlbaranId { get; private set; }
+
     public Guid? ClienteId { get; private set; }
 
     public DateOnly? FechaExpedicion { get; private set; }
@@ -328,6 +331,20 @@ public sealed class Pale : RaizAgregadoEmpresa<Guid>
         FechaExpedicion = null;
         ReferenciaExpedicion = null;
         CartaPorteId = null;
+        AlbaranId = null;
+        return Resultado.Ok();
+    }
+
+    /// <summary>Enlaza el albarán de venta emitido con la expedición (solo en un palé expedido).</summary>
+    public Resultado AsignarAlbaran(Guid albaranId, string numero)
+    {
+        if (Estado != EstadoPale.Expedido)
+        {
+            return Resultado.Fallo(Error.Conflicto("pale.no_expedido", "El palé no está expedido."));
+        }
+
+        AlbaranId = albaranId;
+        ReferenciaExpedicion ??= numero;
         return Resultado.Ok();
     }
 

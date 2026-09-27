@@ -25,9 +25,13 @@ public sealed class PalesRapidosTests : IClassFixture<FabricaApiPruebas>
     private sealed record PartidaResp(Guid Id, decimal Saldo);
     private sealed record ContenidoResp(Guid PartidaId, decimal Kilos, int Cajas);
     private sealed record PaleResp(Guid Id, string Sscc, string Estado, decimal Kilos, int Cajas, int? CajasPorPale, Guid? PlantillaId, Guid? CartaPorteId,
-        string? ReferenciaExpedicion, List<ContenidoResp> Contenido);
+        string? ReferenciaExpedicion, List<ContenidoResp> Contenido, Guid? AlbaranId = null);
     private sealed record PlantillaResp(Guid Id, string Codigo, int CajasPorPale, decimal KilosPorCaja, int? CajasPorCapa, int? Capas, decimal KilosPorPale);
     private sealed record LineaCartaResp(string Descripcion, int Bultos, decimal PesoKg);
+    private sealed record LineaPedidoResp(Guid Id, decimal Cantidad, decimal CantidadServida);
+    private sealed record PedidoResp(Guid Id, string Estado, List<LineaPedidoResp> Lineas);
+    private sealed record AlbaranResp(Guid Id, string NumeroCompleto, bool Anulado, List<LineaAlbaranResp> Lineas);
+    private sealed record LineaAlbaranResp(decimal Cantidad);
     private sealed record CartaResp(Guid Id, string NumeroCompleto, Guid? DestinatarioClienteId, int TotalBultos, decimal TotalPesoKg, bool Anulada, List<LineaCartaResp> Lineas);
 
     private static readonly int Anio = DateTime.UtcNow.Year;
@@ -196,6 +200,60 @@ public sealed class PalesRapidosTests : IClassFixture<FabricaApiPruebas>
         etiqueta.StatusCode.Should().Be(HttpStatusCode.OK);
         etiqueta.Content.Headers.ContentType!.MediaType.Should().Be("application/pdf");
         (await etiqueta.Content.ReadAsByteArrayAsync()).Take(4).Should().Equal("%PDF"u8.ToArray());
+    }
+
+    [Fact]
+    public async Task Al_expedir_contra_un_pedido_se_emite_el_albaran_y_se_anula_si_vuelven_los_palés()
+    {
+        var e = await EscenarioAsync();
+        var plantilla = await OkAsync<PlantillaResp>(await PlantillaAsync(e, "EUR80", e.Naranja));
+        var pales = await OkAsync<List<PaleResp>>(await e.Api.PostAsJsonAsync("/agro/pales/montar", new { PlantillaId = plantilla.Id, PartidaId = e.Partida, NumeroPales = 4 }));
+        var pedido = await OkAsync<PedidoResp>(await e.Api.PostAsJsonAsync("/pedidos-venta", new
+        {
+            ClienteId = e.Cliente, Lineas = new[] { new { Descripcion = "Naranja Navel", Cantidad = 3_000m, PrecioUnitario = 0.9m, ProductoId = e.Naranja } },
+        }));
+        (await e.Api.PostAsync(new Uri($"/pedidos-venta/{pedido.Id}/confirmar", UriKind.Relative), null)).EnsureSuccessStatusCode();
+
+        // 4 palés son 4.000 kg y el pedido solo tiene 3.000 pendientes: no sale nada.
+        (await CodigoAsync(await e.Api.PostAsJsonAsync("/agro/expediciones", new { PaleIds = pales.Select(p => p.Id), PedidoVentaId = pedido.Id }), HttpStatusCode.BadRequest))
+            .Should().Be("expedicion.fuera_de_pedido");
+        (await e.Api.GetFromJsonAsync<PaleResp>($"/agro/pales/{pales[0].Id}"))!.Estado.Should().Be("Cerrado");
+
+        // Dos palés: albarán de 2.000 kg (el cliente sale del pedido) y carta de porte enlazada.
+        var salida = await OkAsync<List<PaleResp>>(await e.Api.PostAsJsonAsync("/agro/expediciones",
+            new { PaleIds = new[] { pales[0].Id, pales[1].Id }, PedidoVentaId = pedido.Id, CartaPorte = true }));
+        salida.Should().OnlyContain(p => p.AlbaranId != null && p.CartaPorteId != null);
+        var albaranes = (await e.Api.GetFromJsonAsync<List<AlbaranResp>>($"/pedidos-venta/{pedido.Id}/albaranes"))!;
+        albaranes.Single().Lineas.Single().Cantidad.Should().Be(2_000m);
+        (await e.Api.GetFromJsonAsync<PedidoResp>($"/pedidos-venta/{pedido.Id}"))!.Lineas.Single().CantidadServida.Should().Be(2_000m);
+        salida[0].ReferenciaExpedicion.Should().Be(albaranes.Single().NumeroCompleto);
+
+        // Vuelven los dos: el albarán se anula y lo servido vuelve a quedar pendiente.
+        foreach (var p in salida)
+        {
+            (await e.Api.PostAsync(new Uri($"/agro/pales/{p.Id}/anular-expedicion", UriKind.Relative), null)).EnsureSuccessStatusCode();
+        }
+
+        (await e.Api.GetFromJsonAsync<List<AlbaranResp>>($"/pedidos-venta/{pedido.Id}/albaranes"))!.Single().Anulado.Should().BeTrue();
+        var tras = (await e.Api.GetFromJsonAsync<PedidoResp>($"/pedidos-venta/{pedido.Id}"))!;
+        tras.Lineas.Single().CantidadServida.Should().Be(0m);
+        tras.Estado.Should().Be("Confirmado");
+    }
+
+    [Fact]
+    public async Task Un_albaran_de_un_pedido_facturado_no_se_anula()
+    {
+        var e = await EscenarioAsync();
+        var pedido = await OkAsync<PedidoResp>(await e.Api.PostAsJsonAsync("/pedidos-venta", new
+        {
+            ClienteId = e.Cliente, Lineas = new[] { new { Descripcion = "Naranja", Cantidad = 100m, PrecioUnitario = 1m, ProductoId = e.Naranja } },
+        }));
+        (await e.Api.PostAsync(new Uri($"/pedidos-venta/{pedido.Id}/confirmar", UriKind.Relative), null)).EnsureSuccessStatusCode();
+        var albaran = await OkAsync<AlbaranResp>(await e.Api.PostAsJsonAsync($"/pedidos-venta/{pedido.Id}/entregar",
+            new { Lineas = new[] { new { LineaPedidoId = pedido.Lineas[0].Id, Cantidad = 100m } } }));
+        (await e.Api.PostAsJsonAsync($"/pedidos-venta/{pedido.Id}/facturar", new { })).IsSuccessStatusCode.Should().BeTrue();
+        (await CodigoAsync(await e.Api.PostAsJsonAsync($"/pedidos-venta/{pedido.Id}/albaranes/{albaran.Id}/anular", new { Motivo = "Error" }), HttpStatusCode.Conflict))
+            .Should().Be("pedidoventa.facturado");
     }
 
     /// <summary>Anchuras de referencia generadas con otro codificador (bwip-js, «gs1-128»).</summary>

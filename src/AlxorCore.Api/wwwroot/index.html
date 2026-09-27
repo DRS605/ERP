@@ -1997,14 +1997,18 @@
     async function verPedidoVenta(id){
       const [p,albaranes]=await Promise.all([api("/pedidos-venta/"+id),api("/pedidos-venta/"+id+"/albaranes").catch(()=>[])]);
       const lin=p.lineas.map(l=>`<tr><td>${l.descripcion}</td><td class="num">${l.cantidad}</td><td class="num">${eur(l.precioUnitario)}</td><td class="num muted">${l.cantidadServida}</td><td class="num">${eur(l.base)}</td></tr>`).join("");
-      const alb=(albaranes||[]).map(a=>`<tr><td><strong>${a.numeroCompleto}</strong></td><td class="muted">${fdate(a.fecha)}</td><td class="muted">${a.lineas.length} línea(s)</td></tr>`).join("");
+      const alb=(albaranes||[]).map(a=>`<tr><td><strong>${a.numeroCompleto}</strong>${a.anulado?` <span class="pill neg" title="${agEsc(a.motivoAnulacion||"")}">Anulado</span>`:""}</td><td class="muted">${fdate(a.fecha)}</td><td class="muted">${a.lineas.length} línea(s)${a.referencia?" · "+agEsc(a.referencia):""}</td>
+        <td class="right">${a.anulado||p.estado==="Facturado"?"":`<button class="btn small ghost" onclick="anularAlbaranVenta('${p.id}','${a.id}','${a.numeroCompleto}')">Anular</button>`}</td></tr>`).join("");
       abrir("Pedido de venta "+p.numeroCompleto,`<p class="muted" style="margin:0 0 10px">${p.clienteNombre} · ${estadoPillPV(p.estado)} · Total <strong>${eur(p.total)}</strong>${p.facturaId?' · facturado':''}</p>
         <table><thead><tr><th>Descripción</th><th class="num">Cant.</th><th class="num">Precio</th><th class="num">Servido</th><th class="num">Base</th></tr></thead><tbody>${lin}</tbody></table>
         <label style="margin-top:14px">Albaranes de entrega</label>
-        ${alb?`<table><thead><tr><th>Número</th><th>Fecha</th><th>Líneas</th></tr></thead><tbody>${alb}</tbody></table>`:'<p class="muted">Sin albaranes todavía.</p>'}`,
+        ${alb?`<table><thead><tr><th>Número</th><th>Fecha</th><th>Líneas</th><th></th></tr></thead><tbody>${alb}</tbody></table>`:'<p class="muted">Sin albaranes todavía.</p>'}`,
         null);
       document.getElementById("modalOk").style.display="none";
     }
+
+    async function anularAlbaranVenta(pedidoId,albaranId,numero){ const motivo=prompt(`Motivo de la anulación del albarán ${numero} (lo servido vuelve a quedar pendiente):`); if(motivo===null) return;
+      try{ await api(`/pedidos-venta/${pedidoId}/albaranes/${albaranId}/anular`,{method:"POST",body:JSON.stringify({motivo:motivo||null})}); toast("Albarán anulado.","ok"); verPedidoVenta(pedidoId); }catch(e){ toast(e.message,"err"); } }
 
     // ---- Inmovilizado y amortizaciones (contable + fiscal, impuesto diferido, baja, enajenación) ----
     const estadoPillInmo = e => `<span class="pill ${e==="Activo"?"ok":(e==="Enajenado"?"part":"wait")}">${e}</span>`;
@@ -3678,19 +3682,22 @@
       abrir(`Paletizar en ${sscc}`,`<div class="grid2"><div><label>Partida</label><select id="apa_p">${agOpc(conSaldo,null,undefined,p=>`${p.codigo} · ${agProd(p.productoId)} · ${kg(p.saldo)}`)}</select></div><div><label>Kilos</label><input id="apa_k" type="number" step="0.001"/></div></div>`,
         async()=>{ await api(`/agro/pales/${paleId}/paletizar`,{method:"POST",body:JSON.stringify({partidaId:val("apa_p"),kilos:Number(val("apa_k"))})}); setTimeout(vAgroPartidas); });
     }
-    function modalAgroExpedir(){
+    async function modalAgroExpedir(){
       const cerrados=(window._agPales||[]).filter(p=>p.estado==="Cerrado");
       if(!cerrados.length){ toast("No hay palés cerrados para expedir.","err"); return; }
+      const pedidos=(await api("/pedidos-venta").catch(()=>[])).filter(p=>p.estado==="Confirmado"||p.estado==="Servido");
       abrir("Expedición",`${cerrados.map(p=>`<label style="display:flex;gap:8px;align-items:center"><input type="checkbox" class="aex" value="${p.id}" style="width:auto" checked/> <span class="mono">${p.sscc}</span> · ${kg(p.kilos)}</label>`).join("")}
+        <label style="margin-top:12px">Pedido de venta (opcional: se emite su albarán con lo expedido)</label><select id="aex_p"><option value="">— Sin pedido —</option>${pedidos.map(p=>`<option value="${p.id}">${agEsc(p.numeroCompleto)} · ${agEsc(p.clienteNombre)}</option>`).join("")}</select>
         <div class="grid2" style="margin-top:12px"><div><label>Cliente</label><select id="aex_c">${agOpc(_ag.clientes,null,"— Sin cliente —")}</select></div><div><label>Referencia (pedido, albarán…)</label><input id="aex_r"/></div></div><label>Fecha</label><input id="aex_f" type="date" value="${hoyIso()}"/>
         <label style="display:flex;gap:8px;align-items:center;margin-top:12px"><input id="aex_cp" type="checkbox" style="width:auto" checked/> Emitir la carta de porte (una línea por producto con sus cajas y kilos)</label>
         <div id="aex_tr"><div class="grid2"><div><label>Transportista</label><input id="aex_t"/></div><div><label>Matrícula</label><input id="aex_m" placeholder="1234 ABC"/></div></div>
         <div class="grid2"><div><label>Lugar de carga</label><input id="aex_o"/></div><div><label>Lugar de destino</label><input id="aex_d"/></div></div></div>`,
         async()=>{ const paleIds=[...document.querySelectorAll(".aex:checked")].map(x=>x.value); const carta=document.getElementById("aex_cp").checked;
-          if(carta&&!val("aex_c")) throw new Error("Para la carta de porte, elige el cliente.");
-          const r=await api("/agro/expediciones",{method:"POST",body:JSON.stringify({paleIds,clienteId:val("aex_c")||null,referencia:val("aex_r")||null,fecha:val("aex_f"),
+          const pedido=val("aex_p")||null;
+          if(carta&&!val("aex_c")&&!pedido) throw new Error("Para la carta de porte, elige el cliente o el pedido.");
+          const r=await api("/agro/expediciones",{method:"POST",body:JSON.stringify({paleIds,pedidoVentaId:pedido,clienteId:pedido?null:(val("aex_c")||null),referencia:val("aex_r")||null,fecha:val("aex_f"),
             cartaPorte:carta,transportista:val("aex_t")||null,matricula:val("aex_m")||null,lugarOrigen:val("aex_o")||null,lugarDestino:val("aex_d")||null})});
-          toast(carta&&r.length?`Palés expedidos con la carta de porte ${r[0].referenciaExpedicion}.`:"Palés expedidos.","ok"); setTimeout(vAgroPartidas); });
+          toast(r.length&&r[0].albaranId?`Palés expedidos con el albarán ${r[0].referenciaExpedicion}${carta?" y su carta de porte":""}.`:(carta&&r.length?`Palés expedidos con la carta de porte ${r[0].referenciaExpedicion}.`:"Palés expedidos."),"ok"); setTimeout(vAgroPartidas); });
       const cp=document.getElementById("aex_cp"); cp.onchange=()=>document.getElementById("aex_tr").style.display=cp.checked?"":"none";
     }
 

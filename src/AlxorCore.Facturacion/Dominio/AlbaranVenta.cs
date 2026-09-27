@@ -82,6 +82,25 @@ public sealed class AlbaranVenta : RaizAgregadoEmpresa<Guid>
 
     public IReadOnlyList<LineaAlbaranVenta> Lineas => _lineas;
 
+    /// <summary>Fecha de la anulación (la entrega no se hizo o se registró por error). Null si está vigente.</summary>
+    public DateTimeOffset? AnuladoEn { get; private set; }
+
+    public string? MotivoAnulacion { get; private set; }
+
+    /// <summary>Anula el albarán (su número queda usado). Las cantidades vuelven a quedar pendientes de servir en el pedido.</summary>
+    public Resultado Anular(string? motivo, IReloj reloj)
+    {
+        ArgumentNullException.ThrowIfNull(reloj);
+        if (AnuladoEn is not null)
+        {
+            return Resultado.Fallo(Error.Conflicto("albaranventa.anulado", "El albarán ya está anulado."));
+        }
+
+        AnuladoEn = reloj.AhoraUtc;
+        MotivoAnulacion = string.IsNullOrWhiteSpace(motivo) ? null : motivo.Trim()[..Math.Min(motivo.Trim().Length, 200)];
+        return Resultado.Ok();
+    }
+
     public static Resultado<AlbaranVenta> Crear(Guid empresaId, Guid pedidoId, Guid clienteId, string clienteNombre, int numero, DateOnly fecha, string? referencia,
         IReadOnlyList<(Guid LineaPedidoId, Guid? ProductoId, string Descripcion, decimal Cantidad)> lineas, IReloj reloj, string? serie = null)
     {

@@ -62,6 +62,8 @@ public sealed class LineaPedidoVenta
 
     internal void Servir(decimal cantidad) => CantidadServida = Math.Round(CantidadServida + cantidad, 3, MidpointRounding.AwayFromZero);
 
+    internal void DeshacerServido(decimal cantidad) => CantidadServida = Math.Max(0m, Math.Round(CantidadServida - cantidad, 3, MidpointRounding.AwayFromZero));
+
     internal void Facturar() => CantidadFacturada = Cantidad;
 }
 
@@ -256,6 +258,31 @@ public sealed class PedidoVenta : RaizAgregadoEmpresa<Guid>
         }
 
         Estado = EstadoPedidoVenta.Servido;
+        return Resultado.Ok();
+    }
+
+    /// <summary>
+    /// Deshace una entrega (se anuló su albarán): las cantidades vuelven a quedar pendientes. Un pedido ya facturado no
+    /// se toca: la corrección es una factura rectificativa.
+    /// </summary>
+    public Resultado DeshacerEntrega(IReadOnlyList<(Guid LineaId, decimal Cantidad)> entregas)
+    {
+        ArgumentNullException.ThrowIfNull(entregas);
+        if (Estado is EstadoPedidoVenta.Facturado)
+        {
+            return Resultado.Fallo(Error.Conflicto("pedidoventa.facturado", "El pedido ya está facturado: corrige con una factura rectificativa."));
+        }
+
+        foreach (var (lineaId, cantidad) in entregas)
+        {
+            _lineas.SingleOrDefault(l => l.Id == lineaId)?.DeshacerServido(cantidad);
+        }
+
+        if (Estado is EstadoPedidoVenta.Servido && _lineas.All(l => l.CantidadServida == 0m))
+        {
+            Estado = EstadoPedidoVenta.Confirmado;
+        }
+
         return Resultado.Ok();
     }
 

@@ -22,10 +22,11 @@ public sealed record PedidoVentaDto(Guid Id, string Estado, int Ejercicio, int N
 
 public sealed record LineaAlbaranVentaDto(Guid LineaPedidoId, Guid? ProductoId, string Descripcion, decimal Cantidad);
 
-public sealed record AlbaranVentaDto(Guid Id, Guid PedidoId, int Numero, string NumeroCompleto, DateOnly Fecha, string? Referencia, IReadOnlyList<LineaAlbaranVentaDto> Lineas)
+public sealed record AlbaranVentaDto(Guid Id, Guid PedidoId, int Numero, string NumeroCompleto, DateOnly Fecha, string? Referencia, IReadOnlyList<LineaAlbaranVentaDto> Lineas,
+    bool Anulado = false, string? MotivoAnulacion = null)
 {
     public static AlbaranVentaDto Desde(AlbaranVenta a) => new(a.Id, a.PedidoId, a.Numero, a.NumeroCompleto, a.Fecha, a.Referencia,
-        a.Lineas.Select(l => new LineaAlbaranVentaDto(l.LineaPedidoId, l.ProductoId, l.Descripcion, l.Cantidad)).ToList());
+        a.Lineas.Select(l => new LineaAlbaranVentaDto(l.LineaPedidoId, l.ProductoId, l.Descripcion, l.Cantidad)).ToList(), a.AnuladoEn is not null, a.MotivoAnulacion);
 }
 
 // ----------------------------------------------------------------------------- Puertos
@@ -41,6 +42,7 @@ public interface IRepositorioPedidosVenta
 public interface IRepositorioAlbaranesVenta
 {
     void Agregar(AlbaranVenta albaran);
+    Task<AlbaranVenta?> ObtenerPorIdAsync(Guid id, CancellationToken ct = default) => Task.FromResult<AlbaranVenta?>(null);
     Task<IReadOnlyList<AlbaranVentaDto>> ListarPorPedidoAsync(Guid empresaId, Guid pedidoId, CancellationToken ct = default);
     Task<int> SiguienteNumeroAsync(Guid empresaId, int ejercicio, CancellationToken ct = default);
 }
@@ -261,6 +263,56 @@ public sealed class EntregarPedido
         _albaranes.Agregar(albaran.Valor);
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return Resultado.Ok(AlbaranVentaDto.Desde(albaran.Valor));
+    }
+}
+
+/// <summary>
+/// Caso de uso: anular un albarán de venta (la entrega no se hizo o se registró mal). Sus cantidades vuelven a quedar
+/// pendientes de servir; si el pedido ya está facturado, no se anula (se corrige con una rectificativa).
+/// </summary>
+public sealed class AnularAlbaranVenta
+{
+    private readonly IRepositorioPedidosVenta _pedidos;
+    private readonly IRepositorioAlbaranesVenta _albaranes;
+    private readonly IUnidadDeTrabajoFacturacion _unidad;
+    private readonly IReloj _reloj;
+
+    public AnularAlbaranVenta(IRepositorioPedidosVenta pedidos, IRepositorioAlbaranesVenta albaranes, IUnidadDeTrabajoFacturacion unidad, IReloj reloj)
+    {
+        _pedidos = pedidos;
+        _albaranes = albaranes;
+        _unidad = unidad;
+        _reloj = reloj;
+    }
+
+    public async Task<Resultado<AlbaranVentaDto>> EjecutarAsync(Guid? pedidoId, Guid albaranId, string? motivo, CancellationToken ct = default)
+    {
+        var albaran = await _albaranes.ObtenerPorIdAsync(albaranId, ct).ConfigureAwait(false);
+        if (albaran is null || (pedidoId is { } p && albaran.PedidoId != p))
+        {
+            return Resultado.Fallo<AlbaranVentaDto>(Error.NoEncontrado("albaranventa.no_encontrado", "El albarán no existe en ese pedido."));
+        }
+
+        var pedido = await _pedidos.ObtenerPorIdAsync(albaran.PedidoId, ct).ConfigureAwait(false);
+        if (pedido is null)
+        {
+            return Resultado.Fallo<AlbaranVentaDto>(Error.NoEncontrado("pedidoventa.no_encontrado", "No se encontró el pedido."));
+        }
+
+        var anulado = albaran.Anular(motivo, _reloj);
+        if (anulado.EsFallo)
+        {
+            return Resultado.Fallo<AlbaranVentaDto>(anulado.Error);
+        }
+
+        var deshecho = pedido.DeshacerEntrega(albaran.Lineas.Select(l => (l.LineaPedidoId, l.Cantidad)).ToList());
+        if (deshecho.EsFallo)
+        {
+            return Resultado.Fallo<AlbaranVentaDto>(deshecho.Error);
+        }
+
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(AlbaranVentaDto.Desde(albaran));
     }
 }
 

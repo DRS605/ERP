@@ -63,6 +63,8 @@ internal sealed class ConfiguracionAlbaranVenta : IEntityTypeConfiguration<Albar
         builder.Property(a => a.Serie).HasColumnName("serie").HasMaxLength(10);
         builder.Property(a => a.Referencia).HasColumnName("referencia").HasMaxLength(200);
         builder.Property(a => a.CreadoEn).HasColumnName("creado_en").IsRequired();
+        builder.Property(a => a.AnuladoEn).HasColumnName("anulado_en");
+        builder.Property(a => a.MotivoAnulacion).HasColumnName("motivo_anulacion").HasMaxLength(200);
 
         builder.OwnsMany(a => a.Lineas, linea =>
         {
@@ -121,6 +123,8 @@ internal sealed class RepositorioAlbaranesVenta : IRepositorioAlbaranesVenta
     public RepositorioAlbaranesVenta(FacturacionDbContext contexto) => _contexto = contexto;
 
     public void Agregar(AlbaranVenta albaran) => _contexto.AlbaranesVenta.Add(albaran);
+
+    public Task<AlbaranVenta?> ObtenerPorIdAsync(Guid id, CancellationToken ct = default) => _contexto.AlbaranesVenta.SingleOrDefaultAsync(a => a.Id == id, ct);
 
     public async Task<IReadOnlyList<AlbaranVentaDto>> ListarPorPedidoAsync(Guid empresaId, Guid pedidoId, CancellationToken ct = default)
     {

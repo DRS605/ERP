@@ -43,7 +43,7 @@ public sealed record ParteResumenDto(Guid Id, string? Numero, DateOnly Fecha, st
 
 public sealed record PaleDto(
     Guid Id, string Sscc, string? Tipo, string Estado, Guid? ClienteId, DateOnly? FechaExpedicion, string? ReferenciaExpedicion, decimal Kilos,
-    IReadOnlyList<ContenidoPaleDto> Contenido, Guid? PlantillaId = null, int Cajas = 0, int? CajasPorPale = null, Guid? CartaPorteId = null);
+    IReadOnlyList<ContenidoPaleDto> Contenido, Guid? PlantillaId = null, int Cajas = 0, int? CajasPorPale = null, Guid? CartaPorteId = null, Guid? AlbaranId = null);
 
 public sealed record ContenidoPaleDto(Guid PartidaId, string? Partida, Guid ProductoId, decimal Kilos, int Cajas = 0);
 
@@ -66,7 +66,8 @@ public sealed record DatosMontaje(Guid PlantillaId, Guid PartidaId, int? NumeroP
 /// con sus cajas y kilos), que queda enlazada a los palés.
 /// </summary>
 public sealed record DatosExpedicion(IReadOnlyList<Guid> PaleIds, Guid? ClienteId = null, DateOnly? Fecha = null, string? Referencia = null,
-    bool CartaPorte = false, string? Transportista = null, string? Matricula = null, string? LugarOrigen = null, string? LugarDestino = null, string? Observaciones = null);
+    bool CartaPorte = false, string? Transportista = null, string? Matricula = null, string? LugarOrigen = null, string? LugarDestino = null, string? Observaciones = null,
+    Guid? PedidoVentaId = null);
 
 /// <summary>Lo que se imprime en la etiqueta del palé.</summary>
 public sealed record EtiquetaPaleDto(string Sscc, string? Producto, string? Marca, string? TipoPale, int Cajas, decimal Kilos, string? Lote, DateOnly Fecha, string? Destinatario);
@@ -827,6 +828,23 @@ public sealed class PalesAgro
             return Resultado.Fallo<IReadOnlyList<PaleDto>>(Error.Validacion("expedicion.sin_pales", "Indica los palés que salen."));
         }
 
+        // Con pedido de venta, el cliente es el del pedido.
+        if (datos.PedidoVentaId is { } pedidoId)
+        {
+            var delPedido = _documentos is null ? null : await _documentos.ClienteDePedidoAsync(pedidoId, ct).ConfigureAwait(false);
+            if (delPedido is null)
+            {
+                return Resultado.Fallo<IReadOnlyList<PaleDto>>(Error.NoEncontrado("pedidoventa.no_encontrado", "No se encontró el pedido de venta."));
+            }
+
+            if (datos.ClienteId is { } indicado && indicado != delPedido)
+            {
+                return Resultado.Fallo<IReadOnlyList<PaleDto>>(Error.Validacion("expedicion.cliente_pedido", "El cliente no es el del pedido."));
+            }
+
+            datos = datos with { ClienteId = delPedido };
+        }
+
         if (datos.ClienteId is { } clienteId && await _clientes.ObtenerAsync(clienteId, ct).ConfigureAwait(false) is null)
         {
             return Resultado.Fallo<IReadOnlyList<PaleDto>>(Error.NoEncontrado("cliente.no_encontrado", "El cliente no existe."));
@@ -861,30 +879,51 @@ public sealed class PalesAgro
             }
         }
 
-        Guid? cartaId = null;
-        if (datos.CartaPorte)
+        // Albarán del pedido (primero: comprueba que lo expedido cabe en lo pendiente de servir).
+        Guid? albaranId = null;
+        if (datos.PedidoVentaId is { } pedido)
         {
-            var carta = await EmitirCartaPorteAsync(empresaId, datos, fecha, cargado, ct).ConfigureAwait(false);
-            if (carta.EsFallo)
+            var partidasCargadas = (await _repo.PartidasAsync(cargado.Select(c => c.Contenido.PartidaId).Distinct().ToList(), ct).ConfigureAwait(false)).ToDictionary(p => p.Id);
+            var lineas = cargado.GroupBy(c => partidasCargadas.GetValueOrDefault(c.Contenido.PartidaId)?.ProductoId ?? Guid.Empty)
+                .Select(g => (g.Key, g.Sum(c => c.Contenido.Kilos), g.Sum(c => Math.Max(c.Contenido.Cajas, 0)))).ToList();
+            var albaran = await _documentos!.EmitirAlbaranAsync(empresaId, new AlbaranExpedicion(pedido, fecha, datos.Referencia, lineas), ct).ConfigureAwait(false);
+            if (albaran.EsFallo)
             {
-                return Resultado.Fallo<IReadOnlyList<PaleDto>>(carta.Error);
+                return Resultado.Fallo<IReadOnlyList<PaleDto>>(albaran.Error);
             }
 
-            cartaId = carta.Valor.Id;
+            albaranId = albaran.Valor.Id;
             foreach (var pale in pales)
             {
-                pale.AsignarCartaPorte(carta.Valor.Id, carta.Valor.Numero);
+                pale.AsignarAlbaran(albaran.Valor.Id, albaran.Valor.Numero);
             }
         }
 
+        Guid? cartaId = null;
         try
         {
+            if (datos.CartaPorte)
+            {
+                var carta = await EmitirCartaPorteAsync(empresaId, datos, fecha, cargado, ct, albaranId).ConfigureAwait(false);
+                if (carta.EsFallo)
+                {
+                    await DeshacerDocumentosAsync(albaranId, null).ConfigureAwait(false);
+                    return Resultado.Fallo<IReadOnlyList<PaleDto>>(carta.Error);
+                }
+
+                cartaId = carta.Valor.Id;
+                foreach (var pale in pales)
+                {
+                    pale.AsignarCartaPorte(carta.Valor.Id, carta.Valor.Numero);
+                }
+            }
+
             await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
         }
-        catch when (cartaId is not null)
+        catch when (albaranId is not null || cartaId is not null)
         {
-            // La expedición no se guardó: la carta de porte ya emitida se anula (su número queda usado).
-            await _documentos!.AnularCartaPorteAsync(cartaId.Value, "La expedición no se completó.", CancellationToken.None).ConfigureAwait(false);
+            // La expedición no se guardó: el albarán y la carta ya emitidos se anulan (sus números quedan usados).
+            await DeshacerDocumentosAsync(albaranId, cartaId).ConfigureAwait(false);
             throw;
         }
 
@@ -910,6 +949,7 @@ public sealed class PalesAgro
             .Where(m => m.DocumentoTipo == DocumentoExpedicion).GroupBy(m => m.PartidaId)
             .Select(g => (Partida: g.Key, Kilos: -g.Sum(m => m.Kilos), Cajas: -g.Sum(m => m.Cajas))).Where(x => x.Kilos > 0m).ToList();
         var carta = pale.CartaPorteId;
+        var albaranPale = pale.AlbaranId;
         var r = pale.AnularExpedicion();
         if (r.EsFallo)
         {
@@ -930,6 +970,14 @@ public sealed class PalesAgro
         {
             await _documentos.AnularCartaPorteAsync(cartaId, "Expedición anulada.", ct).ConfigureAwait(false);
         }
+
+        // Igual con el albarán: al volver todos sus palés se anula, y lo servido vuelve a quedar pendiente en el pedido.
+        if (albaranPale is { } alb && _documentos is not null
+            && (await _repo.PalesDeAlbaranAsync(alb, ct).ConfigureAwait(false)).All(p => p.Estado != EstadoPale.Expedido))
+        {
+            await _documentos.AnularAlbaranAsync(alb, "Expedición anulada.", ct).ConfigureAwait(false);
+        }
+
         return Resultado.Ok(await DtoAsync(pale, ct).ConfigureAwait(false));
     }
 
@@ -987,8 +1035,22 @@ public sealed class PalesAgro
         return Resultado.Ok();
     }
 
+    private async Task DeshacerDocumentosAsync(Guid? albaranId, Guid? cartaId)
+    {
+        const string motivo = "La expedición no se completó.";
+        if (albaranId is { } a)
+        {
+            await _documentos!.AnularAlbaranAsync(a, motivo, CancellationToken.None).ConfigureAwait(false);
+        }
+
+        if (cartaId is { } c)
+        {
+            await _documentos!.AnularCartaPorteAsync(c, motivo, CancellationToken.None).ConfigureAwait(false);
+        }
+    }
+
     private async Task<Resultado<(Guid Id, string Numero)>> EmitirCartaPorteAsync(Guid empresaId, DatosExpedicion datos, DateOnly fecha,
-        IReadOnlyList<(Guid PaleId, SaldoPartida Contenido)> cargado, CancellationToken ct)
+        IReadOnlyList<(Guid PaleId, SaldoPartida Contenido)> cargado, CancellationToken ct, Guid? albaranId = null)
     {
         var partidas = (await _repo.PartidasAsync(cargado.Select(c => c.Contenido.PartidaId).Distinct().ToList(), ct).ConfigureAwait(false)).ToDictionary(p => p.Id);
         var lineas = new List<(string, int, decimal)>();
@@ -1001,7 +1063,7 @@ public sealed class PalesAgro
         }
 
         return await _documentos!.EmitirCartaPorteAsync(empresaId, new CartaPorteExpedicion(datos.ClienteId!.Value, fecha, datos.Transportista, datos.Matricula,
-            datos.LugarOrigen, datos.LugarDestino, datos.Observaciones ?? datos.Referencia, lineas), ct).ConfigureAwait(false);
+            datos.LugarOrigen, datos.LugarDestino, datos.Observaciones ?? datos.Referencia, lineas, albaranId), ct).ConfigureAwait(false);
     }
 
     private async Task<PaleDto> DtoAsync(Pale p, CancellationToken ct)
@@ -1023,7 +1085,7 @@ public sealed class PalesAgro
                 Math.Max(c.Cajas, 0)))
             .ToList();
         return new PaleDto(p.Id, p.Sscc, p.Tipo, p.Estado.ToString(), p.ClienteId, p.FechaExpedicion, p.ReferenciaExpedicion, lineas.Sum(l => l.Kilos), lineas,
-            p.PlantillaId, lineas.Sum(l => l.Cajas), plantilla?.CajasPorPale, p.CartaPorteId);
+            p.PlantillaId, lineas.Sum(l => l.Cajas), plantilla?.CajasPorPale, p.CartaPorteId, p.AlbaranId);
     }
 
     private static Resultado<T> NoEncontrado<T>() => Resultado.Fallo<T>(Error.NoEncontrado("pale.no_encontrado", "El palé no existe."));

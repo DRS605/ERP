@@ -338,10 +338,12 @@ internal sealed class ConfiguracionPale : IEntityTypeConfiguration<Pale>
         b.Property(x => x.ReferenciaExpedicion).HasColumnName("referencia_expedicion").HasMaxLength(80);
         b.Property(x => x.PlantillaId).HasColumnName("plantilla_id");
         b.Property(x => x.CartaPorteId).HasColumnName("carta_porte_id");
+        b.Property(x => x.AlbaranId).HasColumnName("albaran_id");
         b.Property(x => x.CreadoEn).HasColumnName("creado_en").IsRequired();
         b.HasIndex(x => new { x.EmpresaId, x.Sscc }).IsUnique().HasDatabaseName("ux_pale_sscc");
         b.HasIndex(x => x.PlantillaId).HasDatabaseName("ix_pale_plantilla");
         b.HasIndex(x => x.CartaPorteId).HasDatabaseName("ix_pale_carta_porte");
+        b.HasIndex(x => x.AlbaranId).HasDatabaseName("ix_pale_albaran");
     }
 }
 
@@ -777,6 +779,9 @@ internal sealed class RepositorioAgro : IRepositorioAgro
 
     public async Task<IReadOnlyList<Pale>> PalesDeCartaPorteAsync(Guid cartaPorteId, CancellationToken ct = default) =>
         await _ctx.Set<Pale>().Where(x => x.CartaPorteId == cartaPorteId).ToListAsync(ct).ConfigureAwait(false);
+
+    public async Task<IReadOnlyList<Pale>> PalesDeAlbaranAsync(Guid albaranId, CancellationToken ct = default) =>
+        await _ctx.Set<Pale>().Where(x => x.AlbaranId == albaranId).ToListAsync(ct).ConfigureAwait(false);
 
     public async Task<IReadOnlyList<PlantillaPale>> PlantillasPaleAsync(Guid empresaId, CancellationToken ct = default) =>
         await _ctx.Set<PlantillaPale>().Where(x => x.EmpresaId == empresaId).OrderBy(x => x.Codigo).ToListAsync(ct).ConfigureAwait(false);

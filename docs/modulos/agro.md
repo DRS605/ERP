@@ -112,6 +112,12 @@ Lo que en Hispatec es la *confección* de palé:
     palés;
   - si la expedición no llega a guardarse, la carta se anula;
   - al anular la expedición de todos sus palés, también se anula.
+- **Albarán del pedido al expedir** (`PedidoVentaId` en `/agro/expediciones`):
+  - se emite el albarán de venta del pedido con lo expedido, repartido en sus líneas pendientes del mismo artículo;
+  - va en kilos si el artículo se vende por kilos, y en cajas si no;
+  - el cliente es el del pedido;
+  - si lo expedido no cabe en lo pendiente, no sale nada;
+  - al anular la expedición de todos sus palés, el albarán se anula y lo servido vuelve a quedar pendiente.
 
 ## 4. Clasificación
 
@@ -247,8 +253,7 @@ saltándose la aplicación:
 
 - **Otros módulos:**
   - reflejar las partidas en Inventario, para una valoración única de existencias;
-  - albarán de venta (del pedido) con los palés expedidos, y su factura. Hoy la expedición emite la carta de
-    porte; el albarán de venta necesita el pedido y todavía no se puede anular, por eso no se genera solo.
+  - que una vuelta parcial (solo algunos palés de un albarán) corrija el albarán; hoy se anula cuando vuelven todos.
 - **Liquidaciones:**
   - anticipos a cuenta;
   - liquidaciones masivas de todos los agricultores del periodo;
