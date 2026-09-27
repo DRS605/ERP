@@ -7280,7 +7280,7 @@ function Yp(e) {
         /* @__PURE__ */ a.jsx("h2", { children: e.id ? `Corregir factura ${(r == null ? void 0 : r.numeroFactura) ?? ""}` : $ ? "Rectificativa / abono del proveedor" : "Nueva factura de proveedor" }),
         /* @__PURE__ */ a.jsxs("div", { style: { display: "flex", gap: 8 }, children: [
           /* @__PURE__ */ a.jsx("button", { className: "btn small secondary", onClick: e.alCancelar, children: "Cancelar" }),
-          /* @__PURE__ */ a.jsx("button", { className: "btn small", disabled: !U || ae, onClick: da, children: e.id ? "Guardar corrección" : "Registrar factura" })
+          /* @__PURE__ */ a.jsx("button", { className: "btn small", disabled: !U || ae, onClick: da, children: e.id ? "Guardar corrección" : $ ? "Registrar abono" : "Registrar factura" })
         ] })
       ] }),
       /* @__PURE__ */ a.jsxs("div", { className: "dx-cabecera", children: [
@@ -7461,7 +7461,7 @@ function Yp(e) {
           ] })
         ] }),
         /* @__PURE__ */ a.jsxs("div", { className: "dx-tot dx-grande", children: [
-          /* @__PURE__ */ a.jsx("span", { children: "Total a pagar" }),
+          /* @__PURE__ */ a.jsx("span", { children: ((U == null ? void 0 : U.total) ?? 0) < 0 ? "A favor (abono del proveedor)" : "Total a pagar" }),
           /* @__PURE__ */ a.jsx("span", { children: M(U == null ? void 0 : U.total) })
         ] }),
         U && (U.desglose ?? []).some((w) => w.cuotaDeducible !== w.cuota) && /* @__PURE__ */ a.jsxs("div", { className: "dx-tot", children: [
@@ -7591,7 +7591,7 @@ function Xp(e) {
           ] })
         ] }),
         /* @__PURE__ */ a.jsxs("div", { className: "dx-tot dx-grande", children: [
-          /* @__PURE__ */ a.jsx("span", { children: "Total a pagar" }),
+          /* @__PURE__ */ a.jsx("span", { children: l.total < 0 ? "A favor (abono del proveedor)" : "Total a pagar" }),
           /* @__PURE__ */ a.jsx("span", { children: M(l.total) })
         ] })
       ] }),

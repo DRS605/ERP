@@ -156,7 +156,7 @@ export function EditorGasto(props: { id?: string | null; semilla?: Gasto; alGuar
           <h2>{props.id ? `Corregir factura ${s?.numeroFactura ?? ""}` : rectificativa ? "Rectificativa / abono del proveedor" : "Nueva factura de proveedor"}</h2>
           <div style={{ display: "flex", gap: 8 }}>
             <button className="btn small secondary" onClick={props.alCancelar}>Cancelar</button>
-            <button className="btn small" disabled={!calculo || guardando} onClick={guardar}>{props.id ? "Guardar corrección" : "Registrar factura"}</button>
+            <button className="btn small" disabled={!calculo || guardando} onClick={guardar}>{props.id ? "Guardar corrección" : rectificativa ? "Registrar abono" : "Registrar factura"}</button>
           </div>
         </div>
         <div className="dx-cabecera">
@@ -273,7 +273,7 @@ export function EditorGasto(props: { id?: string | null; semilla?: Gasto; alGuar
           <div className="dx-tot"><span className="muted">Impuestos</span><span>{eur(calculo?.cuotaIva)}</span></div>
           {!!calculo?.recargoTotal && <div className="dx-tot"><span className="muted">Recargo de equivalencia</span><span>{eur(calculo.recargoTotal)}</span></div>}
           {!!calculo?.retencionIrpf && <div className="dx-tot"><span className="muted">Retención IRPF</span><span>−{eur(calculo.retencionIrpf)}</span></div>}
-          <div className="dx-tot dx-grande"><span>Total a pagar</span><span>{eur(calculo?.total)}</span></div>
+          <div className="dx-tot dx-grande"><span>{(calculo?.total ?? 0) < 0 ? "A favor (abono del proveedor)" : "Total a pagar"}</span><span>{eur(calculo?.total)}</span></div>
           {calculo && (calculo.desglose ?? []).some((d) => d.cuotaDeducible !== d.cuota) && (
             <div className="dx-tot"><span className="muted">IVA deducible (antes de prorrata)</span><span className="muted">{eur((calculo.desglose ?? []).reduce((t, d) => t + d.cuotaDeducible, 0))}</span></div>
           )}
@@ -340,7 +340,7 @@ export function VistaGasto(props: { id: string }) {
           <div className="dx-tot"><span className="muted">Impuestos</span><span>{eur(g.cuotaIva)}</span></div>
           {!!g.recargoTotal && <div className="dx-tot"><span className="muted">Recargo de equivalencia</span><span>{eur(g.recargoTotal)}</span></div>}
           {!!g.retencionIrpf && <div className="dx-tot"><span className="muted">Retención IRPF ({num2(g.porcentajeIrpf)} %)</span><span>−{eur(g.retencionIrpf)}</span></div>}
-          <div className="dx-tot dx-grande"><span>Total a pagar</span><span>{eur(g.total)}</span></div>
+          <div className="dx-tot dx-grande"><span>{g.total < 0 ? "A favor (abono del proveedor)" : "Total a pagar"}</span><span>{eur(g.total)}</span></div>
         </div>
         <p className="muted" style={{ fontSize: 12.5 }}>Vencimientos: {(g.vencimientos ?? []).map((v) => `${fecha(v.fecha)} ${eur(v.importe)}`).join(" · ")}</p>
       </div>
