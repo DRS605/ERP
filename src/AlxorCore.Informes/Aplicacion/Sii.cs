@@ -7,6 +7,7 @@ using AlxorCore.Nucleo.Comun;
 using AlxorCore.Nucleo.Resultados;
 using AlxorCore.Organizacion.Aplicacion.Modelos;
 using AlxorCore.Organizacion.Aplicacion.Puertos;
+using AlxorCore.Terceros.Aplicacion;
 
 namespace AlxorCore.Informes.Aplicacion;
 
@@ -36,13 +37,18 @@ public sealed class GenerarSii
     private readonly IConsultaFacturas _facturas;
     private readonly IConsultaGastos _gastos;
     private readonly IConsultaEmpresas _empresas;
+    private readonly IConsultaProveedores _proveedores;
 
-    public GenerarSii(IConsultaFacturas facturas, IConsultaGastos gastos, IConsultaEmpresas empresas)
+    public GenerarSii(IConsultaFacturas facturas, IConsultaGastos gastos, IConsultaEmpresas empresas, IConsultaProveedores proveedores)
     {
         _facturas = facturas;
         _gastos = gastos;
         _empresas = empresas;
+        _proveedores = proveedores;
     }
+
+    /// <summary>Base, cuota y recargo de un tipo impositivo dentro de una factura (un DetalleIVA).</summary>
+    private sealed record DetalleTipo(decimal Tipo, decimal Base, decimal Cuota, decimal TipoRecargo, decimal CuotaRecargo);
 
     public async Task<Resultado<string>> EjecutarAsync(Guid empresaId, TipoLibroSii tipo, int ejercicio, int periodo, CancellationToken ct = default)
     {
@@ -70,14 +76,38 @@ public sealed class GenerarSii
             var facturas = (await _facturas.ListarAsync(empresaId, ct).ConfigureAwait(false))
                 .Where(f => f.FechaEmision >= desde && f.FechaEmision <= hasta)
                 .OrderBy(f => f.FechaEmision).ThenBy(f => f.NumeroCompleto).ToList();
-            EscribirEmitidas(w, empresa, ejercicio, periodoTexto, facturas);
+
+            // Desglose por tipo impositivo de cada factura (un DetalleIVA por tipo, no un tipo medio).
+            var desgloses = new Dictionary<Guid, IReadOnlyList<DetalleTipo>>();
+            foreach (var f in facturas)
+            {
+                var detalle = await _facturas.ObtenerAsync(f.Id, ct).ConfigureAwait(false);
+                desgloses[f.Id] = detalle is { Lineas.Count: > 0 }
+                    ? detalle.Lineas.GroupBy(l => (l.PorcentajeIva, l.PorcentajeRecargo)).OrderByDescending(g => g.Key.PorcentajeIva)
+                        .Select(g => new DetalleTipo(g.Key.PorcentajeIva, Redondeo.Dos(g.Sum(l => l.Base)), Redondeo.Dos(g.Sum(l => l.CuotaIva)),
+                            g.Key.PorcentajeRecargo, Redondeo.Dos(g.Sum(l => l.CuotaRecargo)))).ToList()
+                    : [new DetalleTipo(TipoMedio(f.BaseImponible, f.CuotaIva), f.BaseImponible, f.CuotaIva, 0m, 0m)];
+            }
+
+            EscribirEmitidas(w, empresa, ejercicio, periodoTexto, facturas, desgloses);
         }
         else
         {
+            // Los gastos anulados no se registran en el libro de recibidas.
             var gastos = (await _gastos.ListarAsync(empresaId, ct).ConfigureAwait(false))
-                .Where(g => g.Fecha >= desde && g.Fecha <= hasta)
+                .Where(g => g.Fecha >= desde && g.Fecha <= hasta && !string.Equals(g.Estado, "Anulado", StringComparison.OrdinalIgnoreCase))
                 .OrderBy(g => g.Fecha).ToList();
-            EscribirRecibidas(w, empresa, ejercicio, periodoTexto, gastos);
+
+            var proveedores = new Dictionary<Guid, ProveedorDto>();
+            foreach (var id in gastos.Where(g => g.ProveedorId is not null).Select(g => g.ProveedorId!.Value).Distinct())
+            {
+                if (await _proveedores.ObtenerAsync(id, ct).ConfigureAwait(false) is { } p)
+                {
+                    proveedores[id] = p;
+                }
+            }
+
+            EscribirRecibidas(w, empresa, ejercicio, periodoTexto, gastos, proveedores);
         }
 
         w.WriteEndDocument();
@@ -99,7 +129,8 @@ public sealed class GenerarSii
         w.WriteEndElement();
     }
 
-    private static void EscribirEmitidas(XmlWriter w, EmpresaDto empresa, int ejercicio, string periodo, IReadOnlyList<FacturaResumen> facturas)
+    private static void EscribirEmitidas(XmlWriter w, EmpresaDto empresa, int ejercicio, string periodo, IReadOnlyList<FacturaResumen> facturas,
+        IReadOnlyDictionary<Guid, IReadOnlyList<DetalleTipo>> desgloses)
     {
         w.WriteStartElement("siiLR", "SuministroLRFacturasEmitidas", NsLr);
         EscribirCabecera(w, empresa);
@@ -133,7 +164,7 @@ public sealed class GenerarSii
 
             w.WriteEndElement();
 
-            EscribirDesgloseSujeta(w, "CuotaRepercutida", f.BaseImponible, f.CuotaIva);
+            EscribirDesgloseSujeta(w, "CuotaRepercutida", desgloses[f.Id]);
             w.WriteEndElement(); // FacturaExpedida
             w.WriteEndElement(); // RegistroLRFacturasEmitidas
         }
@@ -141,7 +172,8 @@ public sealed class GenerarSii
         w.WriteEndElement();
     }
 
-    private static void EscribirRecibidas(XmlWriter w, EmpresaDto empresa, int ejercicio, string periodo, IReadOnlyList<GastoDto> gastos)
+    private static void EscribirRecibidas(XmlWriter w, EmpresaDto empresa, int ejercicio, string periodo, IReadOnlyList<GastoDto> gastos,
+        IReadOnlyDictionary<Guid, ProveedorDto> proveedores)
     {
         w.WriteStartElement("siiLR", "SuministroLRFacturasRecibidas", NsLr);
         EscribirCabecera(w, empresa);
@@ -150,14 +182,17 @@ public sealed class GenerarSii
         foreach (var g in gastos)
         {
             n++;
+            var proveedor = g.ProveedorId is { } pid ? proveedores.GetValueOrDefault(pid) : null;
+            var nombre = proveedor?.Nombre ?? g.ProveedorTexto ?? "Proveedor";
+            var nif = proveedor?.NifFiscal;
+
             w.WriteStartElement("RegistroLRFacturasRecibidas", NsLr);
 
             EscribirPeriodo(w, ejercicio, periodo);
 
             w.WriteStartElement("IDFactura", NsLr);
             w.WriteStartElement("IDEmisorFactura", NsLr);
-            // NIF del proveedor si se conoce; si no, se deja el nombre como contraparte (a completar).
-            w.WriteElementString("NombreRazon", NsLr, g.ProveedorTexto ?? "Proveedor");
+            EscribirIdentificacion(w, nif, nombre);
             w.WriteEndElement();
             w.WriteElementString("NumSerieFacturaEmisor", NsLr, $"G{ejercicio}-{n:D4}");
             w.WriteElementString("FechaExpedicionFacturaEmisor", NsLr, g.Fecha.ToString("dd-MM-yyyy", Inv));
@@ -169,14 +204,41 @@ public sealed class GenerarSii
             w.WriteElementString("ImporteTotal", NsLr, Importe(g.Total));
             w.WriteElementString("DescripcionOperacion", NsLr, string.IsNullOrWhiteSpace(g.Concepto) ? "Gasto" : g.Concepto);
 
-            EscribirDesgloseIva(w, "CuotaSoportada", g.BaseImponible, g.CuotaIva);
+            // El gasto tiene un único tipo de IVA: se declara el suyo, no uno calculado.
+            w.WriteStartElement("DesgloseFactura", NsLr);
+            EscribirDetallesIva(w, "CuotaSoportada", [new DetalleTipo(g.PorcentajeIva, g.BaseImponible, g.CuotaIva, 0m, 0m)]);
+            w.WriteEndElement();
 
-            w.WriteElementString("CuotaDeducible", NsLr, Importe(g.CuotaIva));
+            w.WriteStartElement("Contraparte", NsLr);
+            w.WriteElementString("NombreRazon", NsLr, nombre);
+            EscribirIdentificacion(w, nif, nombre);
+            w.WriteEndElement();
+
             w.WriteElementString("FechaRegContable", NsLr, g.Fecha.ToString("dd-MM-yyyy", Inv));
+            w.WriteElementString("CuotaDeducible", NsLr, Importe(g.CuotaIva));
             w.WriteEndElement(); // FacturaRecibida
             w.WriteEndElement(); // RegistroLRFacturasRecibidas
         }
 
+        w.WriteEndElement();
+    }
+
+    /// <summary>
+    /// Identifica al emisor/contraparte por su NIF. Sin NIF conocido se deja un IDOtro con el nombre
+    /// (tipo 07, «no censado») para que se complete antes del envío.
+    /// </summary>
+    private static void EscribirIdentificacion(XmlWriter w, string? nif, string nombre)
+    {
+        if (!string.IsNullOrWhiteSpace(nif))
+        {
+            w.WriteElementString("NIF", NsLr, nif.Trim().ToUpperInvariant());
+            return;
+        }
+
+        w.WriteComment(" Proveedor sin NIF en la ficha: completar antes de enviar ");
+        w.WriteStartElement("IDOtro", NsLr);
+        w.WriteElementString("IDType", NsLr, "07");
+        w.WriteElementString("ID", NsLr, nombre);
         w.WriteEndElement();
     }
 
@@ -188,38 +250,43 @@ public sealed class GenerarSii
         w.WriteEndElement();
     }
 
-    private static void EscribirDesgloseSujeta(XmlWriter w, string nombreCuota, decimal baseImponible, decimal cuota)
+    private static void EscribirDesgloseSujeta(XmlWriter w, string nombreCuota, IReadOnlyList<DetalleTipo> detalles)
     {
         w.WriteStartElement("TipoDesglose", NsLr);
         w.WriteStartElement("DesgloseFactura", NsLr);
         w.WriteStartElement("Sujeta", NsLr);
         w.WriteStartElement("NoExenta", NsLr);
         w.WriteElementString("TipoNoExenta", NsLr, "S1");
-        EscribirDetalleIva(w, nombreCuota, baseImponible, cuota);
+        EscribirDetallesIva(w, nombreCuota, detalles);
         w.WriteEndElement();
         w.WriteEndElement();
         w.WriteEndElement();
         w.WriteEndElement();
     }
 
-    private static void EscribirDesgloseIva(XmlWriter w, string nombreCuota, decimal baseImponible, decimal cuota)
+    /// <summary>Un DesgloseIVA con un DetalleIVA por cada tipo impositivo (y su recargo de equivalencia, si lo hay).</summary>
+    private static void EscribirDetallesIva(XmlWriter w, string nombreCuota, IReadOnlyList<DetalleTipo> detalles)
     {
-        w.WriteStartElement("DesgloseFactura", NsLr);
-        EscribirDetalleIva(w, nombreCuota, baseImponible, cuota);
-        w.WriteEndElement();
-    }
-
-    private static void EscribirDetalleIva(XmlWriter w, string nombreCuota, decimal baseImponible, decimal cuota)
-    {
-        var tipo = baseImponible > 0m ? Redondeo.Dos(cuota / baseImponible * 100m) : 0m;
         w.WriteStartElement("DesgloseIVA", NsLr);
-        w.WriteStartElement("DetalleIVA", NsLr);
-        w.WriteElementString("TipoImpositivo", NsLr, tipo.ToString("0.##", Inv));
-        w.WriteElementString("BaseImponible", NsLr, Importe(baseImponible));
-        w.WriteElementString(nombreCuota, NsLr, Importe(cuota));
-        w.WriteEndElement();
+        foreach (var d in detalles)
+        {
+            w.WriteStartElement("DetalleIVA", NsLr);
+            w.WriteElementString("TipoImpositivo", NsLr, d.Tipo.ToString("0.##", Inv));
+            w.WriteElementString("BaseImponible", NsLr, Importe(d.Base));
+            w.WriteElementString(nombreCuota, NsLr, Importe(d.Cuota));
+            if (d.CuotaRecargo != 0m)
+            {
+                w.WriteElementString("TipoRecargoEquivalencia", NsLr, d.TipoRecargo.ToString("0.##", Inv));
+                w.WriteElementString("CuotaRecargoEquivalencia", NsLr, Importe(d.CuotaRecargo));
+            }
+
+            w.WriteEndElement();
+        }
+
         w.WriteEndElement();
     }
+
+    private static decimal TipoMedio(decimal baseImponible, decimal cuota) => baseImponible != 0m ? Redondeo.Dos(cuota / baseImponible * 100m) : 0m;
 
     private static string Importe(decimal valor) => Redondeo.Dos(valor).ToString("0.00", Inv);
 }

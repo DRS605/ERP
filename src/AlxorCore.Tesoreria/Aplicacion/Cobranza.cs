@@ -169,6 +169,11 @@ public sealed class AplicarAnticipo
             return Resultado.Fallo<AnticipoDto>(Error.NoEncontrado("factura.no_encontrada", "La factura no existe."));
         }
 
+        if (factura.Estado == "Anulada")
+        {
+            return Resultado.Fallo<AnticipoDto>(Error.Conflicto("factura.anulada", $"La factura {factura.NumeroCompleto} está anulada: no se le puede aplicar el anticipo."));
+        }
+
         var pendiente = Redondeo.Dos(factura.Total - await _movimientos.SumaAsync(TipoDocumentoTesoreria.Factura, factura.Id, ct).ConfigureAwait(false));
         var importe = anticipo.ValidarAplicacion(factura.ClienteId, comando.Importe ?? Math.Min(anticipo.Disponible, pendiente));
         if (importe.EsFallo)

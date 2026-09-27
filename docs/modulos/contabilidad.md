@@ -139,6 +139,27 @@ La respuesta (`CierreEjercicioDto`) devuelve el `resultado` y los ids de los tre
 cerrar dos veces** (409 `cierre.ya_cerrado`) ni cerrar un ejercicio **sin movimientos**
 (400 `cierre.sin_movimientos`).
 
+**Solo se cierran ejercicios terminados**: mientras no haya pasado el 31 de diciembre del ejercicio el cierre
+responde 409 `cierre.ejercicio_abierto` (cerrar a mitad de año regularizaría resultados incompletos y abriría el
+siguiente con saldos parciales). La interfaz solo ofrece los ejercicios anteriores al actual.
+
+## Asientos manuales y plan de cuentas
+
+`POST /contabilidad/asientos` (asiento manual) exige que **cada cuenta exista en el plan** de la empresa (el plan
+básico se siembra si falta): si no, 400 `asiento.cuenta_inexistente` con los códigos desconocidos. La
+comprobación es solo de este camino manual; las contabilizaciones automáticas, las importaciones de saldos y la
+migración no la aplican. Cada línea admite su propio `concepto`.
+
+El plan se amplía con `POST /contabilidad/cuentas` `{ codigo, nombre }` (201; 409 `cuenta.duplicada` si ya
+existe) y se renombra con `PUT /contabilidad/cuentas/{codigo}` (el código no cambia: los apuntes lo
+referencian). El plan básico incluye además `100` Capital social, `113` Reservas voluntarias y `752` Ingresos por
+arrendamientos.
+
+En la interfaz clásica, Contabilidad tiene selector de **ejercicio** (diario, balance, PyG, cuentas anuales…),
+el modal de asiento autocompleta la cuenta con el plan, muestra el cuadre debe/haber en vivo y permite dar de alta
+una cuenta que falte; las filas del balance abren el **libro mayor** de la cuenta
+(`GET /contabilidad/mayor/{codigo}?ejercicio=`), filtrable por fechas con saldo anterior.
+
 ## Diarios de asientos
 
 El libro diario es **uno** por empresa y ejercicio, con numeración correlativa sin huecos. Además, cada asiento va a

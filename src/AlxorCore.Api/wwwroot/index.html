@@ -954,26 +954,36 @@
       }catch(e){ toast(e.message,"err"); } }
     async function enviarPresupuesto(id){ const email=prompt("Email del cliente para enviarle el presupuesto:"); if(!email)return;
       try{ await api("/presupuestos/"+id+"/enviar",{method:"POST",body:JSON.stringify({email})}); toast("Presupuesto enviado a "+email,"ok"); }catch(e){ toast(e.message,"err"); } }
+    // Saldos de todas las facturas o gastos en una sola llamada (documentoId → {total, liquidado, pendiente, estado}).
+    async function saldosDe(tipo){
+      const lista=await api(tipo==="Factura"?"/facturas/saldos":"/gastos/saldos").catch(()=>[]);
+      return Object.fromEntries((lista||[]).map(x=>[x.documentoId,x]));
+    }
     /* ---------- Remesas SEPA (adeudos domiciliados, Norma 19) ---------- */
     async function vRemesa(){
       view('<div class="muted">Cargando…</div>');
-      const [facs,gastos]=await Promise.all([api("/facturas"),api("/gastos").catch(()=>[])]);
-      const fs=facs.filter(f=>f.estado==="Emitida");
+      const [facs,todosGastos,sf,sg]=await Promise.all([api("/facturas"),api("/gastos").catch(()=>[]),saldosDe("Factura"),saldosDe("Gasto")]);
+      const pendF=f=>(sf[f.id]||{}).pendiente??f.total, pendG=g=>(sg[g.id]||{}).pendiente??g.total;
+      // Solo lo que tiene algo pendiente (ni anulado ni ya cobrado/pagado).
+      const fs=facs.filter(f=>f.estado==="Emitida"&&pendF(f)>0.004);
+      const gastos=(todosGastos||[]).filter(g=>g.estado!=="Anulado"&&pendG(g)>0.004);
+      const en=d=>{ const x=new Date(); x.setDate(x.getDate()+d); return x.toISOString().slice(0,10); };
       const aviso=(!empresa.iban||!empresa.identificadorAcreedor)?`<div style="background:var(--accent-soft);border-radius:12px;padding:10px 14px;margin-bottom:14px">Configura primero el <strong>IBAN e identificador de acreedor</strong> de la empresa en <a onclick="ir('ajustes')" style="cursor:pointer;text-decoration:underline">Ajustes → Datos de cobro</a>.</div>`:"";
-      const filas=fs.map(f=>`<tr><td><input type="checkbox" class="rem_chk" value="${f.id}" style="width:auto"/></td><td><strong>${f.numeroCompleto}</strong></td><td>${f.clienteNombre}</td><td class="muted">${fdate(f.fechaEmision)}</td><td class="num"><strong>${eur(f.total)}</strong></td></tr>`).join("");
-      const opciones=`<div class="grid2" style="margin:6px 0 12px">
+      const filas=fs.map(f=>`<tr><td><input type="checkbox" class="rem_chk" value="${f.id}" style="width:auto"/></td><td><strong>${f.numeroCompleto}</strong></td><td>${f.clienteNombre}</td><td class="muted">${fdate(f.fechaEmision)}</td><td class="num">${eur(f.total)}</td><td class="num"><strong>${eur(pendF(f))}</strong></td></tr>`).join("");
+      const opciones=`<div class="grid2" style="margin:6px 0 12px;grid-template-columns:repeat(3,1fr)">
         <div><label>Esquema</label><select id="rem_esq"><option value="CORE">CORE (particulares)</option><option value="B2B">B2B (empresas)</option></select></div>
-        <div><label>Secuencia</label><select id="rem_seq"><option value="OOFF">Único (OOFF)</option><option value="FRST">Primero (FRST)</option><option value="RCUR">Recurrente (RCUR)</option><option value="FNAL">Último (FNAL)</option></select></div></div>`;
-      const cuerpoCobro=fs.length?`${aviso}${opciones}<table><thead><tr><th></th><th>Número</th><th>Cliente</th><th>Fecha</th><th class="num">Total</th></tr></thead><tbody>${filas}</tbody></table>
+        <div><label>Secuencia</label><select id="rem_seq"><option value="OOFF">Único (OOFF)</option><option value="FRST">Primero (FRST)</option><option value="RCUR">Recurrente (RCUR)</option><option value="FNAL">Último (FNAL)</option></select></div>
+        <div><label>Fecha de cobro</label><input id="rem_fecha" type="date" value="${en(3)}"/></div></div>`;
+      const cuerpoCobro=fs.length?`${aviso}${opciones}<table><thead><tr><th></th><th>Número</th><th>Cliente</th><th>Fecha</th><th class="num">Total</th><th class="num">Pendiente</th></tr></thead><tbody>${filas}</tbody></table>
         <p class="muted" style="font-size:12px;margin:12px 0 0">Marca las facturas a domiciliar y genera el fichero SEPA (pain.008 / Norma 19.14). Solo se incluirán las de clientes con IBAN y mandato; el resto se listan como omitidas.</p>`
-        :vacio("facturas","No hay facturas emitidas","Emite facturas para poder domiciliarlas.");
+        :vacio("facturas","No hay facturas pendientes de cobro","Aquí aparecen las facturas emitidas con importe pendiente, para domiciliarlas.");
       // Pagos a proveedores (transferencias SEPA / Cuaderno 34).
-      const gfilas=(gastos||[]).map(g=>`<tr><td><input type="checkbox" class="pag_chk" value="${g.id}" style="width:auto"/></td><td><strong>${g.concepto}</strong></td><td>${g.proveedorTexto||'—'}</td><td class="muted">${fdate(g.fecha)}</td><td class="num"><strong>${eur(g.total)}</strong></td></tr>`).join("");
-      const cuerpoPago=(gastos&&gastos.length)?`<table><thead><tr><th></th><th>Concepto</th><th>Proveedor</th><th>Fecha</th><th class="num">Total</th></tr></thead><tbody>${gfilas}</tbody></table>
+      const gfilas=gastos.map(g=>`<tr><td><input type="checkbox" class="pag_chk" value="${g.id}" style="width:auto"/></td><td><strong>${g.concepto}</strong></td><td>${g.proveedorTexto||'—'}</td><td class="muted">${fdate(g.fecha)}</td><td class="num">${eur(g.total)}</td><td class="num"><strong>${eur(pendG(g))}</strong></td></tr>`).join("");
+      const cuerpoPago=gastos.length?`<div style="margin:6px 0 12px;max-width:220px"><label>Fecha de ejecución</label><input id="pag_fecha" type="date" value="${en(1)}"/></div><table><thead><tr><th></th><th>Concepto</th><th>Proveedor</th><th>Fecha</th><th class="num">Total</th><th class="num">Pendiente</th></tr></thead><tbody>${gfilas}</tbody></table>
         <p class="muted" style="font-size:12px;margin:12px 0 0">Marca los gastos a pagar y genera el fichero de transferencias SEPA (pain.001 / Cuaderno 34) para tu banco. Solo se incluyen proveedores con IBAN y gastos pendientes.</p>`
-        :vacio("pagos","Sin gastos","Registra gastos de proveedores para poder pagarlos por transferencia.");
+        :vacio("pagos","Sin gastos pendientes de pago","Aquí aparecen los gastos de proveedores con importe pendiente, para pagarlos por transferencia.");
       const accCobro=fs.length?`<div style="display:flex;gap:8px"><button class="btn small ghost" onclick="generarCuaderno19()" title="Formato clásico CSB, a validar con el banco">Cuaderno 19 clásico</button><button class="btn small" onclick="generarRemesa()">Generar remesa SEPA</button></div>`:"";
-      const accPago=(gastos&&gastos.length)?`<div style="display:flex;gap:8px"><button class="btn small ghost" onclick="generarConfirming()" title="Confirming Cuaderno 68, a validar con el banco">Confirming (C68)</button><button class="btn small" onclick="generarTransferencias()">Generar transferencias SEPA</button></div>`:"";
+      const accPago=gastos.length?`<div style="display:flex;gap:8px"><button class="btn small ghost" onclick="generarConfirming()" title="Confirming Cuaderno 68, a validar con el banco">Confirming (C68)</button><button class="btn small" onclick="generarTransferencias()">Generar transferencias SEPA</button></div>`:"";
       view(panel("Remesas de adeudos SEPA (cobros)",cuerpoCobro,accCobro)
         +panel("Transferencias a proveedores (pagos)",cuerpoPago,accPago));
     }
@@ -981,7 +991,7 @@
       const ids=[...document.querySelectorAll(".rem_chk:checked")].map(c=>c.value);
       if(!ids.length){ toast("Marca al menos una factura","err"); return; }
       try{
-        const r=await api("/tesoreria/remesa",{method:"POST",body:JSON.stringify({facturaIds:ids,esquema:val("rem_esq"),secuencia:val("rem_seq")})});
+        const r=await api("/tesoreria/remesa",{method:"POST",body:JSON.stringify({facturaIds:ids,esquema:val("rem_esq"),secuencia:val("rem_seq"),fechaCobro:val("rem_fecha")||null})});
         descargarTexto(r.ficheroXml,r.nombreArchivo,"application/xml");
         let msg=`Remesa generada: ${r.numeroAdeudos} adeudo(s), ${eur(r.total)}.`;
         if(r.omitidas&&r.omitidas.length) msg+=` ${r.omitidas.length} omitida(s).`;
@@ -992,7 +1002,7 @@
       const ids=[...document.querySelectorAll(".pag_chk:checked")].map(c=>c.value);
       if(!ids.length){ toast("Marca al menos un gasto","err"); return; }
       try{
-        const r=await api("/tesoreria/transferencias",{method:"POST",body:JSON.stringify({gastoIds:ids})});
+        const r=await api("/tesoreria/transferencias",{method:"POST",body:JSON.stringify({gastoIds:ids,fechaPago:val("pag_fecha")||null})});
         descargarTexto(r.fichero,r.nombreArchivo,"application/xml");
         let msg=`Transferencias generadas: ${r.numeroPagos} pago(s), ${eur(r.total)}.`;
         if(r.omitidos&&r.omitidos.length){ msg+=` ${r.omitidos.length} omitido(s).`; alert("Gastos omitidos:\n\n"+r.omitidos.join("\n")); }
@@ -1434,13 +1444,17 @@
 
     async function vPagos() {
       view('<div class="muted">Cargando…</div>');
-      const gs=await api("/gastos");
-      const saldos=await Promise.all(gs.map(g=>api("/gastos/"+g.id+"/saldo").catch(()=>null)));
-      const filas=gs.map((g,i)=>{const s=saldos[i]||{}; const est=s.estado||"Pendiente"; const p=est==="Liquidado"?"ok":(est==="Parcial"?"part":"wait");
-        const movs=(s.movimientos||[]).length?`<button class="btn small ghost" onclick="verMovimientos('/gastos/${g.id}/saldo','Pagos de ${agEsc(g.concepto).replace(/'/g,"")}',vPagos)">Pagos</button>`:"";
-        return `<tr><td><strong>${g.concepto}</strong></td><td>${g.proveedorTexto||"—"}</td><td class="num">${eur(g.total)}</td><td class="num">${eur(s.liquidado||0)}</td><td class="num">${eur(s.pendiente??g.total)}</td><td class="right"><span class="pill ${p}">${est}</span></td><td class="right">${movs}</td></tr>`;}).join("");
-      const cuerpo=gs.length?`<table><thead><tr><th>Concepto</th><th>Proveedor</th><th class="num">Total</th><th class="num">Pagado</th><th class="num">Pendiente</th><th class="right">Estado</th><th></th></tr></thead><tbody>${filas}</tbody></table>`:vacio("pagos","Nada que pagar aún","Cuando registres gastos verás aquí su estado de pago.");
-      view(panel("Pagos a proveedores",cuerpo));
+      const [todos,saldos]=await Promise.all([api("/gastos"),saldosDe("Gasto")]);
+      const gs=todos.filter(g=>g.estado!=="Anulado"); // un gasto anulado no se paga
+      let totalPend=0;
+      const filas=gs.map(g=>{const s=saldos[g.id]||{}; const est=s.estado||"Pendiente"; const p=est==="Liquidado"?"ok":(est==="Parcial"?"part":"wait"); const pend=s.pendiente??g.total;
+        if(est!=="Liquidado"&&pend>0) totalPend+=pend;
+        const pagar=est!=="Liquidado"&&pend>0.004?`<button class="btn small secondary" onclick="modalPagoGasto('${g.id}','${agEsc(g.concepto).replace(/'/g,"")}',${pend},vPagos)">Pagar</button>`:"";
+        const movs=(s.liquidado||0)!==0?` <button class="btn small ghost" onclick="verMovimientos('/gastos/${g.id}/saldo','Pagos de ${agEsc(g.concepto).replace(/'/g,"")}',vPagos)">Pagos</button>`:"";
+        return `<tr><td><strong>${g.concepto}</strong></td><td>${g.proveedorTexto||"—"}</td><td class="muted">${fdate(g.fecha)}</td><td class="num">${eur(g.total)}</td><td class="num">${eur(s.liquidado||0)}</td><td class="num"><strong>${eur(pend)}</strong></td><td class="right"><span class="pill ${p}">${est}</span></td><td class="right" style="white-space:nowrap">${pagar}${movs}</td></tr>`;}).join("");
+      const kpis=`<div class="kpis" style="grid-template-columns:repeat(1,1fr);max-width:280px"><div class="kpi"><div class="lbl">Pendiente de pago</div><div class="val">${eur(totalPend)}</div></div></div>`;
+      const cuerpo=gs.length?`<table><thead><tr><th>Concepto</th><th>Proveedor</th><th>Fecha</th><th class="num">Total</th><th class="num">Pagado</th><th class="num">Pendiente</th><th class="right">Estado</th><th></th></tr></thead><tbody>${filas}</tbody></table>`:vacio("pagos","Nada que pagar aún","Cuando registres gastos verás aquí su estado de pago.");
+      view(kpis+panel("Pagos a proveedores",cuerpo));
     }
     // ---- Producción: órdenes de fabricación sobre la lista de materiales ----
     function estadoPillProd(e){ const m={Planificada:"wait",EnCurso:"part",Terminada:"ok",Cancelada:"neg"}; return `<span class="pill ${m[e]||''}">${e}</span>`; }
@@ -1809,9 +1823,22 @@
         async()=>{ await api(`/contabilidad/asientos/${id}/anular`,{method:"POST",body:JSON.stringify({fecha:val("aa_fecha")||null})}); toast("Asiento anulado.","ok"); vContabilidad(); });
       document.getElementById("modalOk").textContent="Anular";
     }
+    // Ejercicio consultado en Contabilidad e Informes (por defecto el actual; se pueden ver los anteriores).
+    let _contAnio=new Date().getFullYear();
+    function selectorEjercicio(clave,sel,n){
+      const actual=new Date().getFullYear(); const anios=[];
+      for(let i=0;i<(n||6);i++) anios.push(actual-i);
+      if(!anios.includes(sel)) anios.push(sel);
+      return `<select onchange="cambiarEjercicio('${clave}',Number(this.value))" style="width:auto">${anios.sort((a,b)=>b-a).map(a=>`<option value="${a}"${a===sel?" selected":""}>Ejercicio ${a}</option>`).join("")}</select>`;
+    }
+    function cambiarEjercicio(clave,anio){
+      if(clave==="cont"){ _contAnio=anio; vContabilidad(); }
+      else if(clave==="inf"){ infAnio=anio; vInformes(); }
+      else if(clave==="mayor"){ _mayor.anio=anio; _mayor.desde=""; _mayor.hasta=""; vMayor(); }
+    }
     async function vContabilidad() {
       view('<div class="muted">Cargando…</div>');
-      const anio=new Date().getFullYear();
+      const anio=_contAnio;
       const [cfg,diario,balance,pendientes,reglas,cuentas,pyg,balsit,anuales,is200,diarios,periodos,periodif]=await Promise.all([
         api("/contabilidad/config"),
         api("/contabilidad/diario?ejercicio="+anio),
@@ -1836,6 +1863,7 @@
       const banner=`<div class="panel" style="padding:16px 18px;margin-bottom:18px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
         <div style="flex:1;min-width:240px"><strong>Modo de contabilidad</strong>
           <div class="muted" style="font-size:12.5px;margin-top:2px">${modo==="Completo"?"Partida doble: cada factura genera su asiento (libro diario y mayor).":"Un libro: contabilizar registra el gasto con IVA soportado. Sin asientos."}</div></div>
+        ${selectorEjercicio("cont",anio)}
         <select id="cont_modo" onchange="cambiarModoContab(this.value)" style="width:auto;min-width:180px">
           <option value="Simple"${modo==="Simple"?" selected":""}>Simple (un libro)</option>
           <option value="Completo"${modo==="Completo"?" selected":""}>Completo (partida doble)</option>
@@ -1894,7 +1922,7 @@
       // Balance
       const totD=balance.reduce((a,b)=>a+b.sumaDebe,0), totH=balance.reduce((a,b)=>a+b.sumaHaber,0);
       const balTabla=balance.length
-        ? `<table><thead><tr><th>Cuenta</th><th>Nombre</th><th class="num">Debe</th><th class="num">Haber</th><th class="num">Saldo D</th><th class="num">Saldo A</th></tr></thead><tbody>${balance.map(s=>`<tr><td><strong>${s.cuentaCodigo}</strong></td><td class="muted">${s.cuentaNombre}</td><td class="num">${eur(s.sumaDebe)}</td><td class="num">${eur(s.sumaHaber)}</td><td class="num">${s.saldoDeudor>0?eur(s.saldoDeudor):''}</td><td class="num">${s.saldoAcreedor>0?eur(s.saldoAcreedor):''}</td></tr>`).join("")}<tr style="border-top:2px solid var(--line)"><td colspan="2"><strong>Totales</strong></td><td class="num"><strong>${eur(totD)}</strong></td><td class="num"><strong>${eur(totH)}</strong></td><td colspan="2"></td></tr></tbody></table>`
+        ? `<table><thead><tr><th>Cuenta</th><th>Nombre</th><th class="num">Debe</th><th class="num">Haber</th><th class="num">Saldo D</th><th class="num">Saldo A</th></tr></thead><tbody>${balance.map(s=>`<tr style="cursor:pointer" title="Ver el libro mayor de la cuenta" onclick="vMayor('${agEsc(s.cuentaCodigo)}',${anio})"><td><strong>${s.cuentaCodigo}</strong></td><td class="muted">${s.cuentaNombre}</td><td class="num">${eur(s.sumaDebe)}</td><td class="num">${eur(s.sumaHaber)}</td><td class="num">${s.saldoDeudor>0?eur(s.saldoDeudor):''}</td><td class="num">${s.saldoAcreedor>0?eur(s.saldoAcreedor):''}</td></tr>`).join("")}<tr style="border-top:2px solid var(--line)"><td colspan="2"><strong>Totales</strong></td><td class="num"><strong>${eur(totD)}</strong></td><td class="num"><strong>${eur(totH)}</strong></td><td colspan="2"></td></tr></tbody></table>`
         : '<p class="muted">Sin movimientos en '+anio+'.</p>';
       // Cuenta de Pérdidas y Ganancias (grupos 6 y 7).
       let panelPyg="";
@@ -1929,12 +1957,17 @@
       // Cierre de ejercicio (solo modo Completo).
       let panelCierre="";
       if(modo==="Completo"){
+        // Solo se ofrecen ejercicios terminados: el servidor rechaza cerrar el año en curso (cierre.ejercicio_abierto).
         const yaCerrado=diario.some(a=>a.origen==="Cierre");
-        panelCierre=panel("Cierre de ejercicio · "+anio,
-          yaCerrado
-            ? `<p class="muted" style="margin:0">El ejercicio <strong>${anio}</strong> ya está cerrado. Se generaron los asientos de regularización, cierre y la apertura de ${anio+1}. No admite nuevos asientos.</p>`
-            : `<p class="muted" style="margin:0 0 10px">Cerrar el ejercicio regulariza los grupos 6 y 7 contra la cuenta de resultado (129), genera el asiento de cierre de todas las cuentas patrimoniales y abre esos saldos en ${anio+1}. Tras cerrar, ${anio} no admite más asientos.</p>`,
-          yaCerrado?'':`<button class="btn small" onclick="cerrarEjercicio(${anio})">Cerrar ejercicio ${anio}</button>`);
+        const actual=new Date().getFullYear();
+        const terminados=[1,2,3,4,5].map(i=>actual-i);
+        const defecto=anio<actual&&!yaCerrado?anio:actual-1;
+        const explicacion=`<p class="muted" style="margin:0 0 10px">Cerrar un ejercicio regulariza los grupos 6 y 7 contra la cuenta de resultado (129), genera el asiento de cierre de todas las cuentas patrimoniales y abre esos saldos en el ejercicio siguiente. Después, el ejercicio cerrado no admite más asientos.</p>`;
+        const estado=yaCerrado
+          ? `<p class="muted" style="margin:0 0 10px">El ejercicio <strong>${anio}</strong> ya está cerrado (regularización, cierre y apertura de ${anio+1} generados).</p>`
+          : (anio>=actual?`<p class="muted" style="margin:0 0 10px">El ejercicio en curso (<strong>${anio}</strong>) no se puede cerrar hasta que termine: a partir del 1 de enero de ${anio+1}.</p>`:"");
+        panelCierre=panel("Cierre de ejercicio",estado+explicacion,
+          `<select id="cie_anio" style="width:auto">${terminados.map(a=>`<option value="${a}"${a===defecto?" selected":""}>${a}</option>`).join("")}</select> <button class="btn small" onclick="cerrarEjercicio(Number(val('cie_anio')))">Cerrar ejercicio</button>`);
       }
       // Cuentas Anuales normalizadas (PGC-Pymes) + liquidación del Impuesto de Sociedades (modelo 200).
       let panelAnuales="";
@@ -1981,7 +2014,7 @@
         +panelReglas
         +panel("Libro diario · "+anio,`<div id="diario_cuerpo">${diarioTabla}</div>`,agBotones((diarios||[]).length?`<select style="width:auto" onchange="filtrarDiario(this.value)"><option value="">Todos los diarios</option>${diarios.map(d=>`<option value="${d.codigo}">${agEsc(d.codigo)} · ${agEsc(d.nombre)}</option>`).join("")}</select>`:"",`<button class="btn small" onclick="modalAsiento()">+ Nuevo asiento</button>`))
         +(modo==="Completo"?panelPeriodificaciones(periodif)+panelPeriodos(periodos,anio)+panelDiarios(diarios):"")
-        +panel("Balance de sumas y saldos · "+anio,balTabla)
+        +panel("Balance de sumas y saldos · "+anio,(balance.length?'<p class="muted" style="margin:0 0 10px">Pulsa una cuenta para ver su libro mayor.</p>':'')+balTabla,`<button class="btn small ghost" onclick="vMayor('',${anio})">Libro mayor</button>`)
         +panelPyg
         +panelBalSit
         +panelAnuales
@@ -1991,8 +2024,47 @@
     async function cerrarEjercicio(anio){
       if(!confirm("¿Cerrar el ejercicio "+anio+"?\n\nSe generarán los asientos de regularización, cierre y apertura de "+(anio+1)+". El ejercicio "+anio+" quedará bloqueado para nuevos asientos.")) return;
       try{ const r=await api("/contabilidad/cierre?ejercicio="+anio,{method:"POST"});
-        toast("Ejercicio "+anio+" cerrado. Resultado: "+eur(r.resultado),"ok"); vContabilidad();
+        toast("Ejercicio "+anio+" cerrado. Resultado: "+eur(r.resultado),"ok"); _contAnio=anio; vContabilidad();
       }catch(e){ toast(e.message,"err"); }
+    }
+    // ---- Libro mayor de una cuenta (GET /contabilidad/mayor/{codigo}), con ejercicio y rango de fechas ----
+    let _mayor={codigo:"",anio:null,desde:"",hasta:""};
+    function dlCuentas(){ return `<datalist id="dl_cuentas">${(window._ctaOpts||[]).map(c=>`<option value="${agEsc(c.codigo)}">${agEsc(c.nombre)}</option>`).join("")}</datalist>`; }
+    async function vMayor(codigo,anio){
+      if(codigo!==undefined){ _mayor.codigo=(codigo||"").trim(); }
+      if(anio){ if(anio!==_mayor.anio){ _mayor.desde=""; _mayor.hasta=""; } _mayor.anio=anio; }
+      if(!_mayor.anio) _mayor.anio=_contAnio;
+      view('<div class="muted">Cargando…</div>');
+      if(!(window._ctaOpts||[]).length) window._ctaOpts=await api("/contabilidad/cuentas").catch(()=>[]);
+      const a=_mayor.anio, cta=_mayor.codigo;
+      const lineas=cta?await api(`/contabilidad/mayor/${encodeURIComponent(cta)}?ejercicio=${a}`).catch(e=>{ toast(e.message,"err"); return []; }):[];
+      const nombre=((window._ctaOpts||[]).find(c=>c.codigo===cta)||{}).nombre||"";
+      const previas=lineas.filter(l=>_mayor.desde&&l.fecha<_mayor.desde);
+      const enRango=lineas.filter(l=>(!_mayor.desde||l.fecha>=_mayor.desde)&&(!_mayor.hasta||l.fecha<=_mayor.hasta));
+      const saldoInicial=previas.length?previas[previas.length-1].saldoAcumulado:0;
+      const totD=enRango.reduce((x,l)=>x+l.debe,0), totH=enRango.reduce((x,l)=>x+l.haber,0);
+      const saldoFinal=enRango.length?enRango[enRango.length-1].saldoAcumulado:saldoInicial;
+      const saldoTxt=v=>`${eur(Math.abs(v))} ${v>0.004?'<span class="muted">D</span>':(v<-0.004?'<span class="muted">A</span>':'')}`;
+      const controles=`<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px">
+        <div><label>Cuenta</label><input id="my_cta" list="dl_cuentas" value="${agEsc(cta)}" placeholder="p. ej. 430" style="width:180px"/>${dlCuentas()}</div>
+        <div><label>Ejercicio</label>${selectorEjercicio("mayor",a)}</div>
+        <div><label>Desde</label><input id="my_desde" type="date" min="${a}-01-01" max="${a}-12-31" value="${_mayor.desde}"/></div>
+        <div><label>Hasta</label><input id="my_hasta" type="date" min="${a}-01-01" max="${a}-12-31" value="${_mayor.hasta}"/></div>
+        <button class="btn small" onclick="consultarMayor()">Consultar</button></div>`;
+      let cuerpo;
+      if(!cta) cuerpo='<p class="muted" style="margin:0">Elige una cuenta del plan para ver sus movimientos.</p>';
+      else if(!lineas.length) cuerpo=`<p class="muted" style="margin:0">La cuenta ${agEsc(cta)} no tiene movimientos en ${a}.</p>`;
+      else {
+        const filas=enRango.map(l=>`<tr><td class="muted">${fdate(l.fecha)}</td><td>#${l.numero}</td><td>${agEsc(l.concepto)}</td><td class="num">${l.debe?eur(l.debe):''}</td><td class="num">${l.haber?eur(l.haber):''}</td><td class="num">${saldoTxt(l.saldoAcumulado)}</td></tr>`).join("");
+        cuerpo=`<table><thead><tr><th>Fecha</th><th>Asiento</th><th>Concepto</th><th class="num">Debe</th><th class="num">Haber</th><th class="num">Saldo</th></tr></thead><tbody>
+          ${_mayor.desde?`<tr><td colspan="5" class="muted">Saldo anterior al ${fdate(_mayor.desde)}</td><td class="num">${saldoTxt(saldoInicial)}</td></tr>`:''}
+          ${filas||'<tr><td colspan="6" class="muted">Sin movimientos en el rango.</td></tr>'}
+          <tr style="border-top:2px solid var(--line)"><td colspan="3"><strong>Totales</strong></td><td class="num"><strong>${eur(totD)}</strong></td><td class="num"><strong>${eur(totH)}</strong></td><td class="num"><strong>${saldoTxt(saldoFinal)}</strong></td></tr></tbody></table>`;
+      }
+      view(panel(`Libro mayor${cta?` · ${agEsc(cta)}${nombre?` ${agEsc(nombre)}`:''}`:''} · ${a}`,controles+cuerpo,`<button class="btn small ghost" onclick="vContabilidad()">← Contabilidad</button>`));
+    }
+    function consultarMayor(){
+      _mayor.codigo=(val("my_cta")||"").trim(); _mayor.desde=val("my_desde")||""; _mayor.hasta=val("my_hasta")||""; vMayor();
     }
     function modalRegla(r){
       const cuentas=window._ctaOpts||[];
@@ -2047,10 +2119,31 @@
       }catch(e){ toast(e.message,"err"); vContabilidad(); }
     }
     function asientoLineaHtml(){
-      return `<div class="asi-linea" style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px;margin-bottom:6px">
-        <input class="asi-cta" placeholder="Cuenta (p.ej. 600)"/>
+      return `<div class="asi-linea" style="display:grid;grid-template-columns:1.2fr 2fr 1fr 1fr;gap:8px;margin-bottom:6px">
+        <input class="asi-cta" list="dl_cuentas" placeholder="Cuenta (p.ej. 600)"/>
+        <input class="asi-con" placeholder="Concepto de la línea (opcional)"/>
         <input class="asi-debe" type="number" step="0.01" placeholder="Debe"/>
         <input class="asi-haber" type="number" step="0.01" placeholder="Haber"/></div>`;
+    }
+    // Cuadre en vivo del asiento manual y aviso de cuentas que no están en el plan (el servidor las rechaza).
+    function asiCuadre(){
+      const el=document.getElementById("asi_cuadre"); if(!el) return;
+      const plan=new Set((window._ctaOpts||[]).map(c=>c.codigo)); const fuera=[]; let d=0,h=0;
+      document.querySelectorAll('#asi_lineas .asi-linea').forEach(r=>{
+        d+=Number(r.querySelector('.asi-debe').value||0); h+=Number(r.querySelector('.asi-haber').value||0);
+        const c=(r.querySelector('.asi-cta').value||'').trim(); if(c&&plan.size&&!plan.has(c)&&!fuera.includes(c)) fuera.push(c); });
+      const dif=Math.round((d-h)*100)/100;
+      el.innerHTML=`Debe <strong>${eur(d)}</strong> · Haber <strong>${eur(h)}</strong> · ${dif===0&&d>0?'<span class="pill ok">Cuadra</span>':`<span class="pill wait">Diferencia ${eur(dif)}</span>`}`
+        +(fuera.length?`<div style="color:var(--neg);margin-top:6px">Fuera del plan de cuentas: ${fuera.map(agEsc).join(", ")}. <a style="cursor:pointer;text-decoration:underline" onclick="altaCuentaPlan('${agEsc(fuera[0])}')">Dar de alta</a></div>`:"");
+    }
+    async function altaCuentaPlan(codigo){
+      const cod=(prompt("Código de la nueva cuenta (solo dígitos):",codigo||"")||"").trim(); if(!cod) return;
+      const nombre=(prompt("Nombre de la cuenta "+cod+":")||"").trim(); if(!nombre) return;
+      try{ const c=await api("/contabilidad/cuentas",{method:"POST",body:JSON.stringify({codigo:cod,nombre})});
+        window._ctaOpts=[...(window._ctaOpts||[]),c];
+        const dl=document.getElementById("dl_cuentas"); if(dl) dl.outerHTML=dlCuentas();
+        toast("Cuenta "+cod+" dada de alta en el plan.","ok"); asiCuadre();
+      }catch(e){ toast(e.message,"err"); }
     }
     function filtrarDiario(codigo){
       const lista=(window._diarioTodos||[]).filter(a=>!codigo||a.diario===codigo).sort((x,y)=>codigo?x.numeroDiario-y.numeroDiario:0);
@@ -2145,24 +2238,29 @@
       if(!confirm("¿Eliminar este diario?")) return;
       try{ await api(`/contabilidad/diarios/${id}`,{method:"DELETE"}); toast("Diario eliminado.","ok"); vContabilidad(); }catch(e){ toast(e.message,"err"); }
     }
-    function modalAsiento(){
+    async function modalAsiento(){
       const hoy=new Date().toISOString().slice(0,10);
+      if(!(window._ctaOpts||[]).length) window._ctaOpts=await api("/contabilidad/cuentas").catch(()=>[]);
       const dOpts=(window._diarios||[]).filter(d=>d.activo).map(d=>`<option value="${d.codigo}">${agEsc(d.codigo)} · ${agEsc(d.nombre)}</option>`).join("");
       abrir("Nuevo asiento",`
         <div class="grid2"><div><label>Fecha</label><input id="asi_fecha" type="date" value="${hoy}"/></div><div><label>Concepto</label><input id="asi_concepto" placeholder="Descripción del asiento"/></div></div>
         ${dOpts?`<label>Diario</label><select id="asi_diario"><option value="">Automático (el de los asientos manuales)</option>${dOpts}</select>`:""}
         <label style="margin-top:14px">Apuntes (la suma del debe debe igualar la del haber)</label>
-        <div id="asi_lineas">${asientoLineaHtml()+asientoLineaHtml()}</div>
-        <button class="btn small secondary" style="margin-top:4px" onclick="document.getElementById('asi_lineas').insertAdjacentHTML('beforeend', asientoLineaHtml())">+ Añadir línea</button>`,
+        ${dlCuentas()}
+        <div id="asi_lineas" oninput="asiCuadre()">${asientoLineaHtml()+asientoLineaHtml()}</div>
+        <button class="btn small secondary" style="margin-top:4px" onclick="document.getElementById('asi_lineas').insertAdjacentHTML('beforeend', asientoLineaHtml())">+ Añadir línea</button>
+        <div id="asi_cuadre" class="muted" style="margin-top:10px;font-size:13px"></div>`,
         async()=>{
           const lineas=[...document.querySelectorAll('#asi_lineas .asi-linea')].map(r=>({
             cuentaCodigo:(r.querySelector('.asi-cta').value||'').trim(),
+            concepto:(r.querySelector('.asi-con').value||'').trim()||null,
             debe:Number(r.querySelector('.asi-debe').value||0),
             haber:Number(r.querySelector('.asi-haber').value||0),
           })).filter(l=>l.cuentaCodigo && (l.debe>0||l.haber>0));
           await api("/contabilidad/asientos",{method:"POST",body:JSON.stringify({fecha:val("asi_fecha"),concepto:val("asi_concepto"),diario:(document.getElementById("asi_diario")||{}).value||null,lineas})});
           toast("Asiento registrado.","ok"); vContabilidad();
         });
+      asiCuadre();
     }
 
     // ---- Ciclo de venta: pedidos de venta y albaranes de entrega ----
@@ -2483,13 +2581,12 @@
       const [fs,gs,previsiones]=await Promise.all([api("/facturas").catch(()=>[]),api("/gastos").catch(()=>[]),api("/tesoreria/previsiones").catch(()=>[])]);
       window._previsiones=previsiones||[];
       const facs=fs.filter(f=>f.estado!=="Rectificada"&&f.estado!=="Anulada");
-      const [sf,sg]=await Promise.all([
-        Promise.all(facs.map(f=>api("/facturas/"+f.id+"/saldo").catch(()=>null))),
-        Promise.all(gs.map(g=>api("/gastos/"+g.id+"/saldo").catch(()=>null))),
-      ]);
+      const gastos=gs.filter(g=>g.estado!=="Anulado");
+      const [sf,sg]=await Promise.all([saldosDe("Factura"),saldosDe("Gasto")]);
       const filas=[];
-      facs.forEach((f,i)=>{ const s=sf[i]||{}; const pend=s.pendiente??f.total; if((s.estado||"Pendiente")!=="Liquidado"&&pend>0.001){ filas.push({fecha:f.fechaVencimiento,concepto:f.numeroCompleto+" · "+f.clienteNombre,tipo:"Cobro",in:pend,out:0,origen:"Factura",prevista:false,accion:`<button class="btn small secondary" onclick="event.stopPropagation();modalCobro('${f.id}','${f.numeroCompleto}',${pend})">Cobrar</button>`}); } });
-      gs.forEach((g,i)=>{ const s=sg[i]||{}; const pend=s.pendiente??g.total; if((s.estado||"Pendiente")!=="Liquidado"&&pend>0.001){ filas.push({fecha:(g.fechaVencimiento||g.fecha),concepto:g.concepto+(g.proveedorTexto?" · "+g.proveedorTexto:""),tipo:"Pago",in:0,out:pend,origen:"Gasto",prevista:false,accion:`<button class="btn small secondary" onclick="event.stopPropagation();modalPagoGasto('${g.id}','${(g.concepto||'').replace(/'/g,'')}',${pend})">Pagar</button>`}); } });
+      facs.forEach(f=>{ const s=sf[f.id]||{}; const pend=s.pendiente??f.total; if((s.estado||"Pendiente")!=="Liquidado"&&pend>0.001){ filas.push({fecha:f.fechaVencimiento,concepto:f.numeroCompleto+" · "+f.clienteNombre,tipo:"Cobro",in:pend,out:0,origen:"Factura",prevista:false,accion:`<button class="btn small secondary" onclick="event.stopPropagation();modalCobro('${f.id}','${f.numeroCompleto}',${pend},vPrevision)">Cobrar</button>`}); } });
+      // El gasto no tiene vencimiento propio: se prevé su pago en la fecha del gasto.
+      gastos.forEach(g=>{ const s=sg[g.id]||{}; const pend=s.pendiente??g.total; if((s.estado||"Pendiente")!=="Liquidado"&&pend>0.001){ filas.push({fecha:g.fecha,concepto:g.concepto+(g.proveedorTexto?" · "+g.proveedorTexto:""),tipo:"Pago",in:0,out:pend,origen:"Gasto",prevista:false,accion:`<button class="btn small secondary" onclick="event.stopPropagation();modalPagoGasto('${g.id}','${agEsc(g.concepto).replace(/'/g,'')}',${pend},vPrevision)">Pagar</button>`}); } });
       (previsiones||[]).forEach(p=>{ const ing=p.sentido==="Ingreso"; filas.push({fecha:p.fecha,concepto:p.concepto,tipo:ing?"Ingreso previsto":"Gasto previsto",in:ing?p.importe:0,out:ing?0:p.importe,origen:"Previsión",prevista:true,accion:`<button class="btn small secondary" onclick="event.stopPropagation();modalPrevision('${p.id}')" title="Modificar previsión">Editar</button> <button class="btn small ghost" onclick="event.stopPropagation();borrarPrevision('${p.id}')" title="Eliminar previsión">✕</button>`}); });
       filas.sort((a,b)=>(a.fecha||'').localeCompare(b.fecha||''));
       let saldo=0,totIn=0,totOut=0,neto30=0;
@@ -2514,9 +2611,9 @@
         async()=>{ const body=JSON.stringify({sentido:val("pv_sent"),concepto:val("pv_conc"),importe:Number(val("pv_imp")||0),fecha:val("pv_fecha")});
           await api(p?"/tesoreria/previsiones/"+p.id:"/tesoreria/previsiones",{method:p?"PUT":"POST",body}); toast(p?"Previsión guardada.":"Previsión añadida.","ok"); vPrevision(); }); }
     async function borrarPrevision(id){ if(!confirm("¿Eliminar esta previsión?"))return; try{ await api("/tesoreria/previsiones/"+id,{method:"DELETE"}); toast("Previsión eliminada.","ok"); vPrevision(); }catch(e){ toast(e.message,"err"); } }
-    function modalPagoGasto(id,concepto,pend){ const hoy=new Date().toISOString().slice(0,10);
+    function modalPagoGasto(id,concepto,pend,recargar){ const hoy=new Date().toISOString().slice(0,10);
       abrir("Registrar pago · "+concepto,`<div class="grid2"><div><label>Importe (€)</label><input id="pg_imp" type="number" step="0.01" value="${pend}"/></div><div><label>Fecha</label><input id="pg_fecha" type="date" value="${hoy}"/></div></div><label>Método (opcional)</label><input id="pg_metodo" placeholder="Transferencia, efectivo…"/>`,
-        async()=>{ await api("/pagos",{method:"POST",body:JSON.stringify({gastoId:id,importe:Number(val("pg_imp")||0),fecha:val("pg_fecha"),metodo:val("pg_metodo")||null})}); toast("Pago registrado.","ok"); vPrevision(); }); }
+        async()=>{ await api("/pagos",{method:"POST",body:JSON.stringify({gastoId:id,importe:Number(val("pg_imp")||0),fecha:val("pg_fecha"),metodo:val("pg_metodo")||null})}); toast("Pago registrado.","ok"); (recargar||vPrevision)(); }); }
 
     // Cobros o pagos de un documento, con su anulación (no se borran: se añade la anulación en negativo).
     async function verMovimientos(rutaSaldo, titulo, recargar){
@@ -2537,17 +2634,17 @@
 
     async function vCobros() {
       view('<div class="muted">Cargando…</div>');
-      const fs=(await api("/facturas")).filter(f=>f.estado!=="Rectificada"&&f.estado!=="Anulada");
-      const saldos=await Promise.all(fs.map(f=>api("/facturas/"+f.id+"/saldo").catch(()=>null)));
+      const [todas,saldos]=await Promise.all([api("/facturas"),saldosDe("Factura")]);
+      const fs=todas.filter(f=>f.estado!=="Rectificada"&&f.estado!=="Anulada");
       const hoy=new Date().toISOString().slice(0,10);
       let totalPend=0,totalVenc=0,nVenc=0;
-      const filas=fs.map((f,i)=>{const s=saldos[i]||{}; const pend=s.pendiente??f.total; const liq=s.liquidado||0; const est=s.estado||"Pendiente";
+      const filas=fs.map(f=>{const s=saldos[f.id]||{}; const pend=s.pendiente??f.total; const liq=s.liquidado||0; const est=s.estado||"Pendiente";
         const cobrada=est==="Liquidado"; const vencida=!cobrada&&pend>0&&f.fechaVencimiento<hoy;
         if(!cobrada){ totalPend+=pend; if(vencida){ totalVenc+=pend; nVenc++; } }
         const pill=cobrada?'<span class="pill ok">Cobrada</span>':(est==="Parcial"?'<span class="pill part">Parcial</span>':'<span class="pill wait">Pendiente</span>');
         const venc=vencida?` <span class="pill" style="background:#fdecea;color:var(--neg)">Vencida</span>`:"";
         const cobrar=!cobrada?`<button class="btn small secondary" onclick="modalCobro('${f.id}','${f.numeroCompleto}',${pend})">Cobrar</button>`:"";
-        const movs=(s.movimientos||[]).length?` <button class="btn small ghost" onclick="verMovimientos('/facturas/${f.id}/saldo','Cobros de ${f.numeroCompleto}',vCobros)">Cobros</button>`:"";
+        const movs=(s.liquidado||0)!==0?` <button class="btn small ghost" onclick="verMovimientos('/facturas/${f.id}/saldo','Cobros de ${f.numeroCompleto}',vCobros)">Cobros</button>`:"";
         return `<tr><td><strong>${f.numeroCompleto}</strong></td><td>${f.clienteNombre}</td><td class="muted">${fdate(f.fechaVencimiento)}${venc}</td><td class="num">${eur(f.total)}</td><td class="num">${eur(liq)}</td><td class="num"><strong>${eur(pend)}</strong></td><td class="right">${pill}</td><td class="right" style="white-space:nowrap">${cobrar}${movs}</td></tr>`;}).join("");
       const kpis=`<div class="kpis" style="grid-template-columns:repeat(2,1fr);max-width:560px">
         <div class="kpi"><div class="lbl">Pendiente de cobro</div><div class="val">${eur(totalPend)}</div></div>
@@ -3005,24 +3102,35 @@
         <div class="grid2"><div><label>Concepto</label><input id="an_con" placeholder="Entrega a cuenta"/></div><div><label>Método</label><select id="an_met">${metodos}</select></div></div>`,
         async()=>{ await api("/anticipos",{method:"POST",body:JSON.stringify({clienteId:val("an_cli"),importe:Number(val("an_imp")),fecha:val("an_fecha"),concepto:val("an_con")||null,metodo:val("an_met")})}); toast("Anticipo registrado.","ok"); vAnticipos(); }); }
     async function modalAplicarAnticipo(id,clienteId,disponible){
-      const fs=(await api("/facturas")).filter(f=>f.clienteId===clienteId && f.estado==="Emitida");
-      if(!fs.length){ toast("Este cliente no tiene facturas emitidas.","warn"); return; }
-      abrir("Aplicar anticipo",`<label>Factura</label><select id="ap_fac">${fs.map(f=>`<option value="${f.id}">${f.numeroCompleto} · ${eur(f.total)}</option>`).join("")}</select>
+      const [todas,saldos]=await Promise.all([api("/facturas"),saldosDe("Factura")]);
+      const pend=f=>(saldos[f.id]||{}).pendiente??f.total;
+      const fs=todas.filter(f=>f.clienteId===clienteId && f.estado==="Emitida" && pend(f)>0.004);
+      if(!fs.length){ toast("Este cliente no tiene facturas pendientes de cobro.","warn"); return; }
+      abrir("Aplicar anticipo",`<label>Factura</label><select id="ap_fac">${fs.map(f=>`<option value="${f.id}">${f.numeroCompleto} · pendiente ${eur(pend(f))} de ${eur(f.total)}</option>`).join("")}</select>
         <label>Importe (€) · disponible ${eur(disponible)}</label><input id="ap_imp" type="number" step="0.01" placeholder="Vacío: lo máximo posible"/>`,
         async()=>{ const imp=val("ap_imp"); await api("/anticipos/"+id+"/aplicar",{method:"POST",body:JSON.stringify({facturaId:val("ap_fac"),importe:imp?Number(imp):null})}); toast("Anticipo aplicado.","ok"); vAnticipos(); }); }
 
-    function modalCobro(id,numero,pendiente){
+    function modalCobro(id,numero,pendiente,recargar){
       const hoy=new Date().toISOString().slice(0,10);
       const metodos=["Efectivo","Transferencia","Tarjeta","Bizum","Domiciliación"].map(m=>`<option>${m}</option>`).join("");
       abrir(`Registrar cobro · ${numero}`,`<div class="grid2"><div><label>Importe (€)</label><input id="cb_imp" type="number" value="${pendiente}"/></div><div><label>Fecha</label><input id="cb_fecha" type="date" value="${hoy}"/></div></div>
         <label>Método de cobro</label><select id="cb_met">${metodos}</select>`,
-        async()=>{ await api("/cobros",{method:"POST",body:JSON.stringify({facturaId:id,importe:Number(val("cb_imp")),fecha:val("cb_fecha"),metodo:val("cb_met")})}); vCobros(); }); }
+        async()=>{ await api("/cobros",{method:"POST",body:JSON.stringify({facturaId:id,importe:Number(val("cb_imp")),fecha:val("cb_fecha"),metodo:val("cb_met")})}); (recargar||vCobros)(); }); }
     let trimSel=Math.floor(new Date().getMonth()/3)+1;
+    // Ejercicio de Informes y libro de IVA mostrado (Repercutido/Soportado; periodo 0 = año, 1-4 = trimestre).
+    let infAnio=new Date().getFullYear(), infLibro="Repercutido", infLibroPer=0;
+    function rangoLibroIva(){
+      const a=infAnio; if(!infLibroPer) return {desde:`${a}-01-01`,hasta:`${a}-12-31`};
+      const m1=(infLibroPer-1)*3+1;
+      return {desde:`${a}-${String(m1).padStart(2,"0")}-01`,hasta:new Date(Date.UTC(a,m1+2,0)).toISOString().slice(0,10)};
+    }
+    async function verLibroIva(tipo,periodo){ if(tipo) infLibro=tipo; if(periodo!==undefined) infLibroPer=Number(periodo)||0; await vInformes(); }
     async function vInformes() {
       view('<div class="muted">Cargando…</div>');
-      const anio=new Date().getFullYear();
+      const anio=infAnio;
+      const rango=rangoLibroIva();
       const [libro,resumen,benef,anual,m111,m190,facturas,gastos]=await Promise.all([
-        api(`/informes/libro-iva?tipo=Repercutido&desde=${anio}-01-01&hasta=${anio}-12-31`),
+        api(`/informes/libro-iva?tipo=${infLibro}&desde=${rango.desde}&hasta=${rango.hasta}`),
         api(`/informes/resumen-trimestral?anio=${anio}&trimestre=${trimSel}`).catch(()=>null),
         api(`/informes/beneficio?desde=${anio}-01-01&hasta=${anio}-12-31`).catch(()=>null),
         api(`/informes/declaracion-anual?anio=${anio}`).catch(()=>null),
@@ -3033,12 +3141,23 @@
       ]);
       const m349=await api(`/informes/modelo-349?anio=${anio}&trimestre=${trimSel}`).catch(()=>null);
       const panelGraficos=graficosHtml(facturas,gastos,anio);
-      const filas=libro.asientos.map(a=>`<tr><td class="muted">${fdate(a.fecha)}</td><td><strong>${a.documento}</strong></td><td>${a.tercero}</td><td class="num">${eur(a.base)}</td><td class="num">${eur(a.cuota)}</td></tr>`).join("");
-      const total=`<tr><td colspan="3" class="right"><strong>Totales</strong></td><td class="num"><strong>${eur(libro.totalBase)}</strong></td><td class="num"><strong>${eur(libro.totalCuota)}</strong></td></tr>`;
-      const cuerpo=libro.asientos.length?`<table><thead><tr><th>Fecha</th><th>Documento</th><th>Cliente</th><th class="num">Base</th><th class="num">Cuota IVA</th></tr></thead><tbody>${filas}${total}</tbody></table>`:vacio("informes","Sin movimientos en el periodo","Emite facturas para ver aquí tu libro de IVA repercutido.");
-      const panelLibro=panel(`Libro de IVA repercutido · ${anio}`,cuerpo,`<button class="btn small ghost" onclick="descargarCsv()">↓ Exportar CSV (gestoría)</button>`);
+      const rep=infLibro==="Repercutido";
+      const filas=libro.asientos.map(a=>`<tr><td class="muted">${fdate(a.fecha)}</td><td><strong>${agEsc(a.documento)}</strong></td><td>${agEsc(a.tercero)}</td><td class="muted">${agEsc(a.nif||"—")}</td><td class="num">${eur(a.base)}</td><td class="num">${eur(a.cuota)}</td></tr>`).join("");
+      const total=`<tr><td colspan="4" class="right"><strong>Totales</strong></td><td class="num"><strong>${eur(libro.totalBase)}</strong></td><td class="num"><strong>${eur(libro.totalCuota)}</strong></td></tr>`;
+      const cuerpo=libro.asientos.length?`<table><thead><tr><th>Fecha</th><th>Documento</th><th>${rep?"Cliente":"Proveedor"}</th><th>NIF</th><th class="num">Base</th><th class="num">Cuota ${IMP.siglas}</th></tr></thead><tbody>${filas}${total}</tbody></table>`
+        :vacio("informes","Sin movimientos en el periodo",rep?"Emite facturas para ver aquí tu libro de IVA repercutido.":"Registra gastos para ver aquí tu libro de IVA soportado.");
+      const perSel=`<select onchange="verLibroIva(null,this.value)" style="width:auto">${["Todo el año","1T","2T","3T","4T"].map((t,k)=>`<option value="${k}"${k===infLibroPer?" selected":""}>${t}</option>`).join("")}</select>`;
+      const pestanas=["Repercutido","Soportado"].map(t=>`<button class="btn small ${t===infLibro?'':'ghost'}" onclick="verLibroIva('${t}')">${t}</button>`).join(" ");
+      const panelLibro=panel(`Libro de IVA ${rep?"repercutido":"soportado"} · ${infLibroPer?infLibroPer+"T ":""}${anio}`,cuerpo,`${pestanas} ${perSel} <button class="btn small ghost" onclick="descargarCsv()">↓ Exportar CSV (gestoría)</button>`);
+      const mesSii=anio===new Date().getFullYear()?Math.max(1,new Date().getMonth()):12;
+      const panelSii=panel(`SII · suministro inmediato de información · ${anio}`,
+        `<p class="muted" style="margin:0 0 10px">Genera el XML del libro registro del mes (facturas expedidas o recibidas) con la estructura del SII. <strong>No se envía a la AEAT</strong>: el envío con certificado aún no está conectado; revisa el fichero (y valídalo con el esquema oficial o tu asesor) antes de presentarlo por otra vía.</p>
+         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end"><div><label>Mes</label><select id="sii_mes" style="width:auto">${[1,2,3,4,5,6,7,8,9,10,11,12].map(m=>`<option value="${m}"${m===mesSii?" selected":""}>${String(m).padStart(2,"0")}</option>`).join("")}</select></div>
+         <div><label>Libro</label><select id="sii_tipo" style="width:auto"><option value="Emitidas">Facturas emitidas</option><option value="Recibidas">Facturas recibidas</option></select></div>
+         <button class="btn small ghost" onclick="descargarSii()">↓ Descargar XML SII</button></div>`);
+      const barra=`<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:16px">${selectorEjercicio("inf",anio)}<span class="muted">Trimestre</span> ${selTrim(anio)}</div>`;
       const m420=IMP.siglas==="IGIC"?await api(`/impuestos/modelo-420?anio=${anio}&trimestre=${trimSel}`).catch(()=>null):null;
-      view(panelGraficos+(benef?panelBeneficio(benef,anio):"")+(benef&&benef.porProducto.length?panelRanking(benef,anio):"")+(m420?panel420(m420,anio):"")+(resumen?panelResumen(resumen,anio):"")+((m111||m190)?panelRetenciones(m111,m190,anio):"")+(m349?panelIntracomunitarias(m349,anio):"")+(anual?panelAnual(anual,anio):"")+panelLibro);
+      view(barra+panelGraficos+(benef?panelBeneficio(benef,anio):"")+(benef&&benef.porProducto.length?panelRanking(benef,anio):"")+(m420?panel420(m420,anio):"")+(resumen?panelResumen(resumen,anio):"")+((m111||m190)?panelRetenciones(m111,m190,anio):"")+(m349?panelIntracomunitarias(m349,anio):"")+(anual?panelAnual(anual,anio):"")+panelLibro+panelSii);
     }
 
     /* ---------- Analítica: centros × partidas, reglas, repartos y presupuestos ---------- */
@@ -4010,9 +4129,20 @@
         <p class="muted" style="font-size:12.5px;margin-top:12px">La numeración empezará en 1 y no tiene huecos. Podrás usar esta serie al emitir una factura.</p>`,
         async()=>{ await api("/series",{method:"POST",body:JSON.stringify({tipoDocumento:val("s_tipo"),ejercicio:Number(val("s_anio")),prefijo:val("s_pref")})}); vAjustes(); }); }
 
-    async function descargarCsv(){ const anio=new Date().getFullYear();
-      const r=await fetch(`/informes/libro-iva/csv?tipo=Repercutido&desde=${anio}-01-01&hasta=${anio}-12-31`,{headers:{Authorization:"Bearer "+token}});
-      const b=await r.blob(); const u=URL.createObjectURL(b); const a=document.createElement("a"); a.href=u; a.download="libro-iva.csv"; a.click(); URL.revokeObjectURL(u); }
+    async function descargarCsv(){ const rango=rangoLibroIva();
+      try{ const r=await fetch(`/informes/libro-iva/csv?tipo=${infLibro}&desde=${rango.desde}&hasta=${rango.hasta}`,{headers:{Authorization:"Bearer "+token}});
+        if(!r.ok){ toast("No se pudo generar el CSV.","err"); return; }
+        const b=await r.blob(); const u=URL.createObjectURL(b); const a=document.createElement("a"); a.href=u;
+        a.download=`libro-iva-${infLibro.toLowerCase()}-${infAnio}${infLibroPer?("-"+infLibroPer+"T"):""}.csv`; a.click(); URL.revokeObjectURL(u);
+      }catch(e){ toast(e.message,"err"); } }
+    // XML del SII de un mes: solo se descarga, no se envía a la AEAT.
+    async function descargarSii(){ const mes=Number(val("sii_mes")), tipo=val("sii_tipo");
+      try{ const r=await fetch(`/informes/sii?tipo=${tipo}&ejercicio=${infAnio}&periodo=${mes}`,{headers:{Authorization:"Bearer "+token}});
+        if(!r.ok){ let m="No se pudo generar el XML del SII."; try{ const e=await r.json(); m=e.title||m; }catch{} toast(m,"err"); return; }
+        const b=await r.blob(); const u=URL.createObjectURL(b); const a=document.createElement("a"); a.href=u;
+        a.download=`sii-${tipo.toLowerCase()}-${infAnio}-${String(mes).padStart(2,"0")}.xml`; a.click(); URL.revokeObjectURL(u);
+        toast("XML del SII descargado. Recuerda: no se ha enviado a la AEAT.","ok");
+      }catch(e){ toast(e.message,"err"); } }
 
     /* ============================== Agro (hortofrutícola) ============================== */
     let _ag={campanas:[],agricultores:[],parcelas:[],categorias:[],productos:[],clientes:[]};

@@ -70,6 +70,16 @@ electrónico) es el paso posterior —igual que en VeriFactu— y solo requiere 
 sin rehacer esta generación. Descarga el fichero `application/xml`; requiere el permiso
 `datos.exportar`.
 
+Cada factura emitida lleva **un `DetalleIVA` por tipo impositivo** (con su recargo de equivalencia si lo
+hay), no un tipo medio. En recibidas, el `IDEmisorFactura` y la `Contraparte` se identifican por el **NIF del
+proveedor** de la ficha (si falta, un `IDOtro` tipo 07 con el nombre y un comentario «completar antes de
+enviar»), el tipo es el del gasto y los **gastos anulados no se declaran**. El número de factura del proveedor
+aún no se guarda en el gasto: se genera uno correlativo (`G{ejercicio}-nnnn`) a revisar.
+
+En la interfaz clásica, Informes tiene selector de **ejercicio** y trimestre; el libro de IVA muestra
+repercutido o **soportado** (con NIF) por año o trimestre y su CSV respeta esa selección, y el panel SII
+descarga el XML del mes indicando que **no se envía a la AEAT**.
+
 ## Beneficio (margen bruto y neto)
 
 `GET /informes/beneficio?desde=&hasta=` calcula el beneficio del periodo a partir del **margen por

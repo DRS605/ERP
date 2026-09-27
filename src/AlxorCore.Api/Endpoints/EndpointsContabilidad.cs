@@ -39,6 +39,26 @@ public static class EndpointsContabilidad
             .WithSummary("Lista el plan de cuentas de la empresa.")
             .RequierePermiso(Permisos.ContabilidadLeer);
 
+        grupo.MapPost("/cuentas", async (DatosCuenta datos, IContextoEmpresa contexto, GestionCuentas caso, CancellationToken ct) =>
+            {
+                if (contexto.EmpresaId is null)
+                {
+                    return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+                }
+
+                var r = await caso.CrearAsync(contexto.EmpresaId.Value, datos, ct).ConfigureAwait(false);
+                return r.EsCorrecto ? Results.Created($"/contabilidad/cuentas/{r.Valor.Codigo}", r.Valor) : ResultadosHttp.AProblema(r.Error);
+            })
+            .WithSummary("Da de alta una cuenta en el plan de la empresa.")
+            .RequierePermiso(Permisos.ContabilidadGestionar);
+
+        grupo.MapPut("/cuentas/{codigo}", async (string codigo, DatosCuenta datos, IContextoEmpresa contexto, GestionCuentas caso, CancellationToken ct) =>
+                contexto.EmpresaId is null
+                    ? ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."))
+                    : (await caso.RenombrarAsync(contexto.EmpresaId.Value, codigo, datos?.Nombre, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Renombra una cuenta del plan (el código no cambia).")
+            .RequierePermiso(Permisos.ContabilidadGestionar);
+
         grupo.MapGet("/diario", DiarioAsync)
             .WithSummary("Libro diario: asientos del ejercicio (con ?diario=VEN, solo los de ese diario, por su número en él).")
             .RequierePermiso(Permisos.ContabilidadLeer);
@@ -307,7 +327,7 @@ public static class EndpointsContabilidad
             return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
         }
 
-        var resultado = await caso.EjecutarAsync(contexto.EmpresaId.Value, comando, ct).ConfigureAwait(false);
+        var resultado = await caso.EjecutarManualAsync(contexto.EmpresaId.Value, comando, ct).ConfigureAwait(false);
         return resultado.EsCorrecto ? resultado.ACreado($"/contabilidad/diario?ejercicio={resultado.Valor.Ejercicio}") : ResultadosHttp.AProblema(resultado.Error);
     }
 

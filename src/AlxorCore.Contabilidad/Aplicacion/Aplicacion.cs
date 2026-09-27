@@ -129,6 +129,8 @@ public static class PlanBasico
 
     public static readonly IReadOnlyList<(string Codigo, string Nombre)> Cuentas = new[]
     {
+        ("100", "Capital social"),
+        ("113", "Reservas voluntarias"),
         ("129", "Resultado del ejercicio"),
         ("430", "Clientes"),
         ("438", "Anticipos de clientes"),
@@ -150,6 +152,7 @@ public static class PlanBasico
         ("629", "Otros servicios"),
         ("700", "Ventas de mercaderías"),
         ("705", "Prestaciones de servicios"),
+        ("752", "Ingresos por arrendamientos"),
 
         // Inmovilizado material (activo no corriente) y sus cuentas asociadas.
         ("211", "Construcciones"),
@@ -200,6 +203,73 @@ public sealed class ListarCuentas
         }
 
         return await _cuentas.ListarAsync(empresaId, ct).ConfigureAwait(false);
+    }
+}
+
+/// <summary>Datos para dar de alta (o renombrar) una cuenta del plan.</summary>
+public sealed record DatosCuenta(string Codigo, string Nombre);
+
+/// <summary>
+/// Alta y renombrado de cuentas del plan (el plan básico se amplía con las que necesite la empresa).
+/// El código no se cambia: los apuntes lo referencian.
+/// </summary>
+public sealed class GestionCuentas
+{
+    private readonly IRepositorioCuentas _cuentas;
+    private readonly IUnidadDeTrabajoContabilidad _unidad;
+
+    public GestionCuentas(IRepositorioCuentas cuentas, IUnidadDeTrabajoContabilidad unidad)
+    {
+        _cuentas = cuentas;
+        _unidad = unidad;
+    }
+
+    public async Task<Resultado<CuentaDto>> CrearAsync(Guid empresaId, DatosCuenta datos, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(datos);
+        var codigo = (datos.Codigo ?? string.Empty).Trim();
+        if ((datos.Nombre ?? string.Empty).Trim().Length > Cuenta.LongitudMaximaNombre)
+        {
+            return Resultado.Fallo<CuentaDto>(Error.Validacion("cuenta.nombre_largo", $"El nombre supera {Cuenta.LongitudMaximaNombre} caracteres."));
+        }
+
+        if (await _cuentas.ObtenerPorCodigoAsync(empresaId, codigo, ct).ConfigureAwait(false) is not null)
+        {
+            return Resultado.Fallo<CuentaDto>(Error.Conflicto("cuenta.duplicada", $"La cuenta {codigo} ya existe en el plan."));
+        }
+
+        var cuenta = Cuenta.Crear(empresaId, codigo, datos.Nombre);
+        if (cuenta.EsFallo)
+        {
+            return Resultado.Fallo<CuentaDto>(cuenta.Error);
+        }
+
+        _cuentas.Agregar(cuenta.Valor);
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(CuentaDto.Desde(cuenta.Valor));
+    }
+
+    public async Task<Resultado<CuentaDto>> RenombrarAsync(Guid empresaId, string codigo, string? nombre, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(nombre))
+        {
+            return Resultado.Fallo<CuentaDto>(Error.Validacion("cuenta.nombre_obligatorio", "El nombre de la cuenta es obligatorio."));
+        }
+
+        if (nombre.Trim().Length > Cuenta.LongitudMaximaNombre)
+        {
+            return Resultado.Fallo<CuentaDto>(Error.Validacion("cuenta.nombre_largo", $"El nombre supera {Cuenta.LongitudMaximaNombre} caracteres."));
+        }
+
+        var cuenta = await _cuentas.ObtenerPorCodigoAsync(empresaId, (codigo ?? string.Empty).Trim(), ct).ConfigureAwait(false);
+        if (cuenta is null)
+        {
+            return Resultado.Fallo<CuentaDto>(Error.NoEncontrado("cuenta.no_encontrada", $"La cuenta {codigo} no existe."));
+        }
+
+        cuenta.Renombrar(nombre);
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(CuentaDto.Desde(cuenta));
     }
 }
 
@@ -366,16 +436,45 @@ public sealed class CrearAsiento
     private readonly IRepositorioAnalitica? _analitica;
     private readonly ImputadorAnalitico? _imputador;
     private readonly IRepositorioDiarios? _diarios;
+    private readonly IRepositorioCuentas? _cuentas;
 
     public CrearAsiento(IRepositorioAsientos asientos, IUnidadDeTrabajoContabilidad unidad, IReloj reloj,
-        IRepositorioAnalitica? analitica = null, ImputadorAnalitico? imputador = null, IRepositorioDiarios? diarios = null)
+        IRepositorioAnalitica? analitica = null, ImputadorAnalitico? imputador = null, IRepositorioDiarios? diarios = null,
+        IRepositorioCuentas? cuentas = null)
     {
+        _cuentas = cuentas;
         _diarios = diarios;
         _asientos = asientos;
         _unidad = unidad;
         _reloj = reloj;
         _analitica = analitica;
         _imputador = imputador;
+    }
+
+    /// <summary>
+    /// Asiento manual tecleado por el usuario: además de las reglas generales, cada cuenta tiene que
+    /// existir en el plan de la empresa (evita saldos en cuentas mal tecleadas). Las contabilizaciones
+    /// automáticas y las importaciones usan <see cref="EjecutarAsync"/> sin esta comprobación.
+    /// </summary>
+    public async Task<Resultado<AsientoDto>> EjecutarManualAsync(Guid empresaId, CrearAsientoComando comando, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(comando);
+        if (_cuentas is not null)
+        {
+            await SembradorPlan.AsegurarAsync(empresaId, _cuentas, ct).ConfigureAwait(false);
+            var existentes = await _cuentas.CodigosExistentesAsync(empresaId, ct).ConfigureAwait(false);
+            var plan = existentes.Concat(PlanBasico.Cuentas.Select(c => c.Codigo)).ToHashSet(StringComparer.Ordinal);
+            var desconocidas = (comando.Lineas ?? Array.Empty<LineaAsientoComando>())
+                .Select(l => (l.CuentaCodigo ?? string.Empty).Trim())
+                .Where(c => !plan.Contains(c)).Distinct(StringComparer.Ordinal).ToList();
+            if (desconocidas.Count > 0)
+            {
+                return Resultado.Fallo<AsientoDto>(Error.Validacion("asiento.cuenta_inexistente",
+                    $"La cuenta {string.Join(", ", desconocidas.Select(c => c.Length == 0 ? "(vacía)" : c))} no existe en el plan de cuentas."));
+            }
+        }
+
+        return await EjecutarAsync(empresaId, comando, ct).ConfigureAwait(false);
     }
 
     public async Task<Resultado<AsientoDto>> EjecutarAsync(Guid empresaId, CrearAsientoComando comando, CancellationToken ct = default)

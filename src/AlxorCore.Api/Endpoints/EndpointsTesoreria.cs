@@ -3,6 +3,7 @@ using AlxorCore.Nucleo.Autorizacion;
 using AlxorCore.Nucleo.Multiempresa;
 using AlxorCore.Nucleo.Resultados;
 using AlxorCore.Tesoreria.Aplicacion;
+using AlxorCore.Tesoreria.Dominio;
 
 namespace AlxorCore.Api.Endpoints;
 
@@ -37,6 +38,16 @@ public static class EndpointsTesoreria
 
         rutas.MapGet("/gastos/{id:guid}/saldo", SaldoGastoAsync)
             .WithTags("Tesorería").WithSummary("Saldo de un gasto.")
+            .RequierePermiso(Permisos.GastoLeer);
+
+        rutas.MapGet("/facturas/saldos", (string? ids, IContextoEmpresa contexto, ConsultarSaldos caso, CancellationToken ct) =>
+                SaldosAsync(TipoDocumentoTesoreria.Factura, ids, contexto, caso, ct))
+            .WithTags("Tesorería").WithSummary("Saldos de todas las facturas (o de las de ?ids=a,b,c) en una sola consulta.")
+            .RequierePermiso(Permisos.FacturaLeer);
+
+        rutas.MapGet("/gastos/saldos", (string? ids, IContextoEmpresa contexto, ConsultarSaldos caso, CancellationToken ct) =>
+                SaldosAsync(TipoDocumentoTesoreria.Gasto, ids, contexto, caso, ct))
+            .WithTags("Tesorería").WithSummary("Saldos de todos los gastos (o de los de ?ids=a,b,c) en una sola consulta.")
             .RequierePermiso(Permisos.GastoLeer);
 
         rutas.MapPost("/tesoreria/conciliacion", ConciliarAsync)
@@ -172,6 +183,27 @@ public static class EndpointsTesoreria
     {
         var r = await caso.EjecutarAsync(id, ct).ConfigureAwait(false);
         return r.EsCorrecto ? Results.NoContent() : ResultadosHttp.AProblema(r.Error);
+    }
+
+    private static async Task<IResult> SaldosAsync(TipoDocumentoTesoreria tipo, string? ids, IContextoEmpresa contexto, ConsultarSaldos caso, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        var lista = new List<Guid>();
+        foreach (var trozo in (ids ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (!Guid.TryParse(trozo, out var id))
+            {
+                return ResultadosHttp.AProblema(Error.Validacion("saldos.id_invalido", $"«{trozo}» no es un identificador válido."));
+            }
+
+            lista.Add(id);
+        }
+
+        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, tipo, lista, ct).ConfigureAwait(false));
     }
 
     private static async Task<IResult> SaldoFacturaAsync(Guid id, ConsultarSaldo caso, CancellationToken ct) =>

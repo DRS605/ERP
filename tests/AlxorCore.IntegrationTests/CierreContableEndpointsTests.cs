@@ -24,15 +24,15 @@ public sealed class CierreContableEndpointsTests : IClassFixture<FabricaApiPrueb
     private static async Task AsientoAsync(HttpClient c, string fecha, string concepto, params object[] lineas) =>
         (await c.PostAsJsonAsync("/contabilidad/asientos", new { Fecha = fecha, Concepto = concepto, Lineas = lineas })).StatusCode.Should().Be(HttpStatusCode.Created);
 
-    private static async Task SembrarEjercicioAsync(HttpClient c)
+    private static async Task SembrarEjercicioAsync(HttpClient c, int anio = 2026)
     {
         // Venta: ingreso 705 = 1000, IVA 477 = 210, cliente 430 = 1210.
-        await AsientoAsync(c, "2026-03-01", "Venta",
+        await AsientoAsync(c, $"{anio}-03-01", "Venta",
             new { CuentaCodigo = "430", Debe = 1210m, Haber = 0m },
             new { CuentaCodigo = "705", Debe = 0m, Haber = 1000m },
             new { CuentaCodigo = "477", Debe = 0m, Haber = 210m });
         // Compra: gasto 629 = 400, IVA 472 = 84, proveedor 400 = 484.
-        await AsientoAsync(c, "2026-04-01", "Compra",
+        await AsientoAsync(c, $"{anio}-04-01", "Compra",
             new { CuentaCodigo = "629", Debe = 400m, Haber = 0m },
             new { CuentaCodigo = "472", Debe = 84m, Haber = 0m },
             new { CuentaCodigo = "400", Debe = 0m, Haber = 484m });
@@ -71,23 +71,23 @@ public sealed class CierreContableEndpointsTests : IClassFixture<FabricaApiPrueb
     {
         var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);
         await PonerModoCompletoAsync(cliente);
-        await SembrarEjercicioAsync(cliente);
+        await SembrarEjercicioAsync(cliente, 2025);
 
-        var cierre = await cliente.PostAsync("/contabilidad/cierre?ejercicio=2026", null);
+        var cierre = await cliente.PostAsync("/contabilidad/cierre?ejercicio=2025", null);
         cierre.StatusCode.Should().Be(HttpStatusCode.OK);
         (await cierre.Content.ReadFromJsonAsync<CierreResp>())!.Resultado.Should().Be(600m);
 
-        // El diario de 2026 tiene regularización y cierre.
-        var diario2026 = await cliente.GetFromJsonAsync<List<AsientoResp>>("/contabilidad/diario?ejercicio=2026");
-        diario2026!.Should().Contain(a => a.Origen == "Regularizacion");
-        diario2026.Should().Contain(a => a.Origen == "Cierre");
+        // El diario de 2025 tiene regularización y cierre.
+        var diario2025 = await cliente.GetFromJsonAsync<List<AsientoResp>>("/contabilidad/diario?ejercicio=2025");
+        diario2025!.Should().Contain(a => a.Origen == "Regularizacion");
+        diario2025.Should().Contain(a => a.Origen == "Cierre");
 
-        // El 2027 tiene la apertura.
-        var diario2027 = await cliente.GetFromJsonAsync<List<AsientoResp>>("/contabilidad/diario?ejercicio=2027");
-        diario2027!.Should().Contain(a => a.Origen == "Apertura");
+        // El 2026 tiene la apertura.
+        var diario2026 = await cliente.GetFromJsonAsync<List<AsientoResp>>("/contabilidad/diario?ejercicio=2026");
+        diario2026!.Should().Contain(a => a.Origen == "Apertura");
 
         // Tras la PyG del cierre, los grupos 6 y 7 quedan a cero.
-        var pyg = await cliente.GetFromJsonAsync<PyGResp>("/contabilidad/pyg?ejercicio=2026");
+        var pyg = await cliente.GetFromJsonAsync<PyGResp>("/contabilidad/pyg?ejercicio=2025");
         pyg!.TotalIngresos.Should().Be(0m);
         pyg.TotalGastos.Should().Be(0m);
     }
@@ -97,16 +97,16 @@ public sealed class CierreContableEndpointsTests : IClassFixture<FabricaApiPrueb
     {
         var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);
         await PonerModoCompletoAsync(cliente);
-        await SembrarEjercicioAsync(cliente);
-        (await cliente.PostAsync("/contabilidad/cierre?ejercicio=2026", null)).StatusCode.Should().Be(HttpStatusCode.OK);
+        await SembrarEjercicioAsync(cliente, 2025);
+        (await cliente.PostAsync("/contabilidad/cierre?ejercicio=2025", null)).StatusCode.Should().Be(HttpStatusCode.OK);
 
         // Segundo cierre → conflicto.
-        (await cliente.PostAsync("/contabilidad/cierre?ejercicio=2026", null)).StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await cliente.PostAsync("/contabilidad/cierre?ejercicio=2025", null)).StatusCode.Should().Be(HttpStatusCode.Conflict);
 
         // Asiento manual en el ejercicio cerrado → conflicto.
         var manual = await cliente.PostAsJsonAsync("/contabilidad/asientos", new
         {
-            Fecha = "2026-06-01",
+            Fecha = "2025-06-01",
             Concepto = "Tardío",
             Lineas = new[]
             {
@@ -115,5 +115,22 @@ public sealed class CierreContableEndpointsTests : IClassFixture<FabricaApiPrueb
             },
         });
         manual.StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
+
+    [Fact]
+    public async Task No_se_puede_cerrar_un_ejercicio_que_no_ha_terminado()
+    {
+        var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+        await PonerModoCompletoAsync(cliente);
+        var enCurso = DateTime.UtcNow.Year;
+        await SembrarEjercicioAsync(cliente, enCurso);
+
+        var cierre = await cliente.PostAsync($"/contabilidad/cierre?ejercicio={enCurso}", null);
+        cierre.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await cierre.Content.ReadAsStringAsync()).Should().Contain("cierre.ejercicio_abierto");
+
+        // No se ha generado ningún asiento de regularización ni de cierre.
+        var diario = await cliente.GetFromJsonAsync<List<AsientoResp>>($"/contabilidad/diario?ejercicio={enCurso}");
+        diario!.Should().NotContain(a => a.Origen == "Cierre" || a.Origen == "Regularizacion");
     }
 }

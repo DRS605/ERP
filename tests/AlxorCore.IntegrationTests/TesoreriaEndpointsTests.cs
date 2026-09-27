@@ -159,4 +159,55 @@ public sealed class TesoreriaEndpointsTests : IClassFixture<FabricaApiPruebas>
         var saldo = await pago.Content.ReadFromJsonAsync<SaldoResp>();
         saldo!.Estado.Should().Be("Liquidado");
     }
+
+    private sealed record IdResp(Guid Id);
+    private sealed record ProblemaResp(string Codigo);
+    private sealed record SaldoDocumentoResp(Guid DocumentoId, decimal Total, decimal Liquidado, decimal Pendiente, string Estado, string EstadoDocumento);
+
+    [Fact]
+    public async Task No_se_puede_pagar_un_gasto_anulado()
+    {
+        var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+        var gasto = (await (await cliente.PostAsJsonAsync("/gastos", new { Concepto = "Duplicado", BaseImponible = 100m, CodigoIva = "IVA21" })).Content.ReadFromJsonAsync<IdResp>())!.Id;
+        (await cliente.PostAsync(new Uri($"/gastos/{gasto}/anular", UriKind.Relative), null)).IsSuccessStatusCode.Should().BeTrue();
+
+        var pago = await cliente.PostAsJsonAsync("/pagos", new { GastoId = gasto, Importe = 121m });
+        pago.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await pago.Content.ReadFromJsonAsync<ProblemaResp>())!.Codigo.Should().Be("gasto.anulado");
+        (await cliente.GetFromJsonAsync<SaldoResp>($"/gastos/{gasto}/saldo"))!.Liquidado.Should().Be(0m);
+
+        // Tampoco entra en una remesa de transferencias.
+        (await cliente.PutAsJsonAsync("/empresas/actual/cobro", new { Iban = "ES9121000418450200051332", IdentificadorAcreedor = "ES12345Z" })).EnsureSuccessStatusCode();
+        var transferencias = await cliente.PostAsJsonAsync("/tesoreria/transferencias", new { GastoIds = new[] { gasto } });
+        transferencias.IsSuccessStatusCode.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Los_saldos_en_lote_devuelven_el_pendiente_de_cada_documento()
+    {
+        var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+        var f1 = await EmitirFacturaAsync(cliente, 100m);
+        var f2 = await EmitirFacturaAsync(cliente, 300m);
+        (await cliente.PostAsJsonAsync("/cobros", new { FacturaId = f1.Id, Importe = 40m })).EnsureSuccessStatusCode();
+        (await cliente.PostAsJsonAsync("/cobros", new { FacturaId = f2.Id, Importe = 300m })).EnsureSuccessStatusCode();
+
+        var todos = (await cliente.GetFromJsonAsync<List<SaldoDocumentoResp>>("/facturas/saldos"))!;
+        todos.Should().HaveCount(2);
+        var s1 = todos.Single(s => s.DocumentoId == f1.Id);
+        s1.Liquidado.Should().Be(40m);
+        s1.Pendiente.Should().Be(60m);
+        s1.Estado.Should().Be("Parcial");
+        s1.EstadoDocumento.Should().Be("Emitida");
+        todos.Single(s => s.DocumentoId == f2.Id).Estado.Should().Be("Liquidado");
+
+        var uno = (await cliente.GetFromJsonAsync<List<SaldoDocumentoResp>>($"/facturas/saldos?ids={f2.Id}"))!;
+        uno.Should().ContainSingle().Which.Pendiente.Should().Be(0m);
+
+        var gasto = (await (await cliente.PostAsJsonAsync("/gastos", new { Concepto = "Luz", BaseImponible = 100m, CodigoIva = "IVA21" })).Content.ReadFromJsonAsync<IdResp>())!.Id;
+        (await cliente.PostAsJsonAsync("/pagos", new { GastoId = gasto, Importe = 21m })).EnsureSuccessStatusCode();
+        var gastos = (await cliente.GetFromJsonAsync<List<SaldoDocumentoResp>>("/gastos/saldos"))!;
+        gastos.Single(s => s.DocumentoId == gasto).Pendiente.Should().Be(100m);
+
+        (await cliente.GetAsync("/facturas/saldos?ids=no-es-un-id")).StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
 }

@@ -66,6 +66,40 @@ public sealed class ContabilidadEndpointsTests : IClassFixture<FabricaApiPruebas
         diario!.Should().ContainSingle(a => a.Concepto == "Aportación de socio" && a.Total == 1000m);
     }
 
+    private sealed record CuentaResp(string Codigo, string Nombre, int Grupo);
+
+    [Fact]
+    public async Task Asiento_manual_con_una_cuenta_fuera_del_plan_devuelve_400_hasta_darla_de_alta()
+    {
+        var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+        object Asiento() => new
+        {
+            Fecha = "2026-03-15",
+            Concepto = "Comisión bancaria",
+            Lineas = new[]
+            {
+                new { CuentaCodigo = "6269", Debe = 12m, Haber = 0m, Concepto = (string?)"Comisión mantenimiento" },
+                new { CuentaCodigo = "572", Debe = 0m, Haber = 12m, Concepto = (string?)null },
+            },
+        };
+
+        var rechazo = await cliente.PostAsJsonAsync("/contabilidad/asientos", Asiento());
+        rechazo.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var cuerpo = await rechazo.Content.ReadAsStringAsync();
+        cuerpo.Should().Contain("asiento.cuenta_inexistente").And.Contain("6269");
+        (await cliente.GetFromJsonAsync<List<AsientoResp>>("/contabilidad/diario?ejercicio=2026"))!.Should().BeEmpty();
+
+        // Se da de alta la cuenta en el plan (una vez: la segunda es un conflicto) y el asiento ya entra.
+        var alta = await cliente.PostAsJsonAsync("/contabilidad/cuentas", new { Codigo = "6269", Nombre = "Otros servicios bancarios" });
+        alta.StatusCode.Should().Be(HttpStatusCode.Created);
+        (await alta.Content.ReadFromJsonAsync<CuentaResp>())!.Grupo.Should().Be(6);
+        (await cliente.PostAsJsonAsync("/contabilidad/cuentas", new { Codigo = "6269", Nombre = "Repetida" })).StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await cliente.PutAsJsonAsync("/contabilidad/cuentas/6269", new { Codigo = "6269", Nombre = "Servicios bancarios" })).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await cliente.GetFromJsonAsync<List<CuentaResp>>("/contabilidad/cuentas"))!.Should().Contain(c => c.Codigo == "6269" && c.Nombre == "Servicios bancarios");
+
+        (await cliente.PostAsJsonAsync("/contabilidad/asientos", Asiento())).StatusCode.Should().Be(HttpStatusCode.Created);
+    }
+
     [Fact]
     public async Task Asiento_descuadrado_devuelve_400()
     {

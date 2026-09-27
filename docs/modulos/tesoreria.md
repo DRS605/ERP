@@ -18,11 +18,21 @@ del **saldo** de cada documento.
 | `POST` | `/pagos` | permiso `pago.registrar` | Registra un pago de un gasto. |
 | `GET` | `/facturas/{id}/saldo` | permiso `factura.leer` | Total, liquidado, pendiente y estado. |
 | `GET` | `/gastos/{id}/saldo` | permiso `gasto.leer` | Total, liquidado, pendiente y estado. |
+| `GET` | `/facturas/saldos?ids=` | permiso `factura.leer` | Saldos de todas las facturas (o de las indicadas) en una consulta agrupada. |
+| `GET` | `/gastos/saldos?ids=` | permiso `gasto.leer` | Ídem para los gastos. |
 | `POST` | `/tesoreria/conciliacion` | permiso `cobro.registrar` | Lee un extracto Norma 43 y propone casaciones. |
 | `POST` | `/tesoreria/remesa` | permiso `cobro.registrar` | Genera una remesa de adeudos SEPA (pain.008 / Norma 19). |
 | `GET` | `/tesoreria/previsiones` | permiso `factura.leer` | Lista los ingresos/gastos previstos. |
 | `POST` | `/tesoreria/previsiones` | permiso `cobro.registrar` | Añade un ingreso o gasto previsto. **201** |
 | `DELETE` | `/tesoreria/previsiones/{id}` | permiso `cobro.registrar` | Elimina una previsión. **204** |
+
+Los listados de cobros, pagos, remesas y previsión usan los **saldos en lote** (una llamada) en lugar de
+pedir el saldo documento a documento. Cada fila trae `estadoDocumento` (p. ej. `Anulada`/`Anulado`).
+
+**Documentos anulados**: un gasto anulado no admite pagos (409 `gasto.anulado`) y una factura anulada no admite
+cobros ni aplicación de anticipos (409 `factura.anulada`); las remesas SEPA, las transferencias y la conciliación
+bancaria los omiten, y la interfaz no los lista como pendientes. La remesa de adeudos acepta `fechaCobro` y las
+transferencias `fechaPago` (la interfaz las pide).
 
 ## Previsión de tesorería
 
