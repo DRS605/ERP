@@ -62,6 +62,9 @@ builder.Services.AgregarModuloMigracion(builder.Configuration);
 builder.Services.AgregarModuloDocumentos();
 builder.Services.AgregarModuloInformes();
 
+// Eliminar maestros: solo si no se han usado en ninguna empresa del grupo (mapa de referencias entre módulos).
+builder.Services.AddScoped<AlxorCore.Nucleo.Aplicacion.IComprobadorUso, AlxorCore.Api.Comun.ComprobadorUso>();
+
 // Contabilidad pregunta qué parte del IVA/IGIC soportado es deducible (prorrata, en Organización).
 builder.Services.AddScoped<AlxorCore.Contabilidad.Aplicacion.IDeduccionImpuesto, AlxorCore.Api.Comun.DeduccionImpuestoProrrata>();
 
@@ -146,6 +149,8 @@ builder.Services.AddHealthChecks()
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(opciones =>
 {
+    // Hay tipos con el mismo nombre en distintos módulos (p. ej. CrearSolicitudComando en Compras y en Aprobaciones).
+    opciones.CustomSchemaIds(IdEsquemaOpenApi);
     opciones.SwaggerDoc("v1", new OpenApiInfo
     {
         Title = "ALXOR Core API",
@@ -286,4 +291,22 @@ app.MapFallbackToFile("index.html");
 await app.RunAsync().ConfigureAwait(false);
 
 /// <summary>Punto de entrada expuesto para las pruebas de integración (WebApplicationFactory).</summary>
+/// <summary>Identificador de esquema OpenAPI único: nombre completo del tipo, con los genéricos expandidos.</summary>
+static string IdEsquemaOpenApi(Type tipo)
+{
+    var nombre = (tipo.Namespace is null ? tipo.Name : $"{tipo.Namespace}.{tipo.Name}").Replace("AlxorCore.", string.Empty, StringComparison.Ordinal);
+    if (tipo.DeclaringType is not null)
+    {
+        nombre = $"{IdEsquemaOpenApi(tipo.DeclaringType)}.{tipo.Name}";
+    }
+
+    if (!tipo.IsGenericType)
+    {
+        return nombre;
+    }
+
+    var baseNombre = nombre[..nombre.IndexOf('`', StringComparison.Ordinal)];
+    return $"{baseNombre}De{string.Concat(tipo.GetGenericArguments().Select(IdEsquemaOpenApi))}";
+}
+
 public partial class Program;

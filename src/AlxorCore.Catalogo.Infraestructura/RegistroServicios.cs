@@ -51,6 +51,7 @@ public static class RegistroServicios
         servicios.AddScoped<ImportarProductos>();
         servicios.AddScoped<ActualizarProducto>();
         servicios.AddScoped<ListarProductos>();
+        servicios.AddScoped<BajasCatalogo>();
         servicios.AddScoped<BuscarProductos>();
         servicios.AddScoped<ObtenerProducto>();
         servicios.AddScoped<DefinirComposicion>();

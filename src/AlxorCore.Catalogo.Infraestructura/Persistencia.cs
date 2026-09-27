@@ -303,6 +303,8 @@ internal sealed class RepositorioProductos : IRepositorioProductos, IConsultaPro
 
     public void Agregar(Producto producto) => _contexto.Productos.Add(producto);
 
+    public void Eliminar(Producto producto) => _contexto.Productos.Remove(producto);
+
     public async Task<ProductoDto?> ObtenerAsync(Guid productoId, CancellationToken ct = default)
     {
         var producto = await _contexto.Productos.SingleOrDefaultAsync(p => p.Id == productoId, ct).ConfigureAwait(false);
@@ -509,4 +511,6 @@ internal sealed class RepositorioTarifas : IRepositorioTarifas
         await _contexto.Tarifas.OrderBy(t => t.Codigo).ToListAsync(ct).ConfigureAwait(false);
 
     public void Agregar(Tarifa tarifa) => _contexto.Tarifas.Add(tarifa);
+
+    public void Eliminar(Tarifa tarifa) => _contexto.Tarifas.Remove(tarifa);
 }

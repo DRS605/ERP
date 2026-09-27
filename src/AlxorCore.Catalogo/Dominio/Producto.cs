@@ -365,6 +365,13 @@ public sealed class Producto : RaizAgregadoGrupo<Guid>
         ActualizadoEn = reloj.AhoraUtc;
     }
 
+    /// <summary>Vuelve a darlo de alta tras una baja.</summary>
+    public void Reactivar(IReloj reloj)
+    {
+        Activo = true;
+        ActualizadoEn = reloj.AhoraUtc;
+    }
+
     /// <summary>Establece la familia/categoría del artículo (se recorta; vacío = sin familia).</summary>
     public void EstablecerFamilia(string? familia)
     {

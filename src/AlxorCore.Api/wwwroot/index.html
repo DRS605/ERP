@@ -484,7 +484,7 @@
       const h = Object.assign({ "Content-Type":"application/json" }, opts.headers||{});
       if (token) h["Authorization"]="Bearer "+token;
       const r = await fetch(API+path, Object.assign({}, opts, { headers:h }));
-      if (!r.ok){ let m=""; try{m=(await r.json()).title||""}catch{}; throw new Error(m||("HTTP "+r.status)); }
+      if (!r.ok){ let m="", c=""; try{ const b=await r.json(); m=b.title||""; c=b.codigo||""; }catch{} const e=new Error(m||("HTTP "+r.status)); e.codigo=c; e.status=r.status; throw e; }
       const ct = r.headers.get("content-type")||""; return ct.includes("json") ? r.json() : r.text();
     }
 
@@ -1162,9 +1162,9 @@
       const acc=`<div style="display:flex;gap:10px"><button class="btn small ghost" onclick="modalImportar('clientes')">↥ Importar CSV</button><button class="btn small" onclick="modalCliente()">+ Nuevo cliente</button></div>`;
       listaServidor({
         clave:"clientes", endpoint:"/clientes/buscar", titulo:"Clientes", acciones:acc,
-        filtros:[{id:"cl_txt",param:"texto",tipo:"texto",label:"Buscar",ancho:"240px",ph:"Nombre, NIF o email…"}],
+        filtros:[{id:"cl_txt",param:"texto",tipo:"texto",label:"Buscar",ancho:"240px",ph:"Nombre, NIF o email…"},{...FILTRO_BAJAS,id:"cl_bajas"}],
         cabecera:`<tr><th>Nombre</th><th>NIF</th><th>Email</th><th class="num">IRPF</th><th>Cuenta</th><th></th></tr>`,
-        fila:c=>`<tr><td>${ini(c.nombre)}<strong>${c.nombre}</strong></td><td class="muted">${c.nifFiscal||"—"}</td><td class="muted">${c.email||"—"}</td><td class="num">${c.porcentajeIrpfDefecto>0?c.porcentajeIrpfDefecto+"%":"—"}</td><td class="muted">${mapa[c.id]||"—"}</td><td class="right"><button class="btn small secondary" onclick="editarCliente('${c.id}')">Editar</button></td></tr>`,
+        fila:c=>`<tr><td>${ini(c.nombre)}<strong>${c.nombre}</strong>${pillBaja(c.activo)}</td><td class="muted">${c.nifFiscal||"—"}</td><td class="muted">${c.email||"—"}</td><td class="num">${c.porcentajeIrpfDefecto>0?c.porcentajeIrpfDefecto+"%":"—"}</td><td class="muted">${mapa[c.id]||"—"}</td><td class="right" style="white-space:nowrap"><button class="btn small secondary" onclick="editarCliente('${c.id}')">Editar</button> ${botonesMaestro('/clientes/'+c.id,c.nombre,c.activo,'vClientes')}</td></tr>`,
         vacio:["clientes","Sin clientes todavía","Añade tu primer cliente o impórtalos desde un CSV.",`<button class="btn small" onclick="modalCliente()">+ Nuevo cliente</button>`],
       });
     }
@@ -1177,9 +1177,9 @@
       listaServidor({
         clave:"proveedores", endpoint:"/proveedores/buscar", titulo:"Proveedores",
         acciones:`<button class="btn small" onclick="modalProveedor()">+ Nuevo proveedor</button>`,
-        filtros:[{id:"pv_txt",param:"texto",tipo:"texto",label:"Buscar",ancho:"240px",ph:"Nombre, NIF o email…"}],
+        filtros:[{id:"pv_txt",param:"texto",tipo:"texto",label:"Buscar",ancho:"240px",ph:"Nombre, NIF o email…"},{...FILTRO_BAJAS,id:"pv_bajas"}],
         cabecera:`<tr><th>Nombre</th><th>NIF</th><th>Forma de pago</th><th>Email</th><th class="num">IRPF</th><th>Cuenta</th><th></th></tr>`,
-        fila:p=>`<tr><td>${ini(p.nombre)}<strong>${p.nombre}</strong></td><td class="muted">${p.nifFiscal||"—"}</td><td class="muted">${pago(p.formaPago)}</td><td class="muted">${p.email||"—"}</td><td class="num">${p.porcentajeIrpfDefecto>0?p.porcentajeIrpfDefecto+"%":"—"}</td><td class="muted">${mapa[p.id]||"—"}</td><td class="right"><button class="btn small secondary" onclick="editarProveedor('${p.id}')">Editar</button></td></tr>`,
+        fila:p=>`<tr><td>${ini(p.nombre)}<strong>${p.nombre}</strong>${pillBaja(p.activo)}</td><td class="muted">${p.nifFiscal||"—"}</td><td class="muted">${pago(p.formaPago)}</td><td class="muted">${p.email||"—"}</td><td class="num">${p.porcentajeIrpfDefecto>0?p.porcentajeIrpfDefecto+"%":"—"}</td><td class="muted">${mapa[p.id]||"—"}</td><td class="right" style="white-space:nowrap"><button class="btn small secondary" onclick="editarProveedor('${p.id}')">Editar</button> ${botonesMaestro('/proveedores/'+p.id,p.nombre,p.activo,'vProveedores')}</td></tr>`,
         vacio:["proveedores","Sin proveedores todavía","Da de alta a tus proveedores para asociarlos a tus gastos.",`<button class="btn small" onclick="modalProveedor()">+ Nuevo proveedor</button>`],
       });
     }
@@ -1199,9 +1199,10 @@
         filtros:[
           {id:"pr_txt",param:"texto",tipo:"texto",label:"Buscar",ancho:"220px",ph:"Nombre o código…"},
           {id:"pr_fam",param:"familiaId",tipo:"select",label:"Familia",opciones:famOpts},
+          {...FILTRO_BAJAS,id:"pr_bajas"},
         ],
         cabecera:`<tr><th>Artículo</th><th>Código / EAN</th><th>Familia</th><th>Proveedor habitual</th><th class="num">Venta</th><th class="num">Compra</th><th class="num">Margen</th><th class="num">IVA</th><th class="num">Stock</th><th></th></tr>`,
-        fila:p=>`<tr style="cursor:pointer" onclick="verHistorico('${p.id}','${p.nombre.replace(/'/g,"")}')"><td><strong>${p.nombre}</strong>${badge(p)}</td><td class="muted mono">${p.referencia||"—"}</td><td class="muted">${p.familia||"—"}</td><td class="muted">${p.proveedorHabitualId?provNombre(p.proveedorHabitualId):"—"}</td><td class="num">${eur(p.precioUnitario)}</td><td class="num muted">${p.precioCompra?eur(p.precioCompra):"—"}</td><td class="num">${margen(p)}</td><td class="num">${p.porcentajeIva}%</td><td class="num">${stockCell(p)}</td><td class="right" style="white-space:nowrap">${stockBtn(p)}${varBtn(p)}<button class="btn small secondary" onclick="editarProducto('${p.id}',event)">Editar</button> <button class="btn small secondary" onclick="event.stopPropagation();duplicarProducto('${p.id}')" title="Duplicar">⎘</button></td></tr>`,
+        fila:p=>`<tr style="cursor:pointer" onclick="verHistorico('${p.id}','${p.nombre.replace(/'/g,"")}')"><td><strong>${p.nombre}</strong>${badge(p)}${pillBaja(p.activo)}</td><td class="muted mono">${p.referencia||"—"}</td><td class="muted">${p.familia||"—"}</td><td class="muted">${p.proveedorHabitualId?provNombre(p.proveedorHabitualId):"—"}</td><td class="num">${eur(p.precioUnitario)}</td><td class="num muted">${p.precioCompra?eur(p.precioCompra):"—"}</td><td class="num">${margen(p)}</td><td class="num">${p.porcentajeIva}%</td><td class="num">${stockCell(p)}</td><td class="right" style="white-space:nowrap">${stockBtn(p)}${varBtn(p)}<button class="btn small secondary" onclick="editarProducto('${p.id}',event)">Editar</button> <button class="btn small secondary" onclick="event.stopPropagation();duplicarProducto('${p.id}')" title="Duplicar">⎘</button> ${botonesMaestro('/productos/'+p.id,p.nombre,p.activo,'vProductos')}</td></tr>`,
         vacio:["articulos","Sin artículos todavía","Crea productos o servicios con su código para reutilizarlos al facturar.",`<button class="btn small" onclick="modalProducto()">+ Nuevo artículo</button>`],
       });
     }
@@ -1262,6 +1263,31 @@
         });
       if(f){ rellenar({fa_nombre:f.nombre,fa_codigo:f.codigo,fa_padre:f.padreId}); if(document.getElementById("fa_activo")) document.getElementById("fa_activo").checked=f.activo; }
     }
+    // Eliminar un maestro: si ya se ha usado (409 «….en_uso»), se ofrece darlo de baja (ruta + "/baja").
+    async function eliminarMaestro(ruta, nombre, recargar, conBaja=true){
+      if(!confirm(`¿Eliminar ${nombre}?${conBaja?"\n\nSi ya se ha usado en algún documento, podrás darlo de baja en su lugar.":""}`)) return;
+      try{ await api(ruta,{method:"DELETE"}); toast("Eliminado.","ok"); recargar(); }
+      catch(e){
+        if(conBaja && (e.codigo||"").endsWith(".en_uso")){
+          if(confirm(`${e.message}\n\n¿Darlo de baja ahora?`)){
+            try{ await api(ruta+"/baja",{method:"POST"}); toast("Dado de baja: ya no aparece en las altas nuevas (puedes verlo con «Incluir bajas»).","ok"); recargar(); }
+            catch(e2){ toast(e2.message,"err"); }
+          }
+        } else toast(e.message||"No se pudo eliminar.","err");
+      }
+    }
+    async function reactivarMaestro(ruta, recargar){
+      try{ await api(ruta+"/alta",{method:"POST"}); toast("Reactivado.","ok"); recargar(); } catch(e){ toast(e.message,"err"); }
+    }
+    const pillBaja=activo=>activo===false?' <span class="pill neg" style="font-size:10px">baja</span>':'';
+    function botonesMaestro(ruta, nombre, activo, recargarFn){
+      const n=String(nombre||"").replace(/['"\\]/g,"");
+      return activo===false
+        ? `<button class="btn small ghost" onclick="event.stopPropagation();reactivarMaestro('${ruta}',${recargarFn})">Reactivar</button>`
+        : `<button class="btn small ghost" onclick="event.stopPropagation();eliminarMaestro('${ruta}','«${n}»',${recargarFn})" title="Eliminar o dar de baja">🗑</button>`;
+    }
+    const FILTRO_BAJAS={id:"f_bajas",param:"incluirInactivos",tipo:"select",label:"Estado",opciones:[["","Activos"],["true","Incluir bajas"]]};
+
     async function borrarFamilia(id){
       const f=_cacheFamilias.find(x=>x.id===id);
       if(!confirm(`¿Eliminar la familia «${f?f.nombre:''}»?\n\nSolo se puede si no tiene subfamilias ni artículos.`)) return;
@@ -1274,8 +1300,9 @@
       const gs=await api("/gastos");
       const saldos=await Promise.all(gs.map(g=>api("/gastos/"+g.id+"/saldo").catch(()=>null)));
       const filas=gs.map((g,i)=>{const s=saldos[i]||{}; const est=s.estado||"Pendiente"; const p=est==="Liquidado"?"ok":(est==="Parcial"?"part":"wait");
-        return `<tr><td><strong>${g.concepto}</strong></td><td>${g.proveedorTexto||"—"}</td><td class="num">${eur(g.total)}</td><td class="num">${eur(s.liquidado||0)}</td><td class="num">${eur(s.pendiente??g.total)}</td><td class="right"><span class="pill ${p}">${est}</span></td></tr>`;}).join("");
-      const cuerpo=gs.length?`<table><thead><tr><th>Concepto</th><th>Proveedor</th><th class="num">Total</th><th class="num">Pagado</th><th class="num">Pendiente</th><th class="right">Estado</th></tr></thead><tbody>${filas}</tbody></table>`:vacio("pagos","Nada que pagar aún","Cuando registres gastos verás aquí su estado de pago.");
+        const movs=(s.movimientos||[]).length?`<button class="btn small ghost" onclick="verMovimientos('/gastos/${g.id}/saldo','Pagos de ${agEsc(g.concepto).replace(/'/g,"")}',vPagos)">Pagos</button>`:"";
+        return `<tr><td><strong>${g.concepto}</strong></td><td>${g.proveedorTexto||"—"}</td><td class="num">${eur(g.total)}</td><td class="num">${eur(s.liquidado||0)}</td><td class="num">${eur(s.pendiente??g.total)}</td><td class="right"><span class="pill ${p}">${est}</span></td><td class="right">${movs}</td></tr>`;}).join("");
+      const cuerpo=gs.length?`<table><thead><tr><th>Concepto</th><th>Proveedor</th><th class="num">Total</th><th class="num">Pagado</th><th class="num">Pendiente</th><th class="right">Estado</th><th></th></tr></thead><tbody>${filas}</tbody></table>`:vacio("pagos","Nada que pagar aún","Cuando registres gastos verás aquí su estado de pago.");
       view(panel("Pagos a proveedores",cuerpo));
     }
     // ---- Producción: órdenes de fabricación sobre la lista de materiales ----
@@ -1406,7 +1433,7 @@
       view('<div class="muted">Cargando…</div>');
       const [alm,prods]=await Promise.all([api("/inventario/almacenes"),api("/productos").catch(()=>[])]);
       _cacheAlm=alm; _cacheProdInv=prods;
-      const filasAlm=alm.map(a=>`<tr><td><strong>${a.codigo}</strong> · ${a.nombre}</td><td class="right" style="white-space:nowrap"><button class="btn small ghost" onclick="modalUbicacion('${a.id}')">+ Ubicación</button> <button class="btn small secondary" onclick="verStockAlmacen('${a.id}','${a.nombre.replace(/'/g,"")}')">Ver stock</button></td></tr>`).join("");
+      const filasAlm=alm.map(a=>`<tr><td><strong>${a.codigo}</strong> · ${a.nombre}${pillBaja(a.activo)}</td><td class="right" style="white-space:nowrap"><button class="btn small ghost" onclick="verUbicaciones('${a.id}')">Ubicaciones</button> <button class="btn small secondary" onclick="verStockAlmacen('${a.id}','${a.nombre.replace(/'/g,"")}')">Ver stock</button> <button class="btn small secondary" onclick="modalAlmacen('${a.id}')">Editar</button> ${botonesMaestro('/inventario/almacenes/'+a.id,a.nombre,a.activo,'vInventario')}</td></tr>`).join("");
       const tablaAlm=alm.length?`<table><thead><tr><th>Almacén</th><th class="right">Acciones</th></tr></thead><tbody>${filasAlm}</tbody></table>`
         :vacio("productos","Sin almacenes","Crea tu primer almacén para llevar stock por ubicaciones.",`<button class="btn small" onclick="modalAlmacen()">+ Nuevo almacén</button>`);
       const hayCompuestos=_cacheProdInv.some(x=>x.esCompuesto);
@@ -1441,10 +1468,22 @@
       try{ const c=await api(`/productos/${id}/composicion`); const filas=c.componentes.map(x=>`<tr><td>${x.nombre}</td><td class="num">${numCant(x.cantidad*cant)} ${x.unidad}</td></tr>`).join("");
         cont.innerHTML=`<label>Necesitarás</label><table><thead><tr><th>Componente</th><th class="num">Cantidad</th></tr></thead><tbody>${filas}</tbody></table>`;
       }catch(e){ cont.innerHTML=''; } }
-    function modalAlmacen(){ abrir("Nuevo almacén",`<div class="grid2"><div><label>Código</label><input id="alm_cod" placeholder="CENTRAL"/></div><div><label>Nombre</label><input id="alm_nom" placeholder="Almacén central"/></div></div>`,
-      async()=>{ await api("/inventario/almacenes",{method:"POST",body:JSON.stringify({codigo:val("alm_cod"),nombre:val("alm_nom")})}); toast("Almacén creado.","ok"); vInventario(); }); }
-    function modalUbicacion(almId){ abrir("Nueva ubicación",`<div class="grid2"><div><label>Código</label><input id="ubi_cod" placeholder="A-1"/></div><div><label>Nombre (opcional)</label><input id="ubi_nom"/></div></div>`,
-      async()=>{ await api("/inventario/ubicaciones",{method:"POST",body:JSON.stringify({almacenId:almId,codigo:val("ubi_cod"),nombre:val("ubi_nom")||null})}); toast("Ubicación creada.","ok"); }); }
+    function modalAlmacen(id){ const a=id?_cacheAlm.find(x=>x.id===id):null;
+      abrir(a?"Editar almacén":"Nuevo almacén",`<div class="grid2"><div><label>Código</label><input id="alm_cod" placeholder="CENTRAL" value="${a?agEsc(a.codigo):""}"/></div><div><label>Nombre</label><input id="alm_nom" placeholder="Almacén central" value="${a?agEsc(a.nombre):""}"/></div></div>`,
+      async()=>{ const body=JSON.stringify({codigo:val("alm_cod"),nombre:val("alm_nom")});
+        if(a) await api("/inventario/almacenes/"+a.id,{method:"PUT",body}); else await api("/inventario/almacenes",{method:"POST",body});
+        toast(a?"Almacén guardado.":"Almacén creado.","ok"); vInventario(); }); }
+    async function verUbicaciones(almId){
+      const a=_cacheAlm.find(x=>x.id===almId); const us=await api("/inventario/ubicaciones?almacenId="+almId); window._ubis=us;
+      const filas=us.map(u=>`<tr><td class="mono"><strong>${agEsc(u.codigo)}</strong></td><td>${agEsc(u.nombre)}</td><td class="right" style="white-space:nowrap"><button class="btn small secondary" onclick="modalUbicacion('${almId}','${u.id}')">Editar</button> <button class="btn small ghost" onclick="eliminarMaestro('/inventario/ubicaciones/${u.id}','la ubicación «${agEsc(u.codigo).replace(/'/g,"")}»',()=>verUbicaciones('${almId}'),false)" title="Eliminar">🗑</button></td></tr>`).join("");
+      document.getElementById("inv_stock").innerHTML=panel("Ubicaciones · "+(a?a.nombre:""),us.length?`<table><thead><tr><th>Código</th><th>Nombre</th><th></th></tr></thead><tbody>${filas}</tbody></table>`:'<p class="muted">Este almacén no tiene ubicaciones.</p>',
+        `<button class="btn small" onclick="modalUbicacion('${almId}')">+ Ubicación</button>`);
+    }
+    function modalUbicacion(almId,id){ const u=id?(window._ubis||[]).find(x=>x.id===id):null;
+      abrir(u?"Editar ubicación":"Nueva ubicación",`<div class="grid2"><div><label>Código</label><input id="ubi_cod" placeholder="A-1" value="${u?agEsc(u.codigo):""}"/></div><div><label>Nombre (opcional)</label><input id="ubi_nom" value="${u?agEsc(u.nombre):""}"/></div></div>`,
+      async()=>{ const body=JSON.stringify({almacenId:almId,codigo:val("ubi_cod"),nombre:val("ubi_nom")||null});
+        if(u) await api("/inventario/ubicaciones/"+u.id,{method:"PUT",body}); else await api("/inventario/ubicaciones",{method:"POST",body});
+        toast(u?"Ubicación guardada.":"Ubicación creada.","ok"); verUbicaciones(almId); }); }
     async function verStockAlmacen(almId,nombre){
       const st=await api("/inventario/stock/almacen/"+almId);
       const filas=st.map(s=>{ const lote=s.lote?`<a onclick="modalTrazabilidad('${s.productoId}','${(s.lote||'').replace(/'/g,"")}')" style="cursor:pointer;color:var(--accent);font-weight:600">${s.lote}</a>`:'<span class="muted">—</span>';
@@ -1489,7 +1528,7 @@
       const c = (e==="Facturado"||e==="Aprobada"||e==="Convertida")?"ok":(e==="Cancelado"||e==="Rechazada")?"wait":(e==="Recibido")?"part":"part";
       return `<span class="pill ${c}">${e}</span>`;
     };
-    function lineaSolHtml(){ return `<div class="cmp-lsol" style="display:grid;grid-template-columns:3fr 1fr;gap:8px;margin-bottom:6px"><input class="ls-desc" placeholder="Descripción"/><input class="ls-cant" type="number" step="0.001" placeholder="Cantidad"/></div>`; }
+    function lineaSolHtml(d,c){ return `<div class="cmp-lsol" style="display:grid;grid-template-columns:3fr 1fr;gap:8px;margin-bottom:6px"><input class="ls-desc" placeholder="Descripción" value="${agEsc(d||"")}"/><input class="ls-cant" type="number" step="0.001" placeholder="Cantidad" value="${c||""}"/></div>`; }
     function lineaPedHtml(d,c,p,prodId){ const po=(window._prodOpts||''); const opts=po?po.replace(`value="${prodId}"`,`value="${prodId}" selected`):''; return `<div class="cmp-lped" style="display:grid;grid-template-columns:${po?'2fr ':''}3fr 1fr 1fr;gap:8px 8px;margin-bottom:6px;align-items:start">${po?`<select class="lp-prod" title="Artículo del catálogo (opcional; permite la entrada automática al recibir)" onchange="pedLineaProd(this)"><option value="">— Sin artículo —</option>${opts}</select>`:''}<div><input class="lp-desc" placeholder="Descripción" value="${d||''}"/></div><div><input class="lp-cant" type="number" step="0.001" placeholder="Cantidad" value="${c??''}"/><div class="lp-unidad muted" style="font-size:11px;margin-top:2px"></div></div><input class="lp-prec" type="number" step="0.01" placeholder="Precio" value="${p??''}"/></div>`; }
     // Al elegir un artículo en una línea de pedido: rellena descripción/precio y muestra la unidad de compra.
     function pedLineaProd(sel){ const row=sel.closest('.cmp-lped'); const prod=(window._prodMap||{})[sel.value]; const desc=row.querySelector('.lp-desc'), prec=row.querySelector('.lp-prec'), uni=row.querySelector('.lp-unidad');
@@ -1500,11 +1539,12 @@
 
     async function vSolicitudes(){
       view('<div class="muted">Cargando…</div>');
-      const ss=await api("/compras/solicitudes");
+      const ss=await api("/compras/solicitudes"); window._solicitudes=ss;
       const acc=s=>{
         const b=[];
         if(s.estado==="Borrador"){ b.push(`<button class="btn small secondary" onclick="decidirSolicitud('${s.id}','aprobar')">Aprobar</button>`); b.push(`<button class="btn small ghost" onclick="decidirSolicitud('${s.id}','rechazar')">Rechazar</button>`); }
         if(s.estado==="Aprobada"){ b.push(`<button class="btn small" style="width:auto;margin:0;padding:9px 14px" onclick="modalPedidoDesde('${s.id}')">→ Crear pedido</button>`); }
+        if(s.estado==="Borrador"||s.estado==="Rechazada"){ b.push(`<button class="btn small secondary" onclick="modalSolicitud('${s.id}')">Editar</button>`); b.push(`<button class="btn small ghost" onclick="eliminarMaestro('/compras/solicitudes/${s.id}','la solicitud',vSolicitudes,false)" title="Eliminar">🗑</button>`); }
         return b.join(" ");
       };
       const filas=ss.map(s=>`<tr><td><strong>${s.proveedorSugerido||'—'}</strong><div class="muted" style="font-size:12px">${s.lineas.length} línea(s)${s.notas?(' · '+s.notas):''}</div></td><td class="muted">${s.lineas.map(l=>l.descripcion+' ×'+l.cantidad).slice(0,2).join(', ')}${s.lineas.length>2?'…':''}</td><td class="right">${estadoPillCompra(s.estado)}</td><td class="right" style="white-space:nowrap">${acc(s)}</td></tr>`).join("");
@@ -1512,13 +1552,15 @@
         :vacio("compras","Sin solicitudes de compra","Crea una solicitud interna; al aprobarla podrás convertirla en pedido a proveedor.",`<button class="btn small" onclick="modalSolicitud()">+ Nueva solicitud</button>`);
       view(panel("Solicitudes de compra",tabla,`<button class="btn small" onclick="modalSolicitud()">+ Nueva solicitud</button>`));
     }
-    function modalSolicitud(){
-      abrir("Nueva solicitud de compra",`<div class="grid2"><div><label>Proveedor sugerido (opcional)</label><input id="sol_prov"/></div><div><label>Notas (opcional)</label><input id="sol_notas"/></div></div>
-        <label style="margin-top:12px">Artículos solicitados</label><div id="sol_lineas">${lineaSolHtml()+lineaSolHtml()}</div>
+    function modalSolicitud(id){
+      const sol=id?(window._solicitudes||[]).find(x=>x.id===id):null;
+      abrir(sol?"Editar solicitud de compra":"Nueva solicitud de compra",`<div class="grid2"><div><label>Proveedor sugerido (opcional)</label><input id="sol_prov" value="${agEsc(sol?.proveedorSugerido||"")}"/></div><div><label>Notas (opcional)</label><input id="sol_notas" value="${agEsc(sol?.notas||"")}"/></div></div>
+        <label style="margin-top:12px">Artículos solicitados</label><div id="sol_lineas">${sol?sol.lineas.map(l=>lineaSolHtml(l.descripcion,l.cantidad)).join(""):lineaSolHtml()+lineaSolHtml()}</div>
         <button class="btn small secondary" style="margin-top:4px" onclick="document.getElementById('sol_lineas').insertAdjacentHTML('beforeend',lineaSolHtml())">+ Añadir línea</button>`,
         async()=>{ const lineas=[...document.querySelectorAll('#sol_lineas .cmp-lsol')].map(r=>({descripcion:(r.querySelector('.ls-desc').value||'').trim(),cantidad:Number(r.querySelector('.ls-cant').value||0)})).filter(l=>l.descripcion&&l.cantidad>0);
-          await api("/compras/solicitudes",{method:"POST",body:JSON.stringify({proveedorSugerido:val("sol_prov")||null,notas:val("sol_notas")||null,lineas})});
-          toast("Solicitud creada.","ok"); vSolicitudes(); });
+          const body=JSON.stringify({proveedorSugerido:val("sol_prov")||null,notas:val("sol_notas")||null,lineas});
+          if(sol) await api("/compras/solicitudes/"+sol.id,{method:"PUT",body}); else await api("/compras/solicitudes",{method:"POST",body});
+          toast(sol?"Solicitud guardada.":"Solicitud creada.","ok"); vSolicitudes(); });
     }
     async function decidirSolicitud(id,accion){
       try{ let body=null; if(accion==="rechazar"){ const m=prompt("Motivo del rechazo (opcional):")||""; body=JSON.stringify({motivo:m}); }
@@ -1535,6 +1577,7 @@
       const ps=await api("/compras/pedidos");
       const acc=p=>{
         const b=[];
+        if((p.estado==="Borrador"||p.estado==="Confirmado")&&p.lineas.every(l=>!l.cantidadRecibida&&!l.cantidadFacturada)) b.push(`<button class="btn small secondary" onclick="editarPedidoCompra('${p.id}')">Editar</button>`);
         if(p.estado==="Borrador") b.push(`<button class="btn small secondary" onclick="accionPedido('${p.id}','confirmar')">Confirmar</button>`);
         if(p.estado==="Confirmado"||p.estado==="Recibido"){ b.push(`<button class="btn small secondary" onclick="modalRecibir('${p.id}')">Recibir</button>`); b.push(`<button class="btn small" style="width:auto;margin:0;padding:9px 14px" onclick="modalFacturarPedido('${p.id}')">Facturar</button>`); }
         if(p.estado!=="Facturado"&&p.estado!=="Cancelado") b.push(`<button class="btn small ghost" onclick="accionPedido('${p.id}','cancelar')" title="Cancelar">✕</button>`);
@@ -1545,17 +1588,24 @@
         :vacio("compras","Sin pedidos de compra","Crea un pedido a proveedor (o conviértelo desde una solicitud aprobada).",`<button class="btn small" onclick="modalPedido()">+ Nuevo pedido</button>`);
       view(panel("Pedidos de compra",tabla,`<button class="btn small" onclick="modalPedido()">+ Nuevo pedido</button>`));
     }
-    async function modalPedido(prov, lineas, solId){
+    async function editarPedidoCompra(id){
+      const p=await api("/compras/pedidos/"+id);
+      modalPedido(p.proveedorTexto, p.lineas.map(l=>({d:l.descripcion,c:l.cantidad,p:l.precioUnitario,prodId:l.productoId})), null, p);
+    }
+    async function modalPedido(prov, lineas, solId, ped){
       const [provs,prods]=await Promise.all([api("/proveedores").catch(()=>[]),api("/productos").catch(()=>[])]);
       const opts=provs.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join("");
       window._prodOpts=prods.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join("");
       window._prodMap=Object.fromEntries(prods.map(p=>[p.id,p]));
       const filasIni=(lineas&&lineas.length?lineas:[{},{}]).map(l=>lineaPedHtml(l.d,l.c,l.p,l.prodId)).join("");
-      abrir("Nuevo pedido de compra",`<label>Proveedor (de la lista)</label><select id="ped_provid"><option value="">— Escribir a mano —</option>${opts}</select>
-        <label>o nombre del proveedor</label><input id="ped_provtxt" value="${prov||''}"/>
+      const cab=ped?`<p class="muted" style="margin:0 0 10px">Proveedor: <strong>${agEsc(ped.proveedorTexto)}</strong> (no se cambia: el número es de su serie).</p><label>Fecha</label><input id="ped_fecha" type="date" value="${ped.fecha}"/>`
+        :`<label>Proveedor (de la lista)</label><select id="ped_provid"><option value="">— Escribir a mano —</option>${opts}</select>
+        <label>o nombre del proveedor</label><input id="ped_provtxt" value="${prov||''}"/>`;
+      abrir(ped?"Editar pedido "+ped.numeroCompleto:"Nuevo pedido de compra",`${cab}
         <label style="margin-top:12px">Líneas del pedido${window._prodOpts?' <span class="muted" style="font-weight:400;font-size:12px">— asigna un artículo para la entrada automática al recibir</span>':''}</label><div id="ped_lineas">${filasIni}</div>
         <button class="btn small secondary" style="margin-top:4px" onclick="document.getElementById('ped_lineas').insertAdjacentHTML('beforeend',lineaPedHtml())">+ Añadir línea</button>`,
-        async()=>{ const provId=val("ped_provid")||null; const lin=[...document.querySelectorAll('#ped_lineas .cmp-lped')].map(r=>({productoId:(r.querySelector('.lp-prod')?.value||null),descripcion:(r.querySelector('.lp-desc').value||'').trim(),cantidad:Number(r.querySelector('.lp-cant').value||0),precioUnitario:Number(r.querySelector('.lp-prec').value||0)})).filter(l=>l.descripcion&&l.cantidad>0);
+        async()=>{ const provId=ped?ped.proveedorId:(val("ped_provid")||null); const lin=[...document.querySelectorAll('#ped_lineas .cmp-lped')].map(r=>({productoId:(r.querySelector('.lp-prod')?.value||null),descripcion:(r.querySelector('.lp-desc').value||'').trim(),cantidad:Number(r.querySelector('.lp-cant').value||0),precioUnitario:Number(r.querySelector('.lp-prec').value||0)})).filter(l=>l.descripcion&&l.cantidad>0);
+          if(ped){ await api("/compras/pedidos/"+ped.id,{method:"PUT",body:JSON.stringify({proveedorId:provId,proveedorTexto:ped.proveedorTexto,fecha:val("ped_fecha")||null,lineas:lin})}); toast("Pedido guardado.","ok"); vPedidos(); return; }
           await api("/compras/pedidos",{method:"POST",body:JSON.stringify({proveedorId:provId,proveedorTexto:provId?null:(val("ped_provtxt")||null),solicitudOrigenId:solId||null,lineas:lin})});
           toast("Pedido creado.","ok"); ir('pedidos'); });
     }
@@ -1590,6 +1640,12 @@
 
     // ---- Contabilidad (partida doble: modo, diario, balance, asientos) ----
     let _cachePendientes=[];
+    function anularAsiento(id,numero){
+      abrir(`Anular el asiento #${numero}`,`<p class="muted" style="margin:0 0 12px">Se registra un contraasiento con el debe y el haber cambiados; el asiento original no se borra. Los asientos de facturas, gastos u otros documentos se anulan desde el documento.</p>
+        <label>Fecha del contraasiento (vacío = la del asiento)</label><input id="aa_fecha" type="date"/>`,
+        async()=>{ await api(`/contabilidad/asientos/${id}/anular`,{method:"POST",body:JSON.stringify({fecha:val("aa_fecha")||null})}); toast("Asiento anulado.","ok"); vContabilidad(); });
+      document.getElementById("modalOk").textContent="Anular";
+    }
     async function vContabilidad() {
       view('<div class="muted">Cargando…</div>');
       const anio=new Date().getFullYear();
@@ -1659,7 +1715,9 @@
       // Diario
       const asientoHtml=a=>{
         const ap=a.apuntes.map(p=>`<tr><td style="padding-left:24px" class="muted">${p.cuentaCodigo}${p.concepto?(' · '+p.concepto):''}</td><td class="num">${p.debe>0?eur(p.debe):''}</td><td class="num">${p.haber>0?eur(p.haber):''}</td></tr>`).join("");
-        return `<tr><td><strong>#${a.numero}</strong> · ${fdate(a.fecha)} <span class="pill ${a.origen==="Compra"?"part":"ok"}" style="margin-left:6px">${a.origen}</span><div class="muted" style="font-size:12.5px">${a.concepto}</div></td><td class="num"></td><td class="num"><strong>${eur(a.total)}</strong></td></tr>${ap}`;
+        const anul=a.anuladoPorId?' <span class="pill neg" style="font-size:10px">anulado</span>':(a.anulaAsientoId?' <span class="pill neg" style="font-size:10px">anulación</span>':'');
+        const btn=a.origen==="Manual"&&!a.anuladoPorId?` <button class="btn small ghost" style="margin-left:6px" onclick="anularAsiento('${a.id}',${a.numero})">Anular</button>`:'';
+        return `<tr><td><strong>#${a.numero}</strong> · ${fdate(a.fecha)} <span class="pill ${a.origen==="Compra"?"part":"ok"}" style="margin-left:6px">${a.origen}</span>${anul}${btn}<div class="muted" style="font-size:12.5px">${a.concepto}</div></td><td class="num"></td><td class="num"><strong>${eur(a.total)}</strong></td></tr>${ap}`;
       };
       const diarioTabla=diario.length
         ? `<table><thead><tr><th>Asiento</th><th class="num">Debe</th><th class="num">Haber</th></tr></thead><tbody>${diario.map(asientoHtml).join("")}</tbody></table>`
@@ -1849,6 +1907,7 @@
       const ps=await api("/pedidos-venta").catch(()=>[]);
       const acc=p=>{
         const b=[`<button class="btn small ghost" onclick="verPedidoVenta('${p.id}')">Ver</button>`];
+        if((p.estado==="Borrador"||p.estado==="Confirmado")&&p.lineas.every(l=>!l.cantidadServida)) b.push(`<button class="btn small secondary" onclick="modalPedidoVenta('${p.id}')">Editar</button>`);
         if(p.estado==="Borrador"){ b.push(`<button class="btn small" onclick="confirmarPedidoVenta('${p.id}')">Confirmar</button>`); b.push(`<button class="btn small ghost" onclick="cancelarPedidoVenta('${p.id}')">✕</button>`); }
         else if(p.estado==="Confirmado"||p.estado==="Servido"){ b.push(`<button class="btn small ghost" onclick="entregarPedidoVenta('${p.id}')">Entregar</button>`); b.push(`<button class="btn small" onclick="facturarPedidoVenta('${p.id}')">Facturar</button>`); b.push(`<button class="btn small ghost" onclick="cancelarPedidoVenta('${p.id}')">✕</button>`); }
         return b.join(" ");
@@ -1858,19 +1917,22 @@
         :vacio("facturas","Sin pedidos de venta","Crea un pedido de venta, entrégalo con albaranes y factúralo cuando quieras (genera una factura real).",`<button class="btn small" onclick="modalPedidoVenta()">+ Nuevo pedido</button>`);
       view(panel("Pedidos de venta",cuerpo,`<button class="btn small" onclick="modalPedidoVenta()">+ Nuevo pedido</button>`));
     }
-    async function modalPedidoVenta(){
-      const cs=await api("/clientes"); _cacheCli=cs;
+    async function modalPedidoVenta(id){
+      const [cs,ped]=await Promise.all([api("/clientes"),id?api("/pedidos-venta/"+id):null]); _cacheCli=cs;
       if(!cs.length){ alert("Primero crea un cliente."); return; }
-      const opts=cs.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join("");
-      _facLineas=[{descripcion:"",cantidad:1,precio:0,iva:IMP.general,dto:0}];
-      abrir("Nuevo pedido de venta",`<label>Cliente</label><select id="pv_cli">${opts}</select>
+      const opts=cs.map(c=>`<option value="${c.id}"${ped&&ped.clienteId===c.id?" selected":""}>${c.nombre}</option>`).join("");
+      _facLineas=ped?ped.lineas.map(l=>({descripcion:l.descripcion,cantidad:l.cantidad,precio:l.precioUnitario,iva:l.codigoIva,dto:l.porcentajeDescuento,productoId:l.productoId}))
+        :[{descripcion:"",cantidad:1,precio:0,iva:IMP.general,dto:0}];
+      abrir(ped?"Editar pedido "+ped.numeroCompleto:"Nuevo pedido de venta",`<label>Cliente</label><select id="pv_cli">${opts}</select>${ped?`<label>Fecha</label><input id="pv_fecha" type="date" value="${ped.fecha}"/>`:""}
         <label style="margin-top:16px">Líneas</label>
         <div id="f_lineas">${facLineasHtml()}</div>
         <button class="btn small ghost" style="margin-top:6px" onclick="facAnadirLinea()">+ Añadir línea</button>
         <div id="f_total" class="right" style="margin-top:10px;font-weight:650"></div>`,
-        async()=>{ const lineas=_facLineas.filter(l=>l.descripcion.trim()&&l.cantidad>0).map(l=>({descripcion:l.descripcion,cantidad:l.cantidad,precioUnitario:l.precio,codigoIva:l.iva,porcentajeDescuento:l.dto||0}));
+        async()=>{ const lineas=_facLineas.filter(l=>l.descripcion.trim()&&l.cantidad>0).map(l=>({descripcion:l.descripcion,cantidad:l.cantidad,precioUnitario:l.precio,codigoIva:l.iva,porcentajeDescuento:l.dto||0,productoId:l.productoId||null}));
           if(!lineas.length) throw new Error("Añade al menos una línea con descripción y cantidad.");
-          await api("/pedidos-venta",{method:"POST",body:JSON.stringify({clienteId:val("pv_cli"),lineas})}); toast("Pedido de venta creado.","ok"); vPedidosVenta(); });
+          if(ped){ await api("/pedidos-venta/"+ped.id,{method:"PUT",body:JSON.stringify({clienteId:val("pv_cli"),fecha:val("pv_fecha")||null,lineas})}); toast("Pedido guardado.","ok"); }
+          else { await api("/pedidos-venta",{method:"POST",body:JSON.stringify({clienteId:val("pv_cli"),lineas})}); toast("Pedido de venta creado.","ok"); }
+          vPedidosVenta(); });
       facTotal();
     }
     async function confirmarPedidoVenta(id){ try{ await api("/pedidos-venta/"+id+"/confirmar",{method:"POST"}); toast("Pedido confirmado.","ok"); vPedidosVenta(); }catch(e){ toast(e.message,"err"); } }
@@ -2132,10 +2194,14 @@
           {id:"g_min",param:"importeMin",tipo:"numero",label:"Importe ≥",ancho:"110px",ph:"€"},
           {id:"g_max",param:"importeMax",tipo:"numero",label:"Importe ≤",ancho:"110px",ph:"€"},
         ],
-        cabecera:`<tr><th>Concepto</th><th>Proveedor</th><th>Fecha</th><th class="num">Base</th><th class="num">Total</th><th class="right">Estado</th></tr>`,
-        fila:g=>`<tr><td><strong>${g.concepto}</strong></td><td class="muted">${g.proveedorTexto||"—"}</td><td class="muted">${fdate(g.fecha)}</td><td class="num">${eur(g.baseImponible)}</td><td class="num"><strong>${eur(g.total)}</strong></td><td class="right">${estadoPill(g)}</td></tr>`,
+        cabecera:`<tr><th>Concepto</th><th>Proveedor</th><th>Fecha</th><th class="num">Base</th><th class="num">Total</th><th class="right">Estado</th><th></th></tr>`,
+        fila:g=>`<tr><td><strong>${g.concepto}</strong></td><td class="muted">${g.proveedorTexto||"—"}</td><td class="muted">${fdate(g.fecha)}</td><td class="num">${eur(g.baseImponible)}</td><td class="num"><strong>${eur(g.total)}</strong></td><td class="right">${estadoPill(g)}</td><td class="right">${g.estado==="Anulado"?"":`<button class="btn small ghost" onclick="anularGasto('${g.id}')">Anular</button>`}</td></tr>`,
         vacio:["gastos","Sin gastos todavía","Registra tus gastos y asígnalos a un proveedor.",`<button class="btn small" onclick="modalGasto()">+ Nuevo gasto</button>`],
       });
+    }
+    async function anularGasto(id){
+      if(!confirm("¿Anular este gasto? Se genera el contraasiento y sale de los libros de IVA. Para corregirlo, anúlalo y regístralo de nuevo.")) return;
+      try{ await api(`/gastos/${id}/anular`,{method:"POST"}); toast("Gasto anulado.","ok"); vGastos(); } catch(e){ toast(e.message,"err"); }
     }
     // ---- Previsión de tesorería (malla: vencimientos reales + ingresos/gastos previstos) ----
     async function vPrevision(){
@@ -2177,6 +2243,23 @@
       abrir("Registrar pago · "+concepto,`<div class="grid2"><div><label>Importe (€)</label><input id="pg_imp" type="number" step="0.01" value="${pend}"/></div><div><label>Fecha</label><input id="pg_fecha" type="date" value="${hoy}"/></div></div><label>Método (opcional)</label><input id="pg_metodo" placeholder="Transferencia, efectivo…"/>`,
         async()=>{ await api("/pagos",{method:"POST",body:JSON.stringify({gastoId:id,importe:Number(val("pg_imp")||0),fecha:val("pg_fecha"),metodo:val("pg_metodo")||null})}); toast("Pago registrado.","ok"); vPrevision(); }); }
 
+    // Cobros o pagos de un documento, con su anulación (no se borran: se añade la anulación en negativo).
+    async function verMovimientos(rutaSaldo, titulo, recargar){
+      const s=await api(rutaSaldo);
+      const filas=(s.movimientos||[]).map(m=>{
+        const estado=m.anulaMovimientoId?'<span class="pill neg">anulación</span>':(m.anulado?'<span class="pill neg">anulado</span>':'');
+        const btn=!m.anulaMovimientoId&&!m.anulado?`<button class="btn small ghost" onclick="anularMovimiento('${m.id}','${rutaSaldo}','${titulo.replace(/'/g,"")}',${recargar.name})">Anular</button>`:'';
+        return `<tr><td class="muted">${fdate(m.fecha)}</td><td>${agEsc(m.metodo||"—")}</td><td class="num">${eur(m.importe)}</td><td>${estado}</td><td class="right">${btn}</td></tr>`;}).join("");
+      abrir(titulo,`<table><thead><tr><th>Fecha</th><th>Método</th><th class="num">Importe</th><th></th><th></th></tr></thead><tbody>${filas}</tbody></table>
+        <p class="muted" style="margin:10px 0 0">Pendiente: <strong>${eur(s.pendiente)}</strong> de ${eur(s.total)}.</p>`,()=>{});
+      document.getElementById("modalOk").textContent="Cerrar";
+    }
+    async function anularMovimiento(id, rutaSaldo, titulo, recargar){
+      if(!confirm("¿Anular este movimiento? El documento vuelve a quedar pendiente por ese importe.")) return;
+      try{ await api(`/tesoreria/movimientos/${id}/anular`,{method:"POST",body:"{}"}); toast("Movimiento anulado.","ok"); cerrarModal(); recargar(); }
+      catch(e){ toast(e.message,"err"); }
+    }
+
     async function vCobros() {
       view('<div class="muted">Cargando…</div>');
       const fs=(await api("/facturas")).filter(f=>f.estado!=="Rectificada"&&f.estado!=="Anulada");
@@ -2189,7 +2272,8 @@
         const pill=cobrada?'<span class="pill ok">Cobrada</span>':(est==="Parcial"?'<span class="pill part">Parcial</span>':'<span class="pill wait">Pendiente</span>');
         const venc=vencida?` <span class="pill" style="background:#fdecea;color:var(--neg)">Vencida</span>`:"";
         const cobrar=!cobrada?`<button class="btn small secondary" onclick="modalCobro('${f.id}','${f.numeroCompleto}',${pend})">Cobrar</button>`:"";
-        return `<tr><td><strong>${f.numeroCompleto}</strong></td><td>${f.clienteNombre}</td><td class="muted">${fdate(f.fechaVencimiento)}${venc}</td><td class="num">${eur(f.total)}</td><td class="num">${eur(liq)}</td><td class="num"><strong>${eur(pend)}</strong></td><td class="right">${pill}</td><td class="right">${cobrar}</td></tr>`;}).join("");
+        const movs=(s.movimientos||[]).length?` <button class="btn small ghost" onclick="verMovimientos('/facturas/${f.id}/saldo','Cobros de ${f.numeroCompleto}',vCobros)">Cobros</button>`:"";
+        return `<tr><td><strong>${f.numeroCompleto}</strong></td><td>${f.clienteNombre}</td><td class="muted">${fdate(f.fechaVencimiento)}${venc}</td><td class="num">${eur(f.total)}</td><td class="num">${eur(liq)}</td><td class="num"><strong>${eur(pend)}</strong></td><td class="right">${pill}</td><td class="right" style="white-space:nowrap">${cobrar}${movs}</td></tr>`;}).join("");
       const kpis=`<div class="kpis" style="grid-template-columns:repeat(2,1fr);max-width:560px">
         <div class="kpi"><div class="lbl">Pendiente de cobro</div><div class="val">${eur(totalPend)}</div></div>
         <div class="kpi ${totalVenc>0?'warn':''}"><div class="lbl">Vencido${nVenc?` · ${nVenc} factura${nVenc>1?'s':''}`:''}</div><div class="val ${totalVenc>0?'neg':''}">${eur(totalVenc)}</div></div></div>`;
@@ -2329,7 +2413,7 @@
       const pPartidas=panel("Partidas (qué)",_an.partidas.length?`<table><thead><tr><th>Código</th><th>Nombre</th><th>Naturaleza</th></tr></thead><tbody>${_an.partidas.map(p=>`<tr><td class="mono"><strong>${p.codigo}</strong></td><td>${p.nombre}</td><td class="muted">${p.naturaleza}</td></tr>`).join("")}</tbody></table>`:'<p class="muted" style="margin:0">Opcional: la naturaleza analítica del coste (mano de obra, fitosanitarios, energía…). Sin partidas, el análisis se hace por cuenta contable.</p>',`<button class="btn small" onclick="modalPartida()">+ Partida</button>`);
       const pClaves=panel("Claves de reparto",_an.claves.length?`<table><thead><tr><th>Código</th><th>Nombre</th><th>Reparto</th></tr></thead><tbody>${_an.claves.map(k=>`<tr><td class="mono"><strong>${k.codigo}</strong></td><td>${k.nombre}</td><td class="muted">${k.reparto.map(r=>`${anNombre(_an.centros,r.centroId).split(" · ")[0]} ${pct(r.porcentaje)}`).join(" · ")}</td></tr>`).join("")}</tbody></table>`:'<p class="muted" style="margin:0">Porcentajes para repartir un importe entre centros (por superficie, por horas…). Suman 100 %.</p>',`<button class="btn small" onclick="modalClave()">+ Clave</button>`);
       const criterios=r=>[r.prefijoCuenta?`cuenta ${r.prefijoCuenta}…`:null,r.terceroId?"tercero concreto":null,r.actividadNegocioId?"actividad":null,r.familia?`familia ${r.familia}`:null,r.vigenteDesde||r.vigenteHasta?`vigencia ${fdate(r.vigenteDesde)||"…"}–${fdate(r.vigenteHasta)||"…"}`:null].filter(Boolean).join(", ");
-      const pReglas=panel("Reglas de asignación",reglas.length?`<table><thead><tr><th>Regla</th><th>Si…</th><th>Entonces</th><th></th></tr></thead><tbody>${reglas.map(r=>`<tr><td><strong>${r.descripcion}</strong>${r.prioridad?` <small class="muted">prioridad ${r.prioridad}</small>`:""}</td><td class="muted">${criterios(r)}</td><td>${r.centroId?anNombre(_an.centros,r.centroId):"clave "+anNombre(_an.claves,r.claveRepartoId)}${r.partidaId?` · ${anNombre(_an.partidas,r.partidaId)}`:""}</td><td class="right"><button class="btn small secondary" onclick="anBorrarRegla('${r.id}')">Borrar</button></td></tr>`).join("")}</tbody></table>`:'<p class="muted" style="margin:0">Las reglas imputan solas al contabilizar. Gana la de mayor prioridad y, a igualdad, la más concreta (tercero antes que cuenta).</p>',`<button class="btn small" onclick="modalRegla()">+ Regla</button>`);
+      const pReglas=panel("Reglas de asignación",reglas.length?`<table><thead><tr><th>Regla</th><th>Si…</th><th>Entonces</th><th></th></tr></thead><tbody>${reglas.map(r=>`<tr><td><strong>${r.descripcion}</strong>${r.prioridad?` <small class="muted">prioridad ${r.prioridad}</small>`:""}</td><td class="muted">${criterios(r)}</td><td>${r.centroId?anNombre(_an.centros,r.centroId):"clave "+anNombre(_an.claves,r.claveRepartoId)}${r.partidaId?` · ${anNombre(_an.partidas,r.partidaId)}`:""}</td><td class="right"><button class="btn small secondary" onclick="anBorrarRegla('${r.id}')">Borrar</button></td></tr>`).join("")}</tbody></table>`:'<p class="muted" style="margin:0">Las reglas imputan solas al contabilizar. Gana la de mayor prioridad y, a igualdad, la más concreta (tercero antes que cuenta).</p>',`<button class="btn small" onclick="modalReglaAnalitica()">+ Regla</button>`);
       const pPeriodos=panel("Periodos analíticos (campañas)",_an.periodos.length?`<table><thead><tr><th>Código</th><th>Nombre</th><th>Desde</th><th>Hasta</th><th></th></tr></thead><tbody>${_an.periodos.map(p=>`<tr><td class="mono"><strong>${p.codigo}</strong></td><td>${p.nombre}</td><td class="muted">${fdate(p.desde)}</td><td class="muted">${fdate(p.hasta)}</td><td class="right"><button class="btn small secondary" onclick="anCerrarPeriodo('${p.id}',${!p.cerrado})">${p.cerrado?"Reabrir":"Cerrar"}</button></td></tr>`).join("")}</tbody></table>`:'<p class="muted" style="margin:0">Ejercicios de gestión distintos del fiscal, como una campaña de septiembre a agosto. Cerrado, sus imputaciones no se pueden cambiar.</p>',`<button class="btn small" onclick="modalPeriodo()">+ Periodo</button>`);
       view(pCentros+pPartidas+pClaves+pReglas+pPeriodos);
     }
@@ -2345,7 +2429,7 @@
       abrir("Nueva clave de reparto",`<div class="grid2"><div><label>Código</label><input id="cl_cod" placeholder="SUP"/></div><div><label>Nombre</label><input id="cl_nom" placeholder="Por superficie"/></div></div><label>Centros y porcentajes (suman 100)</label>${[0,1,2,3,4].map(fila).join("")}`,
       async()=>{ const reparto=[0,1,2,3,4].map(i=>({centroId:val("cl_c"+i),porcentaje:Number(val("cl_p"+i)||0)})).filter(r=>r.centroId&&r.porcentaje>0);
         await api("/contabilidad/analitica/claves",{method:"POST",body:JSON.stringify({codigo:val("cl_cod"),nombre:val("cl_nom"),reparto})}); toast("Clave creada.","ok"); vAnaliticaMaestros(); }); }
-    async function modalRegla(){ if(!_an.centros.length){ toast("Primero crea algún centro.","err"); return; }
+    async function modalReglaAnalitica(){ if(!_an.centros.length){ toast("Primero crea algún centro.","err"); return; }
       const [provs,clis]=await Promise.all([api("/proveedores").catch(()=>[]),api("/clientes").catch(()=>[])]);
       const terceros=`<option value="">— Cualquiera —</option>`+provs.map(p=>`<option value="${p.id}">Proveedor · ${p.nombre}</option>`).join("")+clis.map(c=>`<option value="${c.id}">Cliente · ${c.nombre}</option>`).join("");
       abrir("Nueva regla",`<label>Descripción</label><input id="rg_des" placeholder="Servicios de administración"/>
@@ -2367,9 +2451,9 @@
         <td class="right"><button class="btn small" onclick="verSeguimiento('${p.id}')">Seguimiento</button> ${p.estado==="Borrador"?`<button class="btn small secondary" onclick="aprobarPresupuesto('${p.id}')">Aprobar</button>`:""} <button class="btn small secondary" onclick="copiarPresupuesto('${p.id}','${p.codigo}')">Copiar</button></td></tr>`).join("");
       view(panel("Presupuestos contables",lista.length?`<table><thead><tr><th>Código</th><th>Nombre</th><th>Periodo</th><th>Estado</th><th class="num">Ingresos</th><th class="num">Gastos</th><th class="num">Resultado</th><th></th></tr></thead><tbody>${filas}</tbody></table>`
         :'<p class="muted" style="margin:0">Presupuesta por cuenta (o grupo: «62» es todo el subgrupo), y si quieres por centro. Puedes partir del real del año pasado con un incremento.</p>',
-        `<button class="btn small" onclick="modalPresupuesto()">+ Nuevo</button> <button class="btn small secondary" onclick="modalPresupuestoReal()">Generar desde el real</button>`)+'<div id="seguimiento"></div>');
+        `<button class="btn small" onclick="modalPresupuestoCont()">+ Nuevo</button> <button class="btn small secondary" onclick="modalPresupuestoReal()">Generar desde el real</button>`)+'<div id="seguimiento"></div>');
     }
-    function modalPresupuesto(){ const a=new Date().getFullYear();
+    function modalPresupuestoCont(){ const a=new Date().getFullYear();
       abrir("Nuevo presupuesto",`<div class="grid2"><div><label>Código</label><input id="ps_cod" placeholder="P${a+1}"/></div><div><label>Nombre</label><input id="ps_nom" placeholder="Presupuesto ${a+1}"/></div></div>
         <div class="grid2"><div><label>Primer mes</label><input id="ps_des" type="month" value="${a+1}-01"/></div><div><label>Meses</label><input id="ps_mes" type="number" value="12" min="1" max="24"/></div></div>
         <label>Líneas: una por renglón, «cuenta; total anual; centro (código, opcional)»</label><textarea id="ps_lin" rows="6" placeholder="62; 24000&#10;629; 6000; ADM&#10;705; 120000"></textarea>`,
@@ -2474,7 +2558,7 @@
       const panelR=panel("Reglas por umbral",
         `<p class="muted" style="margin:0 0 12px">A partir del umbral, la operación de ese tipo requiere aprobación de <strong>otra</strong> persona (segregación de funciones: quien solicita no puede aprobar).</p>
          <table><thead><tr><th>Tipo de documento</th><th class="num">Umbral</th><th>Estado</th><th></th></tr></thead><tbody>${filasR}</tbody></table>`,
-        `<button class="btn small" onclick="modalRegla()">+ Regla</button>`);
+        `<button class="btn small" onclick="modalReglaAprobacion()">+ Regla</button>`);
 
       const pend=solis.filter(s=>s.estado==="Pendiente");
       const yo=usuario?.id;
@@ -2490,10 +2574,10 @@
         :`<tr><td colspan="5" class="muted">No hay solicitudes de aprobación.</td></tr>`;
       const panelS=panel(`Solicitudes${pend.length?` · ${pend.length} pendiente(s)`:''}`,
         `<table><thead><tr><th>Referencia</th><th class="num">Importe</th><th>Estado</th><th>Creada</th><th></th></tr></thead><tbody>${filasS}</tbody></table>`,
-        `<button class="btn small secondary" onclick="modalSolicitud()">+ Solicitud</button>`);
+        `<button class="btn small secondary" onclick="modalSolicitudAprobacion()">+ Solicitud</button>`);
       view(panelR+panelS);
     }
-    function modalRegla(r){
+    function modalReglaAprobacion(r){
       const opc=TIPOS_APROB.map(t=>`<option value="${t}"${r&&r.tipoDocumento===t?" selected":""}>${t}</option>`).join("");
       abrir(r?"Editar regla":"Nueva regla",
         `<label>Tipo de documento</label><select id="rg_tipo"${r?" disabled":""}>${opc}</select>
@@ -2501,7 +2585,7 @@
          <label class="chk" style="margin-top:12px;display:flex;gap:8px;align-items:center"><input id="rg_activa" type="checkbox" ${!r||r.activa?"checked":""}/> Regla activa</label>`,
         async()=>{ await api("/aprobaciones/reglas",{method:"PUT",body:JSON.stringify({tipoDocumento:val("rg_tipo"),umbralImporte:Number(val("rg_umbral")||0),activa:document.getElementById("rg_activa").checked})}); toast("Regla guardada.","ok"); vAprobaciones(); });
     }
-    function modalSolicitud(){
+    function modalSolicitudAprobacion(){
       const opc=TIPOS_APROB.map(t=>`<option value="${t}">${t}</option>`).join("");
       abrir("Nueva solicitud de aprobación",
         `<label>Tipo de documento</label><select id="so_tipo">${opc}</select>

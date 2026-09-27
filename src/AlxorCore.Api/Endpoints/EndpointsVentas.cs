@@ -27,6 +27,11 @@ public static class EndpointsVentas
             .WithSummary("Crea un pedido de venta.")
             .RequierePermiso(Permisos.FacturaEmitir);
 
+        pedidos.MapPut("/{id:guid}", async (Guid id, CrearPedidoVentaComando comando, CrearPedidoVenta caso, CancellationToken ct) =>
+                (await caso.ModificarAsync(id, comando, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Modifica un pedido de venta sin entregas ni factura (cliente, fecha y líneas).")
+            .RequierePermiso(Permisos.FacturaEmitir);
+
         pedidos.MapPost("/desde-presupuesto", DesdePresupuestoAsync)
             .WithSummary("Crea un pedido de venta a partir de un presupuesto.")
             .RequierePermiso(Permisos.FacturaEmitir);

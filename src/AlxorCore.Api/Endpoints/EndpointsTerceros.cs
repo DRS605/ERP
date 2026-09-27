@@ -39,6 +39,21 @@ public static class EndpointsTerceros
             .WithSummary("Actualiza un cliente.")
             .RequierePermiso(Permisos.ClienteGestionar);
 
+        clientes.MapDelete("/{id:guid}", async (Guid id, BajasTerceros caso, CancellationToken ct) =>
+                (await caso.EliminarClienteAsync(id, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Elimina un cliente que no se ha usado (409 «cliente.en_uso» si ya tiene documentos: darlo de baja).")
+            .RequierePermiso(Permisos.ClienteGestionar);
+
+        clientes.MapPost("/{id:guid}/baja", async (Guid id, BajasTerceros caso, CancellationToken ct) =>
+                (await caso.CambiarEstadoClienteAsync(id, false, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Da de baja un cliente: deja de ofrecerse en las altas nuevas y conserva su histórico.")
+            .RequierePermiso(Permisos.ClienteGestionar);
+
+        clientes.MapPost("/{id:guid}/alta", async (Guid id, BajasTerceros caso, CancellationToken ct) =>
+                (await caso.CambiarEstadoClienteAsync(id, true, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Reactiva un cliente dado de baja.")
+            .RequierePermiso(Permisos.ClienteGestionar);
+
         clientes.MapPost("/importar", ImportarClientesAsync)
             .WithSummary("Importa clientes desde CSV (previsualiza o confirma).")
             .RequierePermiso(Permisos.ClienteGestionar);
@@ -65,6 +80,21 @@ public static class EndpointsTerceros
             .WithSummary("Actualiza un proveedor.")
             .RequierePermiso(Permisos.GastoGestionar);
 
+        proveedores.MapDelete("/{id:guid}", async (Guid id, BajasTerceros caso, CancellationToken ct) =>
+                (await caso.EliminarProveedorAsync(id, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Elimina un proveedor que no se ha usado (409 «proveedor.en_uso» si ya tiene documentos: darlo de baja).")
+            .RequierePermiso(Permisos.GastoGestionar);
+
+        proveedores.MapPost("/{id:guid}/baja", async (Guid id, BajasTerceros caso, CancellationToken ct) =>
+                (await caso.CambiarEstadoProveedorAsync(id, false, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Da de baja un proveedor: deja de ofrecerse en las altas nuevas y conserva su histórico.")
+            .RequierePermiso(Permisos.GastoGestionar);
+
+        proveedores.MapPost("/{id:guid}/alta", async (Guid id, BajasTerceros caso, CancellationToken ct) =>
+                (await caso.CambiarEstadoProveedorAsync(id, true, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Reactiva un proveedor dado de baja.")
+            .RequierePermiso(Permisos.GastoGestionar);
+
         return rutas;
     }
 
@@ -76,7 +106,7 @@ public static class EndpointsTerceros
         return usuarioId is null ? null : await visibilidad.ActividadesPermitidasAsync(usuarioId.Value, area, ct).ConfigureAwait(false);
     }
 
-    private static async Task<IResult> ListarProvAsync(IContextoEmpresa contexto, ClaimsPrincipal usuario, IConsultaVisibilidad visibilidad, ListarProveedores caso, CancellationToken ct)
+    private static async Task<IResult> ListarProvAsync(IContextoEmpresa contexto, ClaimsPrincipal usuario, IConsultaVisibilidad visibilidad, ListarProveedores caso, CancellationToken ct, bool bajas = false)
     {
         if (contexto.GrupoId is null)
         {
@@ -84,7 +114,7 @@ public static class EndpointsTerceros
         }
 
         var permitidas = await ActividadesPermitidasAsync(usuario, visibilidad, AreaVisibilidad.Compras, ct).ConfigureAwait(false);
-        return Results.Ok(await caso.EjecutarAsync(contexto.GrupoId.Value, permitidas, ct).ConfigureAwait(false));
+        return Results.Ok(await caso.EjecutarAsync(contexto.GrupoId.Value, permitidas, bajas, ct).ConfigureAwait(false));
     }
 
     private static async Task<IResult> BuscarProvAsync(IContextoEmpresa contexto, ClaimsPrincipal usuario, IConsultaVisibilidad visibilidad, BuscarProveedores caso,
@@ -130,7 +160,7 @@ public static class EndpointsTerceros
     private static async Task<IResult> ActualizarProvAsync(Guid id, DatosProveedor datos, ActualizarProveedor caso, CancellationToken ct) =>
         (await caso.EjecutarAsync(id, datos, ct).ConfigureAwait(false)).AOk();
 
-    private static async Task<IResult> ListarAsync(IContextoEmpresa contexto, ClaimsPrincipal usuario, IConsultaVisibilidad visibilidad, ListarClientes caso, CancellationToken ct)
+    private static async Task<IResult> ListarAsync(IContextoEmpresa contexto, ClaimsPrincipal usuario, IConsultaVisibilidad visibilidad, ListarClientes caso, CancellationToken ct, bool bajas = false)
     {
         if (contexto.GrupoId is null)
         {
@@ -138,7 +168,7 @@ public static class EndpointsTerceros
         }
 
         var permitidas = await ActividadesPermitidasAsync(usuario, visibilidad, AreaVisibilidad.Ventas, ct).ConfigureAwait(false);
-        return Results.Ok(await caso.EjecutarAsync(contexto.GrupoId.Value, permitidas, ct).ConfigureAwait(false));
+        return Results.Ok(await caso.EjecutarAsync(contexto.GrupoId.Value, permitidas, bajas, ct).ConfigureAwait(false));
     }
 
     private static async Task<IResult> ObtenerAsync(Guid id, ObtenerCliente caso, CancellationToken ct) =>

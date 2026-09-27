@@ -77,7 +77,35 @@ public sealed class Asiento : RaizAgregadoEmpresa<Guid>
 
     public DateTimeOffset CreadoEn { get; private set; }
 
+    /// <summary>Si es un contraasiento: el asiento que anula (un asiento solo se anula una vez: índice único).</summary>
+    public Guid? AnulaAsientoId { get; private set; }
+
     public IReadOnlyList<Apunte> Apuntes => _apuntes;
+
+    /// <summary>Origen de los asientos que se pueden anular a mano (los demás se anulan desde su documento).</summary>
+    public const string OrigenManual = "Manual";
+
+    public const string OrigenAnulacion = "Anulacion";
+
+    /// <summary>Contraasiento: los mismos apuntes con el debe y el haber cambiados.</summary>
+    public static Resultado<Asiento> CrearAnulacion(Asiento original, int numero, DateOnly fecha, IReloj reloj)
+    {
+        ArgumentNullException.ThrowIfNull(original);
+        var concepto = $"Anulación del asiento {original.Numero}/{original.Ejercicio}: {original.Concepto}";
+        if (concepto.Length > LongitudMaximaConcepto)
+        {
+            concepto = concepto[..LongitudMaximaConcepto];
+        }
+
+        var lineas = original.Apuntes.Select(a => new LineaAsiento(a.CuentaCodigo, a.Haber, a.Debe, a.Concepto)).ToList();
+        var r = Crear(original.EmpresaId, fecha.Year, numero, fecha, concepto, OrigenAnulacion, lineas, reloj);
+        if (r.EsCorrecto)
+        {
+            r.Valor.AnulaAsientoId = original.Id;
+        }
+
+        return r;
+    }
 
     public decimal TotalDebe => Redondeo.Dos(_apuntes.Sum(a => a.Debe));
 

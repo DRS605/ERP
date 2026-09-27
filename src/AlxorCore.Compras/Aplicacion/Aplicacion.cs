@@ -44,6 +44,7 @@ public interface IRepositorioSolicitudes
 {
     Task<SolicitudCompra?> ObtenerPorIdAsync(Guid id, CancellationToken ct = default);
     void Agregar(SolicitudCompra solicitud);
+    void Eliminar(SolicitudCompra solicitud);
     Task<IReadOnlyList<SolicitudDto>> ListarAsync(Guid empresaId, CancellationToken ct = default);
     Task<SolicitudDto?> ObtenerDtoAsync(Guid id, CancellationToken ct = default);
 }
@@ -122,6 +123,45 @@ public sealed class CrearSolicitud
         _repo.Agregar(solicitud.Valor);
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return Resultado.Ok(SolicitudDto.Desde(solicitud.Valor));
+    }
+
+    public async Task<Resultado<SolicitudDto>> ModificarAsync(Guid id, CrearSolicitudComando comando, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(comando);
+        var solicitud = await _repo.ObtenerPorIdAsync(id, ct).ConfigureAwait(false);
+        if (solicitud is null)
+        {
+            return Resultado.Fallo<SolicitudDto>(Error.NoEncontrado("solicitud.no_encontrada", "No se encontró la solicitud."));
+        }
+
+        var lineas = (comando.Lineas ?? Array.Empty<LineaSolicitudComando>()).Select(l => (l.Descripcion, l.Cantidad)).ToList();
+        var r = solicitud.Modificar(comando.ProveedorSugerido, comando.Notas, lineas);
+        if (r.EsFallo)
+        {
+            return Resultado.Fallo<SolicitudDto>(r.Error);
+        }
+
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(SolicitudDto.Desde(solicitud));
+    }
+
+    /// <summary>Elimina una solicitud en borrador o rechazada (las aprobadas o convertidas quedan como histórico).</summary>
+    public async Task<Resultado<BajaDto>> EliminarAsync(Guid id, CancellationToken ct = default)
+    {
+        var solicitud = await _repo.ObtenerPorIdAsync(id, ct).ConfigureAwait(false);
+        if (solicitud is null)
+        {
+            return Resultado.Fallo<BajaDto>(Error.NoEncontrado("solicitud.no_encontrada", "No se encontró la solicitud."));
+        }
+
+        if (!solicitud.Editable)
+        {
+            return Resultado.Fallo<BajaDto>(Error.Conflicto("solicitud.no_eliminable", "Una solicitud aprobada o convertida en pedido no se elimina."));
+        }
+
+        _repo.Eliminar(solicitud);
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(new BajaDto(id, true, false));
     }
 }
 
@@ -227,6 +267,34 @@ public sealed class CrearPedido
         _pedidos.Agregar(pedido.Valor);
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return Resultado.Ok(PedidoDto.Desde(pedido.Valor));
+    }
+
+    /// <summary>Modifica fecha y líneas de un pedido sin recepciones ni factura (el proveedor no cambia).</summary>
+    public async Task<Resultado<PedidoDto>> ModificarAsync(Guid pedidoId, CrearPedidoComando comando, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(comando);
+        var pedido = await _pedidos.ObtenerPorIdAsync(pedidoId, ct).ConfigureAwait(false);
+        if (pedido is null)
+        {
+            return Resultado.Fallo<PedidoDto>(Error.NoEncontrado("pedido.no_encontrado", "No se encontró el pedido."));
+        }
+
+        if (comando.ProveedorId is { } p && p != pedido.ProveedorId)
+        {
+            return Resultado.Fallo<PedidoDto>(Error.Validacion("pedido.cambio_proveedor",
+                "El proveedor de un pedido no se cambia (su número es de la serie del proveedor): cancélalo y crea otro."));
+        }
+
+        var lineas = (comando.Lineas ?? Array.Empty<LineaPedidoComando>())
+            .Select(l => (l.ProductoId, l.Descripcion, l.Cantidad, l.PrecioUnitario)).ToList();
+        var r = pedido.Modificar(comando.Fecha ?? pedido.Fecha, lineas);
+        if (r.EsFallo)
+        {
+            return Resultado.Fallo<PedidoDto>(r.Error);
+        }
+
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(PedidoDto.Desde(pedido));
     }
 }
 

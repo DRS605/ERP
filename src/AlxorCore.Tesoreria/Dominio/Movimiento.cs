@@ -74,6 +74,37 @@ public sealed class Movimiento : RaizAgregadoEmpresa<Guid>
 
     public DateTimeOffset CreadoEn { get; private set; }
 
+    /// <summary>
+    /// Si es una anulación: el movimiento que anula. La anulación lleva el importe en negativo, así que cualquier
+    /// suma de movimientos (saldo del documento, riesgo, cierre de caja) ya la descuenta. Solo una por movimiento.
+    /// </summary>
+    public Guid? AnulaMovimientoId { get; private set; }
+
+    public const string MetodoAnulacion = "Anulación";
+
+    /// <summary>Anulación de un cobro o pago: mismo documento y sentido, importe en negativo.</summary>
+    public static Resultado<Movimiento> CrearAnulacion(Movimiento original, DateOnly fecha, IReloj reloj)
+    {
+        ArgumentNullException.ThrowIfNull(original);
+        ArgumentNullException.ThrowIfNull(reloj);
+        if (original.AnulaMovimientoId is not null)
+        {
+            return Resultado.Fallo<Movimiento>(Error.Conflicto("movimiento.es_anulacion", "Este movimiento ya es una anulación."));
+        }
+
+        if (fecha < original.Fecha)
+        {
+            return Resultado.Fallo<Movimiento>(Error.Validacion("movimiento.fecha_anulacion", "La anulación no puede ser anterior al movimiento que anula."));
+        }
+
+        var anulacion = new Movimiento(Guid.NewGuid(), original.EmpresaId, original.TipoDocumento, original.DocumentoId, original.Sentido,
+            -original.Importe, fecha, MetodoAnulacion, reloj.AhoraUtc)
+        {
+            AnulaMovimientoId = original.Id,
+        };
+        return Resultado.Ok(anulacion);
+    }
+
     public static Resultado<Movimiento> Crear(
         Guid empresaId, TipoDocumentoTesoreria tipoDocumento, Guid documentoId, SentidoMovimiento sentido, decimal importe, DateOnly fecha, string? metodo, IReloj reloj)
     {

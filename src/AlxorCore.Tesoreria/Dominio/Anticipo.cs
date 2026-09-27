@@ -134,7 +134,7 @@ public sealed class Anticipo : RaizAgregadoEmpresa<Guid>
         if (i > Disponible)
         {
             return Resultado.Fallo<decimal>(Error.Conflicto("anticipo.sin_saldo",
-                $"El anticipo solo tiene {Disponible:0.00} € disponibles."));
+                $"El anticipo solo tiene {Redondeo.Formatear(Disponible)} € disponibles."));
         }
 
         return Resultado.Ok(i);

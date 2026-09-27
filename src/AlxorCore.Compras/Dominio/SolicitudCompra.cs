@@ -64,6 +64,40 @@ public sealed class SolicitudCompra : RaizAgregadoEmpresa<Guid>
 
     public IReadOnlyList<LineaSolicitud> Lineas => _lineas;
 
+    /// <summary>Solo se modifica o elimina mientras no se ha convertido en pedido.</summary>
+    public bool Editable => Estado is EstadoSolicitud.Borrador or EstadoSolicitud.Rechazada;
+
+    /// <summary>Modifica una solicitud en borrador o rechazada (vuelve a borrador para decidirla otra vez).</summary>
+    public Resultado Modificar(string? proveedorSugerido, string? notas, IReadOnlyList<(string Descripcion, decimal Cantidad)> lineas)
+    {
+        ArgumentNullException.ThrowIfNull(lineas);
+        if (!Editable)
+        {
+            return Resultado.Fallo(Error.Conflicto("solicitud.no_modificable", "Una solicitud aprobada o convertida en pedido ya no se modifica."));
+        }
+
+        if (lineas.Count == 0)
+        {
+            return Resultado.Fallo(Error.Validacion("solicitud.sin_lineas", "La solicitud necesita al menos una línea."));
+        }
+
+        if (lineas.Any(l => string.IsNullOrWhiteSpace(l.Descripcion) || l.Cantidad <= 0m))
+        {
+            return Resultado.Fallo(Error.Validacion("solicitud.linea_invalida", "Cada línea necesita descripción y una cantidad mayor que cero."));
+        }
+
+        ProveedorSugerido = proveedorSugerido?.Trim();
+        Notas = notas?.Trim();
+        Estado = EstadoSolicitud.Borrador;
+        _lineas.Clear();
+        foreach (var l in lineas)
+        {
+            _lineas.Add(new LineaSolicitud(Guid.NewGuid(), l.Descripcion.Trim(), l.Cantidad));
+        }
+
+        return Resultado.Ok();
+    }
+
     public static Resultado<SolicitudCompra> Crear(Guid empresaId, string? proveedorSugerido, string? notas,
         IReadOnlyList<(string Descripcion, decimal Cantidad)> lineas, IReloj reloj)
     {

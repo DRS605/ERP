@@ -34,6 +34,8 @@ public interface IRepositorioTarifas
     Task<IReadOnlyList<Tarifa>> ListarAsync(CancellationToken ct = default);
 
     void Agregar(Tarifa tarifa);
+
+    void Eliminar(Tarifa tarifa);
 }
 
 /// <summary>

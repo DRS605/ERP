@@ -44,6 +44,21 @@ public static class EndpointsCatalogo
             .WithSummary("Actualiza un producto.")
             .RequierePermiso(Permisos.ProductoGestionar);
 
+        productos.MapDelete("/{id:guid}", async (Guid id, BajasCatalogo caso, CancellationToken ct) =>
+                (await caso.EliminarProductoAsync(id, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Elimina un artículo que no se ha usado (409 «producto.en_uso» si ya aparece en documentos: darlo de baja).")
+            .RequierePermiso(Permisos.ProductoGestionar);
+
+        productos.MapPost("/{id:guid}/baja", async (Guid id, BajasCatalogo caso, CancellationToken ct) =>
+                (await caso.CambiarEstadoProductoAsync(id, false, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Da de baja un artículo: deja de ofrecerse en los documentos nuevos y conserva su histórico.")
+            .RequierePermiso(Permisos.ProductoGestionar);
+
+        productos.MapPost("/{id:guid}/alta", async (Guid id, BajasCatalogo caso, CancellationToken ct) =>
+                (await caso.CambiarEstadoProductoAsync(id, true, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Reactiva un artículo dado de baja.")
+            .RequierePermiso(Permisos.ProductoGestionar);
+
         productos.MapPost("/importar", ImportarAsync)
             .WithSummary("Importa productos desde CSV (previsualiza o confirma).")
             .RequierePermiso(Permisos.ProductoGestionar);
@@ -158,7 +173,7 @@ public static class EndpointsCatalogo
         return usuarioId is null ? null : await visibilidad.ActividadesPermitidasAsync(usuarioId.Value, AreaVisibilidad.Articulos, ct).ConfigureAwait(false);
     }
 
-    private static async Task<IResult> ListarAsync(IContextoEmpresa contexto, ClaimsPrincipal usuario, IConsultaVisibilidad visibilidad, ListarProductos caso, CancellationToken ct)
+    private static async Task<IResult> ListarAsync(IContextoEmpresa contexto, ClaimsPrincipal usuario, IConsultaVisibilidad visibilidad, ListarProductos caso, CancellationToken ct, bool bajas = false)
     {
         if (contexto.GrupoId is null)
         {
@@ -166,7 +181,7 @@ public static class EndpointsCatalogo
         }
 
         var permitidas = await ActividadesArticulosAsync(usuario, visibilidad, ct).ConfigureAwait(false);
-        return Results.Ok(await caso.EjecutarAsync(contexto.GrupoId.Value, permitidas, ct).ConfigureAwait(false));
+        return Results.Ok(await caso.EjecutarAsync(contexto.GrupoId.Value, permitidas, bajas, ct).ConfigureAwait(false));
     }
 
     private static async Task<IResult> BuscarAsync(IContextoEmpresa contexto, ClaimsPrincipal usuario, IConsultaVisibilidad visibilidad, BuscarProductos caso,

@@ -88,6 +88,8 @@ internal sealed class RepositorioClientes : IRepositorioClientes, IConsultaClien
 
     public void Agregar(Cliente cliente) => _contexto.Clientes.Add(cliente);
 
+    public void Eliminar(Cliente cliente) => _contexto.Clientes.Remove(cliente);
+
     public async Task<ClienteDto?> ObtenerAsync(Guid clienteId, CancellationToken ct = default)
     {
         var cliente = await _contexto.Clientes.SingleOrDefaultAsync(c => c.Id == clienteId, ct).ConfigureAwait(false);
@@ -198,6 +200,8 @@ internal sealed class RepositorioProveedores : IRepositorioProveedores, IConsult
         _contexto.Proveedores.SingleOrDefaultAsync(p => p.Id == id, ct);
 
     public void Agregar(Proveedor proveedor) => _contexto.Proveedores.Add(proveedor);
+
+    public void Eliminar(Proveedor proveedor) => _contexto.Proveedores.Remove(proveedor);
 
     public async Task<ProveedorDto?> ObtenerAsync(Guid proveedorId, CancellationToken ct = default)
     {

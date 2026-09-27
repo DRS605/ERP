@@ -125,6 +125,34 @@ public sealed class CrearPedidoVenta
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return Resultado.Ok(PedidoVentaDto.Desde(pedido.Valor));
     }
+
+    /// <summary>Modifica un pedido aún sin entregas ni factura (cliente, fecha y líneas).</summary>
+    public async Task<Resultado<PedidoVentaDto>> ModificarAsync(Guid pedidoId, CrearPedidoVentaComando comando, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(comando);
+        var pedido = await _pedidos.ObtenerPorIdAsync(pedidoId, ct).ConfigureAwait(false);
+        if (pedido is null)
+        {
+            return Resultado.Fallo<PedidoVentaDto>(Error.NoEncontrado("pedidoventa.no_encontrado", "El pedido no existe."));
+        }
+
+        var cliente = await _clientes.ObtenerAsync(comando.ClienteId, ct).ConfigureAwait(false);
+        if (cliente is null)
+        {
+            return Resultado.Fallo<PedidoVentaDto>(Error.NoEncontrado("cliente.no_encontrado", "El cliente no existe."));
+        }
+
+        var lineas = (comando.Lineas ?? Array.Empty<LineaPedidoVentaComando>())
+            .Select(l => ((Guid?)l.ProductoId, l.Descripcion, l.Cantidad, l.PrecioUnitario, l.PorcentajeDescuento, l.CodigoIva ?? "IVA21")).ToList();
+        var r = pedido.Modificar(comando.ClienteId, cliente.Nombre, comando.Fecha ?? pedido.Fecha, lineas);
+        if (r.EsFallo)
+        {
+            return Resultado.Fallo<PedidoVentaDto>(r.Error);
+        }
+
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(PedidoVentaDto.Desde(pedido));
+    }
 }
 
 public sealed class DecidirPedidoVenta

@@ -41,7 +41,7 @@ public class CobranzaTests
     {
         var a = Anticipo500();
         a.ValidarAplicacion(Guid.NewGuid(), 10m).Error.Codigo.Should().Be("anticipo.otro_cliente");
-        a.ValidarAplicacion(Cliente, 500.01m).Error.Mensaje.Should().Be("El anticipo solo tiene 500.00 € disponibles.");
+        a.ValidarAplicacion(Cliente, 500.01m).Error.Mensaje.Should().Be("El anticipo solo tiene 500,00 € disponibles.");
         a.ValidarAplicacion(Cliente, 0m).Error.Codigo.Should().Be("anticipo.importe_invalido");
     }
 

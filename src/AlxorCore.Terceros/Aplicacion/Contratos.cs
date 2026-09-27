@@ -60,6 +60,8 @@ public interface IRepositorioClientes
     Task<Cliente?> ObtenerPorIdAsync(Guid id, CancellationToken ct = default);
 
     void Agregar(Cliente cliente);
+
+    void Eliminar(Cliente cliente);
 }
 
 /// <summary>Consultas de lectura de clientes (las usan la propia API y otros módulos como Facturación).</summary>

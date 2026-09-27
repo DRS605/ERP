@@ -42,6 +42,11 @@ public static class EndpointsTarifas
             .WithSummary("Actualiza nombre, estado y líneas de una tarifa (sustituye todas las líneas).")
             .RequierePermiso(Permisos.ProductoGestionar);
 
+        tarifas.MapDelete("/{id:guid}", async (Guid id, BajasCatalogo caso, CancellationToken ct) =>
+                (await caso.EliminarTarifaAsync(id, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Elimina una tarifa que ningún cliente tiene asignada (para dejar de usarla sin borrarla, desactívala).")
+            .RequierePermiso(Permisos.ProductoGestionar);
+
         rutas.MapGet("/precios", PrecioAsync)
             .WithTags("Tarifas")
             .WithSummary("Precio y descuento que corresponden a un producto para un cliente, cantidad y fecha (y de dónde salen).")

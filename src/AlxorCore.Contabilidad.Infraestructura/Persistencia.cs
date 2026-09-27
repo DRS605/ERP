@@ -89,6 +89,8 @@ internal sealed class ConfiguracionAsiento : IEntityTypeConfiguration<Asiento>
         builder.Property(a => a.Concepto).HasColumnName("concepto").HasMaxLength(Asiento.LongitudMaximaConcepto).IsRequired();
         builder.Property(a => a.Origen).HasColumnName("origen").HasMaxLength(20).IsRequired();
         builder.Property(a => a.CreadoEn).HasColumnName("creado_en").IsRequired();
+        builder.Property(a => a.AnulaAsientoId).HasColumnName("anula_asiento_id");
+        builder.HasIndex(a => a.AnulaAsientoId).IsUnique().HasFilter("anula_asiento_id IS NOT NULL").HasDatabaseName("ux_asiento_anula");
 
         builder.OwnsMany(a => a.Apuntes, apunte =>
         {
@@ -300,8 +302,19 @@ internal sealed class RepositorioAsientos : IRepositorioAsientos
         var asientos = await _contexto.Asientos.AsNoTracking()
             .Where(a => a.EmpresaId == empresaId && a.Ejercicio == ejercicio)
             .OrderBy(a => a.Fecha).ThenBy(a => a.Numero).ToListAsync(ct).ConfigureAwait(false);
-        return asientos.Select(AsientoDto.Desde).ToList();
+        var ids = asientos.Select(a => a.Id).ToList();
+        var anulados = await _contexto.Asientos.AsNoTracking()
+            .Where(a => a.AnulaAsientoId != null && ids.Contains(a.AnulaAsientoId.Value))
+            .Select(a => new { Anulado = a.AnulaAsientoId!.Value, Por = a.Id })
+            .ToDictionaryAsync(x => x.Anulado, x => x.Por, ct).ConfigureAwait(false);
+        return asientos.Select(a => AsientoDto.Desde(a, anulados.TryGetValue(a.Id, out var por) ? por : null)).ToList();
     }
+
+    public Task<Asiento?> ObtenerAsync(Guid id, CancellationToken ct = default) =>
+        _contexto.Asientos.SingleOrDefaultAsync(a => a.Id == id, ct);
+
+    public Task<bool> EstaAnuladoAsync(Guid id, CancellationToken ct = default) =>
+        _contexto.Asientos.AnyAsync(a => a.AnulaAsientoId == id, ct);
 
     public async Task<IReadOnlyList<AsientoDto>> AsientosDeCuentaAsync(Guid empresaId, int ejercicio, string cuentaCodigo, CancellationToken ct = default)
     {

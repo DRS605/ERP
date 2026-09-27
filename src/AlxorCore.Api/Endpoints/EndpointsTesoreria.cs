@@ -24,6 +24,13 @@ public static class EndpointsTesoreria
             .WithTags("Tesorería").WithSummary("Registra un pago contra un gasto.")
             .RequierePermiso(Permisos.PagoRegistrar);
 
+        rutas.MapPost("/tesoreria/movimientos/{id:guid}/anular", async (Guid id, PeticionAnularMovimiento? peticion, IContextoEmpresa contexto, AnularMovimiento caso, CancellationToken ct) =>
+                contexto.EmpresaId is null
+                    ? ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."))
+                    : (await caso.EjecutarAsync(contexto.EmpresaId.Value, id, peticion?.Fecha, ct).ConfigureAwait(false)).AOk())
+            .WithTags("Tesorería").WithSummary("Anula un cobro o un pago (añade su anulación en negativo; el documento vuelve a quedar pendiente).")
+            .RequierePermiso(Permisos.CobroRegistrar);
+
         rutas.MapGet("/facturas/{id:guid}/saldo", SaldoFacturaAsync)
             .WithTags("Tesorería").WithSummary("Saldo de una factura.")
             .RequierePermiso(Permisos.FacturaLeer);
@@ -167,4 +174,7 @@ public static class EndpointsTesoreria
 
     private static async Task<IResult> SaldoGastoAsync(Guid id, ConsultarSaldo caso, CancellationToken ct) =>
         (await caso.DeGastoAsync(id, ct).ConfigureAwait(false)).AOk();
+
+    /// <summary>Fecha de la anulación (por defecto, hoy).</summary>
+    public sealed record PeticionAnularMovimiento(DateOnly? Fecha);
 }

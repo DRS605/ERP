@@ -24,6 +24,54 @@ public static class GarantiasSql
     /// <summary>Parámetro de sesión (local a la transacción) con el que la baja de una empresa autoriza sus borrados.</summary>
     public const string ParametroBorradoEmpresa = "app.borrado_empresa";
 
+    /// <summary>
+    /// Función <c>alxor_en_uso(referencias, id)</c>: devuelve la primera referencia («esquema.tabla.columna») en la que
+    /// aparece el identificador, o NULL. Los maestros son del grupo y se usan en documentos de cualquiera de sus
+    /// empresas, así que recorre <b>las empresas del grupo actual</b> (<c>app.grupo_actual</c>) fijando cada una como
+    /// <c>app.empresa_actual</c> de forma local: la RLS sigue actuando y nunca mira fuera del grupo del usuario.
+    /// La subcuenta de un tercero (<c>contabilidad.cuenta.tercero_id</c>) solo cuenta como uso si tiene apuntes.
+    /// </summary>
+    public const string FuncionEnUso = """
+        DROP FUNCTION IF EXISTS public.alxor_en_uso(text[], uuid);
+        CREATE FUNCTION public.alxor_en_uso(p_referencias text[], p_id uuid) RETURNS text
+        LANGUAGE plpgsql VOLATILE SET search_path = pg_catalog, public AS $f$
+        DECLARE
+            original text := coalesce(current_setting('app.empresa_actual', true), '');
+            grupo uuid := NULLIF(current_setting('app.grupo_actual', true), '')::uuid;
+            emp uuid;
+            r text;
+            hay boolean;
+        BEGIN
+            IF grupo IS NULL THEN
+                RAISE EXCEPTION 'alxor_en_uso necesita un grupo seleccionado (app.grupo_actual).';
+            END IF;
+            FOR emp IN SELECT e.id FROM organizacion.empresa e WHERE e.grupo_id = grupo LOOP
+                PERFORM set_config('app.empresa_actual', emp::text, true);
+                FOREACH r IN ARRAY p_referencias LOOP
+                    IF r = 'contabilidad.cuenta.tercero_id' THEN
+                        SELECT EXISTS (
+                            SELECT 1 FROM contabilidad.cuenta c
+                            JOIN contabilidad.asiento s ON s.empresa_id = c.empresa_id
+                            JOIN contabilidad.apunte a ON a.asiento_id = s.id AND a.cuenta_codigo = c.codigo
+                            WHERE c.tercero_id = p_id) INTO hay;
+                    ELSE
+                        IF array_length(string_to_array(r, '.'), 1) <> 3 THEN
+                            RAISE EXCEPTION 'Referencia no válida: %', r;
+                        END IF;
+                        EXECUTE format('SELECT EXISTS (SELECT 1 FROM %I.%I WHERE %I = $1)',
+                            split_part(r, '.', 1), split_part(r, '.', 2), split_part(r, '.', 3)) INTO hay USING p_id;
+                    END IF;
+                    IF hay THEN
+                        PERFORM set_config('app.empresa_actual', original, true);
+                        RETURN r;
+                    END IF;
+                END LOOP;
+            END LOOP;
+            PERFORM set_config('app.empresa_actual', original, true);
+            RETURN NULL;
+        END $f$;
+        """;
+
     /// <summary>Funciones comunes a todas las garantías. Idempotente: cada módulo que las usa las (re)crea.</summary>
     public static string FuncionesComunes => $$"""
         CREATE OR REPLACE FUNCTION public.alxor_error(codigo text, mensaje text) RETURNS void

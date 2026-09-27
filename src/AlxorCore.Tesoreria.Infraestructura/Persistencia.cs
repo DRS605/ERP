@@ -56,7 +56,10 @@ internal sealed class ConfiguracionMovimiento : IEntityTypeConfiguration<Movimie
         builder.Property(m => m.Metodo).HasColumnName("metodo").HasMaxLength(40);
         builder.Property(m => m.CreadoEn).HasColumnName("creado_en").IsRequired();
 
+        builder.Property(m => m.AnulaMovimientoId).HasColumnName("anula_movimiento_id");
+
         builder.HasIndex(m => new { m.EmpresaId, m.TipoDocumento, m.DocumentoId }).HasDatabaseName("ix_movimiento_documento");
+        builder.HasIndex(m => m.AnulaMovimientoId).IsUnique().HasFilter("anula_movimiento_id IS NOT NULL").HasDatabaseName("ux_movimiento_anula");
         builder.Ignore(m => m.EventosDominio);
     }
 }
@@ -157,8 +160,17 @@ internal sealed class RepositorioMovimientos : IRepositorioMovimientos, IConsult
     public async Task<IReadOnlyList<Movimiento>> ListarAsync(TipoDocumentoTesoreria tipo, Guid documentoId, CancellationToken ct = default) =>
         await _contexto.Movimientos
             .Where(m => m.TipoDocumento == tipo && m.DocumentoId == documentoId)
-            .OrderBy(m => m.Fecha)
+            .OrderBy(m => m.Fecha).ThenBy(m => m.CreadoEn)
             .ToListAsync(ct).ConfigureAwait(false);
+
+    public Task<Movimiento?> ObtenerAsync(Guid id, CancellationToken ct = default) =>
+        _contexto.Movimientos.SingleOrDefaultAsync(m => m.Id == id, ct);
+
+    public Task<bool> EstaAnuladoAsync(Guid id, CancellationToken ct = default) =>
+        _contexto.Movimientos.AnyAsync(m => m.AnulaMovimientoId == id, ct);
+
+    public Task<Anticipo?> AnticipoDeMovimientoAsync(Guid movimientoId, CancellationToken ct = default) =>
+        _contexto.Anticipos.Include(a => a.Aplicaciones).SingleOrDefaultAsync(a => a.Aplicaciones.Any(x => x.MovimientoId == movimientoId), ct);
 
     public async Task<decimal> TotalLiquidadoAsync(TipoDocumentoTesoreria tipo, CancellationToken ct = default)
     {

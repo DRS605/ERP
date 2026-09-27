@@ -1,6 +1,8 @@
 using AlxorCore.Api.Comun;
 using AlxorCore.Gastos.Aplicacion;
+using AlxorCore.Nucleo.Aplicacion;
 using AlxorCore.Nucleo.Autorizacion;
+using AlxorCore.Nucleo.Comun;
 using AlxorCore.Nucleo.Consultas;
 using AlxorCore.Nucleo.Multiempresa;
 using AlxorCore.Nucleo.Resultados;
@@ -23,6 +25,10 @@ public static class EndpointsGastos
         gastos.MapGet("/buscar", BuscarAsync)
             .WithSummary("Busca gastos con filtros (texto, estado, fechas, importe, proveedor) y paginación.")
             .RequierePermiso(Permisos.GastoLeer);
+
+        gastos.MapPost("/{id:guid}/anular", AnularGastoAsync)
+            .WithSummary("Anula un gasto (contraasiento y fuera de los libros de IVA). Antes hay que anular sus pagos.")
+            .RequierePermiso(Permisos.GastoGestionar);
 
         gastos.MapGet("/{id:guid}", ObtenerAsync)
             .WithSummary("Obtiene un gasto.")
@@ -87,5 +93,28 @@ public static class EndpointsGastos
 
         var resultado = await caso.EjecutarAsync(contexto.EmpresaId.Value, comando, ct).ConfigureAwait(false);
         return resultado.EsCorrecto ? resultado.ACreado($"/gastos/{resultado.Valor.Id}") : ResultadosHttp.AProblema(resultado.Error);
+    }
+
+    private static async Task<IResult> AnularGastoAsync(Guid id, AnularGasto caso, AlxorCore.Tesoreria.Aplicacion.ConsultarSaldo saldo, IComprobadorUso uso, CancellationToken ct)
+    {
+        var s = await saldo.DeGastoAsync(id, ct).ConfigureAwait(false);
+        if (s.EsFallo)
+        {
+            return ResultadosHttp.AProblema(s.Error);
+        }
+
+        if (s.Valor.Liquidado > 0m)
+        {
+            return ResultadosHttp.AProblema(Error.Conflicto("gasto.con_pagos",
+                $"El gasto tiene pagos por {Redondeo.Formatear(s.Valor.Liquidado)} €: anúlalos primero (Pagos → Pagos del gasto)."));
+        }
+
+        if (await uso.BuscarUsoAsync(TiposRegistro.Gasto, id, ct).ConfigureAwait(false) is { } origen)
+        {
+            return ResultadosHttp.AProblema(Error.Conflicto("gasto.de_documento", $"Este gasto es {origen}: anúlalo desde allí."));
+        }
+
+        var r = await caso.EjecutarAsync(id, ct).ConfigureAwait(false);
+        return r.EsCorrecto ? Results.Ok(new { id, anulado = true }) : ResultadosHttp.AProblema(r.Error);
     }
 }

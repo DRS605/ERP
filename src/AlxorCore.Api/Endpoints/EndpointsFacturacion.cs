@@ -1,6 +1,7 @@
 using AlxorCore.Api.Comun;
 using AlxorCore.Facturacion.Aplicacion;
 using AlxorCore.Nucleo.Autorizacion;
+using AlxorCore.Nucleo.Comun;
 using AlxorCore.Nucleo.Consultas;
 using AlxorCore.Nucleo.Multiempresa;
 using AlxorCore.Nucleo.Resultados;
@@ -119,11 +120,20 @@ public static class EndpointsFacturacion
         return resultado.EsCorrecto ? resultado.ACreado($"/facturas/{resultado.Valor.Id}") : ResultadosHttp.AProblema(resultado.Error);
     }
 
-    private static async Task<IResult> AnularAsync(Guid id, AnularFacturaComando comando, IContextoEmpresa contexto, AnularFactura caso, CancellationToken ct)
+    private static async Task<IResult> AnularAsync(Guid id, AnularFacturaComando comando, IContextoEmpresa contexto, AnularFactura caso,
+        AlxorCore.Tesoreria.Aplicacion.ConsultarSaldo saldo, CancellationToken ct)
     {
         if (contexto.EmpresaId is null)
         {
             return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        // Una factura con cobros no se anula: el dinero quedaría asignado a una factura anulada.
+        var s = await saldo.DeFacturaAsync(id, ct).ConfigureAwait(false);
+        if (s.EsCorrecto && s.Valor.Liquidado > 0m)
+        {
+            return ResultadosHttp.AProblema(Error.Conflicto("factura.con_cobros",
+                $"La factura tiene cobros por {Redondeo.Formatear(s.Valor.Liquidado)} €: anúlalos primero (Cobros → Cobros de la factura)."));
         }
 
         var resultado = await caso.EjecutarAsync(contexto.EmpresaId.Value, id, comando, ct).ConfigureAwait(false);

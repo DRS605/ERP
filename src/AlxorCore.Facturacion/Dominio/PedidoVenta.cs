@@ -131,37 +131,84 @@ public sealed class PedidoVenta : RaizAgregadoEmpresa<Guid>
     {
         ArgumentNullException.ThrowIfNull(reloj);
         ArgumentNullException.ThrowIfNull(lineas);
+        if (Validar(clienteId, clienteNombre, lineas) is { } error)
+        {
+            return Resultado.Fallo<PedidoVenta>(error);
+        }
+
+        var pedido = new PedidoVenta(Guid.NewGuid(), empresaId, clienteId, clienteNombre!.Trim(), fecha, fecha.Year, numero, serie, presupuestoOrigenId, reloj.AhoraUtc);
+        pedido.PonerLineas(lineas);
+        return Resultado.Ok(pedido);
+    }
+
+    /// <summary>
+    /// Modifica cliente, fecha y líneas de un pedido que aún no se ha entregado ni facturado (en borrador o
+    /// confirmado). El número no cambia, así que la fecha tiene que seguir en su ejercicio.
+    /// </summary>
+    public Resultado Modificar(Guid clienteId, string? clienteNombre, DateOnly fecha,
+        IReadOnlyList<(Guid? ProductoId, string Descripcion, decimal Cantidad, decimal Precio, decimal Descuento, string CodigoIva)> lineas)
+    {
+        ArgumentNullException.ThrowIfNull(lineas);
+        if (Estado is not (EstadoPedidoVenta.Borrador or EstadoPedidoVenta.Confirmado) || _lineas.Any(l => l.CantidadServida > 0m))
+        {
+            return Resultado.Fallo(Error.Conflicto("pedidoventa.no_modificable",
+                "Solo se modifica un pedido sin entregas ni factura. Si ya se entregó, cancela lo pendiente o haz otro pedido."));
+        }
+
+        if (fecha.Year != Ejercicio)
+        {
+            return Resultado.Fallo(Error.Validacion("pedidoventa.fecha_ejercicio", $"La fecha debe ser de {Ejercicio}, el ejercicio de su número."));
+        }
+
+        if (Validar(clienteId, clienteNombre, lineas) is { } error)
+        {
+            return Resultado.Fallo(error);
+        }
+
+        ClienteId = clienteId;
+        ClienteNombre = clienteNombre!.Trim();
+        Fecha = fecha;
+        _lineas.Clear();
+        PonerLineas(lineas);
+        return Resultado.Ok();
+    }
+
+    private void PonerLineas(IReadOnlyList<(Guid? ProductoId, string Descripcion, decimal Cantidad, decimal Precio, decimal Descuento, string CodigoIva)> lineas)
+    {
+        foreach (var l in lineas)
+        {
+            _lineas.Add(new LineaPedidoVenta(Guid.NewGuid(), l.ProductoId, l.Descripcion.Trim(), l.Cantidad,
+                Redondeo.Dos(l.Precio), l.Descuento, string.IsNullOrWhiteSpace(l.CodigoIva) ? "IVA21" : l.CodigoIva.Trim()));
+        }
+    }
+
+    private static Error? Validar(Guid clienteId, string? clienteNombre,
+        IReadOnlyList<(Guid? ProductoId, string Descripcion, decimal Cantidad, decimal Precio, decimal Descuento, string CodigoIva)> lineas)
+    {
         if (clienteId == Guid.Empty || string.IsNullOrWhiteSpace(clienteNombre))
         {
-            return Resultado.Fallo<PedidoVenta>(Error.Validacion("pedidoventa.cliente_vacio", "El cliente es obligatorio."));
+            return Error.Validacion("pedidoventa.cliente_vacio", "El cliente es obligatorio.");
         }
 
         if (lineas.Count == 0)
         {
-            return Resultado.Fallo<PedidoVenta>(Error.Validacion("pedidoventa.sin_lineas", "El pedido necesita al menos una línea."));
+            return Error.Validacion("pedidoventa.sin_lineas", "El pedido necesita al menos una línea.");
         }
 
         foreach (var l in lineas)
         {
             if (string.IsNullOrWhiteSpace(l.Descripcion))
             {
-                return Resultado.Fallo<PedidoVenta>(Error.Validacion("pedidoventa.descripcion_vacia", "Cada línea necesita una descripción."));
+                return Error.Validacion("pedidoventa.descripcion_vacia", "Cada línea necesita una descripción.");
             }
 
             if (l.Cantidad <= 0m || l.Precio < 0m)
             {
-                return Resultado.Fallo<PedidoVenta>(Error.Validacion("pedidoventa.linea_invalida", "Cantidad > 0 y precio ≥ 0."));
+                return Error.Validacion("pedidoventa.linea_invalida", "Cantidad > 0 y precio ≥ 0.");
             }
         }
 
-        var pedido = new PedidoVenta(Guid.NewGuid(), empresaId, clienteId, clienteNombre.Trim(), fecha, fecha.Year, numero, serie, presupuestoOrigenId, reloj.AhoraUtc);
-        foreach (var l in lineas)
-        {
-            pedido._lineas.Add(new LineaPedidoVenta(Guid.NewGuid(), l.ProductoId, l.Descripcion.Trim(), l.Cantidad,
-                Redondeo.Dos(l.Precio), l.Descuento, string.IsNullOrWhiteSpace(l.CodigoIva) ? "IVA21" : l.CodigoIva.Trim()));
-        }
-
-        return Resultado.Ok(pedido);
+        return null;
     }
 
     public Resultado Confirmar()

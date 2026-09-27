@@ -139,6 +139,8 @@ internal sealed class RepositorioSolicitudes : IRepositorioSolicitudes
 
     public void Agregar(SolicitudCompra solicitud) => _contexto.Solicitudes.Add(solicitud);
 
+    public void Eliminar(SolicitudCompra solicitud) => _contexto.Solicitudes.Remove(solicitud);
+
     public async Task<IReadOnlyList<SolicitudDto>> ListarAsync(Guid empresaId, CancellationToken ct = default)
     {
         var lista = await _contexto.Solicitudes.AsNoTracking().Where(s => s.EmpresaId == empresaId)

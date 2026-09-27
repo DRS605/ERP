@@ -114,8 +114,8 @@ public sealed class ListarClientes
 
     public ListarClientes(IConsultaClientes consulta) => _consulta = consulta;
 
-    public Task<IReadOnlyList<ClienteDto>> EjecutarAsync(Guid grupoId, IReadOnlyCollection<Guid>? actividadesPermitidas = null, CancellationToken ct = default) =>
-        _consulta.ListarAsync(grupoId, false, actividadesPermitidas, ct);
+    public Task<IReadOnlyList<ClienteDto>> EjecutarAsync(Guid grupoId, IReadOnlyCollection<Guid>? actividadesPermitidas = null, bool incluirBajas = false, CancellationToken ct = default) =>
+        _consulta.ListarAsync(grupoId, incluirBajas, actividadesPermitidas, ct);
 }
 
 /// <summary>Caso de uso: buscar clientes con filtros y paginación (en servidor).</summary>

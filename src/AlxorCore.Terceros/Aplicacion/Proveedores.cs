@@ -24,6 +24,8 @@ public interface IRepositorioProveedores
     Task<Proveedor?> ObtenerPorIdAsync(Guid id, CancellationToken ct = default);
 
     void Agregar(Proveedor proveedor);
+
+    void Eliminar(Proveedor proveedor);
 }
 
 /// <summary>Consultas de lectura de proveedores (las usan la API y el módulo Gastos).</summary>
@@ -140,8 +142,8 @@ public sealed class ListarProveedores
 
     public ListarProveedores(IConsultaProveedores consulta) => _consulta = consulta;
 
-    public Task<IReadOnlyList<ProveedorDto>> EjecutarAsync(Guid grupoId, IReadOnlyCollection<Guid>? actividadesPermitidas = null, CancellationToken ct = default) =>
-        _consulta.ListarAsync(grupoId, false, actividadesPermitidas, ct);
+    public Task<IReadOnlyList<ProveedorDto>> EjecutarAsync(Guid grupoId, IReadOnlyCollection<Guid>? actividadesPermitidas = null, bool incluirBajas = false, CancellationToken ct = default) =>
+        _consulta.ListarAsync(grupoId, incluirBajas, actividadesPermitidas, ct);
 }
 
 /// <summary>Caso de uso: buscar proveedores con filtros y paginación (en servidor).</summary>

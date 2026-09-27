@@ -9,9 +9,17 @@ using AlxorCore.Tesoreria.Dominio;
 namespace AlxorCore.Tesoreria.Aplicacion;
 
 /// <summary>Vista de un movimiento de tesorería.</summary>
-public sealed record MovimientoDto(Guid Id, string Sentido, decimal Importe, DateOnly Fecha, string? Metodo)
+public sealed record MovimientoDto(Guid Id, string Sentido, decimal Importe, DateOnly Fecha, string? Metodo, Guid? AnulaMovimientoId = null, bool Anulado = false)
 {
-    public static MovimientoDto Desde(Movimiento m) => new(m.Id, m.Sentido.ToString(), m.Importe, m.Fecha, m.Metodo);
+    public static MovimientoDto Desde(Movimiento m) => new(m.Id, m.Sentido.ToString(), m.Importe, m.Fecha, m.Metodo, m.AnulaMovimientoId);
+
+    /// <summary>Lista de movimientos de un documento, marcando los que ya tienen su anulación.</summary>
+    public static IReadOnlyList<MovimientoDto> DesdeLista(IReadOnlyList<Movimiento> movimientos)
+    {
+        ArgumentNullException.ThrowIfNull(movimientos);
+        var anulados = movimientos.Where(m => m.AnulaMovimientoId is not null).Select(m => m.AnulaMovimientoId!.Value).ToHashSet();
+        return movimientos.Select(m => Desde(m) with { Anulado = anulados.Contains(m.Id) }).ToList();
+    }
 }
 
 /// <summary>Saldo de un documento (total, liquidado, pendiente y estado derivado).</summary>
@@ -27,6 +35,13 @@ public interface IRepositorioMovimientos
     Task<decimal> SumaAsync(TipoDocumentoTesoreria tipo, Guid documentoId, CancellationToken ct = default);
 
     Task<IReadOnlyList<Movimiento>> ListarAsync(TipoDocumentoTesoreria tipo, Guid documentoId, CancellationToken ct = default);
+
+    Task<Movimiento?> ObtenerAsync(Guid id, CancellationToken ct = default);
+
+    Task<bool> EstaAnuladoAsync(Guid id, CancellationToken ct = default);
+
+    /// <summary>Anticipo cuya aplicación generó el movimiento (null si no viene de un anticipo).</summary>
+    Task<Anticipo?> AnticipoDeMovimientoAsync(Guid movimientoId, CancellationToken ct = default);
 }
 
 /// <summary>Unidad de trabajo del módulo Tesorería.</summary>
@@ -195,7 +210,57 @@ public sealed class ConsultarSaldo
         var estado = Movimiento.DerivarEstado(total, liquidado);
         return Resultado.Ok(new SaldoDto(
             tipo.ToString(), documentoId, total, liquidado, pendiente, estado.ToString(),
-            movimientos.Select(MovimientoDto.Desde).ToList()));
+            MovimientoDto.DesdeLista(movimientos)));
+    }
+}
+
+/// <summary>
+/// Anula un cobro o un pago mal registrado: añade su anulación (importe en negativo), con lo que el documento vuelve a
+/// tener pendiente ese importe. Los movimientos no se borran ni se modifican. Si el cobro era la aplicación de un
+/// anticipo, el anticipo recupera ese saldo disponible.
+/// </summary>
+public sealed class AnularMovimiento
+{
+    private readonly IRepositorioMovimientos _movimientos;
+    private readonly IUnidadDeTrabajoTesoreria _unidad;
+    private readonly IReloj _reloj;
+
+    public AnularMovimiento(IRepositorioMovimientos movimientos, IUnidadDeTrabajoTesoreria unidad, IReloj reloj)
+    {
+        _movimientos = movimientos;
+        _unidad = unidad;
+        _reloj = reloj;
+    }
+
+    public async Task<Resultado<MovimientoDto>> EjecutarAsync(Guid empresaId, Guid movimientoId, DateOnly? fecha, CancellationToken ct = default)
+    {
+        var original = await _movimientos.ObtenerAsync(movimientoId, ct).ConfigureAwait(false);
+        if (original is null || original.EmpresaId != empresaId)
+        {
+            return Resultado.Fallo<MovimientoDto>(Error.NoEncontrado("movimiento.no_encontrado", "El cobro o pago no existe."));
+        }
+
+        if (await _movimientos.EstaAnuladoAsync(movimientoId, ct).ConfigureAwait(false))
+        {
+            return Resultado.Fallo<MovimientoDto>(Error.Conflicto("movimiento.ya_anulado", "Este cobro o pago ya está anulado."));
+        }
+
+        var anulacion = Movimiento.CrearAnulacion(original, fecha ?? DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime), _reloj);
+        if (anulacion.EsFallo)
+        {
+            return Resultado.Fallo<MovimientoDto>(anulacion.Error);
+        }
+
+        _movimientos.Agregar(anulacion.Valor);
+        var anticipo = await _movimientos.AnticipoDeMovimientoAsync(movimientoId, ct).ConfigureAwait(false);
+        if (anticipo is not null)
+        {
+            var aplicacion = anticipo.Aplicaciones.Single(a => a.MovimientoId == movimientoId);
+            anticipo.AnotarAplicacion(aplicacion.FacturaId, -aplicacion.Importe, anulacion.Valor.Fecha, anulacion.Valor.Id);
+        }
+
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(MovimientoDto.Desde(anulacion.Valor));
     }
 }
 

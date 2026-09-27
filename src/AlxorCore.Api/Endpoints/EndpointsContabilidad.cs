@@ -75,6 +75,13 @@ public static class EndpointsContabilidad
             .WithSummary("Crea un asiento manual (debe la suma del debe = suma del haber).")
             .RequierePermiso(Permisos.ContabilidadGestionar);
 
+        grupo.MapPost("/asientos/{id:guid}/anular", async (Guid id, PeticionAnularAsiento? peticion, IContextoEmpresa contexto, AnularAsiento caso, CancellationToken ct) =>
+                contexto.EmpresaId is null
+                    ? ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."))
+                    : (await caso.EjecutarAsync(contexto.EmpresaId.Value, id, peticion?.Fecha, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Anula un asiento manual con su contraasiento (los de documentos se anulan desde el documento).")
+            .RequierePermiso(Permisos.ContabilidadGestionar);
+
         grupo.MapGet("/modo", ModoAsync)
             .WithSummary("Modo de contabilidad de la empresa (Simple / Completo).")
             .RequierePermiso(Permisos.ContabilidadLeer);
@@ -425,4 +432,7 @@ public static class EndpointsContabilidad
         var resultado = await caso.EjecutarAsync(contexto.EmpresaId.Value, id, ct).ConfigureAwait(false);
         return resultado.EsCorrecto ? Results.NoContent() : ResultadosHttp.AProblema(resultado.Error);
     }
+
+    /// <summary>Fecha del contraasiento (por defecto, la del asiento que anula).</summary>
+    public sealed record PeticionAnularAsiento(DateOnly? Fecha);
 }

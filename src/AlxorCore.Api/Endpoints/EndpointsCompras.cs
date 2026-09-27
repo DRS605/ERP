@@ -19,6 +19,10 @@ public static class EndpointsCompras
         var sol = rutas.MapGroup("/compras/solicitudes").WithTags("Compras · Solicitudes");
         sol.MapGet("", ListarSolicitudesAsync).WithSummary("Lista las solicitudes de compra.").RequierePermiso(Permisos.CompraLeer);
         sol.MapPost("", CrearSolicitudAsync).WithSummary("Crea una solicitud de compra.").RequierePermiso(Permisos.CompraGestionar);
+        sol.MapPut("/{id:guid}", async (Guid id, CrearSolicitudComando cmd, CrearSolicitud caso, CancellationToken ct) =>
+            (await caso.ModificarAsync(id, cmd, ct).ConfigureAwait(false)).AOk()).WithSummary("Modifica una solicitud en borrador o rechazada.").RequierePermiso(Permisos.CompraGestionar);
+        sol.MapDelete("/{id:guid}", async (Guid id, CrearSolicitud caso, CancellationToken ct) =>
+            (await caso.EliminarAsync(id, ct).ConfigureAwait(false)).AOk()).WithSummary("Elimina una solicitud en borrador o rechazada.").RequierePermiso(Permisos.CompraGestionar);
         sol.MapPost("/{id:guid}/aprobar", AprobarSolicitudAsync).WithSummary("Aprueba una solicitud.").RequierePermiso(Permisos.CompraGestionar);
         sol.MapPost("/{id:guid}/rechazar", RechazarSolicitudAsync).WithSummary("Rechaza una solicitud.").RequierePermiso(Permisos.CompraGestionar);
 
@@ -27,6 +31,8 @@ public static class EndpointsCompras
         ped.MapGet("/{id:guid}", ObtenerPedidoAsync).WithSummary("Obtiene un pedido.").RequierePermiso(Permisos.CompraLeer);
         ped.MapGet("/{id:guid}/albaranes", AlbaranesAsync).WithSummary("Albaranes de recepción del pedido.").RequierePermiso(Permisos.CompraLeer);
         ped.MapPost("", CrearPedidoAsync).WithSummary("Crea un pedido de compra (opcionalmente desde una solicitud).").RequierePermiso(Permisos.CompraGestionar);
+        ped.MapPut("/{id:guid}", async (Guid id, CrearPedidoComando cmd, CrearPedido caso, CancellationToken ct) =>
+            (await caso.ModificarAsync(id, cmd, ct).ConfigureAwait(false)).AOk()).WithSummary("Modifica fecha y líneas de un pedido sin recepciones ni factura.").RequierePermiso(Permisos.CompraGestionar);
         ped.MapPost("/{id:guid}/confirmar", ConfirmarPedidoAsync).WithSummary("Confirma un pedido.").RequierePermiso(Permisos.CompraGestionar);
         ped.MapPost("/{id:guid}/recibir", RecibirAsync).WithSummary("Registra un albarán de recepción.").RequierePermiso(Permisos.CompraGestionar);
         ped.MapPost("/{id:guid}/facturar", FacturarAsync).WithSummary("Factura el pedido (genera el gasto y, en modo Completo, el asiento).").RequierePermiso(Permisos.CompraGestionar);

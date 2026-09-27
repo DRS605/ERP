@@ -41,6 +41,25 @@ public sealed class Almacen : RaizAgregadoEmpresa<Guid>
     }
 
     public void Desactivar() => Activo = false;
+
+    public void Reactivar() => Activo = true;
+
+    public Resultado Actualizar(string? codigo, string? nombre)
+    {
+        if (string.IsNullOrWhiteSpace(codigo))
+        {
+            return Resultado.Fallo(Error.Validacion("almacen.codigo_vacio", "El código del almacén es obligatorio."));
+        }
+
+        if (string.IsNullOrWhiteSpace(nombre))
+        {
+            return Resultado.Fallo(Error.Validacion("almacen.nombre_vacio", "El nombre del almacén es obligatorio."));
+        }
+
+        Codigo = codigo.Trim();
+        Nombre = nombre.Trim();
+        return Resultado.Ok();
+    }
 }
 
 /// <summary>Una ubicación dentro de un almacén (p. ej. «PASILLO-A / ESTANTE-3»).</summary>
@@ -71,5 +90,17 @@ public sealed class Ubicacion : RaizAgregadoEmpresa<Guid>
 
         return Resultado.Ok(new Ubicacion(Guid.NewGuid(), empresaId, almacenId,
             codigo.Trim(), string.IsNullOrWhiteSpace(nombre) ? codigo.Trim() : nombre.Trim()));
+    }
+
+    public Resultado Actualizar(string? codigo, string? nombre)
+    {
+        if (string.IsNullOrWhiteSpace(codigo))
+        {
+            return Resultado.Fallo(Error.Validacion("ubicacion.codigo_vacio", "El código de la ubicación es obligatorio."));
+        }
+
+        Codigo = codigo.Trim();
+        Nombre = string.IsNullOrWhiteSpace(nombre) ? Codigo : nombre.Trim();
+        return Resultado.Ok();
     }
 }

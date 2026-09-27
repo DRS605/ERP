@@ -133,6 +133,11 @@ internal sealed class RepositorioAlmacenes : IRepositorioAlmacenes
     public void Agregar(Almacen almacen) => _ctx.Almacenes.Add(almacen);
     public Task<Almacen?> ObtenerAsync(Guid id, CancellationToken ct = default) => _ctx.Almacenes.SingleOrDefaultAsync(a => a.Id == id, ct);
     public void AgregarUbicacion(Ubicacion ubicacion) => _ctx.Ubicaciones.Add(ubicacion);
+    public Task<Ubicacion?> ObtenerUbicacionAsync(Guid id, CancellationToken ct = default) => _ctx.Ubicaciones.SingleOrDefaultAsync(u => u.Id == id, ct);
+    public async Task<IReadOnlyList<Ubicacion>> UbicacionesDeAsync(Guid almacenId, CancellationToken ct = default) =>
+        await _ctx.Ubicaciones.Where(u => u.AlmacenId == almacenId).ToListAsync(ct).ConfigureAwait(false);
+    public void Eliminar(Almacen almacen) => _ctx.Almacenes.Remove(almacen);
+    public void EliminarUbicacion(Ubicacion ubicacion) => _ctx.Ubicaciones.Remove(ubicacion);
 
     public async Task<IReadOnlyList<AlmacenDto>> ListarAsync(Guid empresaId, CancellationToken ct = default)
     {

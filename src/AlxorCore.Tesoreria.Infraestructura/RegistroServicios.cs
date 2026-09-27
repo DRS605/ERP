@@ -47,6 +47,7 @@ public static class RegistroServicios
         servicios.AddScoped<AlxorCore.Nucleo.Aplicacion.IPagosAutomaticos, PagosAutomaticos>();
         servicios.AddScoped<AlxorCore.Nucleo.Aplicacion.IConsultaRiesgo, ConsultaRiesgo>();
         servicios.AddScoped<ConsultarSaldo>();
+        servicios.AddScoped<AnularMovimiento>();
         servicios.AddScoped<CrearPrevision>();
         servicios.AddScoped<ListarPrevisiones>();
         servicios.AddScoped<EliminarPrevision>();

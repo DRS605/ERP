@@ -47,6 +47,7 @@ public static class RegistroServicios
         servicios.AddScoped<ListarProveedores>();
         servicios.AddScoped<BuscarProveedores>();
         servicios.AddScoped<ObtenerProveedor>();
+        servicios.AddScoped<BajasTerceros>();
 
         return servicios;
     }

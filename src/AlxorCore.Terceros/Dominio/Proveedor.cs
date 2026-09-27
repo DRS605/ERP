@@ -187,6 +187,13 @@ public sealed class Proveedor : RaizAgregadoGrupo<Guid>
         ActualizadoEn = reloj.AhoraUtc;
     }
 
+    /// <summary>Vuelve a darlo de alta tras una baja.</summary>
+    public void Reactivar(IReloj reloj)
+    {
+        Activo = true;
+        ActualizadoEn = reloj.AhoraUtc;
+    }
+
     private static Error? Validar(string? nombre, decimal irpf)
     {
         if (string.IsNullOrWhiteSpace(nombre))

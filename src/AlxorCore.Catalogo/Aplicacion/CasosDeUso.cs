@@ -165,8 +165,8 @@ public sealed class ListarProductos
 
     public ListarProductos(IConsultaProductos consulta) => _consulta = consulta;
 
-    public Task<IReadOnlyList<ProductoDto>> EjecutarAsync(Guid grupoId, IReadOnlyCollection<Guid>? actividadesPermitidas = null, CancellationToken ct = default) =>
-        _consulta.ListarAsync(grupoId, false, actividadesPermitidas, ct);
+    public Task<IReadOnlyList<ProductoDto>> EjecutarAsync(Guid grupoId, IReadOnlyCollection<Guid>? actividadesPermitidas = null, bool incluirBajas = false, CancellationToken ct = default) =>
+        _consulta.ListarAsync(grupoId, incluirBajas, actividadesPermitidas, ct);
 }
 
 /// <summary>Caso de uso: buscar productos con filtros (texto, familia, activos) y paginación en servidor.</summary>

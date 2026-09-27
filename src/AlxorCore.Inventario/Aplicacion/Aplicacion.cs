@@ -29,6 +29,10 @@ public interface IRepositorioAlmacenes
     Task<Almacen?> ObtenerAsync(Guid id, CancellationToken ct = default);
     Task<IReadOnlyList<AlmacenDto>> ListarAsync(Guid empresaId, CancellationToken ct = default);
     void AgregarUbicacion(Ubicacion ubicacion);
+    Task<Ubicacion?> ObtenerUbicacionAsync(Guid id, CancellationToken ct = default);
+    Task<IReadOnlyList<Ubicacion>> UbicacionesDeAsync(Guid almacenId, CancellationToken ct = default);
+    void Eliminar(Almacen almacen);
+    void EliminarUbicacion(Ubicacion ubicacion);
     Task<IReadOnlyList<UbicacionDto>> ListarUbicacionesAsync(Guid empresaId, Guid? almacenId = null, CancellationToken ct = default);
 }
 
@@ -70,7 +74,113 @@ public sealed class GestionAlmacenes
     private readonly IRepositorioAlmacenes _repo;
     private readonly IUnidadDeTrabajoInventario _unidad;
 
-    public GestionAlmacenes(IRepositorioAlmacenes repo, IUnidadDeTrabajoInventario unidad) { _repo = repo; _unidad = unidad; }
+    private readonly IComprobadorUso _uso;
+
+    public GestionAlmacenes(IRepositorioAlmacenes repo, IUnidadDeTrabajoInventario unidad, IComprobadorUso uso) { _repo = repo; _unidad = unidad; _uso = uso; }
+
+    public async Task<Resultado<AlmacenDto>> ActualizarAlmacenAsync(Guid id, CrearAlmacenComando comando, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(comando);
+        var almacen = await _repo.ObtenerAsync(id, ct).ConfigureAwait(false);
+        if (almacen is null)
+        {
+            return Resultado.Fallo<AlmacenDto>(Error.NoEncontrado("almacen.no_encontrado", "El almacén no existe."));
+        }
+
+        var r = almacen.Actualizar(comando.Codigo, comando.Nombre);
+        if (r.EsFallo)
+        {
+            return Resultado.Fallo<AlmacenDto>(r.Error);
+        }
+
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(AlmacenDto.Desde(almacen));
+    }
+
+    /// <summary>Elimina un almacén sin movimientos ni existencias (con sus ubicaciones); si ya se usó, darlo de baja.</summary>
+    public async Task<Resultado<BajaDto>> EliminarAlmacenAsync(Guid id, CancellationToken ct = default)
+    {
+        var almacen = await _repo.ObtenerAsync(id, ct).ConfigureAwait(false);
+        if (almacen is null)
+        {
+            return Resultado.Fallo<BajaDto>(Error.NoEncontrado("almacen.no_encontrado", "El almacén no existe."));
+        }
+
+        var uso = await _uso.BuscarUsoAsync(TiposRegistro.Almacen, id, ct).ConfigureAwait(false);
+        if (uso is not null)
+        {
+            return Resultado.Fallo<BajaDto>(Bajas.EnUso("almacen", "el almacén", uso));
+        }
+
+        foreach (var u in await _repo.UbicacionesDeAsync(id, ct).ConfigureAwait(false))
+        {
+            _repo.EliminarUbicacion(u);
+        }
+
+        _repo.Eliminar(almacen);
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(new BajaDto(id, true, false));
+    }
+
+    public async Task<Resultado<BajaDto>> CambiarEstadoAlmacenAsync(Guid id, bool activo, CancellationToken ct = default)
+    {
+        var almacen = await _repo.ObtenerAsync(id, ct).ConfigureAwait(false);
+        if (almacen is null)
+        {
+            return Resultado.Fallo<BajaDto>(Error.NoEncontrado("almacen.no_encontrado", "El almacén no existe."));
+        }
+
+        if (activo)
+        {
+            almacen.Reactivar();
+        }
+        else
+        {
+            almacen.Desactivar();
+        }
+
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(new BajaDto(id, false, almacen.Activo));
+    }
+
+    public async Task<Resultado<UbicacionDto>> ActualizarUbicacionAsync(Guid id, CrearUbicacionComando comando, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(comando);
+        var ubicacion = await _repo.ObtenerUbicacionAsync(id, ct).ConfigureAwait(false);
+        if (ubicacion is null)
+        {
+            return Resultado.Fallo<UbicacionDto>(Error.NoEncontrado("ubicacion.no_encontrada", "La ubicación no existe."));
+        }
+
+        var r = ubicacion.Actualizar(comando.Codigo, comando.Nombre);
+        if (r.EsFallo)
+        {
+            return Resultado.Fallo<UbicacionDto>(r.Error);
+        }
+
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(UbicacionDto.Desde(ubicacion));
+    }
+
+    /// <summary>Elimina una ubicación sin existencias ni movimientos.</summary>
+    public async Task<Resultado<BajaDto>> EliminarUbicacionAsync(Guid id, CancellationToken ct = default)
+    {
+        var ubicacion = await _repo.ObtenerUbicacionAsync(id, ct).ConfigureAwait(false);
+        if (ubicacion is null)
+        {
+            return Resultado.Fallo<BajaDto>(Error.NoEncontrado("ubicacion.no_encontrada", "La ubicación no existe."));
+        }
+
+        var uso = await _uso.BuscarUsoAsync(TiposRegistro.Ubicacion, id, ct).ConfigureAwait(false);
+        if (uso is not null)
+        {
+            return Resultado.Fallo<BajaDto>(Error.Conflicto("ubicacion" + Bajas.SufijoEnUso, $"No se puede eliminar la ubicación porque tiene {uso}."));
+        }
+
+        _repo.EliminarUbicacion(ubicacion);
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(new BajaDto(id, true, false));
+    }
 
     public async Task<Resultado<AlmacenDto>> CrearAlmacenAsync(Guid empresaId, CrearAlmacenComando comando, CancellationToken ct = default)
     {

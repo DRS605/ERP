@@ -16,6 +16,24 @@ public static class EndpointsInventario
 
         g.MapGet("/almacenes", ListarAlmacenesAsync).WithSummary("Lista los almacenes.").RequierePermiso(Permisos.InventarioLeer);
         g.MapPost("/almacenes", CrearAlmacenAsync).WithSummary("Crea un almacén.").RequierePermiso(Permisos.InventarioGestionar);
+        g.MapPut("/almacenes/{id:guid}", async (Guid id, CrearAlmacenComando cmd, GestionAlmacenes caso, CancellationToken ct) =>
+                (await caso.ActualizarAlmacenAsync(id, cmd, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Modifica el código y el nombre de un almacén.").RequierePermiso(Permisos.InventarioGestionar);
+        g.MapDelete("/almacenes/{id:guid}", async (Guid id, GestionAlmacenes caso, CancellationToken ct) =>
+                (await caso.EliminarAlmacenAsync(id, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Elimina un almacén sin existencias ni movimientos (409 «almacen.en_uso»: darlo de baja).").RequierePermiso(Permisos.InventarioGestionar);
+        g.MapPost("/almacenes/{id:guid}/baja", async (Guid id, GestionAlmacenes caso, CancellationToken ct) =>
+                (await caso.CambiarEstadoAlmacenAsync(id, false, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Da de baja un almacén.").RequierePermiso(Permisos.InventarioGestionar);
+        g.MapPost("/almacenes/{id:guid}/alta", async (Guid id, GestionAlmacenes caso, CancellationToken ct) =>
+                (await caso.CambiarEstadoAlmacenAsync(id, true, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Reactiva un almacén.").RequierePermiso(Permisos.InventarioGestionar);
+        g.MapPut("/ubicaciones/{id:guid}", async (Guid id, CrearUbicacionComando cmd, GestionAlmacenes caso, CancellationToken ct) =>
+                (await caso.ActualizarUbicacionAsync(id, cmd, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Modifica el código y el nombre de una ubicación.").RequierePermiso(Permisos.InventarioGestionar);
+        g.MapDelete("/ubicaciones/{id:guid}", async (Guid id, GestionAlmacenes caso, CancellationToken ct) =>
+                (await caso.EliminarUbicacionAsync(id, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Elimina una ubicación sin existencias ni movimientos.").RequierePermiso(Permisos.InventarioGestionar);
         g.MapGet("/ubicaciones", ListarUbicacionesAsync).WithSummary("Lista las ubicaciones (opcional por almacén).").RequierePermiso(Permisos.InventarioLeer);
         g.MapPost("/ubicaciones", CrearUbicacionAsync).WithSummary("Crea una ubicación en un almacén.").RequierePermiso(Permisos.InventarioGestionar);
 

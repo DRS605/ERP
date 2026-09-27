@@ -149,6 +149,48 @@ public sealed class PedidoCompra : RaizAgregadoEmpresa<Guid>
         return Resultado.Ok(pedido);
     }
 
+    /// <summary>
+    /// Modifica fecha y líneas de un pedido aún sin recepciones ni factura. El proveedor no cambia (el número es de
+    /// la serie del proveedor) y la fecha sigue en su ejercicio.
+    /// </summary>
+    public Resultado Modificar(DateOnly fecha, IReadOnlyList<(Guid? ProductoId, string Descripcion, decimal Cantidad, decimal Precio)> lineas)
+    {
+        ArgumentNullException.ThrowIfNull(lineas);
+        if (Estado is not (EstadoPedido.Borrador or EstadoPedido.Confirmado) || _lineas.Any(l => l.CantidadRecibida > 0m || l.CantidadFacturada > 0m))
+        {
+            return Resultado.Fallo(Error.Conflicto("pedido.no_modificable", "Solo se modifica un pedido sin recepciones ni factura."));
+        }
+
+        if (fecha.Year != Ejercicio)
+        {
+            return Resultado.Fallo(Error.Validacion("pedido.fecha_ejercicio", $"La fecha debe ser de {Ejercicio}, el ejercicio de su número."));
+        }
+
+        if (lineas.Count == 0)
+        {
+            return Resultado.Fallo(Error.Validacion("pedido.sin_lineas", "El pedido necesita al menos una línea."));
+        }
+
+        if (lineas.Any(l => string.IsNullOrWhiteSpace(l.Descripcion)))
+        {
+            return Resultado.Fallo(Error.Validacion("pedido.descripcion_vacia", "Cada línea necesita una descripción."));
+        }
+
+        if (lineas.Any(l => l.Cantidad <= 0m || l.Precio < 0m))
+        {
+            return Resultado.Fallo(Error.Validacion("pedido.linea_invalida", "Cantidad > 0 y precio ≥ 0."));
+        }
+
+        Fecha = fecha;
+        _lineas.Clear();
+        foreach (var l in lineas)
+        {
+            _lineas.Add(new LineaPedido(Guid.NewGuid(), l.ProductoId, l.Descripcion.Trim(), l.Cantidad, Redondeo.Dos(l.Precio)));
+        }
+
+        return Resultado.Ok();
+    }
+
     public Resultado Confirmar()
     {
         if (Estado is not EstadoPedido.Borrador)

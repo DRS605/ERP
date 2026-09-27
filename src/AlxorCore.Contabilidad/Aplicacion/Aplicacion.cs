@@ -18,10 +18,13 @@ public sealed record CuentaDto(Guid Id, string Codigo, string Nombre, int Grupo)
 public sealed record ApunteDto(string CuentaCodigo, string? Concepto, decimal Debe, decimal Haber, Guid Id = default);
 
 public sealed record AsientoDto(Guid Id, int Ejercicio, int Numero, DateOnly Fecha, string Concepto,
-    string Origen, decimal Total, IReadOnlyList<ApunteDto> Apuntes)
+    string Origen, decimal Total, IReadOnlyList<ApunteDto> Apuntes, Guid? AnulaAsientoId = null, Guid? AnuladoPorId = null)
 {
-    public static AsientoDto Desde(Asiento a) => new(a.Id, a.Ejercicio, a.Numero, a.Fecha, a.Concepto,
-        a.Origen, a.TotalDebe, a.Apuntes.Select(p => new ApunteDto(p.CuentaCodigo, p.Concepto, p.Debe, p.Haber, p.Id)).ToList());
+    public static AsientoDto Desde(Asiento a) => Desde(a, null);
+
+    public static AsientoDto Desde(Asiento a, Guid? anuladoPorId) => new(a.Id, a.Ejercicio, a.Numero, a.Fecha, a.Concepto,
+        a.Origen, a.TotalDebe, a.Apuntes.Select(p => new ApunteDto(p.CuentaCodigo, p.Concepto, p.Debe, p.Haber, p.Id)).ToList(),
+        a.AnulaAsientoId, anuladoPorId);
 }
 
 /// <summary>Línea del libro mayor de una cuenta.</summary>
@@ -62,6 +65,11 @@ public interface IRepositorioAsientos
     Task<int> SiguienteNumeroAsync(Guid empresaId, int ejercicio, CancellationToken ct = default);
 
     Task<IReadOnlyList<AsientoDto>> DiarioAsync(Guid empresaId, int ejercicio, CancellationToken ct = default);
+
+    Task<Asiento?> ObtenerAsync(Guid id, CancellationToken ct = default);
+
+    /// <summary>¿Hay ya un contraasiento que lo anule?</summary>
+    Task<bool> EstaAnuladoAsync(Guid id, CancellationToken ct = default);
 
     Task<IReadOnlyList<AsientoDto>> AsientosDeCuentaAsync(Guid empresaId, int ejercicio, string cuentaCodigo, CancellationToken ct = default);
 
@@ -259,6 +267,72 @@ public sealed record LineaAsientoComando(string CuentaCodigo, decimal Debe, deci
 
 /// <summary>Crea un asiento manual.</summary>
 public sealed record CrearAsientoComando(DateOnly Fecha, string Concepto, IReadOnlyList<LineaAsientoComando> Lineas);
+
+/// <summary>
+/// Anula un asiento <b>manual</b> con su contraasiento (los asientos no se borran ni se modifican). Los asientos que
+/// genera un documento (factura, gasto, cobro…) se anulan anulando el documento, para no descuadrar el documento y
+/// su contabilidad.
+/// </summary>
+public sealed class AnularAsiento
+{
+    private readonly IRepositorioAsientos _asientos;
+    private readonly IUnidadDeTrabajoContabilidad _unidad;
+    private readonly IReloj _reloj;
+
+    public AnularAsiento(IRepositorioAsientos asientos, IUnidadDeTrabajoContabilidad unidad, IReloj reloj)
+    {
+        _asientos = asientos;
+        _unidad = unidad;
+        _reloj = reloj;
+    }
+
+    public async Task<Resultado<AsientoDto>> EjecutarAsync(Guid empresaId, Guid asientoId, DateOnly? fecha, CancellationToken ct = default)
+    {
+        var original = await _asientos.ObtenerAsync(asientoId, ct).ConfigureAwait(false);
+        if (original is null || original.EmpresaId != empresaId)
+        {
+            return Resultado.Fallo<AsientoDto>(Error.NoEncontrado("asiento.no_encontrado", "El asiento no existe."));
+        }
+
+        if (original.Origen == Asiento.OrigenAnulacion)
+        {
+            return Resultado.Fallo<AsientoDto>(Error.Conflicto("asiento.es_anulacion", "Este asiento ya es una anulación; para deshacerla, registra un asiento nuevo."));
+        }
+
+        if (original.Origen != Asiento.OrigenManual)
+        {
+            return Resultado.Fallo<AsientoDto>(Error.Conflicto("asiento.de_documento",
+                $"Este asiento lo generó un documento ({original.Origen}): anúlalo desde el documento para que ambos queden coherentes."));
+        }
+
+        if (await _asientos.EstaAnuladoAsync(asientoId, ct).ConfigureAwait(false))
+        {
+            return Resultado.Fallo<AsientoDto>(Error.Conflicto("asiento.ya_anulado", "El asiento ya está anulado."));
+        }
+
+        var dia = fecha ?? original.Fecha;
+        if (dia < original.Fecha)
+        {
+            return Resultado.Fallo<AsientoDto>(Error.Validacion("asiento.fecha_anulacion", "La anulación no puede ser anterior al asiento que anula."));
+        }
+
+        if (await _asientos.TieneCierreAsync(empresaId, dia.Year, ct).ConfigureAwait(false))
+        {
+            return Resultado.Fallo<AsientoDto>(Error.Conflicto("asiento.ejercicio_cerrado", $"El ejercicio {dia.Year} está cerrado; indica una fecha de un ejercicio abierto."));
+        }
+
+        var numero = await _asientos.SiguienteNumeroAsync(empresaId, dia.Year, ct).ConfigureAwait(false);
+        var contra = Asiento.CrearAnulacion(original, numero, dia, _reloj);
+        if (contra.EsFallo)
+        {
+            return Resultado.Fallo<AsientoDto>(contra.Error);
+        }
+
+        _asientos.Agregar(contra.Valor);
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(AsientoDto.Desde(contra.Valor));
+    }
+}
 
 public sealed class CrearAsiento
 {

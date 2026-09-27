@@ -72,7 +72,7 @@ public sealed class CobranzaEndpointsTests : IClassFixture<FabricaApiPruebas>
         var propia = await FacturaAsync(c, cliente);
         var exceso = await c.PostAsJsonAsync($"/anticipos/{anticipo.Id}/aplicar", new { FacturaId = propia.Id, Importe = 60m });
         exceso.StatusCode.Should().Be(HttpStatusCode.Conflict);
-        (await exceso.Content.ReadFromJsonAsync<ProblemaResp>())!.Title.Should().Be("El anticipo solo tiene 50.00 € disponibles.");
+        (await exceso.Content.ReadFromJsonAsync<ProblemaResp>())!.Title.Should().Be("El anticipo solo tiene 50,00 € disponibles.");
     }
 
     [Fact]
