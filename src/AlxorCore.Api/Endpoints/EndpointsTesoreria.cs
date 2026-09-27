@@ -55,11 +55,11 @@ public static class EndpointsTesoreria
             .RequierePermiso(Permisos.CobroRegistrar);
 
         rutas.MapPost("/tesoreria/remesa", RemesaAsync)
-            .WithTags("Tesorería").WithSummary("Genera una remesa de adeudos SEPA (pain.008 / Norma 19) para las facturas indicadas.")
+            .WithTags("Tesorería").WithSummary("Genera y registra una remesa de adeudos SEPA (pain.008 / Norma 19) para las facturas indicadas (ver /tesoreria/remesas).")
             .RequierePermiso(Permisos.CobroRegistrar);
 
         rutas.MapPost("/tesoreria/transferencias", TransferenciasAsync)
-            .WithTags("Tesorería").WithSummary("Genera una remesa de transferencias SEPA (pain.001 / Cuaderno 34) para pagar los gastos indicados.")
+            .WithTags("Tesorería").WithSummary("Genera y registra una remesa de transferencias SEPA (pain.001 / Cuaderno 34) para pagar los gastos indicados.")
             .RequierePermiso(Permisos.PagoRegistrar);
 
         rutas.MapPost("/tesoreria/cuaderno19", Cuaderno19Async)
@@ -90,26 +90,44 @@ public static class EndpointsTesoreria
         return rutas;
     }
 
-    private static async Task<IResult> RemesaAsync(GenerarRemesaComando comando, IContextoEmpresa contexto, GenerarRemesaSepa caso, CancellationToken ct)
+    /// <summary>Compatibilidad: genera y registra una remesa de adeudos (como POST /tesoreria/remesas con Tipo=Cobro).</summary>
+    private static async Task<IResult> RemesaAsync(GenerarRemesaComando comando, IContextoEmpresa contexto, GestionRemesas caso, CancellationToken ct)
     {
         if (contexto.EmpresaId is null)
         {
             return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
         }
 
-        var resultado = await caso.EjecutarAsync(contexto.EmpresaId.Value, comando, ct).ConfigureAwait(false);
-        return resultado.AOk();
+        var r = await caso.CrearAsync(contexto.EmpresaId.Value, new CrearRemesaComando(TipoRemesa.Cobro, FacturaIds: comando.FacturaIds, FechaCargo: comando.FechaCobro,
+            Esquema: comando.Esquema, Secuencia: comando.Secuencia, CuentaBancariaId: comando.CuentaBancariaId), ct).ConfigureAwait(false);
+        if (r.EsFallo)
+        {
+            return ResultadosHttp.AProblema(r.Error);
+        }
+
+        var fichero = await caso.FicheroAsync(r.Valor.Remesa.Id, ct).ConfigureAwait(false);
+        var remesa = r.Valor.Remesa;
+        return Results.Ok(new RemesaSepaDto(fichero.Valor.Fichero, fichero.Valor.NombreArchivo, remesa.NumeroLineas, remesa.Total, r.Valor.Omitidos, remesa.Id, remesa.Codigo));
     }
 
-    private static async Task<IResult> TransferenciasAsync(GenerarPagosComando comando, IContextoEmpresa contexto, GenerarTransferenciasSepa caso, CancellationToken ct)
+    /// <summary>Compatibilidad: genera y registra una remesa de transferencias (como POST /tesoreria/remesas con Tipo=Pago).</summary>
+    private static async Task<IResult> TransferenciasAsync(GenerarPagosComando comando, IContextoEmpresa contexto, GestionRemesas caso, CancellationToken ct)
     {
         if (contexto.EmpresaId is null)
         {
             return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
         }
 
-        var resultado = await caso.EjecutarAsync(contexto.EmpresaId.Value, comando, ct).ConfigureAwait(false);
-        return resultado.AOk();
+        var r = await caso.CrearAsync(contexto.EmpresaId.Value, new CrearRemesaComando(TipoRemesa.Pago, GastoIds: comando.GastoIds, FechaCargo: comando.FechaPago,
+            CuentaBancariaId: comando.CuentaBancariaId), ct).ConfigureAwait(false);
+        if (r.EsFallo)
+        {
+            return ResultadosHttp.AProblema(r.Error);
+        }
+
+        var fichero = await caso.FicheroAsync(r.Valor.Remesa.Id, ct).ConfigureAwait(false);
+        var remesa = r.Valor.Remesa;
+        return Results.Ok(new RemesaPagoDto(fichero.Valor.Fichero, fichero.Valor.NombreArchivo, remesa.NumeroLineas, remesa.Total, r.Valor.Omitidos, remesa.Id, remesa.Codigo));
     }
 
     private static async Task<IResult> Cuaderno19Async(GenerarRemesaComando comando, IContextoEmpresa contexto, GenerarCuaderno19 caso, CancellationToken ct)

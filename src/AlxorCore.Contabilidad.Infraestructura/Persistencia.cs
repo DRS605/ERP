@@ -455,6 +455,23 @@ internal sealed class RepositorioAsientos : IRepositorioAsientos
         return asientos.Select(AsientoDto.Desde).ToList();
     }
 
+    public async Task<IReadOnlyList<SaldoCuentaAgregado>> SaldosHastaAsync(Guid empresaId, IReadOnlyCollection<string> codigos, DateOnly hasta, CancellationToken ct = default)
+    {
+        if (codigos.Count == 0)
+        {
+            return [];
+        }
+
+        var lista = codigos.ToList();
+        return await _contexto.Asientos.AsNoTracking()
+            .Where(a => a.EmpresaId == empresaId && a.Fecha <= hasta)
+            .SelectMany(a => a.Apuntes)
+            .Where(p => lista.Contains(p.CuentaCodigo))
+            .GroupBy(p => p.CuentaCodigo)
+            .Select(g => new SaldoCuentaAgregado(g.Key, g.Sum(x => x.Debe), g.Sum(x => x.Haber)))
+            .ToListAsync(ct).ConfigureAwait(false);
+    }
+
     public async Task<IReadOnlyList<SaldoCuentaAgregado>> SaldosAgregadosAsync(Guid empresaId, int ejercicio, CancellationToken ct = default) =>
         await _contexto.Asientos.AsNoTracking()
             .Where(a => a.EmpresaId == empresaId && a.Ejercicio == ejercicio)

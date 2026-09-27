@@ -203,10 +203,14 @@ public sealed class ListarAnticipos
 
 // ---------------------------------------------------------------------------- Impagados y reclamaciones
 
-/// <summary>Factura vencida con importe pendiente y su situación de reclamación.</summary>
+/// <summary>
+/// Factura vencida (o con un recibo devuelto) con importe pendiente y su situación de reclamación. Si se devolvió un
+/// recibo domiciliado, lleva el motivo SEPA, su fecha y los gastos de la última devolución.
+/// </summary>
 public sealed record ImpagadoDto(
     Guid FacturaId, string Numero, Guid? ClienteId, string ClienteNombre, DateOnly Vencimiento, int DiasRetraso,
-    decimal Total, decimal Pendiente, int? NivelQueToca, int? UltimoNivelReclamado, DateTimeOffset? UltimaReclamacion)
+    decimal Total, decimal Pendiente, int? NivelQueToca, int? UltimoNivelReclamado, DateTimeOffset? UltimaReclamacion,
+    string? MotivoDevolucion = null, string? DescripcionDevolucion = null, DateOnly? FechaDevolucion = null, decimal GastosDevolucion = 0m)
 {
     /// <summary>¿Toca enviar una reclamación de un nivel superior al último enviado?</summary>
     public bool PendienteDeReclamar => NivelQueToca is { } n && (UltimoNivelReclamado ?? 0) < n;
@@ -281,11 +285,13 @@ public sealed class GestionImpagados
     private readonly NivelesReclamacion _niveles;
     private readonly IUnidadDeTrabajoTesoreria _unidadDeTrabajo;
     private readonly IReloj _reloj;
+    private readonly IRepositorioDevoluciones? _devoluciones;
 
     public GestionImpagados(
         IConsultaFacturas facturas, IConsultaTesoreria tesoreria, IConsultaClientes clientes, IRepositorioReclamaciones reclamaciones,
-        NivelesReclamacion niveles, IUnidadDeTrabajoTesoreria unidadDeTrabajo, IReloj reloj)
+        NivelesReclamacion niveles, IUnidadDeTrabajoTesoreria unidadDeTrabajo, IReloj reloj, IRepositorioDevoluciones? devoluciones = null)
     {
+        _devoluciones = devoluciones;
         _facturas = facturas;
         _tesoreria = tesoreria;
         _clientes = clientes;
@@ -297,13 +303,18 @@ public sealed class GestionImpagados
 
     private DateOnly Hoy => DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
 
-    /// <summary>Facturas emitidas, vencidas y con pendiente, de más a menos retraso.</summary>
+    /// <summary>Facturas emitidas, vencidas (o con un recibo devuelto) y con pendiente, de más a menos retraso.</summary>
     public async Task<IReadOnlyList<ImpagadoDto>> ListarAsync(Guid empresaId, CancellationToken ct = default)
     {
         var hoy = Hoy;
-        var vencidas = (await _facturas.ListarAsync(empresaId, ct).ConfigureAwait(false))
-            .Where(f => f.Estado == "Emitida" && f.Tipo != "Rectificativa" && f.Total > 0 && f.FechaVencimiento < hoy)
+        var emitidas = (await _facturas.ListarAsync(empresaId, ct).ConfigureAwait(false))
+            .Where(f => f.Estado == "Emitida" && f.Tipo != "Rectificativa" && f.Total > 0)
             .ToList();
+        var devoluciones = _devoluciones is null || emitidas.Count == 0
+            ? []
+            : await _devoluciones.DeDocumentosAsync(TipoDocumentoTesoreria.Factura, emitidas.Select(f => f.Id).ToList(), ct).ConfigureAwait(false);
+        var ultimaDevolucion = devoluciones.GroupBy(d => d.DocumentoId).ToDictionary(g => g.Key, g => g.MaxBy(d => d.CreadoEn)!);
+        var vencidas = emitidas.Where(f => f.FechaVencimiento < hoy || ultimaDevolucion.ContainsKey(f.Id)).ToList();
         if (vencidas.Count == 0)
         {
             return [];
@@ -318,10 +329,12 @@ public sealed class GestionImpagados
             .Select(f =>
             {
                 var pendiente = Redondeo.Dos(f.Total - cobrado.GetValueOrDefault(f.Id));
-                var dias = hoy.DayNumber - f.FechaVencimiento.DayNumber;
+                var dias = Math.Max(0, hoy.DayNumber - f.FechaVencimiento.DayNumber);
                 var ultima = reclamaciones[f.Id].MaxBy(r => r.RealizadaEn);
+                var dev = ultimaDevolucion.GetValueOrDefault(f.Id);
                 return new ImpagadoDto(f.Id, f.NumeroCompleto, f.ClienteId, f.ClienteNombre, f.FechaVencimiento, dias, f.Total, pendiente,
-                    NivelReclamacion.QueToca(niveles, dias)?.Nivel, reclamaciones[f.Id].Select(r => (int?)r.Nivel).Max(), ultima?.RealizadaEn);
+                    NivelReclamacion.QueToca(niveles, dias)?.Nivel, reclamaciones[f.Id].Select(r => (int?)r.Nivel).Max(), ultima?.RealizadaEn,
+                    dev?.Motivo, dev is null ? null : MotivosDevolucionSepa.Describir(dev.Motivo), dev?.Fecha, dev?.Gastos ?? 0m);
             })
             .Where(i => i.Pendiente > 0)
             .OrderByDescending(i => i.DiasRetraso)

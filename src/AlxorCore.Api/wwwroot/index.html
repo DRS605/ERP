@@ -439,6 +439,7 @@
     ICON.tesoreria = '<svg viewBox="0 0 24 24"><path d="M3 10l9-6 9 6"/><path d="M5 10v8M9.5 10v8M14.5 10v8M19 10v8"/><path d="M3 21h18"/></svg>';
     ICON.logistica = '<svg viewBox="0 0 24 24"><path d="M2 7h11v9H2z"/><path d="M13 10h4l3 3v3h-7"/><circle cx="6" cy="18" r="1.8"/><circle cx="17" cy="18" r="1.8"/></svg>';
     ICON.conceptoslinea = '<svg viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></svg>';
+    ICON.bancos = '<svg viewBox="0 0 24 24"><path d="M3 10l9-6 9 6"/><path d="M5 10v8M9.5 10v8M14.5 10v8M19 10v8"/><path d="M3 20h18"/></svg>';
     ICON.actividades = '<svg viewBox="0 0 24 24"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg>';
 
     // Menú agrupado en carpetas: Ventas, Compras y Artículos.
@@ -449,14 +450,14 @@
       { t:"grupo", k:"articulos", l:"Artículos y almacén", items:[["productos","Artículos"],["familias","Familias"],["tarifas","Tarifas de precios"],["conceptoslinea","Conceptos de línea"],["inventario","Inventario / Almacenes"],["produccion","Producción"]] },
       { t:"grupo", k:"logistica", l:"Expedición y aduanas", items:[["cartasporte","Cartas de porte · CMR"],["aduanas","Aduanas · Intrastat"]] },
       { t:"grupo", k:"agro", l:"Agro", items:[["agrorecepciones","Recepciones"],["agropartidas","Partidas y palés"],["agroconfeccion","Confección"],["agroliquidaciones","Liquidaciones"],["agrotrazabilidad","Trazabilidad"],["agroinforme","Informe de campaña"],["agromaestros","Maestros agro"]] },
-      { t:"grupo", k:"tesoreria", l:"Tesorería", items:[["cobros","Cobros"],["cartera","Efectos de cartera"],["impagados","Impagados"],["remesas","Remesas SEPA"],["pagos","Pagos"],["conciliacion","Conciliación bancaria"],["prevision","Previsión de tesorería"],["divisas","Divisas"]] },
+      { t:"grupo", k:"tesoreria", l:"Tesorería", items:[["bancos","Bancos y cajas"],["cobros","Cobros"],["cartera","Efectos de cartera"],["impagados","Impagados"],["remesas","Remesas SEPA"],["pagos","Pagos"],["conciliacion","Conciliación bancaria"],["prevision","Previsión de tesorería"],["divisas","Divisas"]] },
       { t:"grupo", k:"contabilidad", l:"Contabilidad", items:[["contabilidad","Contabilidad y libros"],["inmovilizado","Inmovilizado"],["analitica","Analítica · resultados"],["analiticapend","Analítica · pendientes"],["analiticamaestros","Centros, partidas y reglas"],["presupuestoscont","Presupuestos contables"]] },
       { t:"grupo", k:"informes", l:"Informes", items:[["informes","Informes y modelos"],["gestion","Análisis de gestión"]] },
       { t:"grupo", k:"intragrupo", l:"Grupo de empresas", items:[["intragrupo","Operaciones entre empresas"],["actividades","Actividades de negocio"]] },
       { t:"item", k:"proyectos", l:"Proyectos" },
       { t:"grupo", k:"ajustes", l:"Configuración", items:[["ajustes","Ajustes"],["aprobaciones","Aprobaciones"],["integraciones","API y webhooks"]] },
     ];
-    const TITULOS = { cartera:"Efectos de cartera", agrorecepciones:"Agro · recepciones de fruta", agropartidas:"Agro · partidas y palés", agroconfeccion:"Agro · confección", agroliquidaciones:"Agro · liquidaciones al agricultor", agrotrazabilidad:"Agro · trazabilidad", agroinforme:"Agro · informe de campaña", agromaestros:"Agro · campañas, agricultores y precios", analitica:"Analítica · resultados", analiticapend:"Analítica · pendientes de imputar", analiticamaestros:"Analítica · centros, partidas y reglas", presupuestoscont:"Presupuestos contables", impagados:"Impagados y reclamaciones", anticipos:"Anticipos de clientes", cartasporte:"Cartas de porte · CMR", aduanas:"Aduanas e Intrastat", intragrupo:"Operaciones entre empresas del grupo", actividades:"Actividades de negocio", inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Facturas de proveedor y gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos",tarifas:"Tarifas de precios", conceptoslinea:"Conceptos de línea", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", gestion:"Análisis de gestión", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", divisas:"Divisas y tipos de cambio", aprobaciones:"Aprobaciones y control de firmas", integraciones:"API pública y webhooks", ajustes:"Ajustes" };
+    const TITULOS = { bancos:"Bancos y cajas", cartera:"Efectos de cartera", agrorecepciones:"Agro · recepciones de fruta", agropartidas:"Agro · partidas y palés", agroconfeccion:"Agro · confección", agroliquidaciones:"Agro · liquidaciones al agricultor", agrotrazabilidad:"Agro · trazabilidad", agroinforme:"Agro · informe de campaña", agromaestros:"Agro · campañas, agricultores y precios", analitica:"Analítica · resultados", analiticapend:"Analítica · pendientes de imputar", analiticamaestros:"Analítica · centros, partidas y reglas", presupuestoscont:"Presupuestos contables", impagados:"Impagados y reclamaciones", anticipos:"Anticipos de clientes", cartasporte:"Cartas de porte · CMR", aduanas:"Aduanas e Intrastat", intragrupo:"Operaciones entre empresas del grupo", actividades:"Actividades de negocio", inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Facturas de proveedor y gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos",tarifas:"Tarifas de precios", conceptoslinea:"Conceptos de línea", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", gestion:"Análisis de gestión", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", divisas:"Divisas y tipos de cambio", aprobaciones:"Aprobaciones y control de firmas", integraciones:"API pública y webhooks", ajustes:"Ajustes" };
     // Plan contratado de la empresa activa (lo devuelve /empresas/{id}/seleccionar).
     let plan = null;
     // Vista → módulo contratable que necesita. Las vistas que no están aquí son de la base.
@@ -577,7 +578,7 @@
       document.getElementById("viewTitle").textContent=TITULOS[k]||k;
       if(!contratado(k)){ const m=NOMBRE_MODULO[MODULO_VISTA[k]]||MODULO_VISTA[k];
         view(panel("No incluido en tu plan",`<p class="muted" style="margin:0 0 14px">Esta pantalla forma parte del módulo <strong>${m}</strong>, que tu plan no incluye.</p><button class="btn small" onclick="ir('ajustes')">Ver planes en Ajustes →</button>`)); return; }
-      ({cartera:vCartera,agrorecepciones:vAgroRecepciones,agropartidas:vAgroPartidas,agroconfeccion:vAgroConfeccion,agroliquidaciones:vAgroLiquidaciones,agrotrazabilidad:vAgroTrazabilidad,agroinforme:()=>vAgroInforme(),agromaestros:()=>vAgroMaestros(),analitica:vAnalitica,analiticapend:vAnaliticaPend,analiticamaestros:vAnaliticaMaestros,presupuestoscont:vPresupuestosCont,impagados:vImpagados,anticipos:vAnticipos,cartasporte:vCartasPorte,aduanas:vAduanas,intragrupo:vIntragrupo,actividades:vActividades,inicio:vInicio,presupuestos:()=>irDocumento("presupuesto"),facturas:()=>irDocumento("factura"),tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:()=>irDocumento("pedido"),clientes:vClientes,productos:vProductos,familias:vFamilias,tarifas:vTarifas,conceptoslinea:vConceptosLinea,gastos:()=>irDocumento("gasto"),solicitudes:vSolicitudes,pedidos:()=>irDocumento("compra"),inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,gestion:vGestion,contabilidad:vContabilidad,inmovilizado:vInmovilizado,divisas:vDivisas,aprobaciones:vAprobaciones,integraciones:vIntegraciones,ajustes:vAjustes}[k])();
+      ({cartera:vCartera,bancos:vBancos,agrorecepciones:vAgroRecepciones,agropartidas:vAgroPartidas,agroconfeccion:vAgroConfeccion,agroliquidaciones:vAgroLiquidaciones,agrotrazabilidad:vAgroTrazabilidad,agroinforme:()=>vAgroInforme(),agromaestros:()=>vAgroMaestros(),analitica:vAnalitica,analiticapend:vAnaliticaPend,analiticamaestros:vAnaliticaMaestros,presupuestoscont:vPresupuestosCont,impagados:vImpagados,anticipos:vAnticipos,cartasporte:vCartasPorte,aduanas:vAduanas,intragrupo:vIntragrupo,actividades:vActividades,inicio:vInicio,presupuestos:()=>irDocumento("presupuesto"),facturas:()=>irDocumento("factura"),tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:()=>irDocumento("pedido"),clientes:vClientes,productos:vProductos,familias:vFamilias,tarifas:vTarifas,conceptoslinea:vConceptosLinea,gastos:()=>irDocumento("gasto"),solicitudes:vSolicitudes,pedidos:()=>irDocumento("compra"),inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,gestion:vGestion,contabilidad:vContabilidad,inmovilizado:vInmovilizado,divisas:vDivisas,aprobaciones:vAprobaciones,integraciones:vIntegraciones,ajustes:vAjustes}[k])();
     }
     const view = h => { desmontarDocs(); document.getElementById("view").innerHTML=h; try{ mejorarTablas(); }catch(e){} };
 
@@ -974,55 +975,132 @@
       const lista=await api(tipo==="Factura"?"/facturas/saldos":"/gastos/saldos").catch(()=>[]);
       return Object.fromEntries((lista||[]).map(x=>[x.documentoId,x]));
     }
-    /* ---------- Remesas SEPA (adeudos domiciliados, Norma 19) ---------- */
+    /* ---------- Bancos y cajas (cuentas de tesorería, cada una con su subcuenta 572…/570…) ---------- */
+    let _bancosCache=null;
+    async function bancosActivos(forzar){ if(forzar||!_bancosCache){ _bancosCache=await api("/cuentas-bancarias?activas=true").catch(()=>[]); } return _bancosCache||[]; }
+    // Selector de la cuenta de un cobro, pago o remesa. Vacío = la predeterminada (o la caja, en efectivo). Sin cuentas no se muestra.
+    async function bancoSelHtml(id,soloBancos,etiqueta){
+      const l=(await bancosActivos()).filter(b=>!soloBancos||b.tipo==="Banco"); if(!l.length) return "";
+      const pred=l.find(b=>b.predeterminada);
+      return `<label>${etiqueta||"Banco o caja"}</label><select id="${id}"><option value="">${soloBancos?"Banco predeterminado":"Automática (caja en efectivo, si no el banco predeterminado)"}${pred?" · "+agEsc(pred.nombre):""}</option>${l.map(b=>`<option value="${b.id}">${agEsc(b.nombre)} · ${b.subcuenta}${b.iban?" · …"+b.iban.slice(-4):""}</option>`).join("")}</select>`;
+    }
+    const bancoVal=id=>{ const e=document.getElementById(id); return e&&e.value?e.value:null; };
+    async function vBancos(){
+      view('<div class="muted">Cargando…</div>');
+      const [lista,saldos]=await Promise.all([api("/cuentas-bancarias"),api("/cuentas-bancarias/saldos").catch(()=>null)]);
+      _bancosCache=null; window._bancos=lista;
+      const sal={}; (saldos&&saldos.cuentas||[]).forEach(x=>{ if(x.id) sal[x.id]=x; });
+      const filas=lista.map(b=>{ const x=sal[b.id];
+        return `<tr><td><strong>${agEsc(b.nombre)}</strong>${b.predeterminada?' <span class="pill ok">Predeterminada</span>':''}${b.activa?'':' <span class="pill neg">Inactiva</span>'}</td><td>${b.tipo==="Caja"?"Caja":"Banco"}</td><td class="mono">${b.iban||"—"}</td><td class="mono">${b.bic||""}</td><td class="mono">${b.subcuenta}</td><td class="num">${x?`<strong>${eur(x.saldo)}</strong>`:"—"}</td>
+          <td class="right" style="white-space:nowrap"><button class="btn small secondary" onclick="modalBanco('${b.id}')">Editar</button> <button class="btn small ghost" onclick="borrarBanco('${b.id}')" title="Borrar (solo si no tiene movimientos)">✕</button></td></tr>`; }).join("");
+      const sinCuenta=(saldos&&saldos.cuentas||[]).filter(x=>!x.id).map(x=>` · Sin cuenta asignada (570/572 genéricas): <strong>${eur(x.saldo)}</strong>`).join("");
+      const pie=saldos?`<p class="muted" style="margin:12px 0 0;font-size:12.5px">Saldo total de tesorería: <strong>${eur(saldos.total)}</strong>${sinCuenta}. ${saldos.fuente==="Contabilidad"?"Es el saldo contable de cada subcuenta.":"Sin contabilidad completa, se calcula con el saldo inicial más los cobros y menos los pagos registrados en cada cuenta."}</p>`:"";
+      const cuerpo=lista.length?`<table><thead><tr><th>Nombre</th><th>Tipo</th><th>IBAN</th><th>BIC</th><th>Subcuenta</th><th class="num">Saldo</th><th></th></tr></thead><tbody>${filas}</tbody></table>${pie}`
+        :vacio("cobros","Sin cuentas bancarias","Da de alta tus bancos (con su IBAN) y la caja. Cada cuenta tiene su subcuenta contable (572…/570…) y los cobros, pagos y remesas eligen por cuál se hacen. Mientras no haya ninguna, todo va a 572 (o a 570 en efectivo).",`<button class="btn small" onclick="modalBanco()">+ Nueva cuenta</button>`);
+      view(panel("Bancos y cajas",cuerpo,`<button class="btn small" onclick="modalBanco()">+ Nueva cuenta</button>`));
+    }
+    function modalBanco(id){ const b=id?(window._bancos||[]).find(x=>x.id===id):null;
+      abrir(b?"Editar cuenta":"Nueva cuenta bancaria o caja",`<div class="grid2"><div><label>Tipo</label><select id="bk_tipo" ${b?"disabled":""}><option value="Banco"${b&&b.tipo==="Banco"?" selected":""}>Banco</option><option value="Caja"${b&&b.tipo==="Caja"?" selected":""}>Caja (efectivo)</option></select></div><div><label>Nombre</label><input id="bk_nombre" placeholder="Ej. BBVA cuenta principal" value="${b?agEsc(b.nombre):""}"/></div></div>
+        <div class="grid2"><div><label>IBAN</label><input id="bk_iban" placeholder="ES00 0000 0000 0000 0000 0000" value="${b?(b.iban||""):""}"/></div><div><label>BIC (opcional)</label><input id="bk_bic" value="${b?(b.bic||""):""}"/></div></div>
+        <div class="grid2"><div><label>Subcuenta contable</label><input id="bk_sub" placeholder="Automática (57200001…)" value="${b?b.subcuenta:""}" ${b?"readonly":""}/></div><div><label>Saldo inicial (€)</label><input id="bk_saldo" type="number" step="0.01" value="${b?b.saldoInicial:0}"/></div></div>
+        <label>Fecha del saldo inicial (opcional)</label><input id="bk_fsaldo" type="date" value="${b&&b.fechaSaldoInicial?b.fechaSaldoInicial:""}"/>
+        <label style="display:flex;gap:8px;align-items:center;margin-top:12px;font-weight:500;cursor:pointer"><input id="bk_pred" type="checkbox" style="width:auto" ${b&&b.predeterminada?"checked":""}/> Predeterminada para cobros, pagos y remesas</label>
+        <label style="display:flex;gap:8px;align-items:center;font-weight:500;cursor:pointer"><input id="bk_activa" type="checkbox" style="width:auto" ${!b||b.activa?"checked":""}/> Activa</label>
+        <p class="muted" style="font-size:12px;margin:8px 0 0">La subcuenta se crea en el plan de cuentas y no se cambia una vez creada (los asientos la usan). El saldo inicial solo se usa si la empresa no lleva contabilidad completa.</p>`,
+        async()=>{ const body=JSON.stringify({tipo:val("bk_tipo"),nombre:val("bk_nombre"),iban:val("bk_iban")||null,bic:val("bk_bic")||null,subcuenta:val("bk_sub")||null,
+            saldoInicial:Number(val("bk_saldo")||0),fechaSaldoInicial:val("bk_fsaldo")||null,predeterminada:document.getElementById("bk_pred").checked,activa:document.getElementById("bk_activa").checked});
+          if(b) await api("/cuentas-bancarias/"+b.id,{method:"PUT",body}); else await api("/cuentas-bancarias",{method:"POST",body});
+          toast(b?"Cuenta guardada.":"Cuenta creada.","ok"); vBancos(); }); }
+    async function borrarBanco(id){ if(!confirm("¿Borrar esta cuenta? Solo se puede si no tiene movimientos, remesas ni extractos; si los tiene, desactívala."))return;
+      try{ await api("/cuentas-bancarias/"+id,{method:"DELETE"}); toast("Cuenta borrada.","ok"); vBancos(); }catch(e){ toast(e.message,"err"); } }
+
+    /* ---------- Devoluciones de recibos domiciliados (motivos SEPA) ---------- */
+    let _motivosDev=null;
+    async function modalDevolucion(movimientoId,titulo,recargar){
+      try{ _motivosDev=_motivosDev||await api("/tesoreria/devoluciones/motivos"); }catch(e){ toast(e.message,"err"); return; }
+      const hoy=new Date().toISOString().slice(0,10);
+      abrir("Devolución de recibo"+(titulo?" · "+titulo:""),`<label>Motivo (código SEPA)</label><select id="dv_mot">${_motivosDev.map(m=>`<option value="${m.codigo}"${m.codigo==="AM04"?" selected":""}>${m.codigo} · ${agEsc(m.descripcion)}</option>`).join("")}</select>
+        <div class="grid2"><div><label>Fecha de la devolución</label><input id="dv_fecha" type="date" value="${hoy}"/></div><div><label>Gastos de devolución (€)</label><input id="dv_gastos" type="number" step="0.01" value="0"/></div></div>
+        <label style="display:flex;gap:8px;align-items:center;margin-top:10px;font-weight:500;cursor:pointer"><input id="dv_rep" type="checkbox" style="width:auto"/> Repercutir los gastos al cliente (se le cargan como un efecto a cobrar)</label>
+        <label>Nota (opcional)</label><input id="dv_nota"/>
+        <p class="muted" style="font-size:12px;margin:8px 0 0">Se anula el cobro (el documento vuelve a quedar pendiente y aparece en Impagados con el motivo) y se contabiliza el contraasiento contra el banco. Los gastos van a 626 (servicios bancarios) o, si se repercuten, a la cuenta del cliente.</p>`,
+        async()=>{ await api("/tesoreria/devoluciones",{method:"POST",body:JSON.stringify({movimientoId,motivo:val("dv_mot"),fecha:val("dv_fecha"),gastos:Number(val("dv_gastos")||0),repercutirGastos:document.getElementById("dv_rep").checked,nota:val("dv_nota")||null})});
+          toast("Devolución registrada: el recibo vuelve a estar pendiente.","ok"); if(typeof recargar==="function") recargar(); }); }
+
+    /* ---------- Remesas SEPA registradas (adeudos Norma 19 y transferencias Cuaderno 34) ---------- */
+    const pillRemesa=r=>`<span class="pill ${({Generada:"wait",Presentada:"part",Liquidada:"ok",Anulada:"neg"})[r.estado]||""}">${r.estadoTexto}</span>`;
+    function accionesRemesa(r){ const b=[`<button class="btn small ghost" onclick="verRemesa('${r.id}')">Ver</button>`,`<button class="btn small ghost" onclick="descargarRemesa('${r.id}')" title="Descargar el fichero XML">⬇ XML</button>`];
+      if(r.estado==="Generada") b.push(`<button class="btn small secondary" onclick="accionRemesa('${r.id}','presentar')" title="Ya la has enviado al banco">Presentada</button>`);
+      if(r.estado==="Generada"||r.estado==="Presentada"){ b.push(`<button class="btn small" style="width:auto;margin:0;padding:7px 12px" onclick="liquidarRemesa('${r.id}')">${r.tipo==="Cobro"?"Cobrada":"Pagada"}</button>`); b.push(`<button class="btn small ghost" onclick="accionRemesa('${r.id}','anular')" title="Anular (rechazada o por error)">✕</button>`); }
+      return b.join(" "); }
     async function vRemesa(){
       view('<div class="muted">Cargando…</div>');
-      const [facs,todosGastos,sf,sg]=await Promise.all([api("/facturas"),api("/gastos").catch(()=>[]),saldosDe("Factura"),saldosDe("Gasto")]);
+      const [facs,todosGastos,sf,sg,remesas]=await Promise.all([api("/facturas"),api("/gastos").catch(()=>[]),saldosDe("Factura"),saldosDe("Gasto"),api("/tesoreria/remesas").catch(()=>[]),bancosActivos(true)]);
+      window._remesas=remesas||[];
+      const selRem=await bancoSelHtml("rem_banco",true,"Cuenta de abono"), selPag=await bancoSelHtml("pag_banco",true,"Cuenta de cargo");
       const pendF=f=>(sf[f.id]||{}).pendiente??f.total, pendG=g=>(sg[g.id]||{}).pendiente??g.total;
-      // Solo lo que tiene algo pendiente (ni anulado ni ya cobrado/pagado).
+      // Solo lo que tiene algo pendiente (ni anulado ni ya cobrado/pagado). Lo que ya está en una remesa viva lo omite el servidor.
       const fs=facs.filter(f=>f.estado==="Emitida"&&pendF(f)>0.004);
       const gastos=(todosGastos||[]).filter(g=>g.estado!=="Anulado"&&pendG(g)>0.004);
       const en=d=>{ const x=new Date(); x.setDate(x.getDate()+d); return x.toISOString().slice(0,10); };
-      const aviso=(!empresa.iban||!empresa.identificadorAcreedor)?`<div style="background:var(--accent-soft);border-radius:12px;padding:10px 14px;margin-bottom:14px">Configura primero el <strong>IBAN e identificador de acreedor</strong> de la empresa en <a onclick="ir('ajustes')" style="cursor:pointer;text-decoration:underline">Ajustes → Datos de cobro</a>.</div>`:"";
-      const filas=fs.map(f=>`<tr><td><input type="checkbox" class="rem_chk" value="${f.id}" style="width:auto"/></td><td><strong>${f.numeroCompleto}</strong></td><td>${f.clienteNombre}</td><td class="muted">${fdate(f.fechaEmision)}</td><td class="num">${eur(f.total)}</td><td class="num"><strong>${eur(pendF(f))}</strong></td></tr>`).join("");
-      const opciones=`<div class="grid2" style="margin:6px 0 12px;grid-template-columns:repeat(3,1fr)">
+      const aviso=(!empresa.iban&&!(_bancosCache||[]).some(b=>b.tipo==="Banco"))||!empresa.identificadorAcreedor?`<div style="background:var(--accent-soft);border-radius:12px;padding:10px 14px;margin-bottom:14px">Configura el <strong>identificador de acreedor</strong> de la empresa en <a onclick="ir('ajustes')" style="cursor:pointer;text-decoration:underline">Ajustes → Datos de cobro</a> y da de alta la cuenta de abono en <a onclick="ir('bancos')" style="cursor:pointer;text-decoration:underline">Bancos y cajas</a>.</div>`:"";
+      const filasReg=window._remesas.map(r=>`<tr><td><strong class="mono">${r.tipo==="Cobro"?"Adeudos":"Transferencias"} ${r.codigo}</strong></td><td class="muted">${fdate(r.fecha)}</td><td class="muted">${fdate(r.fechaLiquidacion||r.fechaCargo)}</td><td>${agEsc(r.cuentaBancaria||"—")}</td><td class="num">${r.numeroLineas}</td><td class="num"><strong>${eur(r.total)}</strong></td><td>${pillRemesa(r)}</td><td class="right" style="white-space:nowrap">${accionesRemesa(r)}</td></tr>`).join("");
+      const cuerpoReg=window._remesas.length?`<table><thead><tr><th>Remesa</th><th>Generada</th><th>Cargo / liquidación</th><th>Cuenta</th><th class="num">Líneas</th><th class="num">Total</th><th>Estado</th><th></th></tr></thead><tbody>${filasReg}</tbody></table>
+        <p class="muted" style="font-size:12px;margin:10px 0 0">Una factura o gasto que está en una remesa generada o presentada no entra en otra. Al marcarla <strong>cobrada</strong> o <strong>pagada</strong> se registra un cobro o pago por línea contra su cuenta bancaria (con su asiento). Los recibos devueltos se registran desde <em>Ver</em>.</p>`
+        :'<p class="muted" style="margin:0">Aún no hay remesas registradas.</p>';
+      const filas=fs.map(f=>`<tr><td><input type="checkbox" class="rem_chk" value="${f.id}" style="width:auto"/></td><td><strong>${f.numeroCompleto}</strong></td><td>${f.clienteNombre}</td><td class="muted">${fdate(f.fechaVencimiento)}</td><td class="num">${eur(f.total)}</td><td class="num"><strong>${eur(pendF(f))}</strong></td></tr>`).join("");
+      const opciones=`<div class="grid2" style="margin:6px 0 12px;grid-template-columns:repeat(4,1fr)">
         <div><label>Esquema</label><select id="rem_esq"><option value="CORE">CORE (particulares)</option><option value="B2B">B2B (empresas)</option></select></div>
         <div><label>Secuencia</label><select id="rem_seq"><option value="OOFF">Único (OOFF)</option><option value="FRST">Primero (FRST)</option><option value="RCUR">Recurrente (RCUR)</option><option value="FNAL">Último (FNAL)</option></select></div>
-        <div><label>Fecha de cobro</label><input id="rem_fecha" type="date" value="${en(3)}"/></div></div>`;
-      const cuerpoCobro=fs.length?`${aviso}${opciones}<table><thead><tr><th></th><th>Número</th><th>Cliente</th><th>Fecha</th><th class="num">Total</th><th class="num">Pendiente</th></tr></thead><tbody>${filas}</tbody></table>
-        <p class="muted" style="font-size:12px;margin:12px 0 0">Marca las facturas a domiciliar y genera el fichero SEPA (pain.008 / Norma 19.14). Solo se incluirán las de clientes con IBAN y mandato; el resto se listan como omitidas.</p>`
+        <div><label>Fecha de cobro</label><input id="rem_fecha" type="date" value="${en(3)}"/></div><div>${selRem}</div></div>`;
+      const cuerpoCobro=fs.length?`${aviso}${opciones}<table><thead><tr><th></th><th>Número</th><th>Cliente</th><th>Vencimiento</th><th class="num">Total</th><th class="num">Pendiente</th></tr></thead><tbody>${filas}</tbody></table>
+        <p class="muted" style="font-size:12px;margin:12px 0 0">Marca las facturas a domiciliar y genera la remesa SEPA (pain.008 / Norma 19.14): queda registrada y se descarga el fichero. Solo entran las de clientes con IBAN y mandato; el resto se listan como omitidas.</p>`
         :vacio("facturas","No hay facturas pendientes de cobro","Aquí aparecen las facturas emitidas con importe pendiente, para domiciliarlas.");
-      // Pagos a proveedores (transferencias SEPA / Cuaderno 34).
       const gfilas=gastos.map(g=>`<tr><td><input type="checkbox" class="pag_chk" value="${g.id}" style="width:auto"/></td><td><strong>${g.concepto}</strong></td><td>${g.proveedorTexto||'—'}</td><td class="muted">${fdate(g.fecha)}</td><td class="num">${eur(g.total)}</td><td class="num"><strong>${eur(pendG(g))}</strong></td></tr>`).join("");
-      const cuerpoPago=gastos.length?`<div style="margin:6px 0 12px;max-width:220px"><label>Fecha de ejecución</label><input id="pag_fecha" type="date" value="${en(1)}"/></div><table><thead><tr><th></th><th>Concepto</th><th>Proveedor</th><th>Fecha</th><th class="num">Total</th><th class="num">Pendiente</th></tr></thead><tbody>${gfilas}</tbody></table>
-        <p class="muted" style="font-size:12px;margin:12px 0 0">Marca los gastos a pagar y genera el fichero de transferencias SEPA (pain.001 / Cuaderno 34) para tu banco. Solo se incluyen proveedores con IBAN y gastos pendientes.</p>`
+      const cuerpoPago=gastos.length?`<div class="grid2" style="margin:6px 0 12px;max-width:560px"><div><label>Fecha de ejecución</label><input id="pag_fecha" type="date" value="${en(1)}"/></div><div>${selPag}</div></div><table><thead><tr><th></th><th>Concepto</th><th>Proveedor</th><th>Fecha</th><th class="num">Total</th><th class="num">Pendiente</th></tr></thead><tbody>${gfilas}</tbody></table>
+        <p class="muted" style="font-size:12px;margin:12px 0 0">Marca los gastos a pagar y genera la remesa de transferencias SEPA (pain.001 / Cuaderno 34). Solo se incluyen proveedores con IBAN y gastos pendientes.</p>`
         :vacio("pagos","Sin gastos pendientes de pago","Aquí aparecen los gastos de proveedores con importe pendiente, para pagarlos por transferencia.");
-      const accCobro=fs.length?`<div style="display:flex;gap:8px"><button class="btn small ghost" onclick="generarCuaderno19()" title="Formato clásico CSB, a validar con el banco">Cuaderno 19 clásico</button><button class="btn small" onclick="generarRemesa()">Generar remesa SEPA</button></div>`:"";
-      const accPago=gastos.length?`<div style="display:flex;gap:8px"><button class="btn small ghost" onclick="generarConfirming()" title="Confirming Cuaderno 68, a validar con el banco">Confirming (C68)</button><button class="btn small" onclick="generarTransferencias()">Generar transferencias SEPA</button></div>`:"";
-      view(panel("Remesas de adeudos SEPA (cobros)",cuerpoCobro,accCobro)
-        +panel("Transferencias a proveedores (pagos)",cuerpoPago,accPago));
+      const accCobro=fs.length?`<div style="display:flex;gap:8px"><button class="btn small ghost" onclick="generarCuaderno19()" title="Formato clásico CSB, a validar con el banco (no se registra)">Cuaderno 19 clásico</button><button class="btn small" onclick="generarRemesa()">Generar remesa SEPA</button></div>`:"";
+      const accPago=gastos.length?`<div style="display:flex;gap:8px"><button class="btn small ghost" onclick="generarConfirming()" title="Confirming Cuaderno 68, a validar con el banco (no se registra)">Confirming (C68)</button><button class="btn small" onclick="generarTransferencias()">Generar transferencias SEPA</button></div>`:"";
+      view(panel("Remesas registradas",cuerpoReg)+panel("Nueva remesa de adeudos SEPA (cobros)",cuerpoCobro,accCobro)+panel("Nueva remesa de transferencias (pagos a proveedores)",cuerpoPago,accPago));
     }
+    function avisarOmitidos(lista,que){ if(lista&&lista.length) alert(que+" omitidos:\n\n"+lista.join("\n")); }
     async function generarRemesa(){
       const ids=[...document.querySelectorAll(".rem_chk:checked")].map(c=>c.value);
       if(!ids.length){ toast("Marca al menos una factura","err"); return; }
       try{
-        const r=await api("/tesoreria/remesa",{method:"POST",body:JSON.stringify({facturaIds:ids,esquema:val("rem_esq"),secuencia:val("rem_seq"),fechaCobro:val("rem_fecha")||null})});
-        descargarTexto(r.ficheroXml,r.nombreArchivo,"application/xml");
-        let msg=`Remesa generada: ${r.numeroAdeudos} adeudo(s), ${eur(r.total)}.`;
-        if(r.omitidas&&r.omitidas.length) msg+=` ${r.omitidas.length} omitida(s).`;
-        toast(msg,"ok");
-        if(r.omitidas&&r.omitidas.length) alert("Facturas omitidas:\n\n"+r.omitidas.join("\n"));
+        const r=await api("/tesoreria/remesas",{method:"POST",body:JSON.stringify({tipo:"Cobro",facturaIds:ids,esquema:val("rem_esq"),secuencia:val("rem_seq"),fechaCargo:val("rem_fecha")||null,cuentaBancariaId:bancoVal("rem_banco")})});
+        await descargarRemesa(r.remesa.id);
+        toast(`Remesa ${r.remesa.codigo} registrada: ${r.remesa.numeroLineas} adeudo(s), ${eur(r.remesa.total)}.`,"ok");
+        avisarOmitidos(r.omitidos,"Documentos"); vRemesa();
       }catch(e){ toast(e.message,"err"); } }
     async function generarTransferencias(){
       const ids=[...document.querySelectorAll(".pag_chk:checked")].map(c=>c.value);
       if(!ids.length){ toast("Marca al menos un gasto","err"); return; }
       try{
-        const r=await api("/tesoreria/transferencias",{method:"POST",body:JSON.stringify({gastoIds:ids,fechaPago:val("pag_fecha")||null})});
-        descargarTexto(r.fichero,r.nombreArchivo,"application/xml");
-        let msg=`Transferencias generadas: ${r.numeroPagos} pago(s), ${eur(r.total)}.`;
-        if(r.omitidos&&r.omitidos.length){ msg+=` ${r.omitidos.length} omitido(s).`; alert("Gastos omitidos:\n\n"+r.omitidos.join("\n")); }
-        toast(msg,"ok");
+        const r=await api("/tesoreria/remesas",{method:"POST",body:JSON.stringify({tipo:"Pago",gastoIds:ids,fechaCargo:val("pag_fecha")||null,cuentaBancariaId:bancoVal("pag_banco")})});
+        await descargarRemesa(r.remesa.id);
+        toast(`Transferencias ${r.remesa.codigo} registradas: ${r.remesa.numeroLineas} pago(s), ${eur(r.remesa.total)}.`,"ok");
+        avisarOmitidos(r.omitidos,"Gastos"); vRemesa();
       }catch(e){ toast(e.message,"err"); } }
+    async function descargarRemesa(id){ try{ const f=await api(`/tesoreria/remesas/${id}/fichero`); descargarTexto(f.fichero,f.nombreArchivo,"application/xml"); }catch(e){ toast(e.message,"err"); } }
+    async function accionRemesa(id,accion){
+      if(accion==="anular"&&!confirm("¿Anular la remesa? Sus documentos quedan libres para otra remesa. Hazlo si el banco la rechazó o se generó por error."))return;
+      try{ await api(`/tesoreria/remesas/${id}/${accion}`,{method:"POST",body:"{}"}); toast(accion==="anular"?"Remesa anulada.":"Remesa marcada como presentada.","ok"); vRemesa(); }catch(e){ toast(e.message,"err"); } }
+    function liquidarRemesa(id){ const r=(window._remesas||[]).find(x=>x.id===id); if(!r)return; const cobro=r.tipo==="Cobro";
+      abrir(`Marcar como ${cobro?"cobrada":"pagada"} · ${r.codigo}`,`<label>Fecha en que el banco ${cobro?"abonó":"cargó"} la remesa</label><input id="lq_fecha" type="date" value="${r.fechaCargo}"/>
+        <p class="muted" style="font-size:12px;margin:10px 0 0">Se registra un ${cobro?"cobro":"pago"} por cada una de sus ${r.numeroLineas} líneas (${eur(r.total)}) contra ${agEsc(r.cuentaBancaria||"el banco")}, con su asiento. ${cobro?"Si luego el banco devuelve algún recibo, regístralo desde «Ver».":""}</p>`,
+        async()=>{ await api(`/tesoreria/remesas/${id}/liquidar`,{method:"POST",body:JSON.stringify({fecha:val("lq_fecha")||null})}); toast(`Remesa ${r.codigo} ${cobro?"cobrada":"pagada"}.`,"ok"); vRemesa(); }); }
+    async function verRemesa(id){
+      let r; try{ r=await api(`/tesoreria/remesas/${id}`); }catch(e){ toast(e.message,"err"); return; }
+      const filas=r.lineas.map(l=>{ const puedeDevolver=r.tipo==="Cobro"&&r.estado==="Liquidada"&&l.movimientoId&&!l.devuelta;
+        return `<tr><td><strong>${agEsc(l.documento)}</strong></td><td>${agEsc(l.terceroNombre)}</td><td class="mono" style="font-size:12px">${l.iban||""}</td><td class="mono" style="font-size:12px">${agEsc(l.mandato||"")}</td><td class="num">${eur(l.importe)}</td>
+          <td class="right">${l.devuelta?`<span class="pill neg">Devuelto ${l.motivoDevolucion||""}</span>`:(puedeDevolver?`<button class="btn small ghost" onclick="modalDevolucion('${l.movimientoId}','${agEsc(l.documento).replace(/'/g,"")}',vRemesa)">Devolución</button>`:"")}</td></tr>`; }).join("");
+      abrir(`${r.tipo==="Cobro"?"Remesa de adeudos":"Remesa de transferencias"} ${r.codigo} · ${r.estadoTexto}`,`<p class="muted" style="margin:0 0 10px">Cargo ${fdate(r.fechaCargo)}${r.fechaLiquidacion?` · liquidada el ${fdate(r.fechaLiquidacion)}`:""} · ${agEsc(r.cuentaBancaria||"cuenta de la ficha de la empresa")}${r.esquema?` · ${r.esquema} ${r.secuencia}`:""}</p>
+        <table><thead><tr><th>Documento</th><th>${r.tipo==="Cobro"?"Cliente":"Proveedor"}</th><th>IBAN</th><th>Mandato</th><th class="num">Importe</th><th></th></tr></thead><tbody>${filas}</tbody></table>
+        <p class="muted" style="margin:10px 0 0">Total <strong>${eur(r.total)}</strong> · ${r.numeroLineas} línea(s).</p>`,()=>{});
+      document.getElementById("modalOk").textContent="Cerrar";
+    }
     async function generarCuaderno19(){
       const ids=[...document.querySelectorAll(".rem_chk:checked")].map(c=>c.value);
       if(!ids.length){ toast("Marca al menos una factura","err"); return; }
@@ -1045,40 +1123,79 @@
       const blob=new Blob([contenido],{type:tipo||"text/plain"}); const u=URL.createObjectURL(blob);
       const a=document.createElement("a"); a.href=u; a.download=nombre; a.click(); setTimeout(()=>URL.revokeObjectURL(u),60000);
     }
-    /* ---------- Conciliación bancaria (Norma 43) ---------- */
-    let _concApuntes=null;
-    function vConciliacion(){
-      const intro=`<p class="muted" style="margin:0 0 14px">Sube el extracto de tu banco en formato <strong>Norma 43</strong> (Cuaderno 43 / AEB43; casi todos los bancos lo exportan). Casaremos automáticamente cada apunte con la factura o el gasto pendiente que coincida en importe, y podrás registrar el cobro o el pago con un clic.</p>
-        <label class="btn small" style="cursor:pointer;width:auto;margin:0">Elegir fichero…<input type="file" id="conc_file" accept=".n43,.q43,.txt,text/plain" onchange="concLeer()" style="display:none"/></label> <span id="conc_fname" class="muted" style="font-size:12.5px;margin-left:8px"></span>
-        <div id="conc_res" style="margin-top:16px"></div>`;
-      view(panel("",intro));
+    /* ---------- Conciliación bancaria (extractos Norma 43 guardados, casación automática y manual) ---------- */
+    let _concExtracto=null, _concDet=null, _concCand=null, _concApunte=null;
+    const ESTADO_APUNTE={Pendiente:['wait','Pendiente'],ConciliadoAutomatico:['ok','Conciliado (automático)'],ConciliadoManual:['ok','Conciliado (manual)'],ConAsiento:['part','Con asiento']};
+    async function vConciliacion(){
+      view('<div class="muted">Cargando…</div>');
+      const [bancos,extractos]=await Promise.all([bancosActivos(true),api("/tesoreria/extractos").catch(()=>[])]);
+      const soloBancos=bancos.filter(b=>b.tipo==="Banco");
+      const selB=`<select id="conc_banco" style="width:auto;margin:0"><option value="">Cuenta: detectar por el fichero</option>${soloBancos.map(b=>`<option value="${b.id}">${agEsc(b.nombre)}</option>`).join("")}</select>`;
+      const intro=soloBancos.length
+        ?`<p class="muted" style="margin:0 0 14px">Sube el extracto de tu banco en formato <strong>Norma 43</strong> (Cuaderno 43 / AEB43). Queda guardado con sus apuntes: la conciliación automática casa cada apunte con el cobro o pago ya registrado, con la remesa liquidada o con la factura, gasto o efecto pendiente de ese importe; lo demás lo casas a mano (varios documentos contra un apunte) o lo contabilizas con un asiento (comisiones, intereses…).</p>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${selB}<label class="btn small" style="cursor:pointer;width:auto;margin:0">Importar extracto…<input type="file" id="conc_file" accept=".n43,.q43,.txt,.aeb,text/plain" onchange="concImportar()" style="display:none"/></label></div>`
+        :`<p class="muted" style="margin:0">Para conciliar, da de alta primero la cuenta bancaria (con su IBAN) en <a onclick="ir('bancos')" style="cursor:pointer;text-decoration:underline">Bancos y cajas</a>.</p>`;
+      const filas=extractos.map(e=>`<tr style="cursor:pointer" onclick="concAbrir('${e.id}')"><td><strong>${agEsc(e.cuentaBancaria||"")}</strong><div class="muted" style="font-size:12px">${agEsc(e.nombreArchivo)}</div></td><td class="muted">${fdate(e.desde)} – ${fdate(e.hasta)}</td><td class="num">${e.saldoFinal!=null?eur(e.saldoFinal):"—"}</td><td class="num">${e.numeroApuntes}</td><td>${e.pendientes?`<span class="pill wait">${e.pendientes} por conciliar</span>`:'<span class="pill ok">Conciliado</span>'}</td>
+        <td class="right"><button class="btn small ghost" onclick="event.stopPropagation();concBorrar('${e.id}')" title="Borrar el extracto (solo sin apuntes conciliados)">✕</button></td></tr>`).join("");
+      const lista=extractos.length?`<table><thead><tr><th>Cuenta</th><th>Periodo</th><th class="num">Saldo final</th><th class="num">Apuntes</th><th>Estado</th><th></th></tr></thead><tbody>${filas}</tbody></table>`:'<p class="muted" style="margin:0">Aún no hay extractos importados.</p>';
+      view(panel("Importar extracto",intro)+panel("Extractos importados",lista)+'<div id="conc_det"></div>');
+      if(_concExtracto&&extractos.some(e=>e.id===_concExtracto)) concAbrir(_concExtracto);
     }
-    function concLeer(){ const f=document.getElementById("conc_file").files[0]; if(!f)return;
-      document.getElementById("conc_fname").textContent=f.name;
+    function concImportar(){ const f=document.getElementById("conc_file").files[0]; if(!f)return;
       const rd=new FileReader(); rd.onload=async()=>{
-        try{ _concApuntes=await api("/tesoreria/conciliacion",{method:"POST",body:JSON.stringify({contenido:rd.result})}); concPintar(); }
-        catch(e){ document.getElementById("conc_res").innerHTML=`<div class="muted">${e.message}</div>`; } };
+        try{ const r=await api("/tesoreria/extractos",{method:"POST",body:JSON.stringify({contenido:rd.result,cuentaBancariaId:bancoVal("conc_banco"),nombreArchivo:f.name})});
+          _concExtracto=r.extracto.id; toast(`Extracto importado: ${r.apuntes.length} apuntes.`,"ok"); vConciliacion(); }
+        catch(e){ toast(e.message,"err"); } };
       rd.readAsText(f,"latin1"); }
-    function concPintar(){ const d=_concApuntes; if(!d)return;
-      const casables=d.apuntes.filter(a=>a.sugerencia).length;
-      const cab=`<div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:12px"><span class="muted">Cuenta <strong class="mono">${d.cuenta||"—"}</strong></span>${d.saldoInicial!=null?`<span class="muted">Saldo inicial <strong>${eur(d.saldoInicial)}</strong></span>`:""}${d.saldoFinal!=null?`<span class="muted">Saldo final <strong>${eur(d.saldoFinal)}</strong></span>`:""}<span class="muted">${d.apuntes.length} apuntes · ${casables} casables</span></div>`;
-      const filas=d.apuntes.map((a,i)=>{
-        const imp=`<span class="${a.importe<0?'neg':''}">${eur(a.importe)}</span>`;
-        let acc;
-        if(a.hecho){ acc='<span class="pill ok">Registrado ✓</span>'; }
-        else if(a.sugerencia){ acc=`<button class="btn small" onclick="concRegistrar(${i})">${a.sugerencia.tipo==='Cobro'?'Registrar cobro':'Registrar pago'}</button><br><small class="muted">${a.sugerencia.documento}</small>`; }
-        else { acc='<span class="muted">Sin casar</span>'; }
-        return `<tr><td class="muted">${fdate(a.fecha)}</td><td>${a.concepto}</td><td class="num"><strong>${imp}</strong></td><td class="right">${acc}</td></tr>`;
-      }).join("");
-      document.getElementById("conc_res").innerHTML=cab+`<table><thead><tr><th>Fecha</th><th>Concepto</th><th class="num">Importe</th><th class="right">Casación</th></tr></thead><tbody>${filas}</tbody></table>
-        <p class="muted" style="font-size:12px;margin:12px 0 0">Solo se sugiere casar apuntes cuyo importe coincide exactamente con el pendiente de una factura (abonos) o un gasto (cargos).</p>`;
+    async function concAbrir(id){ _concExtracto=id;
+      try{ _concDet=await api(`/tesoreria/extractos/${id}`); }catch(e){ toast(e.message,"err"); return; }
+      const d=_concDet, e=d.extracto, el=document.getElementById("conc_det"); if(!el)return;
+      const filas=d.apuntes.map(a=>{ const [cls,txt]=ESTADO_APUNTE[a.estado]||['',a.estado];
+        const casado=a.estado==="ConAsiento"?`<div class="muted" style="font-size:12px">Asiento a ${a.cuentaAsiento}</div>`
+          :a.casaciones.map(c=>`<div class="muted" style="font-size:12px">${agEsc(c.documento||c.tipoDocumento)} · ${eur(c.importe)}${c.movimientoCreado?" (registrado aquí)":""}</div>`).join("");
+        const acc=a.estado==="Pendiente"
+          ?`<button class="btn small secondary" onclick="concCasar('${a.id}')">Casar</button> <button class="btn small ghost" onclick="concAsiento('${a.id}')" title="Comisiones, gastos, intereses…">Asiento</button>`
+          :`<button class="btn small ghost" onclick="concDeshacer('${a.id}')">Deshacer</button>`;
+        return `<tr><td class="muted">${fdate(a.fecha)}</td><td>${agEsc(a.concepto)}${a.referencia1||a.referencia2?`<div class="muted mono" style="font-size:11.5px">${agEsc([a.referencia1,a.referencia2].filter(Boolean).join(" · "))}</div>`:""}</td><td class="num"><strong class="${a.importe<0?'neg':''}">${eur(a.importe)}</strong></td><td><span class="pill ${cls}">${txt}</span>${casado}</td><td class="right" style="white-space:nowrap">${acc}</td></tr>`; }).join("");
+      const pend=d.apuntes.filter(a=>a.estado==="Pendiente").length;
+      const cab=`<div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:12px"><span class="muted">Cuenta <strong class="mono">${agEsc(e.cuentaFichero||"—")}</strong></span>${e.saldoInicial!=null?`<span class="muted">Saldo inicial <strong>${eur(e.saldoInicial)}</strong></span>`:""}${e.saldoFinal!=null?`<span class="muted">Saldo final <strong>${eur(e.saldoFinal)}</strong></span>`:""}<span class="muted">${d.apuntes.length} apuntes · ${pend} por conciliar</span></div>`;
+      el.innerHTML=panel(`Extracto · ${agEsc(e.cuentaBancaria||"")} · ${fdate(e.desde)} – ${fdate(e.hasta)}`,cab+`<table><thead><tr><th>Fecha</th><th>Concepto</th><th class="num">Importe</th><th>Conciliación</th><th></th></tr></thead><tbody>${filas}</tbody></table>`,
+        pend?`<button class="btn small" onclick="concAutomatica('${e.id}')">Conciliar automáticamente</button>`:"");
     }
-    async function concRegistrar(i){ const a=_concApuntes.apuntes[i]; if(!a||!a.sugerencia)return;
-      try{
-        if(a.sugerencia.tipo==='Cobro') await api("/cobros",{method:"POST",body:JSON.stringify({facturaId:a.sugerencia.documentoId,importe:a.importe,fecha:a.fecha,metodo:"Transferencia"})});
-        else await api("/pagos",{method:"POST",body:JSON.stringify({gastoId:a.sugerencia.documentoId,importe:-a.importe,fecha:a.fecha,metodo:"Transferencia"})});
-        a.hecho=true; concPintar(); toast("Movimiento registrado","ok");
-      }catch(e){ toast(e.message,"err"); } }
+    async function concAutomatica(id){
+      try{ const r=await api(`/tesoreria/extractos/${id}/conciliar-automatico`,{method:"POST",body:JSON.stringify({diasMargen:5})});
+        toast(`${r.conciliados} apunte(s) conciliado(s); quedan ${r.pendientes} por conciliar.`,r.conciliados?"ok":"warn"); vConciliacion(); }
+      catch(e){ toast(e.message,"err"); } }
+    async function concCasar(apunteId){ _concApunte=(_concDet?.apuntes||[]).find(a=>a.id===apunteId); if(!_concApunte)return;
+      try{ _concCand=await api(`/tesoreria/apuntes/${apunteId}/candidatos`); }catch(e){ toast(e.message,"err"); return; }
+      const nombre={Movimiento:"Cobro/pago registrado",Remesa:"Remesa liquidada",Factura:"Factura pendiente",Gasto:"Gasto pendiente",Cartera:"Efecto de cartera"};
+      const filas=_concCand.map((c,i)=>{ const doc=c.tipo==="Factura"||c.tipo==="Gasto"||c.tipo==="Cartera";
+        return `<tr><td><input type="checkbox" class="conc_chk" data-i="${i}" style="width:auto" onchange="concSuma()"/></td><td><span class="muted" style="font-size:12px">${nombre[c.tipo]||c.tipo}</span><div><strong>${agEsc(c.documento)}</strong></div></td><td>${agEsc(c.tercero||"")}</td><td class="muted">${fdate(c.fecha)}</td>
+          <td class="num">${doc?`<input id="conc_imp_${i}" type="number" step="0.01" value="${Math.abs(c.importe)}" style="width:110px" oninput="concSuma()"/>`:eur(c.importe)}</td></tr>`; }).join("");
+      abrir(`Casar apunte · ${fdate(_concApunte.fecha)} · ${eur(_concApunte.importe)}`,`<p class="muted" style="margin:0 0 10px">${agEsc(_concApunte.concepto)}</p>
+        ${_concCand.length?`<table><thead><tr><th></th><th>Candidato</th><th>Tercero</th><th>Fecha</th><th class="num">Importe</th></tr></thead><tbody>${filas}</tbody></table>`:'<p class="muted">No hay cobros, pagos ni documentos pendientes que puedan casar.</p>'}
+        <p style="margin:12px 0 0">Seleccionado: <strong id="conc_suma">${eur(0)}</strong> de <strong>${eur(_concApunte.importe)}</strong></p>
+        <p class="muted" style="font-size:12px;margin:6px 0 0">Elige uno o varios elementos cuya suma sea la del apunte. Con una factura, gasto o efecto pendiente se registra su cobro o pago por esta cuenta y en la fecha del apunte (puedes cobrar solo una parte cambiando el importe).</p>`,
+        async()=>{ const elementos=[...document.querySelectorAll(".conc_chk:checked")].map(ch=>{ const c=_concCand[Number(ch.dataset.i)]; const el={tipo:c.tipo,id:c.id};
+            const inp=document.getElementById("conc_imp_"+ch.dataset.i); if(inp) el.importe=Number(inp.value||0); return el; });
+          await api(`/tesoreria/apuntes/${apunteId}/conciliar`,{method:"POST",body:JSON.stringify({elementos})}); toast("Apunte conciliado.","ok"); concAbrir(_concExtracto); }); }
+    function concSuma(){ let t=0; document.querySelectorAll(".conc_chk:checked").forEach(ch=>{ const i=Number(ch.dataset.i), c=_concCand[i], inp=document.getElementById("conc_imp_"+i);
+        t+=inp?Math.sign(c.importe)*Number(inp.value||0):c.importe; });
+      const el=document.getElementById("conc_suma"); if(el){ el.textContent=eur(t); el.style.color=Math.abs(t-_concApunte.importe)<0.005?"var(--pos)":""; } }
+    function concAsiento(apunteId){ const a=(_concDet?.apuntes||[]).find(x=>x.id===apunteId); if(!a)return;
+      const cuentas=a.importe<0
+        ?[["626","626 · Servicios bancarios (comisiones)"],["669","669 · Otros gastos financieros"],["662","662 · Intereses de deudas"],["631","631 · Otros tributos"],["625","625 · Primas de seguros"]]
+        :[["769","769 · Otros ingresos financieros (intereses)"],["759","759 · Ingresos por servicios diversos"],["778","778 · Ingresos excepcionales"]];
+      abrir(`Asiento del apunte · ${eur(a.importe)}`,`<p class="muted" style="margin:0 0 10px">${agEsc(a.concepto)}</p><label>Cuenta de contrapartida</label><select id="ca_cta">${cuentas.map(c=>`<option value="${c[0]}">${c[1]}</option>`).join("")}</select>
+        <label>U otra cuenta (subcuenta concreta)</label><input id="ca_otra" placeholder="Ej. 6260001"/>
+        <label>Concepto</label><input id="ca_conc" value="${agEsc(a.concepto).slice(0,80)}"/>
+        <p class="muted" style="font-size:12px;margin:8px 0 0">${a.importe<0?"Cargo: la cuenta elegida al debe y el banco al haber.":"Abono: el banco al debe y la cuenta elegida al haber."} En modo Simple (sin contabilidad completa) el apunte queda conciliado sin asiento.</p>`,
+        async()=>{ await api(`/tesoreria/apuntes/${apunteId}/asiento`,{method:"POST",body:JSON.stringify({cuenta:(val("ca_otra")||"").trim()||val("ca_cta"),concepto:val("ca_conc")||null})});
+          toast("Apunte contabilizado.","ok"); concAbrir(_concExtracto); }); }
+    async function concDeshacer(apunteId){ if(!confirm("¿Deshacer la conciliación de este apunte? Los cobros o pagos que registró se anulan (con su contraasiento)."))return;
+      try{ await api(`/tesoreria/apuntes/${apunteId}/deshacer`,{method:"POST",body:"{}"}); toast("Conciliación deshecha.","ok"); concAbrir(_concExtracto); }catch(e){ toast(e.message,"err"); } }
+    async function concBorrar(id){ if(!confirm("¿Borrar este extracto? Solo se puede si ninguno de sus apuntes está conciliado."))return;
+      try{ await api(`/tesoreria/extractos/${id}`,{method:"DELETE"}); if(_concExtracto===id) _concExtracto=null; toast("Extracto borrado.","ok"); vConciliacion(); }catch(e){ toast(e.message,"err"); } }
     /* ---------- TPV / Tickets ---------- */
     let tpvProductos=[], tpvCart=[], tpvStream=null, tpvTimer=null, tpvDetector=null, tpvUltimo=0, tpvMetodo="Efectivo", tpvUltimoTicket=null;
     async function vTpv() {
@@ -2594,7 +2711,8 @@
     async function vPrevision(){
       view('<div class="muted">Cargando…</div>');
       const hoy=new Date().toISOString().slice(0,10);
-      const [fs,gs,previsiones]=await Promise.all([api("/facturas").catch(()=>[]),api("/gastos").catch(()=>[]),api("/tesoreria/previsiones").catch(()=>[])]);
+      const [fs,gs,previsiones,saldos]=await Promise.all([api("/facturas").catch(()=>[]),api("/gastos").catch(()=>[]),api("/tesoreria/previsiones").catch(()=>[]),api("/cuentas-bancarias/saldos").catch(()=>null)]);
+      const saldoBancos=saldos?Number(saldos.total)||0:0;
       window._previsiones=previsiones||[];
       const facs=fs.filter(f=>f.estado!=="Rectificada"&&f.estado!=="Anulada");
       const gastos=gs.filter(g=>g.estado!=="Anulado");
@@ -2605,18 +2723,21 @@
       gastos.forEach(g=>{ const s=sg[g.id]||{}; const pend=s.pendiente??g.total; if((s.estado||"Pendiente")!=="Liquidado"&&pend>0.001){ filas.push({fecha:g.fecha,concepto:g.concepto+(g.proveedorTexto?" · "+g.proveedorTexto:""),tipo:"Pago",in:0,out:pend,origen:"Gasto",prevista:false,accion:`<button class="btn small secondary" onclick="event.stopPropagation();modalPagoGasto('${g.id}','${agEsc(g.concepto).replace(/'/g,'')}',${pend},vPrevision)">Pagar</button>`}); } });
       (previsiones||[]).forEach(p=>{ const ing=p.sentido==="Ingreso"; filas.push({fecha:p.fecha,concepto:p.concepto,tipo:ing?"Ingreso previsto":"Gasto previsto",in:ing?p.importe:0,out:ing?0:p.importe,origen:"Previsión",prevista:true,accion:`<button class="btn small secondary" onclick="event.stopPropagation();modalPrevision('${p.id}')" title="Modificar previsión">Editar</button> <button class="btn small ghost" onclick="event.stopPropagation();borrarPrevision('${p.id}')" title="Eliminar previsión">✕</button>`}); });
       filas.sort((a,b)=>(a.fecha||'').localeCompare(b.fecha||''));
-      let saldo=0,totIn=0,totOut=0,neto30=0;
+      let saldo=saldoBancos,totIn=0,totOut=0,neto30=0;
       const lim30=new Date(Date.now()+30*864e5).toISOString().slice(0,10);
       const trs=filas.map(r=>{ saldo+=(r.in-r.out); totIn+=r.in; totOut+=r.out; if((r.fecha||'')<=lim30) neto30+=(r.in-r.out);
         const venc=!r.prevista&&(r.fecha||'')<hoy;
         const tipoPill=r.prevista?`<span class="pill part">${r.tipo}</span>`:(r.in?'<span class="pill ok">Cobro</span>':'<span class="pill wait">Pago</span>');
         return `<tr class="${r.prevista?'fila-prevista':''}"><td class="muted">${fdate(r.fecha)}${venc?' <span class="pill" style="background:#fdecea;color:var(--neg);font-size:10px">vencido</span>':''}</td><td>${r.concepto}</td><td>${tipoPill}</td><td class="num">${r.in?eur(r.in):'—'}</td><td class="num">${r.out?eur(r.out):'—'}</td><td class="num"><strong class="${saldo<0?'neg':''}">${eur(saldo)}</strong></td><td class="muted">${r.origen}</td><td class="right">${r.accion}</td></tr>`;}).join("");
-      const kpis=`<div class="kpis" style="grid-template-columns:repeat(3,1fr);max-width:720px">
+      const detalleSaldo=saldos?(saldos.cuentas||[]).map(c=>`${agEsc(c.nombre)}: ${eur(c.saldo)}`).join(" · "):"";
+      const filaInicial=`<tr><td class="muted">${fdate(hoy)}</td><td><strong>Saldo actual en bancos y cajas</strong>${detalleSaldo?`<div class="muted" style="font-size:12px">${detalleSaldo}</div>`:""}</td><td><span class="pill">Saldo</span></td><td class="num">—</td><td class="num">—</td><td class="num"><strong class="${saldoBancos<0?'neg':''}">${eur(saldoBancos)}</strong></td><td class="muted">${saldos&&saldos.fuente==="Contabilidad"?"Contabilidad":"Movimientos"}</td><td class="right"><button class="btn small ghost" onclick="ir('bancos')">Bancos</button></td></tr>`;
+      const kpis=`<div class="kpis" style="grid-template-columns:repeat(4,1fr);max-width:960px">
+        <div class="kpi"><div class="lbl">Saldo en bancos y cajas</div><div class="val ${saldoBancos<0?'neg':''}">${eur(saldoBancos)}</div></div>
         <div class="kpi"><div class="lbl">Entradas previstas</div><div class="val" style="color:var(--pos)">${eur(totIn)}</div></div>
         <div class="kpi"><div class="lbl">Salidas previstas</div><div class="val" style="color:var(--neg)">${eur(totOut)}</div></div>
         <div class="kpi ${neto30<0?'warn':''}"><div class="lbl">Neto a 30 días</div><div class="val ${neto30<0?'neg':''}">${eur(neto30)}</div></div></div>`;
-      const cuerpo=filas.length?`<table><thead><tr><th>Fecha</th><th>Concepto</th><th>Tipo</th><th class="num">Entrada</th><th class="num">Salida</th><th class="num">Saldo proyectado</th><th>Origen</th><th></th></tr></thead><tbody>${trs}</tbody></table>
-        <p class="muted" style="font-size:12px;margin:12px 0 0">El saldo se acumula por fecha. Las filas <span style="background:repeating-linear-gradient(135deg,var(--accent-soft),var(--accent-soft) 6px,transparent 6px,transparent 12px);padding:1px 8px;border-left:3px solid var(--accent)">rayadas</span> son previsiones (ingresos/gastos aún no documentados); el resto son vencimientos reales. Usa <strong>Columnas</strong> para elegir qué ver.</p>`
+      const cuerpo=filas.length?`<table><thead><tr><th>Fecha</th><th>Concepto</th><th>Tipo</th><th class="num">Entrada</th><th class="num">Salida</th><th class="num">Saldo proyectado</th><th>Origen</th><th></th></tr></thead><tbody>${filaInicial}${trs}</tbody></table>
+        <p class="muted" style="font-size:12px;margin:12px 0 0">El saldo parte del saldo actual de tus bancos y cajas (el contable de cada subcuenta si llevas contabilidad completa; si no, el calculado con sus movimientos) y se acumula por fecha. Las filas <span style="background:repeating-linear-gradient(135deg,var(--accent-soft),var(--accent-soft) 6px,transparent 6px,transparent 12px);padding:1px 8px;border-left:3px solid var(--accent)">rayadas</span> son previsiones (ingresos/gastos aún no documentados); el resto son vencimientos reales. Usa <strong>Columnas</strong> para elegir qué ver.</p>`
         :vacio("cobros","Sin vencimientos ni previsiones","Aquí verás tus cobros y pagos pendientes. También puedes añadir ingresos o gastos previstos para completar la previsión.",`<button class="btn small" onclick="modalPrevision()">+ Añadir previsión</button>`);
       view(kpis+panel("Previsión de tesorería",cuerpo,`<button class="btn small" onclick="modalPrevision()">+ Añadir previsión</button>`));
     }
@@ -2627,9 +2748,9 @@
         async()=>{ const body=JSON.stringify({sentido:val("pv_sent"),concepto:val("pv_conc"),importe:Number(val("pv_imp")||0),fecha:val("pv_fecha")});
           await api(p?"/tesoreria/previsiones/"+p.id:"/tesoreria/previsiones",{method:p?"PUT":"POST",body}); toast(p?"Previsión guardada.":"Previsión añadida.","ok"); vPrevision(); }); }
     async function borrarPrevision(id){ if(!confirm("¿Eliminar esta previsión?"))return; try{ await api("/tesoreria/previsiones/"+id,{method:"DELETE"}); toast("Previsión eliminada.","ok"); vPrevision(); }catch(e){ toast(e.message,"err"); } }
-    function modalPagoGasto(id,concepto,pend,recargar){ const hoy=new Date().toISOString().slice(0,10);
-      abrir("Registrar pago · "+concepto,`<div class="grid2"><div><label>Importe (€)</label><input id="pg_imp" type="number" step="0.01" value="${pend}"/></div><div><label>Fecha</label><input id="pg_fecha" type="date" value="${hoy}"/></div></div><label>Método (opcional)</label><input id="pg_metodo" placeholder="Transferencia, efectivo…"/>`,
-        async()=>{ await api("/pagos",{method:"POST",body:JSON.stringify({gastoId:id,importe:Number(val("pg_imp")||0),fecha:val("pg_fecha"),metodo:val("pg_metodo")||null})}); toast("Pago registrado.","ok"); (recargar||vPrevision)(); }); }
+    async function modalPagoGasto(id,concepto,pend,recargar){ const hoy=new Date().toISOString().slice(0,10); const selBanco=await bancoSelHtml("pg_banco");
+      abrir("Registrar pago · "+concepto,`<div class="grid2"><div><label>Importe (€)</label><input id="pg_imp" type="number" step="0.01" value="${pend}"/></div><div><label>Fecha</label><input id="pg_fecha" type="date" value="${hoy}"/></div></div><label>Método (opcional)</label><input id="pg_metodo" placeholder="Transferencia, efectivo…"/>${selBanco}`,
+        async()=>{ await api("/pagos",{method:"POST",body:JSON.stringify({gastoId:id,importe:Number(val("pg_imp")||0),fecha:val("pg_fecha"),metodo:val("pg_metodo")||null,cuentaBancariaId:bancoVal("pg_banco")})}); toast("Pago registrado.","ok"); (recargar||vPrevision)(); }); }
 
     // Cobros o pagos de un documento, con su anulación (no se borran: se añade la anulación en negativo).
     async function verMovimientos(rutaSaldo, titulo, recargar){
@@ -2637,7 +2758,8 @@
       const filas=(s.movimientos||[]).map(m=>{
         const estado=m.anulaMovimientoId?'<span class="pill neg">anulación</span>':(m.anulado?'<span class="pill neg">anulado</span>':'');
         const btn=!m.anulaMovimientoId&&!m.anulado?`<button class="btn small ghost" onclick="anularMovimiento('${m.id}','${rutaSaldo}','${titulo.replace(/'/g,"")}',${recargar.name})">Anular</button>`:'';
-        return `<tr><td class="muted">${fdate(m.fecha)}</td><td>${agEsc(m.metodo||"—")}</td><td class="num">${eur(m.importe)}</td><td>${estado}</td><td class="right">${btn}</td></tr>`;}).join("");
+        const dev=!m.anulaMovimientoId&&!m.anulado&&m.sentido==="Cobro"&&/^domicili/i.test(m.metodo||"")?` <button class="btn small ghost" onclick="modalDevolucion('${m.id}','${titulo.replace(/'/g,"")}',${recargar.name})" title="El banco devolvió el recibo">Devolución</button>`:'';
+        return `<tr><td class="muted">${fdate(m.fecha)}</td><td>${agEsc(m.metodo||"—")}</td><td class="num">${eur(m.importe)}</td><td>${estado}</td><td class="right" style="white-space:nowrap">${btn}${dev}</td></tr>`;}).join("");
       abrir(titulo,`<table><thead><tr><th>Fecha</th><th>Método</th><th class="num">Importe</th><th></th><th></th></tr></thead><tbody>${filas}</tbody></table>
         <p class="muted" style="margin:10px 0 0">Pendiente: <strong>${eur(s.pendiente)}</strong> de ${eur(s.total)}.</p>`,()=>{});
       document.getElementById("modalOk").textContent="Cerrar";
@@ -2677,13 +2799,14 @@
         const accion=i.pendienteDeReclamar
           ?`<button class="btn small" onclick="reclamar('${i.facturaId}')">Reclamar · nivel ${i.nivelQueToca}</button>`
           :(i.ultimoNivelReclamado?`<span class="pill ok">Reclamado nivel ${i.ultimoNivelReclamado}</span>`:'<span class="muted">Aún no toca</span>');
-        return `<tr><td><strong>${i.numero}</strong></td><td>${i.clienteNombre}</td><td class="muted">${fdate(i.vencimiento)}</td><td class="num">${i.diasRetraso}</td><td class="num">${eur(i.pendiente)}</td><td class="right">${accion}</td></tr>`;}).join("");
+        const dev=i.motivoDevolucion?`<span class="pill neg" title="${agEsc(i.descripcionDevolucion||"")}">Recibo devuelto · ${i.motivoDevolucion}</span><div class="muted" style="font-size:11.5px">${agEsc(i.descripcionDevolucion||"")} · ${fdate(i.fechaDevolucion)}${i.gastosDevolucion?` · gastos ${eur(i.gastosDevolucion)}`:""}</div>`:'<span class="muted">Vencida</span>';
+        return `<tr><td><strong>${i.numero}</strong></td><td>${i.clienteNombre}</td><td class="muted">${fdate(i.vencimiento)}</td><td class="num">${i.diasRetraso}</td><td class="num">${eur(i.pendiente)}</td><td>${dev}</td><td class="right">${accion}</td></tr>`;}).join("");
       const kpis=`<div class="kpis" style="grid-template-columns:repeat(2,1fr);max-width:560px">
         <div class="kpi ${total>0?'warn':''}"><div class="lbl">Vencido pendiente · ${lista.length} factura${lista.length===1?'':'s'}</div><div class="val ${total>0?'neg':''}">${eur(total)}</div></div>
         <div class="kpi"><div class="lbl">Por reclamar</div><div class="val">${porReclamar}</div></div></div>`;
-      const cuerpo=lista.length?`<table><thead><tr><th>Factura</th><th>Cliente</th><th>Vencimiento</th><th class="num">Días</th><th class="num">Pendiente</th><th></th></tr></thead><tbody>${filas}</tbody></table>`
+      const cuerpo=lista.length?`<table><thead><tr><th>Factura</th><th>Cliente</th><th>Vencimiento</th><th class="num">Días</th><th class="num">Pendiente</th><th>Motivo</th><th></th></tr></thead><tbody>${filas}</tbody></table>`
         :'<p class="muted" style="margin:0">No hay facturas vencidas pendientes de cobro.</p>';
-      view(kpis+panel("Facturas vencidas",`<p class="muted" style="margin:0 0 12px">Cada nivel de reclamación llega unos días después del vencimiento (por defecto 7, 30 y 60). Al reclamar se envía el aviso por correo con la factura en PDF y queda registrado.</p>`+cuerpo));
+      view(kpis+panel("Facturas vencidas",`<p class="muted" style="margin:0 0 12px">Aparecen las facturas vencidas con pendiente y las de recibos domiciliados devueltos por el banco (con el motivo SEPA). Cada nivel de reclamación llega unos días después del vencimiento (por defecto 7, 30 y 60). Al reclamar se envía el aviso por correo con la factura en PDF y queda registrado.</p>`+cuerpo));
     }
     async function reclamar(facturaId){
       try{ const r=await api("/impagados/"+facturaId+"/reclamar",{method:"POST",body:JSON.stringify({canal:"Email"})});
@@ -3126,12 +3249,13 @@
         <label>Importe (€) · disponible ${eur(disponible)}</label><input id="ap_imp" type="number" step="0.01" placeholder="Vacío: lo máximo posible"/>`,
         async()=>{ const imp=val("ap_imp"); await api("/anticipos/"+id+"/aplicar",{method:"POST",body:JSON.stringify({facturaId:val("ap_fac"),importe:imp?Number(imp):null})}); toast("Anticipo aplicado.","ok"); vAnticipos(); }); }
 
-    function modalCobro(id,numero,pendiente,recargar){
+    async function modalCobro(id,numero,pendiente,recargar){
       const hoy=new Date().toISOString().slice(0,10);
       const metodos=["Efectivo","Transferencia","Tarjeta","Bizum","Domiciliación"].map(m=>`<option>${m}</option>`).join("");
+      const selBanco=await bancoSelHtml("cb_banco");
       abrir(`Registrar cobro · ${numero}`,`<div class="grid2"><div><label>Importe (€)</label><input id="cb_imp" type="number" value="${pendiente}"/></div><div><label>Fecha</label><input id="cb_fecha" type="date" value="${hoy}"/></div></div>
-        <label>Método de cobro</label><select id="cb_met">${metodos}</select>`,
-        async()=>{ await api("/cobros",{method:"POST",body:JSON.stringify({facturaId:id,importe:Number(val("cb_imp")),fecha:val("cb_fecha"),metodo:val("cb_met")})}); (recargar||vCobros)(); }); }
+        <label>Método de cobro</label><select id="cb_met">${metodos}</select>${selBanco}`,
+        async()=>{ await api("/cobros",{method:"POST",body:JSON.stringify({facturaId:id,importe:Number(val("cb_imp")),fecha:val("cb_fecha"),metodo:val("cb_met"),cuentaBancariaId:bancoVal("cb_banco")})}); (recargar||vCobros)(); }); }
     let trimSel=Math.floor(new Date().getMonth()/3)+1;
     // Ejercicio de Informes y libro de IVA mostrado (Repercutido/Soportado; periodo 0 = año, 1-4 = trimestre).
     let infAnio=new Date().getFullYear(), infLibro="Repercutido", infLibroPer=0;
@@ -4594,9 +4718,9 @@
       if(motivo===null) return;
       try{ await api(`/cartera/${id}/anular`,{method:"POST",body:JSON.stringify({motivo})}); toast("Efecto anulado.","ok"); vCartera(); } catch(e){ toast(e.message,"err"); }
     }
-    function modalLiquidarEfecto(id,pendiente,sentido){
-      abrir(sentido==="Cobro"?"Registrar cobro":"Registrar pago",`<div class="grid2"><div><label>Importe</label><input id="ef_i" type="number" step="0.01" value="${pendiente}"/></div><div><label>Fecha</label><input id="ef_f" type="date" value="${new Date().toISOString().slice(0,10)}"/></div></div><label>Método</label><input id="ef_m" placeholder="Transferencia"/>`,
-        async()=>{ await api(`/cartera/${id}/movimientos`,{method:"POST",body:JSON.stringify({importe:Number(val("ef_i")),fecha:val("ef_f"),metodo:val("ef_m")||null})}); toast("Registrado.","ok"); setTimeout(vCartera); });
+    async function modalLiquidarEfecto(id,pendiente,sentido){ const selBanco=await bancoSelHtml("ef_banco");
+      abrir(sentido==="Cobro"?"Registrar cobro":"Registrar pago",`<div class="grid2"><div><label>Importe</label><input id="ef_i" type="number" step="0.01" value="${pendiente}"/></div><div><label>Fecha</label><input id="ef_f" type="date" value="${new Date().toISOString().slice(0,10)}"/></div></div><label>Método</label><input id="ef_m" placeholder="Transferencia, Domiciliación…"/>${selBanco}`,
+        async()=>{ await api(`/cartera/${id}/movimientos`,{method:"POST",body:JSON.stringify({importe:Number(val("ef_i")),fecha:val("ef_f"),metodo:val("ef_m")||null,cuentaBancariaId:bancoVal("ef_banco")})}); toast("Registrado.","ok"); setTimeout(vCartera); });
     }
 
     /* modales */

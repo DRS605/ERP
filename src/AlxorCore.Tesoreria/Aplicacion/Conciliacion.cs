@@ -7,8 +7,12 @@ using AlxorCore.Tesoreria.Dominio;
 
 namespace AlxorCore.Tesoreria.Aplicacion;
 
-/// <summary>Un apunte del extracto bancario (fecha, importe con signo y concepto).</summary>
-public sealed record ApunteExtracto(DateOnly Fecha, decimal Importe, string Concepto);
+/// <summary>
+/// Un apunte del extracto bancario: fecha, importe con signo y concepto; además la fecha valor, el concepto común AEB,
+/// el número de documento y las dos referencias del registro 22.
+/// </summary>
+public sealed record ApunteExtracto(DateOnly Fecha, decimal Importe, string Concepto, DateOnly? FechaValor = null, string? ConceptoComun = null,
+    string? Documento = null, string? Referencia1 = null, string? Referencia2 = null);
 
 /// <summary>Extracto bancario leído de un fichero Norma 43 (Cuaderno 43 / CSB43).</summary>
 public sealed record ExtractoBancario(
@@ -41,6 +45,8 @@ public static class ParserNorma43
         DateOnly fechaApunte = default;
         decimal importeApunte = 0m;
         string conceptoComun = string.Empty;
+        DateOnly? fechaValor = null;
+        string? documento = null, referencia1 = null, referencia2 = null;
 
         void CerrarApunte()
         {
@@ -49,10 +55,16 @@ public static class ParserNorma43
                 return;
             }
 
+            var referencias = string.Join(" ", new[] { referencia1, referencia2 }.Where(r => !string.IsNullOrWhiteSpace(r)));
             var concepto = conceptos.Count > 0
                 ? string.Join(" ", conceptos).Trim()
-                : conceptoComun;
-            apuntes.Add(new ApunteExtracto(fechaApunte, importeApunte, string.IsNullOrWhiteSpace(concepto) ? "Movimiento bancario" : concepto));
+                : (string.IsNullOrWhiteSpace(referencias) ? conceptoComun : referencias);
+            if (string.IsNullOrWhiteSpace(concepto))
+            {
+                concepto = "Movimiento bancario";
+            }
+
+            apuntes.Add(new ApunteExtracto(fechaApunte, importeApunte, concepto, fechaValor, Vacio(conceptoComun), documento, referencia1, referencia2));
             conceptos.Clear();
             hayApunte = false;
         }
@@ -86,6 +98,10 @@ public static class ParserNorma43
                         fechaApunte = LeerFecha(linea, 10) ?? hasta ?? desde ?? default;
                         importeApunte = LeerImporte(linea, 27, 28) ?? 0m;
                         conceptoComun = Trozo(linea, 22, 2);
+                        fechaValor = LeerFecha(linea, 16);
+                        documento = Vacio(Trozo(linea, 42, 10).TrimStart('0'));
+                        referencia1 = Vacio(Trozo(linea, 52, 12));
+                        referencia2 = Vacio(Trozo(linea, 64, 16));
                     }
 
                     break;
@@ -131,6 +147,8 @@ public static class ParserNorma43
 
         return Resultado.Ok(new ExtractoBancario(cuenta.Trim(), desde, hasta, saldoInicial, saldoFinal, apuntes));
     }
+
+    private static string? Vacio(string? texto) => string.IsNullOrWhiteSpace(texto) ? null : texto.Trim();
 
     private static string Trozo(string linea, int inicio, int longitud) =>
         inicio >= linea.Length ? string.Empty : linea.Substring(inicio, Math.Min(longitud, linea.Length - inicio)).Trim();
