@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useDocs } from "./contexto";
 import { Dialogo, EditorConceptos, SelectorTercero } from "./Componentes";
 import { Rejilla, lineaVacia, type CalculoLinea } from "./Rejilla";
-import type { ConceptoAplicado, ConceptoCatalogo, ConceptoSolicitado, Factura, FormaPago, LineaEdicion, Producto, Tercero, TipoIva, TipoVenta } from "./tipos";
+import { anticiposDisponibles, repartoAnticipos, type Anticipo, type ConceptoAplicado, type ConceptoCatalogo, type ConceptoSolicitado, type Factura, type FormaPago, type LineaEdicion, type Producto, type Tercero, type TipoIva, type TipoVenta } from "./tipos";
 import { eur, hoyIso, nuevaClave, num2, redondear2, useRetardado, useUltimaPeticion } from "./util";
 
 export const NOMBRE_TIPO: Record<TipoVenta, string> = { presupuesto: "presupuesto", pedido: "pedido de venta", factura: "factura" };
@@ -70,6 +70,9 @@ export function EditorVenta(props: { tipo: TipoVenta; id?: string | null; semill
   const [calculando, setCalculando] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [confirmar, setConfirmar] = useState(false);
+  // Anticipos del cliente pendientes de aplicar: se avisa y, al emitir la factura, se aplican (asiento 438 a 430).
+  const [anticipos, setAnticipos] = useState<Anticipo[]>([]);
+  const [aplicarAnticipos, setAplicarAnticipos] = useState(true);
   const ultima = useUltimaPeticion();
 
   // Catálogos.
@@ -105,6 +108,14 @@ export function EditorVenta(props: { tipo: TipoVenta; id?: string | null; semill
   }, [props.semilla, api, rectificativa]);
 
   const cliente = clientes.find((c) => c.id === clienteId);
+  useEffect(() => {
+    if (props.tipo !== "factura" || rectificativa || !clienteId) {
+      setAnticipos([]);
+      return;
+    }
+    api.get<Anticipo[]>(`/anticipos?clienteId=${clienteId}`).then((l) => setAnticipos(anticiposDisponibles(l))).catch(() => setAnticipos([]));
+  }, [api, clienteId, props.tipo, rectificativa]);
+  const disponibleAnticipos = redondear2(anticipos.reduce((t, a) => t + a.disponible, 0));
 
   // Al elegir cliente: sus condiciones por defecto.
   useEffect(() => {
@@ -218,7 +229,22 @@ export function EditorVenta(props: { tipo: TipoVenta; id?: string | null; semill
       if (rectificativa) {
         id = (await api.post<{ id: string }>(`/facturas/${props.semilla!.rectificaId}/rectificar`, { motivo, lineas: lineasFijas, fechaEmision: fecha, porcentajeIrpf: irpf, serie: serie || null })).id;
       } else if (props.tipo === "factura") {
-        id = (await api.post<{ id: string; avisoRiesgo?: string }>("/facturas", { ...comando, lineas: lineasFijas })).id;
+        const emitida = await api.post<{ id: string; total: number; avisoRiesgo?: string }>("/facturas", { ...comando, lineas: lineasFijas });
+        id = emitida.id;
+        if (aplicarAnticipos && anticipos.length) {
+          let aplicado = 0;
+          try {
+            for (const r of repartoAnticipos(anticipos, emitida.total)) {
+              await api.post(`/anticipos/${r.id}/aplicar`, { facturaId: id, importe: r.importe });
+              aplicado += r.importe;
+            }
+            anfitrion.aviso(`Factura emitida. Aplicados ${eur(aplicado)} de anticipos (asiento 438 a 430).`, "ok");
+          } catch (e) {
+            anfitrion.aviso(`Factura emitida, pero no se pudo aplicar el anticipo: ${(e as Error).message}`, "err");
+          }
+          props.alGuardar(id);
+          return;
+        }
       } else if (props.tipo === "presupuesto") {
         const cuerpo = { clienteId, diasValidez: validez, lineas: lineasFijas, conceptosDocumento: conceptosDoc };
         id = props.id ? (await api.put<{ id: string }>(`/presupuestos/${props.id}`, cuerpo)).id : (await api.post<{ id: string }>("/presupuestos", cuerpo)).id;
@@ -327,6 +353,15 @@ export function EditorVenta(props: { tipo: TipoVenta; id?: string | null; semill
                 {cliente.tarifaId && <div className="muted">Con tarifa de precios propia</div>}
                 {cliente.recargoEquivalencia && <div className="muted">En recargo de equivalencia</div>}
                 {calculo?.avisoRiesgo && <div className="dx-aviso">⚠ {calculo.avisoRiesgo}</div>}
+                {disponibleAnticipos > 0 && (
+                  <div className="dx-anticipo">
+                    <div>💶 Tiene <strong>{eur(disponibleAnticipos)}</strong> en {anticipos.length === 1 ? "un anticipo pendiente" : `${anticipos.length} anticipos pendientes`} de aplicar.</div>
+                    <label className="dx-check">
+                      <input type="checkbox" checked={aplicarAnticipos} onChange={(e) => setAplicarAnticipos(e.target.checked)} />
+                      Aplicarlo al emitir{calculo ? ` (${eur(Math.min(disponibleAnticipos, calculo.total))})` : ""}
+                    </label>
+                  </div>
+                )}
               </>
             ) : (
               <span className="muted">Elige un cliente: se aplican su tarifa, su forma de pago, su recargo y sus conceptos.</span>

@@ -342,6 +342,35 @@ export interface LineaGasto {
   cuotaDeducible: number;
 }
 
+/** Anticipo (entrega a cuenta) de un cliente: lo disponible se aplica a sus facturas (asiento 438 a 430). */
+export interface Anticipo {
+  id: string;
+  clienteId: string;
+  fecha: string;
+  importe: number;
+  aplicado: number;
+  disponible: number;
+  estado: string;
+  concepto: string;
+}
+
+/** Anticipos con algo por aplicar, del más antiguo al más reciente. */
+export const anticiposDisponibles = (lista: Anticipo[]) =>
+  lista.filter((a) => a.disponible > 0 && a.estado !== "Anulado").sort((a, b) => a.fecha.localeCompare(b.fecha));
+
+/** Reparto de un importe entre los anticipos, el más antiguo primero (lo que se aplica de cada uno). */
+export function repartoAnticipos(anticipos: Anticipo[], importe: number): { id: string; importe: number }[] {
+  let resto = Math.round(importe * 100);
+  const reparto: { id: string; importe: number }[] = [];
+  for (const a of anticiposDisponibles(anticipos)) {
+    if (resto <= 0) break;
+    const parte = Math.min(resto, Math.round(a.disponible * 100));
+    if (parte > 0) reparto.push({ id: a.id, importe: parte / 100 });
+    resto -= parte;
+  }
+  return reparto;
+}
+
 export interface Gasto {
   id: string;
   proveedorId?: string | null;

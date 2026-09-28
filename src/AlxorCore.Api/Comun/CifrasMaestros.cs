@@ -20,7 +20,7 @@ public sealed record PaginaConCifras<T>(
 }
 
 /// <summary>
-/// Cifras de los maestros para sus listados: facturado, pendiente y vencido de clientes; comprado, pendiente y
+/// Cifras de los maestros para sus listados: facturado, pendiente, vencido y anticipos por aplicar de clientes; comprado, pendiente y
 /// vencido de proveedores; stock, valor del stock y ventas de artículos. SQL fijo por la conexión de solo lectura
 /// del análisis (con la RLS de la empresa): el pendiente es el total menos lo cobrado o pagado en Tesorería, como en
 /// las pantallas de cobros y pagos, y solo de documentos vivos (sin anulados ni sustituidos).
@@ -31,23 +31,33 @@ public sealed class CifrasMaestros
 
     public CifrasMaestros(IEjecutorAnalisis ejecutor) => _ejecutor = ejecutor;
 
-    public static readonly string[] CamposClientes = ["facturas", "facturado", "pendiente", "vencido"];
+    public static readonly string[] CamposClientes = ["facturas", "facturado", "pendiente", "vencido", "anticipos"];
     public static readonly string[] CamposProveedores = ["facturas", "comprado", "pendiente", "vencido"];
     public static readonly string[] CamposArticulos = ["stock", "valorStock", "unidadesVendidas", "ventas"];
 
     private const string Clientes = """
-        WITH fac AS (
+        WITH ids AS (SELECT unnest(@ids) AS id),
+        fac AS (
             SELECT f.cliente_id AS id, f.base_imponible, f.fecha_emision, coalesce(f.fecha_vencimiento, f.fecha_emision) AS vto,
                    greatest(f.total - coalesce((SELECT sum(m.importe) FROM tesoreria.movimiento m
                                                 WHERE m.tipo_documento = 'Factura' AND m.documento_id = f.id), 0), 0) AS pendiente
             FROM facturacion.factura f
-            WHERE f.cliente_id = ANY(@ids) AND f.estado NOT IN ('Anulada', 'Rectificada'))
-        SELECT id::text,
-               count(*) FILTER (WHERE fecha_emision BETWEEN @desde AND @hasta)::numeric,
-               coalesce(sum(base_imponible) FILTER (WHERE fecha_emision BETWEEN @desde AND @hasta), 0),
-               coalesce(sum(pendiente), 0),
-               coalesce(sum(pendiente) FILTER (WHERE vto < @hoy), 0)
-        FROM fac GROUP BY id
+            WHERE f.cliente_id = ANY(@ids) AND f.estado NOT IN ('Anulada', 'Rectificada')),
+        sf AS (
+            SELECT id,
+                   count(*) FILTER (WHERE fecha_emision BETWEEN @desde AND @hasta)::numeric AS facturas,
+                   coalesce(sum(base_imponible) FILTER (WHERE fecha_emision BETWEEN @desde AND @hasta), 0) AS facturado,
+                   coalesce(sum(pendiente), 0) AS pendiente,
+                   coalesce(sum(pendiente) FILTER (WHERE vto < @hoy), 0) AS vencido
+            FROM fac GROUP BY id),
+        an AS (
+            SELECT a.cliente_id AS id, sum(a.importe - coalesce((SELECT sum(x.importe) FROM tesoreria.aplicacion_anticipo x WHERE x.anticipo_id = a.id), 0)) AS disponible
+            FROM tesoreria.anticipo a
+            WHERE a.cliente_id = ANY(@ids) AND a.anulado_en IS NULL
+            GROUP BY a.cliente_id)
+        SELECT ids.id::text, coalesce(sf.facturas, 0), coalesce(sf.facturado, 0), coalesce(sf.pendiente, 0), coalesce(sf.vencido, 0), coalesce(an.disponible, 0)
+        FROM ids LEFT JOIN sf ON sf.id = ids.id LEFT JOIN an ON an.id = ids.id
+        WHERE sf.id IS NOT NULL OR an.id IS NOT NULL
         """;
 
     // Vencido de un gasto: lo que ya debería estar pagado según sus vencimientos, menos lo pagado (entre 0 y el pendiente).

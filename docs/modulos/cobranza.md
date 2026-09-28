@@ -53,3 +53,14 @@ Ventas → **Impagados** (lista con indicadores y botón *Reclamar · nivel N*) 
 
 Tablas `tesoreria.anticipo`, `aplicacion_anticipo`, `reclamacion` y `configuracion_reclamaciones`, con
 RLS por empresa y `CHECK` de importes y niveles.
+
+### Anticipos en las facturas
+
+- **Al hacer la factura**: si el cliente tiene anticipos con algo por aplicar, la ficha del cliente lo avisa
+  («Tiene X € en N anticipos pendientes de aplicar») con la casilla **Aplicarlo al emitir** (marcada por defecto). Al
+  emitir se aplican los anticipos del más antiguo al más reciente hasta cubrir el total de la factura.
+- **En la factura emitida** con importe pendiente: «Anticipos del cliente sin aplicar» y **Aplicar a esta factura**,
+  para elegir cuánto de cada anticipo.
+- **Asiento de cancelación**: cada aplicación registra el cobro de la factura y su asiento, 438 Anticipos de clientes
+  al debe y 430 Clientes al haber (no mueve dinero: el banco ya se movió al recibir el anticipo, 572 a 438).
+- **Listado de clientes**: columna «Anticipos» con lo pendiente de aplicar de cada cliente y su total.

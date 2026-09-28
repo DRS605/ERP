@@ -10,6 +10,8 @@ export const ESTILOS = `
 .dx-check input { width:auto; }
 .dx-ficha { background:var(--bg,#f4f6f9); border:1px solid var(--line); border-radius:12px; padding:12px 14px; font-size:13px; line-height:1.55; min-height:80px; }
 .dx-aviso { margin-top:8px; color:#b45309; font-weight:600; }
+.dx-anticipo { margin-top:8px; padding:8px 10px; border-radius:10px; background:var(--accent-soft); color:var(--ink); font-size:12.5px; }
+.dx-anticipo .dx-check { margin-top:6px !important; }
 .dx-rojo { color:#dc2626; }
 .dx-buscador { position:relative; }
 .dx-lista { position:absolute; z-index:40; left:0; right:0; top:calc(100% + 2px); min-width:420px; max-height:320px; overflow:auto; background:var(--surface,#fff); border:1px solid var(--line); border-radius:10px; box-shadow:0 12px 30px rgba(15,23,42,.14); }

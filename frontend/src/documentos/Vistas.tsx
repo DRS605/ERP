@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { abrirFichero, useDocs } from "./contexto";
 import { ConceptosAplicados, Dialogo } from "./Componentes";
-import type { Albaran, Almacen, Factura, FormaPago, PedidoCompra, PedidoVenta, Presupuesto, Saldo, TipoIva } from "./tipos";
+import { anticiposDisponibles, repartoAnticipos, type Albaran, type Almacen, type Anticipo, type Factura, type FormaPago, type PedidoCompra, type PedidoVenta, type Presupuesto, type Saldo, type TipoIva } from "./tipos";
 import { cant, clasePill, eur, fecha, hoyIso, num2 } from "./util";
 
 function Cabecera(props: { titulo: ReactNode; estado?: string; acciones?: ReactNode; volver: () => void }) {
@@ -61,6 +61,13 @@ export function VistaFactura(props: { id: string }) {
   const [anular, setAnular] = useState(false);
   const [motivo, setMotivo] = useState("");
   useEffect(() => void api.get<Saldo>(`/facturas/${props.id}/saldo`).then(setSaldo).catch(() => setSaldo(null)), [api, props.id, f]);
+  const [anticipos, setAnticipos] = useState<Anticipo[]>([]);
+  const [aplicar, setAplicar] = useState<{ id: string; importe: number }[] | null>(null);
+  useEffect(() => {
+    if (!f?.clienteId || f.estado !== "Emitida") return;
+    api.get<Anticipo[]>(`/anticipos?clienteId=${f.clienteId}`).then((l) => setAnticipos(anticiposDisponibles(l))).catch(() => setAnticipos([]));
+  }, [api, f]);
+  const disponibleAnticipos = anticipos.reduce((t, a) => t + a.disponible, 0);
   if (error) return <div className="panel"><p className="dx-rojo">{error}</p></div>;
   if (!f) return <div className="muted">Cargando…</div>;
   const semilla = { clienteId: f.clienteId ?? undefined, lineas: f.lineas };
@@ -96,6 +103,12 @@ export function VistaFactura(props: { id: string }) {
               saldo.pendiente <= 0 ? <span className="pill ok">Cobrada</span> : <>Pendiente <strong>{eur(saldo.pendiente)}</strong>{saldo.liquidado > 0 && <div className="muted">Cobrado {eur(saldo.liquidado)}</div>}</>
             ) : "—"}
             {saldo && saldo.pendiente > 0 && emitida && anfitrion.irA && <div><Enlace alPulsar={() => anfitrion.irA!("cobros")}>Registrar cobro</Enlace></div>}
+            {saldo && saldo.pendiente > 0 && emitida && disponibleAnticipos > 0 && (
+              <div className="dx-anticipo">
+                💶 Anticipos del cliente sin aplicar: <strong>{eur(disponibleAnticipos)}</strong>
+                <div><Enlace alPulsar={() => setAplicar(repartoAnticipos(anticipos, saldo.pendiente))}>Aplicar a esta factura</Enlace></div>
+              </div>
+            )}
           </Dato>
         </div>
         {f.motivoRectificacion && <p className="muted">Rectifica: {f.motivoRectificacion}{f.rectificaFacturaId && <> · <Enlace alPulsar={() => navegar({ tipo: "factura", pantalla: "vista", id: f.rectificaFacturaId })}>ver la factura original</Enlace></>}</p>}
@@ -129,6 +142,36 @@ export function VistaFactura(props: { id: string }) {
         {f.mencionFiscal && <p className="muted" style={{ fontSize: 12 }}>{f.mencionFiscal}</p>}
         {f.huella && <p className="muted mono" style={{ fontSize: 11, wordBreak: "break-all" }}>VeriFactu · {f.huella}</p>}
       </div>
+      {aplicar && (
+        <Dialogo titulo={`Aplicar anticipos a ${f.numeroCompleto}`} alCerrar={() => setAplicar(null)}
+          acciones={<><button className="btn small secondary" onClick={() => setAplicar(null)}>Cancelar</button>
+            <button className="btn small" disabled={!aplicar.some((a) => a.importe > 0)} onClick={async () => {
+              for (const a of aplicar.filter((x) => x.importe > 0)) {
+                if (!(await accion(() => api.post(`/anticipos/${a.id}/aplicar`, { facturaId: f.id, importe: a.importe }), anfitrion.aviso, "Anticipo aplicado."))) return;
+              }
+              setAplicar(null);
+              recargar();
+            }}>Aplicar</button></>}>
+          <p className="muted" style={{ marginTop: 0 }}>Se registra el cobro de la factura con el anticipo y su asiento de cancelación: 438 Anticipos de clientes al debe, 430 Clientes al haber. Pendiente de la factura: <strong>{eur(saldo?.pendiente)}</strong>.</p>
+          <table>
+            <thead><tr><th>Anticipo</th><th>Concepto</th><th className="num">Disponible</th><th className="num">Aplicar</th></tr></thead>
+            <tbody>
+              {anticipos.map((a) => {
+                const fila = aplicar.find((x) => x.id === a.id);
+                return (
+                  <tr key={a.id}>
+                    <td>{fecha(a.fecha)}</td>
+                    <td className="muted">{a.concepto}</td>
+                    <td className="num">{eur(a.disponible)}</td>
+                    <td className="num"><input type="number" step="0.01" min={0} max={a.disponible} style={{ width: 110, textAlign: "right" }} value={fila?.importe ?? 0}
+                      onChange={(e) => { const v = Math.max(0, Math.min(a.disponible, Number(e.target.value) || 0)); setAplicar([...aplicar.filter((x) => x.id !== a.id), { id: a.id, importe: v }]); }} /></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </Dialogo>
+      )}
       {anular && (
         <Dialogo titulo={`Anular ${f.numeroCompleto}`} alCerrar={() => setAnular(false)}
           acciones={<><button className="btn small secondary" onClick={() => setAnular(false)}>Cancelar</button>

@@ -57,6 +57,13 @@ public sealed class CifrasMaestrosTests : IClassFixture<FabricaApiPruebas>
         clientes.Totales["pendiente"].Should().Be(29 * 104m, "una está cobrada");
         clientes.Cifras.Should().HaveCount(25).And.OnlyContain(c => c.Value["facturado"] == 100m);
 
+        // Anticipos por aplicar: un cliente sin facturas también sale con su anticipo.
+        var conAnticipo = await IdAsync(api, "/clientes", new { Nombre = "Cliente con anticipo" });
+        (await api.PostAsJsonAsync("/anticipos", new { ClienteId = conAnticipo, Importe = 250m })).EnsureSuccessStatusCode();
+        var anticipos = (await api.GetFromJsonAsync<PaginaResp>("/clientes/buscar?texto=anticipo"))!;
+        anticipos.Totales["anticipos"].Should().Be(250m);
+        anticipos.Cifras[conAnticipo]["anticipos"].Should().Be(250m);
+
         // Filtro: solo los que contienen «Cliente 0» (00..09).
         var filtrados = (await api.GetFromJsonAsync<PaginaResp>("/clientes/buscar?texto=Cliente%200"))!;
         filtrados.Totales["registros"].Should().Be(10m);
