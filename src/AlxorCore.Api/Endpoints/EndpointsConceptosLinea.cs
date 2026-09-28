@@ -51,8 +51,17 @@ public static class EndpointsConceptosLinea
             .WithSummary("Elimina un concepto que ningún documento usa; si ya se usó, lo da de baja.")
             .RequierePermiso(Permisos.ProductoGestionar);
 
-        g.MapGet("/sugeridos", async (AmbitoConcepto? ambito, Guid? terceroId, Guid? productoId, IResolverConceptos caso, CancellationToken ct) =>
-                Results.Ok(await caso.SugeridosAsync(ambito ?? AmbitoConcepto.Ventas, terceroId, productoId, ct).ConfigureAwait(false)))
+        g.MapGet("/sugeridos", async (AmbitoConcepto? ambito, Guid? terceroId, Guid? productoId, DateOnly? fecha, IResolverConceptos caso,
+                AlxorCore.Terceros.Aplicacion.IConsultaClientes clientes, AlxorCore.Terceros.Aplicacion.IConsultaProveedores proveedores, CancellationToken ct) =>
+            {
+                // El tipo del cliente o proveedor decide las reglas por tipo de tercero.
+                var a = ambito ?? AmbitoConcepto.Ventas;
+                var tipo = terceroId is not { } t ? null
+                    : a == AmbitoConcepto.Compras ? (await proveedores.ObtenerAsync(t, ct).ConfigureAwait(false))?.Tipo
+                    : (await clientes.ObtenerAsync(t, ct).ConfigureAwait(false))?.Tipo;
+                return Results.Ok(await caso.SugeridosAsync(a, terceroId, productoId, new ContextoConceptos(tipo, fecha ?? DateOnly.FromDateTime(DateTime.Today)), ct)
+                    .ConfigureAwait(false));
+            })
             .WithSummary("Conceptos que se pondrían solos en una línea para ese cliente o proveedor y ese artículo.")
             .RequireAuthorization();
 

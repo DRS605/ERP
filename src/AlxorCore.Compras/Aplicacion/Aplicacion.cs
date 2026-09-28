@@ -257,7 +257,9 @@ public sealed class CrearPedido
 
         var lineas = comando.Lineas ?? [];
         var entrada = pedido.Lineas.Select((l, i) => new LineaConceptos(l.ProductoId, l.Cantidad, l.ImporteBruto, i < lineas.Count ? lineas[i].Conceptos : null)).ToList();
-        var r = await _conceptos.ResolverAsync(AmbitoConcepto.Compras, pedido.ProveedorId, entrada, comando.ConceptosDocumento, true, ct).ConfigureAwait(false);
+        var proveedor = pedido.ProveedorId is { } pid ? await _proveedores.ObtenerAsync(pid, ct).ConfigureAwait(false) : null;
+        var r = await _conceptos.ResolverAsync(AmbitoConcepto.Compras, pedido.ProveedorId, entrada, comando.ConceptosDocumento, true,
+            new ContextoConceptos(proveedor?.Tipo, pedido.Fecha), ct).ConfigureAwait(false);
         if (r.EsFallo)
         {
             return r.Error;

@@ -23,7 +23,8 @@ public sealed record PedidoVentaDto(Guid Id, string Estado, int Ejercicio, int N
 }
 
 public sealed record LineaAlbaranVentaDto(Guid? LineaPedidoId, Guid? ProductoId, string Descripcion, decimal Cantidad,
-    int Orden = 0, decimal PrecioUnitario = 0m, decimal PorcentajeDescuento = 0m, string CodigoIva = "IVA21", bool PrecioFijado = true, decimal Base = 0m);
+    int Orden = 0, decimal PrecioUnitario = 0m, decimal PorcentajeDescuento = 0m, string CodigoIva = "IVA21", bool PrecioFijado = true, decimal Base = 0m,
+    IReadOnlyList<ConceptoAplicado>? Conceptos = null, decimal ImporteConceptos = 0m, decimal CosteConceptos = 0m);
 
 public sealed record AlbaranVentaDto(Guid Id, Guid? PedidoId, int Numero, string NumeroCompleto, DateOnly Fecha, string? Referencia, IReadOnlyList<LineaAlbaranVentaDto> Lineas,
     bool Anulado = false, string? MotivoAnulacion = null, Guid ClienteId = default, string ClienteNombre = "", string Estado = "PendienteFacturar",
@@ -31,7 +32,7 @@ public sealed record AlbaranVentaDto(Guid Id, Guid? PedidoId, int Numero, string
 {
     public static AlbaranVentaDto Desde(AlbaranVenta a) => new(a.Id, a.PedidoId, a.Numero, a.NumeroCompleto, a.Fecha, a.Referencia,
         a.Lineas.Select(l => new LineaAlbaranVentaDto(l.LineaPedidoId, l.ProductoId, l.Descripcion, l.Cantidad, l.Orden, l.PrecioUnitario, l.PorcentajeDescuento,
-            l.CodigoIva, l.PrecioFijado, l.Base)).ToList(),
+            l.CodigoIva, l.PrecioFijado, l.Base, l.Conceptos, l.ImporteConceptos, l.CosteConceptos)).ToList(),
         a.AnuladoEn is not null, a.MotivoAnulacion, a.ClienteId, a.ClienteNombre, a.Estado.ToString(), a.Base, a.FacturaId, a.Observaciones);
 }
 
@@ -210,7 +211,8 @@ public sealed class CrearPedidoVenta
 
         var entrada = pedido.Lineas.Select((l, i) => new LineaConceptos(l.ProductoId, l.Cantidad, l.BaseBruta,
             i < conceptos.Count ? conceptos[i].Pedidos : null, i < conceptos.Count ? conceptos[i].Copiados : null)).ToList();
-        var r = await _conceptos.ResolverAsync(AmbitoConcepto.Ventas, pedido.ClienteId, entrada, documento, true, ct).ConfigureAwait(false);
+        var cliente = await _clientes.ObtenerAsync(pedido.ClienteId, ct).ConfigureAwait(false);
+        var r = await _conceptos.ResolverAsync(AmbitoConcepto.Ventas, pedido.ClienteId, entrada, documento, true, new ContextoConceptos(cliente?.Tipo, pedido.Fecha), ct).ConfigureAwait(false);
         if (r.EsFallo)
         {
             return r.Error;
@@ -319,7 +321,9 @@ public sealed class EntregarPedido
         var lineasAlbaran = entregas.Select(e =>
         {
             var lp = pedido.Lineas.Single(l => l.Id == e.LineaPedidoId);
-            return new NuevaLineaAlbaran(e.LineaPedidoId, lp.ProductoId, lp.Descripcion, e.Cantidad, lp.PrecioUnitario, lp.PorcentajeDescuento, lp.CodigoIva);
+            var bruta = Redondeo.Dos(e.Cantidad * lp.PrecioUnitario * (1m - lp.PorcentajeDescuento / 100m));
+            return new NuevaLineaAlbaran(e.LineaPedidoId, lp.ProductoId, lp.Descripcion, e.Cantidad, lp.PrecioUnitario, lp.PorcentajeDescuento, lp.CodigoIva,
+                Conceptos: AlbaranesVentaStock.ConceptosParciales(lp.Conceptos, lp.Cantidad, e.Cantidad, bruta));
         }).ToList();
 
         var albaran = AlbaranVenta.Crear(empresaId, pedidoId, pedido.ClienteId, pedido.ClienteNombre, numero, fecha, comando.Referencia, lineasAlbaran, _reloj, serie);

@@ -27,6 +27,8 @@ public static class RegistroServicios
                 .AddInterceptors(sp.GetRequiredService<InterceptorEmpresa>()));
 
         servicios.AddScoped<IUnidadDeTrabajoGastos>(sp => sp.GetRequiredService<GastosDbContext>());
+
+        servicios.AddScoped<IRepositorioCargosAcreedor, RepositorioCargosAcreedor>();
         servicios.AddScoped<RepositorioGastos>();
         servicios.AddScoped<IRepositorioGastos>(sp => sp.GetRequiredService<RepositorioGastos>());
         servicios.AddScoped<IConsultaGastos>(sp => sp.GetRequiredService<RepositorioGastos>());

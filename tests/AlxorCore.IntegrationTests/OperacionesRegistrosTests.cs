@@ -34,6 +34,7 @@ public sealed class OperacionesRegistrosTests : IClassFixture<FabricaApiPruebas>
         ["/facturas/simular"] = "solo calcula: no guarda nada",
         ["/albaranes-venta/facturar"] = "emite una factura, que se anula o rectifica en /facturas (y el albarán vuelve a quedar pendiente)",
         ["/albaranes-venta/facturacion-masiva"] = "emite facturas, que se anulan o rectifican en /facturas",
+        ["/gastos/cargos-acreedores/liquidar"] = "registra la factura del acreedor (un gasto): se anula en /gastos/{id}/anular y los cargos vuelven a quedar pendientes",
         ["/informes/sii/enviar"] = "remite a la AEAT: lo enviado se corrige con otro envío (modificación A1 o baja), que el propio envío calcula",
         ["/exportar/xlsx"] = "genera un fichero Excel con lo que envía la interfaz: no guarda nada",
         ["/compras/pedidos/simular"] = "solo calcula: no guarda nada",

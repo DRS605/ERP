@@ -6,15 +6,18 @@ using AlxorCore.Nucleo.Tiempo;
 
 namespace AlxorCore.Catalogo.Aplicacion;
 
-public sealed record AsignacionConceptoDto(Guid? TerceroId, Guid? FamiliaId, Guid? ProductoId, decimal? Valor);
+public sealed record AsignacionConceptoDto(Guid? TerceroId, Guid? FamiliaId, Guid? ProductoId, decimal? Valor,
+    string? TipoTercero = null, DateOnly? Desde = null, DateOnly? Hasta = null, Guid? AcreedorId = null);
 
 public sealed record ConceptoLineaDto(
     Guid Id, string Codigo, string Nombre, string? TextoDocumento, string Ambito, string Efecto, string Sentido, string Calculo, decimal Valor, string Reparto,
-    bool Activo, IReadOnlyList<AsignacionConceptoDto> Asignaciones)
+    bool Activo, IReadOnlyList<AsignacionConceptoDto> Asignaciones, int Orden = 0, string BasePorcentaje = "Linea", Guid? AcreedorId = null,
+    string? CuentaContable = null)
 {
     public static ConceptoLineaDto Desde(ConceptoLinea c) => new(c.Id, c.Codigo, c.Nombre, c.TextoDocumento, c.Ambito.ToString(), c.Efecto.ToString(),
         c.Sentido.ToString(), c.Calculo.ToString(), c.Valor, c.Reparto.ToString(), c.Activo,
-        c.Asignaciones.Select(a => new AsignacionConceptoDto(a.TerceroId, a.FamiliaId, a.ProductoId, a.Valor)).ToList());
+        c.Asignaciones.Select(a => new AsignacionConceptoDto(a.TerceroId, a.FamiliaId, a.ProductoId, a.Valor, a.TipoTercero, a.Desde, a.Hasta, a.AcreedorId)).ToList(),
+        c.Orden, c.BasePorcentaje.ToString(), c.AcreedorId, c.CuentaContable);
 }
 
 /// <summary>Alta de un concepto de línea.</summary>
@@ -35,7 +38,11 @@ public sealed record LineaConceptos(
     Guid? ProductoId, decimal Cantidad, decimal BaseBruta, IReadOnlyList<ConceptoSolicitado>? Conceptos = null, IReadOnlyList<ConceptoAplicado>? Copiados = null);
 
 /// <summary>Concepto que se pondría solo en una línea (para que la interfaz lo muestre antes de guardar).</summary>
-public sealed record ConceptoSugeridoDto(Guid ConceptoId, string Codigo, string Nombre, string Efecto, string Sentido, string Calculo, decimal Valor);
+public sealed record ConceptoSugeridoDto(Guid ConceptoId, string Codigo, string Nombre, string Efecto, string Sentido, string Calculo, decimal Valor,
+    Guid? AcreedorId = null);
+
+/// <summary>Datos del tercero y de la fecha del documento que deciden qué reglas encajan (tipo de cliente o proveedor y vigencia).</summary>
+public sealed record ContextoConceptos(string? TipoTercero = null, DateOnly? Fecha = null);
 
 public interface IRepositorioConceptosLinea
 {
@@ -64,9 +71,10 @@ public interface IResolverConceptos
 {
     Task<Resultado<IReadOnlyList<IReadOnlyList<ConceptoAplicado>>>> ResolverAsync(
         AmbitoConcepto ambito, Guid? terceroId, IReadOnlyList<LineaConceptos> lineas, IReadOnlyList<ConceptoSolicitado>? documento = null,
-        bool automaticos = true, CancellationToken ct = default);
+        bool automaticos = true, ContextoConceptos? contexto = null, CancellationToken ct = default);
 
-    Task<IReadOnlyList<ConceptoSugeridoDto>> SugeridosAsync(AmbitoConcepto ambito, Guid? terceroId, Guid? productoId, CancellationToken ct = default);
+    Task<IReadOnlyList<ConceptoSugeridoDto>> SugeridosAsync(AmbitoConcepto ambito, Guid? terceroId, Guid? productoId, ContextoConceptos? contexto = null,
+        CancellationToken ct = default);
 }
 
 /// <summary>Alta, modificación, consulta y baja de los conceptos de línea.</summary>
@@ -208,9 +216,11 @@ public sealed class ResolverConceptos : IResolverConceptos
 
     public async Task<Resultado<IReadOnlyList<IReadOnlyList<ConceptoAplicado>>>> ResolverAsync(
         AmbitoConcepto ambito, Guid? terceroId, IReadOnlyList<LineaConceptos> lineas, IReadOnlyList<ConceptoSolicitado>? documento = null,
-        bool automaticos = true, CancellationToken ct = default)
+        bool automaticos = true, ContextoConceptos? contexto = null, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(lineas);
+        var tipo = contexto?.TipoTercero;
+        var fecha = contexto?.Fecha;
         var todos = (await _conceptos.ListarAsync(ct).ConfigureAwait(false)).ToDictionary(c => c.Id);
         var resultado = lineas.Select(_ => new List<ConceptoAplicado>()).ToList();
         var nadaQuePedir = lineas.All(l => l.Conceptos is not { Count: > 0 } && l.Copiados is not { Count: > 0 }) && documento is not { Count: > 0 };
@@ -232,11 +242,11 @@ public sealed class ResolverConceptos : IResolverConceptos
             var l = lineas[i];
             if (l.Copiados is not null)
             {
-                resultado[i].AddRange(l.Copiados.Select(c => c.Calculo == CalculoConcepto.Importe && c.Repartido
-                    ? c : ConceptosLinea.Recalcular(c, l.BaseBruta, l.Cantidad, datos[i].Kilos)));
+                resultado[i].AddRange(ConceptosLinea.RecalcularTodos(l.Copiados, l.BaseBruta, l.Cantidad, datos[i].Kilos));
             }
             else if (l.Conceptos is not null)
             {
+                var pedidos = new List<(ConceptoLinea Concepto, decimal Valor, Guid? Acreedor)>();
                 foreach (var s in l.Conceptos)
                 {
                     var c = Buscar(todos, s.ConceptoId, ambito);
@@ -245,23 +255,29 @@ public sealed class ResolverConceptos : IResolverConceptos
                         return Resultado.Fallo<IReadOnlyList<IReadOnlyList<ConceptoAplicado>>>(c.Error);
                     }
 
-                    var valor = s.Valor ?? c.Valor.AsignacionPara(terceroId, l.ProductoId, datos[i].Familias)?.Valor ?? c.Valor.Valor;
+                    var regla = c.Valor.AsignacionPara(terceroId, l.ProductoId, datos[i].Familias, tipo, fecha);
+                    var valor = s.Valor ?? regla?.Valor ?? c.Valor.Valor;
                     if (ConceptoLinea.ErrorValor(valor, c.Valor.Calculo) is { } e)
                     {
                         return Resultado.Fallo<IReadOnlyList<IReadOnlyList<ConceptoAplicado>>>(Error.Validacion(e.Codigo, $"Línea {i + 1}, {c.Valor.Codigo}: {e.Mensaje}"));
                     }
 
-                    resultado[i].Add(Aplicar(c.Valor, valor, l.BaseBruta, l.Cantidad, datos[i].Kilos, false));
+                    pedidos.Add((c.Valor, valor, regla?.AcreedorId ?? c.Valor.AcreedorId));
+                }
+
+                foreach (var (c, valor, acreedor) in pedidos.OrderBy(x => x.Concepto.Orden))
+                {
+                    resultado[i].Add(Aplicar(c, valor, l.BaseBruta, l.Cantidad, datos[i].Kilos, false, resultado[i], acreedor));
                 }
             }
             else if (automaticos)
             {
-                foreach (var c in todos.Values.Where(c => c.Activo && c.ValeEn(ambito)).OrderBy(c => c.Codigo, StringComparer.Ordinal))
+                foreach (var c in todos.Values.Where(c => c.Activo && c.ValeEn(ambito)).OrderBy(c => c.Orden).ThenBy(c => c.Codigo, StringComparer.Ordinal))
                 {
                     // Un concepto por kilo no se pone solo en una línea sin peso conocido (quedaría a cero).
-                    if (c.AsignacionPara(terceroId, l.ProductoId, datos[i].Familias) is { } a && (c.Calculo != CalculoConcepto.PorKilo || datos[i].Kilos is not null))
+                    if (c.AsignacionPara(terceroId, l.ProductoId, datos[i].Familias, tipo, fecha) is { } a && (c.Calculo != CalculoConcepto.PorKilo || datos[i].Kilos is not null))
                     {
-                        resultado[i].Add(Aplicar(c, a.Valor ?? c.Valor, l.BaseBruta, l.Cantidad, datos[i].Kilos, false));
+                        resultado[i].Add(Aplicar(c, a.Valor ?? c.Valor, l.BaseBruta, l.Cantidad, datos[i].Kilos, false, resultado[i], a.AcreedorId ?? c.AcreedorId));
                     }
                 }
             }
@@ -293,14 +309,14 @@ public sealed class ResolverConceptos : IResolverConceptos
                 var partes = ConceptosLinea.Repartir(valor, pesos);
                 for (var i = 0; i < lineas.Count; i++)
                 {
-                    resultado[i].Add(Aplicar(concepto, partes[i], lineas[i].BaseBruta, lineas[i].Cantidad, datos[i].Kilos, true));
+                    resultado[i].Add(Aplicar(concepto, partes[i], lineas[i].BaseBruta, lineas[i].Cantidad, datos[i].Kilos, true, resultado[i], concepto.AcreedorId));
                 }
             }
             else
             {
                 for (var i = 0; i < lineas.Count; i++)
                 {
-                    resultado[i].Add(Aplicar(concepto, valor, lineas[i].BaseBruta, lineas[i].Cantidad, datos[i].Kilos, true));
+                    resultado[i].Add(Aplicar(concepto, valor, lineas[i].BaseBruta, lineas[i].Cantidad, datos[i].Kilos, true, resultado[i], concepto.AcreedorId));
                 }
             }
         }
@@ -317,7 +333,8 @@ public sealed class ResolverConceptos : IResolverConceptos
         return Resultado.Ok<IReadOnlyList<IReadOnlyList<ConceptoAplicado>>>(resultado);
     }
 
-    public async Task<IReadOnlyList<ConceptoSugeridoDto>> SugeridosAsync(AmbitoConcepto ambito, Guid? terceroId, Guid? productoId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<ConceptoSugeridoDto>> SugeridosAsync(AmbitoConcepto ambito, Guid? terceroId, Guid? productoId, ContextoConceptos? contexto = null,
+        CancellationToken ct = default)
     {
         var todos = (await _conceptos.ListarAsync(ct).ConfigureAwait(false)).Where(c => c.Activo && c.ValeEn(ambito)).ToList();
         if (todos.Count == 0)
@@ -327,11 +344,11 @@ public sealed class ResolverConceptos : IResolverConceptos
 
         var producto = productoId is { } p ? await _productos.ObtenerAsync(p, ct).ConfigureAwait(false) : null;
         var cadena = (await CadenasAsync(todos[0].GrupoId, ct).ConfigureAwait(false))(producto?.FamiliaId);
-        return todos.OrderBy(c => c.Codigo, StringComparer.Ordinal)
-            .Select(c => (c, a: c.AsignacionPara(terceroId, productoId, cadena)))
+        return todos.OrderBy(c => c.Orden).ThenBy(c => c.Codigo, StringComparer.Ordinal)
+            .Select(c => (c, a: c.AsignacionPara(terceroId, productoId, cadena, contexto?.TipoTercero, contexto?.Fecha)))
             .Where(x => x.a is not null)
             .Select(x => new ConceptoSugeridoDto(x.c.Id, x.c.Codigo, x.c.TextoDocumento ?? x.c.Nombre, x.c.Efecto.ToString(), x.c.Sentido.ToString(), x.c.Calculo.ToString(),
-                x.a!.Valor ?? x.c.Valor))
+                x.a!.Valor ?? x.c.Valor, x.a.AcreedorId ?? x.c.AcreedorId))
             .ToList();
     }
 
@@ -341,9 +358,15 @@ public sealed class ResolverConceptos : IResolverConceptos
         : string.Equals(producto.Unidad, "kg", StringComparison.OrdinalIgnoreCase) ? cantidad
         : producto.PesoKg is { } kg ? kg * cantidad : null;
 
-    private static ConceptoAplicado Aplicar(ConceptoLinea c, decimal valor, decimal baseLinea, decimal cantidad, decimal? kilos, bool repartido) =>
-        new(c.Id, c.Codigo, c.TextoDocumento ?? c.Nombre, c.Efecto, c.Sentido, c.Calculo, valor,
-            ConceptosLinea.Calcular(c.Calculo, c.Sentido, valor, baseLinea, cantidad, kilos), repartido);
+    /// <summary>Aplica el concepto a la línea; en cascada, el porcentaje va sobre la línea más los conceptos de importe ya puestos.</summary>
+    private static ConceptoAplicado Aplicar(ConceptoLinea c, decimal valor, decimal baseLinea, decimal cantidad, decimal? kilos, bool repartido,
+        IReadOnlyList<ConceptoAplicado> anteriores, Guid? acreedor)
+    {
+        var cascada = c.BasePorcentaje == BasePorcentajeConcepto.Cascada;
+        var baseConcepto = cascada ? baseLinea + ConceptosLinea.SumaPrecio(anteriores) : baseLinea;
+        return new(c.Id, c.Codigo, c.TextoDocumento ?? c.Nombre, c.Efecto, c.Sentido, c.Calculo, valor,
+            ConceptosLinea.Calcular(c.Calculo, c.Sentido, valor, baseConcepto, cantidad, kilos), repartido, cascada, acreedor, c.CuentaContable);
+    }
 
     private static Resultado<ConceptoLinea> Buscar(Dictionary<Guid, ConceptoLinea> todos, Guid id, AmbitoConcepto ambito)
     {

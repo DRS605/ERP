@@ -30,6 +30,24 @@ public sealed class LineaAlbaranVenta
         PorcentajeDescuento = Redondeo.Dos(datos.PorcentajeDescuento);
         CodigoIva = string.IsNullOrWhiteSpace(datos.CodigoIva) ? "IVA21" : datos.CodigoIva.Trim();
         PrecioFijado = datos.PrecioUnitario is not null && !datos.PrecioEstimado;
+        PonerConceptos(datos.Conceptos ?? []);
+    }
+
+    /// <summary>Conceptos de línea (cargos y abonos) aplicados: copia de su definición, valor, importe y acreedor.</summary>
+    public IReadOnlyList<ConceptoAplicado> Conceptos { get; private set; } = [];
+
+    public decimal ImporteConceptos { get; private set; }
+
+    public decimal CosteConceptos { get; private set; }
+
+    /// <summary>Importe de la línea antes de conceptos (cantidad × precio − descuento).</summary>
+    public decimal BaseBruta => Redondeo.Dos(Cantidad * PrecioUnitario * (1m - PorcentajeDescuento / 100m));
+
+    private void PonerConceptos(IReadOnlyList<ConceptoAplicado> conceptos)
+    {
+        Conceptos = conceptos.ToList();
+        ImporteConceptos = ConceptosLinea.SumaPrecio(Conceptos);
+        CosteConceptos = ConceptosLinea.SumaCoste(Conceptos);
     }
 
     public Guid Id { get; private set; }
@@ -53,8 +71,8 @@ public sealed class LineaAlbaranVenta
     /// <summary>Si el precio es el definitivo. Un albarán con precios por fijar no se factura hasta valorarlo.</summary>
     public bool PrecioFijado { get; private set; }
 
-    /// <summary>Base de la línea (con el precio estimado mientras no se fije).</summary>
-    public decimal Base => Redondeo.Dos(Cantidad * PrecioUnitario * (1m - PorcentajeDescuento / 100m));
+    /// <summary>Base de la línea con sus conceptos de importe (con el precio estimado mientras no se fije).</summary>
+    public decimal Base => BaseBruta + ImporteConceptos;
 
     internal void Valorar(decimal precio, decimal? descuento)
     {
@@ -65,12 +83,15 @@ public sealed class LineaAlbaranVenta
         }
 
         PrecioFijado = true;
+        // Los porcentajes se recalculan sobre el nuevo precio; los importes por unidad, por kilo y fijos se conservan.
+        PonerConceptos(ConceptosLinea.RecalcularPorcentajes(Conceptos, BaseBruta));
     }
 }
 
 /// <summary>Datos de una línea al crear un albarán. Sin precio (o con <c>PrecioEstimado</c>), la línea queda por valorar.</summary>
 public sealed record NuevaLineaAlbaran(Guid? LineaPedidoId, Guid? ProductoId, string Descripcion, decimal Cantidad,
-    decimal? PrecioUnitario = null, decimal PorcentajeDescuento = 0m, string? CodigoIva = null, bool PrecioEstimado = false);
+    decimal? PrecioUnitario = null, decimal PorcentajeDescuento = 0m, string? CodigoIva = null, bool PrecioEstimado = false,
+    IReadOnlyList<ConceptoAplicado>? Conceptos = null);
 
 /// <summary>Estado de un albarán de venta.</summary>
 public enum EstadoAlbaranVenta
@@ -288,6 +309,11 @@ public sealed class AlbaranVenta : RaizAgregadoEmpresa<Guid>
             if (l.PrecioUnitario is < 0m || l.PorcentajeDescuento is < 0m or > 100m)
             {
                 return Resultado.Fallo<AlbaranVenta>(Error.Validacion("albaranventa.precio_invalido", "Precio o descuento no válido."));
+            }
+
+            if (Redondeo.Dos(l.Cantidad * (l.PrecioUnitario ?? 0m) * (1m - l.PorcentajeDescuento / 100m)) + ConceptosLinea.SumaPrecio(l.Conceptos) < 0m)
+            {
+                return Resultado.Fallo<AlbaranVenta>(Error.Validacion("concepto.linea_negativa", $"Los conceptos dejan la línea «{l.Descripcion}» con importe negativo."));
             }
         }
 

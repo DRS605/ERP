@@ -473,7 +473,7 @@
     const NAV = [
       { t:"item", k:"inicio", l:"Inicio" },
       { t:"grupo", k:"ventas", l:"Ventas", items:[["clientes","Clientes"],["presupuestos","Presupuestos"],["pedidosventa","Pedidos de venta"],["albaranesventa","Albaranes"],["facturas","Facturas"],["tpv","TPV · Tickets"],["recurrentes","Facturación periódica"],["anticipos","Anticipos"]] },
-      { t:"grupo", k:"compras", l:"Compras", items:[["proveedores","Proveedores"],["solicitudes","Solicitudes"],["pedidos","Pedidos de compra"],["recepcion","Buzón de facturas"],["gastos","Facturas de proveedor"]] },
+      { t:"grupo", k:"compras", l:"Compras", items:[["proveedores","Proveedores"],["solicitudes","Solicitudes"],["pedidos","Pedidos de compra"],["recepcion","Buzón de facturas"],["gastos","Facturas de proveedor"],["cargosacreedor","Cargos de acreedores"]] },
       { t:"grupo", k:"articulos", l:"Artículos y almacén", items:[["productos","Artículos"],["familias","Familias"],["tarifas","Tarifas de precios"],["conceptoslinea","Conceptos de línea"],["inventario","Inventario / Almacenes"],["produccion","Producción"]] },
       { t:"grupo", k:"logistica", l:"Expedición y aduanas", items:[["cartasporte","Cartas de porte · CMR"],["aduanas","Aduanas · Intrastat"]] },
       { t:"grupo", k:"agro", l:"Agro", items:[["agrorecepciones","Recepciones"],["agropartidas","Partidas y palés"],["agroconfeccion","Confección"],["agroliquidaciones","Liquidaciones"],["agrotrazabilidad","Trazabilidad"],["agroinforme","Informe de campaña"],["agromaestros","Maestros agro"]] },
@@ -484,11 +484,11 @@
       { t:"item", k:"proyectos", l:"Proyectos" },
       { t:"grupo", k:"ajustes", l:"Configuración", items:[["ajustes","Ajustes"],["aprobaciones","Aprobaciones"],["integraciones","API y webhooks"]] },
     ];
-    const TITULOS = { albaranesventa:"Albaranes de venta", analisis:"Análisis de datos", bancos:"Bancos y cajas", cartera:"Efectos de cartera", agrorecepciones:"Agro · recepciones de fruta", agropartidas:"Agro · partidas y palés", agroconfeccion:"Agro · confección", agroliquidaciones:"Agro · liquidaciones al agricultor", agrotrazabilidad:"Agro · trazabilidad", agroinforme:"Agro · informe de campaña", agromaestros:"Agro · campañas, agricultores y precios", analitica:"Analítica · resultados", analiticapend:"Analítica · pendientes de imputar", analiticamaestros:"Analítica · centros, partidas y reglas", presupuestoscont:"Presupuestos contables", impagados:"Impagados y reclamaciones", anticipos:"Anticipos de clientes", cartasporte:"Cartas de porte · CMR", aduanas:"Aduanas e Intrastat", intragrupo:"Operaciones entre empresas del grupo", actividades:"Actividades de negocio", inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Facturas de proveedor y gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos",tarifas:"Tarifas de precios", conceptoslinea:"Conceptos de línea", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", gestion:"Análisis de gestión", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", divisas:"Divisas y tipos de cambio", aprobaciones:"Aprobaciones y control de firmas", integraciones:"API pública y webhooks", ajustes:"Ajustes" };
+    const TITULOS = { cargosacreedor:"Cargos de acreedores (portes, comisiones)", albaranesventa:"Albaranes de venta", analisis:"Análisis de datos", bancos:"Bancos y cajas", cartera:"Efectos de cartera", agrorecepciones:"Agro · recepciones de fruta", agropartidas:"Agro · partidas y palés", agroconfeccion:"Agro · confección", agroliquidaciones:"Agro · liquidaciones al agricultor", agrotrazabilidad:"Agro · trazabilidad", agroinforme:"Agro · informe de campaña", agromaestros:"Agro · campañas, agricultores y precios", analitica:"Analítica · resultados", analiticapend:"Analítica · pendientes de imputar", analiticamaestros:"Analítica · centros, partidas y reglas", presupuestoscont:"Presupuestos contables", impagados:"Impagados y reclamaciones", anticipos:"Anticipos de clientes", cartasporte:"Cartas de porte · CMR", aduanas:"Aduanas e Intrastat", intragrupo:"Operaciones entre empresas del grupo", actividades:"Actividades de negocio", inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Facturas de proveedor y gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos",tarifas:"Tarifas de precios", conceptoslinea:"Conceptos de línea", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", gestion:"Análisis de gestión", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", divisas:"Divisas y tipos de cambio", aprobaciones:"Aprobaciones y control de firmas", integraciones:"API pública y webhooks", ajustes:"Ajustes" };
     // Plan contratado de la empresa activa (lo devuelve /empresas/{id}/seleccionar).
     let plan = null;
     // Vista → módulo contratable que necesita. Las vistas que no están aquí son de la base.
-    const MODULO_VISTA = { albaranesventa:"ventas", tarifas:"ventas", presupuestos:"ventas", pedidosventa:"ventas", remesas:"tesoreria_avanzada",
+    const MODULO_VISTA = { albaranesventa:"ventas", cargosacreedor:"compras", tarifas:"ventas", presupuestos:"ventas", pedidosventa:"ventas", remesas:"tesoreria_avanzada",
       solicitudes:"compras", pedidos:"compras", conciliacion:"tesoreria_avanzada", inventario:"inventario",
       produccion:"produccion", personal:"personal", proyectos:"proyectos", prevision:"tesoreria_avanzada",
       contabilidad:"contabilidad", inmovilizado:"inmovilizado", divisas:"divisas", aprobaciones:"aprobaciones",
@@ -605,7 +605,7 @@
       document.getElementById("viewTitle").textContent=TITULOS[k]||k;
       if(!contratado(k)){ const m=NOMBRE_MODULO[MODULO_VISTA[k]]||MODULO_VISTA[k];
         view(panel("No incluido en tu plan",`<p class="muted" style="margin:0 0 14px">Esta pantalla forma parte del módulo <strong>${m}</strong>, que tu plan no incluye.</p><button class="btn small" onclick="ir('ajustes')">Ver planes en Ajustes →</button>`)); return; }
-      ({cartera:vCartera,albaranesventa:vAlbaranesVenta,analisis:()=>irAnalisis(),bancos:vBancos,agrorecepciones:vAgroRecepciones,agropartidas:vAgroPartidas,agroconfeccion:vAgroConfeccion,agroliquidaciones:vAgroLiquidaciones,agrotrazabilidad:vAgroTrazabilidad,agroinforme:()=>vAgroInforme(),agromaestros:()=>vAgroMaestros(),analitica:vAnalitica,analiticapend:vAnaliticaPend,analiticamaestros:vAnaliticaMaestros,presupuestoscont:vPresupuestosCont,impagados:vImpagados,anticipos:vAnticipos,cartasporte:vCartasPorte,aduanas:vAduanas,intragrupo:vIntragrupo,actividades:vActividades,inicio:vInicio,presupuestos:()=>irDocumento("presupuesto"),facturas:()=>irDocumento("factura"),tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:()=>irDocumento("pedido"),clientes:vClientes,productos:vProductos,familias:vFamilias,tarifas:vTarifas,conceptoslinea:vConceptosLinea,gastos:()=>irDocumento("gasto"),solicitudes:vSolicitudes,pedidos:()=>irDocumento("compra"),inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,gestion:vGestion,contabilidad:vContabilidad,inmovilizado:vInmovilizado,divisas:vDivisas,aprobaciones:vAprobaciones,integraciones:vIntegraciones,ajustes:vAjustes}[k])();
+      ({cartera:vCartera,albaranesventa:vAlbaranesVenta,cargosacreedor:vCargosAcreedor,analisis:()=>irAnalisis(),bancos:vBancos,agrorecepciones:vAgroRecepciones,agropartidas:vAgroPartidas,agroconfeccion:vAgroConfeccion,agroliquidaciones:vAgroLiquidaciones,agrotrazabilidad:vAgroTrazabilidad,agroinforme:()=>vAgroInforme(),agromaestros:()=>vAgroMaestros(),analitica:vAnalitica,analiticapend:vAnaliticaPend,analiticamaestros:vAnaliticaMaestros,presupuestoscont:vPresupuestosCont,impagados:vImpagados,anticipos:vAnticipos,cartasporte:vCartasPorte,aduanas:vAduanas,intragrupo:vIntragrupo,actividades:vActividades,inicio:vInicio,presupuestos:()=>irDocumento("presupuesto"),facturas:()=>irDocumento("factura"),tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:()=>irDocumento("pedido"),clientes:vClientes,productos:vProductos,familias:vFamilias,tarifas:vTarifas,conceptoslinea:vConceptosLinea,gastos:()=>irDocumento("gasto"),solicitudes:vSolicitudes,pedidos:()=>irDocumento("compra"),inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,gestion:vGestion,contabilidad:vContabilidad,inmovilizado:vInmovilizado,divisas:vDivisas,aprobaciones:vAprobaciones,integraciones:vIntegraciones,ajustes:vAjustes}[k])();
     }
     const view = h => { desmontarDocs(); document.getElementById("view").innerHTML=h; try{ mejorarTablas(); }catch(e){} };
 
@@ -1791,6 +1791,7 @@
       view('<div class="muted">Cargando…</div>');
       const [cs,prods,fams,clis,provs]=await Promise.all([api("/conceptos-linea"),api("/productos").catch(()=>[]),api("/familias").catch(()=>[]),api("/clientes").catch(()=>[]),api("/proveedores").catch(()=>[])]);
       window._conceptos=cs; window._concProds=prods; window._concFams=fams; window._concTerceros=[...clis.map(c=>({id:c.id,nombre:c.nombre,t:"Cliente"})),...provs.map(p=>({id:p.id,nombre:p.nombre,t:"Proveedor"}))];
+      window._concTipos=[...new Set([...clis,...provs].map(x=>x.tipo).filter(Boolean))].sort(); window._concProvs=provs;
       const signo=c=>c.sentido==="Resta"?'<span class="pill neg">−</span>':'<span class="pill ok">+</span>';
       const filas=cs.map(c=>`<tr><td class="mono"><strong>${agEsc(c.codigo)}</strong></td><td>${agEsc(c.nombre)}${c.activo?"":' <span class="pill wait">Baja</span>'}</td><td class="muted">${CONC_ETQ.Ambito[c.ambito]}</td>
         <td>${c.efecto==="Precio"?'<span class="pill part">Importe</span>':'<span class="pill">Coste</span>'}</td><td>${signo(c)} ${concValorTxt(c)}</td><td class="muted">${c.asignaciones.length?`${c.asignaciones.length} regla(s)`:"a mano"}</td>
@@ -1812,13 +1813,21 @@
           :'<p class="muted" style="margin:0">Ningún documento del periodo lleva conceptos.</p>');
       }catch(e){ caja.innerHTML=`<p class="muted">${agEsc(e.message)}</p>`; }
     }
+    // Una regla: para quién (cliente o proveedor, un tipo de tercero o cualquiera) · qué artículo · valor · vigencia · acreedor.
+    // Manda la del tercero: cliente o proveedor > su tipo > cualquiera; dentro, artículo > familia > todos (como Hispatec).
     function lineaAsignacionHtml(a){
-      const ter=(window._concTerceros||[]).map(t=>`<option value="${t.id}"${a&&a.terceroId===t.id?" selected":""}>${t.t} · ${agEsc(t.nombre)}</option>`).join("");
+      const ter=(window._concTerceros||[]).map(t=>`<option value="t:${t.id}"${a&&a.terceroId===t.id?" selected":""}>${t.t} · ${agEsc(t.nombre)}</option>`).join("");
+      const tipos=(window._concTipos||[]).map(t=>`<option value="k:${agEsc(t)}"${a&&a.tipoTercero===t?" selected":""}>Tipo · ${agEsc(t)}</option>`).join("");
       const prods=(window._concProds||[]).map(p=>`<option value="p:${p.id}"${a&&a.productoId===p.id?" selected":""}>${agEsc(p.nombre)}</option>`).join("");
       const fams=(window._concFams||[]).map(f=>`<option value="f:${f.id}"${a&&a.familiaId===f.id?" selected":""}>Familia · ${agEsc(f.nombre)}</option>`).join("");
-      return `<div class="conc-asig" style="display:grid;grid-template-columns:2fr 2fr 1fr auto;gap:6px;margin-bottom:6px;align-items:center">
-        <select class="ca-ter"><option value="">Cualquier cliente o proveedor</option>${ter}</select><select class="ca-obj"><option value="">Todos los artículos</option>${prods}${fams}</select>
-        <input class="ca-val" type="number" step="0.0001" placeholder="Valor (el del concepto)" value="${a&&a.valor!=null?a.valor:""}"/><button class="btn small ghost" onclick="this.parentElement.remove()" title="Quitar">✕</button></div>`;
+      const acr=(window._concProvs||[]).map(p=>`<option value="${p.id}"${a&&a.acreedorId===p.id?" selected":""}>${agEsc(p.nombre)}</option>`).join("");
+      return `<div class="conc-asig" style="border:1px solid var(--line);border-radius:10px;padding:8px;margin-bottom:6px">
+        <div style="display:grid;grid-template-columns:2fr 2fr 1fr auto;gap:6px;align-items:center">
+        <select class="ca-ter"><option value="">Cualquier cliente o proveedor</option>${tipos}${ter}</select><select class="ca-obj"><option value="">Todos los artículos</option>${prods}${fams}</select>
+        <input class="ca-val" type="number" step="0.0001" placeholder="Valor (el del concepto)" value="${a&&a.valor!=null?a.valor:""}"/><button class="btn small ghost" onclick="this.closest('.conc-asig').remove()" title="Quitar">✕</button></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 2fr;gap:6px;margin-top:6px;align-items:center">
+        <input class="ca-des" type="date" title="Vigente desde" value="${a&&a.desde?a.desde:""}"/><input class="ca-has" type="date" title="Vigente hasta" value="${a&&a.hasta?a.hasta:""}"/>
+        <select class="ca-acr"><option value="">Acreedor: el del concepto</option>${acr}</select></div></div>`;
     }
     function modalConceptoLinea(id){
       const c=id?(window._conceptos||[]).find(x=>x.id===id):null;
@@ -1828,13 +1837,18 @@
         <div class="grid2"><div><label>Se usa en</label>${sel("cl_amb","Ambito",c?c.ambito:"Ventas")}</div><div><label>Efecto</label>${sel("cl_efe","Efecto",c?c.efecto:"Precio")}</div></div>
         <div class="grid2"><div><label>Sentido</label>${sel("cl_sen","Sentido",c?c.sentido:"Suma")}</div><div><label>Cálculo</label>${sel("cl_cal","Calculo",c?c.calculo:"Porcentaje")}</div></div>
         <div class="grid2"><div><label>Valor por defecto</label><input id="cl_val" type="number" step="0.0001" value="${c?c.valor:0}"/></div><div><label>Importe fijo en el documento: reparto</label>${sel("cl_rep","Reparto",c?c.reparto:"PorImporte")}</div></div>
+        <div class="grid2"><div><label>Orden de aplicación</label><input id="cl_ord" type="number" step="1" value="${c?c.orden:0}"/></div><div><label>Un porcentaje va sobre</label><select id="cl_bas"><option value="Linea"${!c||c.basePorcentaje!=="Cascada"?" selected":""}>la línea</option><option value="Cascada"${c&&c.basePorcentaje==="Cascada"?" selected":""}>la línea y los cargos anteriores (cascada)</option></select></div></div>
+        <div class="grid2"><div><label>Acreedor (a quien se paga: transportista, comisionista…)</label><select id="cl_acr"><option value="">Ninguno</option>${(window._concProvs||[]).map(p=>`<option value="${p.id}"${c&&c.acreedorId===p.id?" selected":""}>${agEsc(p.nombre)}</option>`).join("")}</select></div><div><label>Cuenta contable propia (vacío: la de la línea)</label><input id="cl_cta" value="${c&&c.cuentaContable?c.cuentaContable:""}" placeholder="7590"/></div></div>
         ${c?`<label style="display:flex;gap:8px;align-items:center;margin-top:8px"><input id="cl_act" type="checkbox" style="width:auto" ${c.activo?"checked":""}/> Activo</label>`:""}
-        <label style="margin-top:12px">Se pone solo <span class="muted" style="font-weight:400;font-size:12px">— cada regla: cliente o proveedor (o cualquiera) · artículo, familia o todos · valor propio. Sin reglas, solo se pone a mano.</span></label>
+        <label style="margin-top:12px">Se pone solo <span class="muted" style="font-weight:400;font-size:12px">— cada regla: cliente o proveedor, tipo de tercero o cualquiera · artículo, familia o todos · valor · vigencia · acreedor. Manda la del tercero y, dentro, la del artículo. Sin reglas, solo se pone a mano.</span></label>
         <div id="cl_asig">${(c?c.asignaciones:[]).map(lineaAsignacionHtml).join("")}</div>
         <button class="btn small ghost" style="margin-top:4px" onclick="document.getElementById('cl_asig').insertAdjacentHTML('beforeend',lineaAsignacionHtml())">+ Añadir regla</button>`,
         async()=>{ const asignaciones=[...document.querySelectorAll('#cl_asig .conc-asig')].map(r=>{ const [tipo,oid]=(r.querySelector('.ca-obj').value||":").split(":"); const v=r.querySelector('.ca-val').value;
-            return {terceroId:r.querySelector('.ca-ter').value||null,productoId:tipo==="p"?oid:null,familiaId:tipo==="f"?oid:null,valor:v===""?null:Number(v)}; });
-          const datos={nombre:val("cl_nom"),textoDocumento:val("cl_txt")||null,ambito:val("cl_amb"),efecto:val("cl_efe"),sentido:val("cl_sen"),calculo:val("cl_cal"),valor:Number(val("cl_val")||0),reparto:val("cl_rep"),asignaciones};
+            const ter=r.querySelector('.ca-ter').value||""; const i=ter.indexOf(":"); const tt=i<0?"":ter.slice(0,i), tv=i<0?"":ter.slice(i+1);
+            return {terceroId:tt==="t"?tv:null,tipoTercero:tt==="k"?tv:null,productoId:tipo==="p"?oid:null,familiaId:tipo==="f"?oid:null,valor:v===""?null:Number(v),
+              desde:r.querySelector('.ca-des').value||null,hasta:r.querySelector('.ca-has').value||null,acreedorId:r.querySelector('.ca-acr').value||null}; });
+          const datos={nombre:val("cl_nom"),textoDocumento:val("cl_txt")||null,ambito:val("cl_amb"),efecto:val("cl_efe"),sentido:val("cl_sen"),calculo:val("cl_cal"),valor:Number(val("cl_val")||0),reparto:val("cl_rep"),asignaciones,
+            orden:Number(val("cl_ord")||0),basePorcentaje:val("cl_bas"),acreedorId:val("cl_acr")||null,cuentaContable:val("cl_cta")||null};
           if(c) await api("/conceptos-linea/"+c.id,{method:"PUT",body:JSON.stringify({datos,activo:document.getElementById("cl_act").checked})});
           else await api("/conceptos-linea",{method:"POST",body:JSON.stringify({codigo:val("cl_cod"),datos})});
           toast(c?"Concepto guardado.":"Concepto creado.","ok"); vConceptosLinea(); });
@@ -3670,6 +3684,42 @@
           toast(`Albarán ${a.numeroCompleto} emitido.`,"ok"); vAlbaranesVenta(); });
     }
     function masLineaAlbaran(){ document.getElementById("alb_lineas").insertAdjacentHTML("beforeend",filaAlbaran(albLineas++,window._albProductos||[])); }
+    /* Cargos de acreedores: los conceptos con acreedor (portes al transportista, comisiones…) de facturas, albaranes y
+       pedidos de compra, pendientes de liquidar; se liquidan registrando la factura del acreedor. */
+    let cacFiltro={acreedorId:"",desde:"",hasta:"",todos:false};
+    async function vCargosAcreedor(){
+      view('<div class="muted">Cargando…</div>');
+      const q=new URLSearchParams(Object.entries({acreedorId:cacFiltro.acreedorId,desde:cacFiltro.desde,hasta:cacFiltro.hasta,todos:cacFiltro.todos?"true":""}).filter(([,v])=>v)).toString();
+      const [lista,provs]=await Promise.all([api("/gastos/cargos-acreedores"+(q?"?"+q:"")),api("/proveedores")]);
+      window._cacLista=lista;
+      const optAcr=`<option value="">Todos los acreedores</option>`+provs.map(p=>`<option value="${p.id}"${p.id===cacFiltro.acreedorId?" selected":""}>${agEsc(p.nombre)}</option>`).join("");
+      const ORIGEN={FacturaVenta:"Factura",AlbaranVenta:"Albarán de venta",PedidoCompra:"Pedido de compra"};
+      const filas=lista.map((c,i)=>`<tr><td>${cacFiltro.todos?"":`<input type="checkbox" class="cac_sel" value="${i}" style="width:auto;margin:0"/>`}</td><td>${agEsc(c.acreedorNombre)}</td><td class="muted">${fdate(c.fecha)}</td><td>${ORIGEN[c.origen]||c.origen} <span class="mono">${agEsc(c.numero)}</span></td><td>${agEsc(c.tercero)}</td><td>${agEsc(c.linea)}</td><td><span class="mono">${agEsc(c.codigo)}</span> ${agEsc(c.concepto)}</td><td class="num">${eur(Math.abs(c.importe))}</td></tr>`).join("");
+      const filtros=`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-bottom:12px">
+        <div><label>Acreedor</label><select id="cac_acr" onchange="filtrarCargosAcreedor()">${optAcr}</select></div>
+        <div><label>Desde</label><input id="cac_des" type="date" value="${cacFiltro.desde}" onchange="filtrarCargosAcreedor()"/></div>
+        <div><label>Hasta</label><input id="cac_has" type="date" value="${cacFiltro.hasta}" onchange="filtrarCargosAcreedor()"/></div>
+        <label style="display:flex;gap:6px;align-items:center;font-weight:500;cursor:pointer"><input id="cac_tod" type="checkbox" style="width:auto;margin:0" ${cacFiltro.todos?"checked":""} onchange="filtrarCargosAcreedor()"/> Incluir los ya liquidados</label></div>`;
+      const cuerpo=lista.length?`<table data-seleccion="no"><thead><tr><th></th><th>Acreedor</th><th>Fecha</th><th>Documento</th><th>Cliente o proveedor</th><th>Línea</th><th>Concepto</th><th class="num">Importe</th></tr></thead><tbody>${filas}</tbody></table>`
+        :'<p class="muted" style="margin:0">No hay cargos con acreedor con este filtro. Pon un acreedor en el concepto (o en su regla) para que sus cargos se acumulen aquí.</p>';
+      view(panel("Cargos de acreedores",`<p class="muted" style="margin:0 0 12px">Lo que se debe a transportistas, comisionistas y otros acreedores por los conceptos de las líneas (portes, comisiones…). Marca los cargos (o ninguno para todos los del acreedor y las fechas) y registra su factura: queda como factura de proveedor con su IVA y retención, y los cargos dejan de estar pendientes. Si se anula esa factura, vuelven a estarlo.</p>`+filtros+cuerpo,
+        cacFiltro.todos?"":`<button class="btn small" onclick="modalLiquidarAcreedor()">Liquidar acreedor</button>`));
+    }
+    function filtrarCargosAcreedor(){ cacFiltro={acreedorId:val("cac_acr"),desde:val("cac_des"),hasta:val("cac_has"),todos:document.getElementById("cac_tod").checked}; vCargosAcreedor(); }
+    function modalLiquidarAcreedor(){
+      const lista=window._cacLista||[]; const marcados=[...document.querySelectorAll(".cac_sel:checked")].map(i=>lista[Number(i.value)]);
+      const elegidos=marcados.length?marcados:lista.filter(c=>!cacFiltro.acreedorId||c.acreedorId===cacFiltro.acreedorId);
+      const acreedores=[...new Set(elegidos.map(c=>c.acreedorId))];
+      if(!elegidos.length){ toast("No hay cargos pendientes que liquidar.","warn"); return; }
+      if(acreedores.length>1){ toast("Elige un acreedor (o marca cargos de uno solo).","warn"); return; }
+      const total=elegidos.reduce((s,c)=>s+Math.abs(c.importe),0); const hoy=new Date().toISOString().slice(0,10);
+      abrir(`Liquidar a ${elegidos[0].acreedorNombre}`,`<p class="muted" style="margin:0 0 10px">${elegidos.length} cargo(s) por ${eur(total)} de base. Se registra su factura como factura de proveedor.</p>
+        <div class="grid2"><div><label>Número de su factura</label><input id="la_num"/></div><div><label>Fecha de la factura</label><input id="la_fec" type="date" value="${hoy}"/></div></div>
+        <div class="grid2"><div><label>IVA</label><select id="la_iva"><option value="IVA21">21 %</option><option value="IVA10">10 %</option><option value="IVA4">4 %</option><option value="IVA0">Exento / 0 %</option></select></div><div><label>Retención IRPF (%)</label><input id="la_irpf" type="number" step="0.01" value="0" title="1 % a transportistas en módulos"/></div></div>`,
+        async()=>{ const r=await api("/gastos/cargos-acreedores/liquidar",{method:"POST",body:JSON.stringify({acreedorId:acreedores[0],numeroFactura:val("la_num"),fechaFactura:val("la_fec"),
+            desde:cacFiltro.desde||null,hasta:cacFiltro.hasta||null,claves:marcados.length?marcados.map(c=>c.clave):null,codigoIva:val("la_iva"),porcentajeIrpf:Number(val("la_irpf")||0)})});
+          toast(`Factura del acreedor registrada: ${r.cargos} cargo(s), total ${eur(r.total)}.`,"ok"); vCargosAcreedor(); });
+    }
     async function vAnticipos() {
       view('<div class="muted">Cargando…</div>');
       const [lista, clientes]=await Promise.all([api("/anticipos"), api("/clientes")]);

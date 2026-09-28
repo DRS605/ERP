@@ -558,6 +558,10 @@ internal sealed class ConfiguracionConceptoLinea : IEntityTypeConfiguration<Conc
         builder.Property(c => c.Calculo).HasColumnName("calculo").HasConversion<string>().HasMaxLength(12).IsRequired();
         builder.Property(c => c.Valor).HasColumnName("valor").HasColumnType("numeric(14,4)").IsRequired();
         builder.Property(c => c.Reparto).HasColumnName("reparto").HasConversion<string>().HasMaxLength(12).IsRequired();
+        builder.Property(c => c.Orden).HasColumnName("orden").HasDefaultValue(0).IsRequired();
+        builder.Property(c => c.BasePorcentaje).HasColumnName("base_porcentaje").HasConversion<string>().HasMaxLength(10).HasDefaultValue(BasePorcentajeConcepto.Linea).IsRequired();
+        builder.Property(c => c.AcreedorId).HasColumnName("acreedor_id");
+        builder.Property(c => c.CuentaContable).HasColumnName("cuenta_contable").HasMaxLength(20);
         builder.Property(c => c.Activo).HasColumnName("activo").IsRequired();
         builder.Property(c => c.CreadoEn).HasColumnName("creado_en").IsRequired();
         builder.Property(c => c.ActualizadoEn).HasColumnName("actualizado_en").IsRequired();
@@ -572,6 +576,10 @@ internal sealed class ConfiguracionConceptoLinea : IEntityTypeConfiguration<Conc
             a.Property(x => x.FamiliaId).HasColumnName("familia_id");
             a.Property(x => x.ProductoId).HasColumnName("producto_id");
             a.Property(x => x.Valor).HasColumnName("valor").HasColumnType("numeric(14,4)");
+            a.Property(x => x.TipoTercero).HasColumnName("tipo_tercero").HasMaxLength(50);
+            a.Property(x => x.Desde).HasColumnName("desde");
+            a.Property(x => x.Hasta).HasColumnName("hasta");
+            a.Property(x => x.AcreedorId).HasColumnName("acreedor_id");
             a.HasIndex("concepto_linea_id").HasDatabaseName("ix_asignacion_concepto_concepto");
         });
         builder.Navigation(c => c.Asignaciones).UsePropertyAccessMode(PropertyAccessMode.Field);

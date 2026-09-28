@@ -25,6 +25,10 @@ El maestro se comparte en el grupo, como los artículos y las tarifas (tabla `ca
 | Cálculo | % sobre la línea (tras el descuento), € por unidad, € por kilo neto o importe fijo |
 | Valor | El valor por defecto (nunca negativo: el signo lo pone el sentido; un porcentaje no pasa de 100) |
 | Reparto | Cómo se reparte un importe fijo puesto al documento entero: por importe, por cantidad o por peso |
+| Orden | Orden de aplicación en la línea: los de orden menor van antes |
+| Base del porcentaje | La línea (tras el descuento) o **cascada**: la línea más los conceptos de importe que van antes en el orden (la «base importe calculado» de Hispatec) |
+| Acreedor | Proveedor a quien se debe el concepto (transportista, comisionista…). Sus cargos se liquidan con su factura (ver abajo) |
+| Cuenta contable | Cuenta propia del concepto en el asiento de la factura (por ejemplo, 7590 para los portes cobrados). Si está vacía, va a la cuenta de la línea |
 | Reglas | Cuándo se pone solo (ver abajo) |
 
 Los kilos netos de una línea son:
@@ -37,22 +41,44 @@ Un concepto por kilo no se pone solo en una línea sin peso.
 
 ### Reglas: cuándo se pone solo
 
-Cada regla (tabla `catalogo.asignacion_concepto`) dice para qué **cliente o proveedor** vale (o para cualquiera). También
-dice para qué **artículo** o **familia** vale (o para todos). Opcionalmente, lleva un **valor propio**, por ejemplo
-otra comisión para un cliente.
+Cada regla (tabla `catalogo.asignacion_concepto`) dice:
 
-- Una regla de familia vale también para sus subfamilias.
-- Si varias reglas encajan, manda la más específica. El orden es artículo, familia más cercana y todos; a igualdad, la
-  del tercero.
-- Un concepto sin reglas solo se pone a mano.
+- **para quién** vale: un **cliente o proveedor**, un **tipo de tercero** (el campo «Tipo» de su ficha, por ejemplo
+  «Mayorista») o cualquiera;
+- **para qué** vale: un **artículo**, una **familia** (con sus subfamilias) o todos;
+- y, si se indica, **entre qué fechas** (vigencia desde y hasta, por la fecha del documento).
+
+Opcionalmente, lleva un **valor propio** (otra comisión para un cliente) y un **acreedor propio** (otro transportista
+para una ruta).
+
+Si varias reglas encajan, manda la más específica con la jerarquía de Hispatec. **Primero cuenta el tercero:** el
+cliente o proveedor, luego su tipo y luego cualquiera. Dentro de cada nivel, el artículo, luego la familia más cercana y
+luego todos. A igualdad, gana la regla con vigencia acotada. Por ejemplo, «cliente X, todos los artículos» gana a
+«cualquier cliente, artículo Y».
+
+> Cambio respecto a la primera versión, que daba prioridad al artículo sobre el tercero. Así se pueden migrar tal
+> cual los valores por defecto de Hispatec (`CAVentaLDefecto`, `CACompraLDefecto`).
+
+Un concepto sin reglas solo se pone a mano.
 
 ## En los documentos
 
 Se aplican en:
 
-- presupuestos, pedidos de venta y facturas (salvo tickets y rectificativas, que solo llevan los que se pongan a
-  mano);
+- presupuestos, pedidos de venta, **albaranes de venta** y facturas (salvo tickets y rectificativas, que solo llevan los
+  que se pongan a mano);
 - pedidos de compra.
+
+En los albaranes de venta:
+
+- **Albarán de un pedido:** copia los conceptos de la línea del pedido para la parte entregada. Los porcentajes y los
+  importes por unidad se recalculan; el resto se prorratea.
+- **Albarán directo:** lleva los automáticos o los pedidos, igual que la factura.
+- **Valoración:** al valorar el albarán, los porcentajes se recalculan con el precio definitivo.
+- **Facturación:** la factura que recoge el albarán copia sus conceptos.
+
+En cada línea los conceptos se aplican **en su orden**. Un porcentaje en cascada se calcula sobre la línea más los
+conceptos de importe que ya se han puesto.
 
 En cada línea:
 
@@ -93,6 +119,37 @@ introducciones valora con el importe de la línea con sus conceptos.
 - `catalogo.concepto_linea_en_uso(id)`: busca el concepto en las líneas de todas las empresas del grupo para decidir
   entre borrarlo y darlo de baja.
 
+## Cargos con acreedor y su liquidación
+
+Un concepto con acreedor, en el propio concepto o en su regla, es una **deuda con ese acreedor**, como los cargos con
+«acreedor asociado» de Hispatec. Por ejemplo, 0,05 €/kg de portes al transportista o el 3 % de comisión al
+comisionista. Suelen ser de efecto «solo coste», pero también puede llevarlo uno que se cobra al cliente.
+
+- **Pantalla:** Compras → **Cargos de acreedores**. Muestra los pendientes por acreedor y fechas, sacados de:
+  - las facturas de venta no anuladas que no vienen de albaranes (las que vienen de albaranes se cuentan en el
+    albarán, para no contar el cargo dos veces);
+  - los albaranes de venta no anulados;
+  - los pedidos de compra no cancelados.
+- **Liquidar:** se eligen los cargos (o todos los del acreedor en las fechas) y se registra su factura (número, fecha,
+  IVA y retención; por ejemplo, el 1 % a un transportista en módulos). Queda como **factura de proveedor**, con una
+  línea por concepto. Cada cargo queda anotado en `gastos.cargo_acreedor_liquidado`, que es de solo inserción y lleva
+  RLS.
+- **Anulación:** si se anula la factura del acreedor, sus cargos vuelven a estar pendientes.
+- **API:**
+  - `GET /gastos/cargos-acreedores?acreedorId=&desde=&hasta=&todos=`
+  - `POST /gastos/cargos-acreedores/liquidar` con `{ acreedorId, numeroFactura, fechaFactura, desde, hasta, claves[],
+    codigoIva, porcentajeIrpf }`
+  - Errores: `acreedor.sin_cargos`, `acreedor.cargo_no_pendiente` y `acreedor.numero_factura`.
+
+Lo que se paga al acreedor es el **importe del cargo** (a diferencia de Hispatec, no hay un segundo importe distinto
+para el acreedor).
+
+## Cuenta propia en la contabilidad
+
+Un concepto de importe con **cuenta contable** se contabiliza en ella en el asiento de la factura de venta. Por
+ejemplo, con 100 € de mercancía y 20 € de portes a la 7590, el haber lleva 70x 100 € y 7590 20 €. El resto de la línea
+va a su cuenta o a la de ventas.
+
 ## API
 
 Todos los endpoints de escritura piden el permiso `producto.gestionar`.
@@ -102,7 +159,8 @@ Todos los endpoints de escritura piden el permiso `producto.gestionar`.
 - `POST /conceptos-linea` con `{ codigo, datos }`
 - `PUT /conceptos-linea/{id}` con `{ datos, activo }`
 - `DELETE /conceptos-linea/{id}`: borra el concepto o lo da de baja si ya se usó.
-- `GET /conceptos-linea/sugeridos?ambito=&terceroId=&productoId=`: los que se pondrían solos en una línea.
+- `GET /conceptos-linea/sugeridos?ambito=&terceroId=&productoId=&fecha=`: los que se pondrían solos en una línea, con el
+  tipo del tercero y la vigencia a esa fecha, y su acreedor.
 - `GET /conceptos-linea/informe?desde=&hasta=`: importe de cada concepto en las facturas de venta (no anuladas) y en
   los pedidos de compra (no cancelados) del periodo, separando importe y coste, con el detalle por documento.
 - En las líneas de `POST/PUT /presupuestos`, `/pedidos-venta`, `/facturas` y `/compras/pedidos`:
@@ -111,7 +169,7 @@ Todos los endpoints de escritura piden el permiso `producto.gestionar`.
 - Las líneas de las respuestas traen `conceptos`, `importeConceptos` y `costeConceptos`. Las de compra traen además
   `costeUnitarioEntrada`.
 
-Errores: `concepto.codigo`, `concepto.codigo_duplicado` (409), `concepto.valor`, `concepto.tipo`,
+Errores: `concepto.vigencia`, `concepto.cuenta`, `concepto.codigo`, `concepto.codigo_duplicado` (409), `concepto.valor`, `concepto.tipo`,
 `concepto.asignacion_repetida`, `concepto.no_encontrado`, `concepto.ambito` (un concepto de compras en una venta o al
 revés) y `concepto.linea_negativa`.
 
@@ -127,8 +185,12 @@ revés) y `concepto.linea_negativa`.
 
 ## Pendiente
 
-- Contabilizar cada concepto en su propia cuenta (hoy los que cambian el importe van a la cuenta de ventas o de
-  compras de la línea, y los de coste no se contabilizan).
-- Imputar un concepto de coste a un acreedor (transportista, comisionista) y generar su factura.
+- Conceptos **después de la base imponible** (suplidos, fianzas) y con un **impuesto propio** distinto del de la línea.
+- Cálculo por **bulto** y por **palé**, y reglas por **envase**.
+- La provisión contable del cargo de coste con acreedor en el documento (hoy el coste se contabiliza al registrar la
+  factura del acreedor).
+- La cuenta propia en las compras.
+- Conceptos con reglas en las recepciones y liquidaciones agro (hoy, conceptos de liquidación globales).
 - Conceptos en tickets, facturas periódicas con reglas propias, rectificativas por diferencias y buzón de facturas
   recibidas.
+- El informe de conceptos del periodo aún no incluye los albaranes sin facturar.

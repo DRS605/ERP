@@ -41,6 +41,16 @@ public enum CalculoConcepto
     Importe,
 }
 
+/// <summary>
+/// Sobre qué base se calcula un porcentaje: la línea (tras el descuento) o, en <see cref="Cascada"/>, la línea más los
+/// conceptos que cambian el importe y van antes en el orden (como la «base importe calculado» de Hispatec).
+/// </summary>
+public enum BasePorcentajeConcepto
+{
+    Linea,
+    Cascada,
+}
+
 /// <summary>Cómo se reparte entre las líneas un importe fijo puesto al documento entero.</summary>
 public enum RepartoConcepto
 {
@@ -63,7 +73,10 @@ public sealed record ConceptoAplicado(
     CalculoConcepto Calculo,
     decimal Valor,
     decimal Importe,
-    bool Repartido = false);
+    bool Repartido = false,
+    bool Cascada = false,
+    Guid? AcreedorId = null,
+    string? CuentaContable = null);
 
 /// <summary>Cálculo, reparto y serialización de los conceptos de línea (común a ventas y compras).</summary>
 public static class ConceptosLinea
@@ -93,6 +106,44 @@ public static class ConceptosLinea
     {
         ArgumentNullException.ThrowIfNull(c);
         return c with { Importe = Calcular(c.Calculo, c.Sentido, c.Valor, baseLinea, cantidad, kilos) };
+    }
+
+    /// <summary>
+    /// Vuelve a calcular en orden los conceptos de una línea sobre su nueva base (al copiarla o al cambiar su precio). Los
+    /// importes fijos repartidos se conservan; los porcentajes en cascada suman los conceptos de importe anteriores.
+    /// </summary>
+    public static List<ConceptoAplicado> RecalcularTodos(IEnumerable<ConceptoAplicado>? conceptos, decimal baseLinea, decimal cantidad, decimal? kilos)
+    {
+        var resultado = new List<ConceptoAplicado>();
+        foreach (var c in conceptos ?? [])
+        {
+            if (c.Calculo == CalculoConcepto.Importe && c.Repartido)
+            {
+                resultado.Add(c);
+                continue;
+            }
+
+            var baseConcepto = c.Cascada ? baseLinea + SumaPrecio(resultado) : baseLinea;
+            resultado.Add(Recalcular(c, baseConcepto, cantidad, kilos));
+        }
+
+        return resultado;
+    }
+
+    /// <summary>
+    /// Vuelve a calcular solo los porcentajes sobre una nueva base de la línea (al cambiar su precio); los importes por
+    /// unidad, por kilo y fijos no dependen del precio y se conservan.
+    /// </summary>
+    public static List<ConceptoAplicado> RecalcularPorcentajes(IEnumerable<ConceptoAplicado>? conceptos, decimal baseLinea)
+    {
+        var resultado = new List<ConceptoAplicado>();
+        foreach (var c in conceptos ?? [])
+        {
+            var baseConcepto = c.Cascada ? baseLinea + SumaPrecio(resultado) : baseLinea;
+            resultado.Add(c.Calculo == CalculoConcepto.Porcentaje ? c with { Importe = Calcular(c.Calculo, c.Sentido, c.Valor, baseConcepto, 0m, null) } : c);
+        }
+
+        return resultado;
     }
 
     /// <summary>

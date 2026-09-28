@@ -27,12 +27,50 @@ public sealed class GastosDbContext : DbContextEmpresaBase, IUnidadDeTrabajoGast
 
     public DbSet<DuaImportacion> DuasImportacion => Set<DuaImportacion>();
 
+    public DbSet<CargoAcreedorLiquidado> CargosAcreedorLiquidados => Set<CargoAcreedorLiquidado>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Esquema);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(GastosDbContext).Assembly);
         AplicarFiltroMultiempresa(modelBuilder);
     }
+}
+
+internal sealed class ConfiguracionCargoAcreedorLiquidado : IEntityTypeConfiguration<CargoAcreedorLiquidado>
+{
+    public void Configure(EntityTypeBuilder<CargoAcreedorLiquidado> b)
+    {
+        b.ToTable("cargo_acreedor_liquidado");
+        b.HasKey(x => x.Id);
+        b.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+        b.Property(x => x.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        b.Property(x => x.GastoId).HasColumnName("gasto_id").IsRequired();
+        b.Property(x => x.AcreedorId).HasColumnName("acreedor_id").IsRequired();
+        b.Property(x => x.Origen).HasColumnName("origen").HasMaxLength(20).IsRequired();
+        b.Property(x => x.DocumentoId).HasColumnName("documento_id").IsRequired();
+        b.Property(x => x.LineaOrden).HasColumnName("linea_orden").IsRequired();
+        b.Property(x => x.ConceptoId).HasColumnName("concepto_id").IsRequired();
+        b.Property(x => x.Codigo).HasColumnName("codigo").HasMaxLength(20).IsRequired();
+        b.Property(x => x.Importe).HasColumnName("importe").HasColumnType("numeric(14,2)").IsRequired();
+        b.Property(x => x.CreadoEn).HasColumnName("creado_en").IsRequired();
+        b.HasIndex(x => x.GastoId).HasDatabaseName("ix_cargo_acreedor_gasto");
+        b.HasIndex(x => new { x.EmpresaId, x.Origen, x.DocumentoId }).HasDatabaseName("ix_cargo_acreedor_documento");
+        b.Ignore(x => x.EventosDominio);
+    }
+}
+
+/// <summary>Cargos de acreedor liquidados (solo inserción).</summary>
+internal sealed class RepositorioCargosAcreedor : IRepositorioCargosAcreedor
+{
+    private readonly GastosDbContext _db;
+
+    public RepositorioCargosAcreedor(GastosDbContext db) => _db = db;
+
+    public void Agregar(CargoAcreedorLiquidado cargo) => _db.CargosAcreedorLiquidados.Add(cargo);
+
+    public async Task<IReadOnlyList<CargoAcreedorLiquidado>> DeGastoAsync(Guid gastoId, CancellationToken ct = default) =>
+        await _db.CargosAcreedorLiquidados.AsNoTracking().Where(x => x.GastoId == gastoId).ToListAsync(ct).ConfigureAwait(false);
 }
 
 internal sealed class ConfiguracionGasto : IEntityTypeConfiguration<Gasto>

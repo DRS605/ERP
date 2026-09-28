@@ -93,7 +93,8 @@ public sealed class CrearPresupuesto
             return Resultado.Fallo<PresupuestoDto>(resolucion.Error);
         }
 
-        var conConceptos = await ResolucionLineasFactura.AplicarConceptosAsync(_conceptos, cliente.Id, datos.Lineas ?? [], resolucion.Valor, datos.ConceptosDocumento, true, ct)
+        var conConceptos = await ResolucionLineasFactura.AplicarConceptosAsync(_conceptos, cliente.Id, datos.Lineas ?? [], resolucion.Valor, datos.ConceptosDocumento, true,
+            new ContextoConceptos(cliente.Tipo, DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime)), ct)
             .ConfigureAwait(false);
         if (conConceptos.EsFallo)
         {
@@ -162,7 +163,8 @@ public sealed class ActualizarPresupuesto
             return Resultado.Fallo<PresupuestoDto>(resolucion.Error);
         }
 
-        var conConceptos = await ResolucionLineasFactura.AplicarConceptosAsync(_conceptos, cliente.Id, datos.Lineas ?? [], resolucion.Valor, datos.ConceptosDocumento, true, ct)
+        var conConceptos = await ResolucionLineasFactura.AplicarConceptosAsync(_conceptos, cliente.Id, datos.Lineas ?? [], resolucion.Valor, datos.ConceptosDocumento, true,
+            new ContextoConceptos(cliente.Tipo, presupuesto.Fecha), ct)
             .ConfigureAwait(false);
         if (conConceptos.EsFallo)
         {

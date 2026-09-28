@@ -1,5 +1,6 @@
 using AlxorCore.Catalogo.Aplicacion;
 using AlxorCore.Facturacion.Dominio;
+using AlxorCore.Nucleo.Comun;
 using AlxorCore.Nucleo.Resultados;
 using AlxorCore.Nucleo.Tiempo;
 using AlxorCore.Organizacion.Aplicacion.Puertos;
@@ -14,10 +15,11 @@ namespace AlxorCore.Facturacion.Aplicacion;
 /// <c>PrecioPorFijar</c>, el precio indicado (o el de tarifa) es solo una estimación y el albarán queda por valorar.
 /// </summary>
 public sealed record LineaAlbaranComando(decimal Cantidad, string? Descripcion = null, decimal? PrecioUnitario = null, string? CodigoIva = null,
-    decimal PorcentajeDescuento = 0m, Guid? ProductoId = null, bool PrecioPorFijar = false);
+    decimal PorcentajeDescuento = 0m, Guid? ProductoId = null, bool PrecioPorFijar = false, IReadOnlyList<ConceptoSolicitado>? Conceptos = null);
 
+/// <summary>Albarán directo. Sin conceptos en una línea se ponen los automáticos del cliente y el artículo (sus reglas).</summary>
 public sealed record CrearAlbaranVentaComando(Guid ClienteId, IReadOnlyList<LineaAlbaranComando> Lineas, DateOnly? Fecha = null, string? Referencia = null,
-    string? Observaciones = null);
+    string? Observaciones = null, IReadOnlyList<ConceptoSolicitado>? ConceptosDocumento = null);
 
 /// <summary>Precio definitivo de una línea (por su número de orden en el albarán).</summary>
 public sealed record PrecioLineaAlbaranComando(int Orden, decimal PrecioUnitario, decimal? PorcentajeDescuento = null);
@@ -67,10 +69,35 @@ internal static class AlbaranesVentaStock
         }
     }
 
-    /// <summary>Líneas de la factura que recoge el albarán: su precio y la referencia al albarán en la descripción.</summary>
+    /// <summary>Líneas de la factura que recoge el albarán: su precio, sus conceptos y la referencia al albarán en la descripción.</summary>
     public static IEnumerable<LineaComando> LineasFactura(AlbaranVenta a) => a.Lineas.Select(l => new LineaComando(
         l.Cantidad, $"Alb. {a.NumeroCompleto} · {l.Descripcion}", l.PrecioUnitario, l.CodigoIva, l.PorcentajeDescuento, l.ProductoId,
-        AlbaranVentaId: a.Id, SinSalidaStock: a.StockDescontado));
+        ConceptosCopiados: l.Conceptos, AlbaranVentaId: a.Id, SinSalidaStock: a.StockDescontado));
+
+    /// <summary>
+    /// Conceptos de una línea de pedido para la parte entregada: los porcentajes sobre la nueva base (en su orden, con la
+    /// cascada) y el resto en proporción a la cantidad entregada.
+    /// </summary>
+    public static List<ConceptoAplicado> ConceptosParciales(IReadOnlyList<ConceptoAplicado> conceptos, decimal cantidadPedida, decimal cantidadEntregada, decimal baseBruta)
+    {
+        var resultado = new List<ConceptoAplicado>();
+        var proporcion = cantidadPedida == 0m ? 1m : cantidadEntregada / cantidadPedida;
+        foreach (var c in conceptos)
+        {
+            var baseConcepto = c.Cascada ? baseBruta + ConceptosLinea.SumaPrecio(resultado) : baseBruta;
+            resultado.Add(c with
+            {
+                Importe = c.Calculo switch
+                {
+                    CalculoConcepto.Porcentaje => ConceptosLinea.Calcular(c.Calculo, c.Sentido, c.Valor, baseConcepto, 0m, null),
+                    CalculoConcepto.PorUnidad => ConceptosLinea.Calcular(c.Calculo, c.Sentido, c.Valor, 0m, cantidadEntregada, null),
+                    _ => AlxorCore.Nucleo.Comun.Redondeo.Dos(c.Importe * proporcion),
+                },
+            });
+        }
+
+        return resultado;
+    }
 }
 
 // ----------------------------------------------------------------------------- Albarán directo
@@ -85,10 +112,12 @@ public sealed class CrearAlbaranVenta
     private readonly IUnidadDeTrabajoFacturacion _unidad;
     private readonly IStockVentas _stock;
     private readonly IReloj _reloj;
+    private readonly IResolverConceptos? _conceptos;
 
     public CrearAlbaranVenta(IRepositorioAlbaranesVenta albaranes, IConsultaClientes clientes, IConsultaProductos productos, IResolverPrecioVenta precios,
-        IResolverSerie resolverSerie, IUnidadDeTrabajoFacturacion unidad, IStockVentas stock, IReloj reloj)
+        IResolverSerie resolverSerie, IUnidadDeTrabajoFacturacion unidad, IStockVentas stock, IReloj reloj, IResolverConceptos? conceptos = null)
     {
+        _conceptos = conceptos;
         _albaranes = albaranes;
         _clientes = clientes;
         _productos = productos;
@@ -142,6 +171,21 @@ public sealed class CrearAlbaranVenta
             }
 
             lineas.Add(new NuevaLineaAlbaran(null, l.ProductoId, descripcion ?? string.Empty, l.Cantidad, precio ?? 0m, descuento, codigoIva, l.PrecioPorFijar));
+        }
+
+        // Cargos y abonos: los pedidos en cada línea o los automáticos del cliente (reglas por cliente, tipo y artículo), y los del documento.
+        if (_conceptos is not null && lineas.Count > 0)
+        {
+            var entrada = lineas.Select((l, i) => new LineaConceptos(l.ProductoId, l.Cantidad,
+                AlxorCore.Nucleo.Comun.Redondeo.Dos(l.Cantidad * (l.PrecioUnitario ?? 0m) * (1m - l.PorcentajeDescuento / 100m)), comando.Lineas![i].Conceptos)).ToList();
+            var r = await _conceptos.ResolverAsync(AmbitoConcepto.Ventas, cliente.Id, entrada, comando.ConceptosDocumento, true,
+                new ContextoConceptos(cliente.Tipo, fecha), ct).ConfigureAwait(false);
+            if (r.EsFallo)
+            {
+                return Resultado.Fallo<AlbaranVentaDto>(r.Error);
+            }
+
+            lineas = lineas.Select((l, i) => l with { Conceptos = r.Valor[i] }).ToList();
         }
 
         var numero = await _albaranes.SiguienteNumeroAsync(empresaId, fecha.Year, ct).ConfigureAwait(false);

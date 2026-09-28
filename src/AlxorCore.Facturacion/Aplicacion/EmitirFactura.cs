@@ -106,13 +106,29 @@ public sealed class EmitirFactura
     }
 
     /// <summary>
-    /// Líneas para la contabilización cuando alguna lleva su propia cuenta (anticipos: 438); si no, null y el asiento
-    /// va entero a la cuenta de ventas de la regla.
+    /// Líneas para la contabilización cuando alguna lleva su propia cuenta (anticipos: 438) o algún concepto de importe la
+    /// tiene (portes cobrados a la 759, envases…): la parte del concepto va a su cuenta y el resto de la línea a la suya o
+    /// a la de ventas. Si nada lleva cuenta, null y el asiento va entero a la cuenta de ventas de la regla.
     /// </summary>
-    internal static IReadOnlyList<LineaContable>? LineasConCuenta(Factura f) =>
-        f.Lineas.Any(l => l.CuentaContable is not null)
-            ? f.Lineas.Select(l => new LineaContable(l.Base, l.CodigoIva, l.CuotaIva, l.CuotaIva, l.CuotaRecargo, CuentaGasto: l.CuentaContable)).ToList()
-            : null;
+    internal static IReadOnlyList<LineaContable>? LineasConCuenta(Factura f)
+    {
+        static IEnumerable<ConceptoAplicado> Propios(LineaFactura l) =>
+            l.Conceptos.Where(c => c.Efecto == EfectoConcepto.Precio && !string.IsNullOrWhiteSpace(c.CuentaContable));
+        if (!f.Lineas.Any(l => l.CuentaContable is not null || Propios(l).Any()))
+        {
+            return null;
+        }
+
+        var lineas = new List<LineaContable>();
+        foreach (var l in f.Lineas)
+        {
+            var propios = Propios(l).ToList();
+            lineas.Add(new LineaContable(l.Base - propios.Sum(c => c.Importe), l.CodigoIva, l.CuotaIva, l.CuotaIva, l.CuotaRecargo, CuentaGasto: l.CuentaContable));
+            lineas.AddRange(propios.Select(c => new LineaContable(c.Importe, l.CodigoIva, 0m, 0m, 0m, CuentaGasto: c.CuentaContable)));
+        }
+
+        return lineas;
+    }
 
     public Task<Resultado<FacturaDto>> EjecutarAsync(Guid empresaId, EmitirFacturaComando comando, CancellationToken ct = default) =>
         EjecutarInternoAsync(empresaId, comando, false, ct);
@@ -148,7 +164,8 @@ public sealed class EmitirFactura
             return Resultado.Fallo<FacturaDto>(resolucion.Error);
         }
 
-        var conConceptos = await ResolucionLineasFactura.AplicarConceptosAsync(_conceptos, cliente.Id, comando.Lineas, resolucion.Valor, comando.ConceptosDocumento, true, ct)
+        var conConceptos = await ResolucionLineasFactura.AplicarConceptosAsync(_conceptos, cliente.Id, comando.Lineas, resolucion.Valor, comando.ConceptosDocumento, true,
+            new ContextoConceptos(cliente.Tipo, fechaPrecio), ct)
             .ConfigureAwait(false);
         if (conConceptos.EsFallo)
         {
@@ -472,7 +489,7 @@ internal static class ResolucionLineasFactura
     /// </summary>
     public static async Task<Resultado<List<NuevaLinea>>> AplicarConceptosAsync(
         IResolverConceptos? conceptos, Guid? clienteId, IReadOnlyList<LineaComando> comandos, List<NuevaLinea> lineas,
-        IReadOnlyList<ConceptoSolicitado>? documento, bool automaticos, CancellationToken ct)
+        IReadOnlyList<ConceptoSolicitado>? documento, bool automaticos, ContextoConceptos? contexto, CancellationToken ct)
     {
         if (conceptos is null)
         {
@@ -481,7 +498,7 @@ internal static class ResolucionLineasFactura
 
         var entrada = lineas.Select((l, i) => new LineaConceptos(l.ProductoId, l.Cantidad,
             LineaFactura.CalcularBaseBruta(l.Cantidad, l.PrecioUnitario, l.PorcentajeDescuento), comandos[i].Conceptos, comandos[i].ConceptosCopiados)).ToList();
-        var r = await conceptos.ResolverAsync(AmbitoConcepto.Ventas, clienteId, entrada, documento, automaticos, ct).ConfigureAwait(false);
+        var r = await conceptos.ResolverAsync(AmbitoConcepto.Ventas, clienteId, entrada, documento, automaticos, contexto, ct).ConfigureAwait(false);
         return r.EsFallo
             ? Resultado.Fallo<List<NuevaLinea>>(r.Error)
             : Resultado.Ok(lineas.Select((l, i) => r.Valor[i].Count == 0 ? l : l with { Conceptos = r.Valor[i] }).ToList());

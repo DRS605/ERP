@@ -100,6 +100,14 @@ public interface IConsultaGastos
 /// <summary>Unidad de trabajo del módulo Gastos.</summary>
 public interface IUnidadDeTrabajoGastos : IUnidadDeTrabajo;
 
+/// <summary>Cargos de acreedor liquidados en la factura (gasto) del acreedor.</summary>
+public interface IRepositorioCargosAcreedor
+{
+    void Agregar(AlxorCore.Gastos.Dominio.CargoAcreedorLiquidado cargo);
+
+    Task<IReadOnlyList<AlxorCore.Gastos.Dominio.CargoAcreedorLiquidado>> DeGastoAsync(Guid gastoId, CancellationToken ct = default);
+}
+
 /// <summary>Datos para registrar un gasto.</summary>
 public sealed record RegistrarGastoComando(
     string Concepto,

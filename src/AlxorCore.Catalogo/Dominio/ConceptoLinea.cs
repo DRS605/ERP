@@ -6,12 +6,14 @@ using AlxorCore.Nucleo.Tiempo;
 namespace AlxorCore.Catalogo.Dominio;
 
 /// <summary>Datos de una asignación automática de un concepto (para crear o sustituir las asignaciones).</summary>
-public sealed record DatosAsignacionConcepto(Guid? TerceroId = null, Guid? FamiliaId = null, Guid? ProductoId = null, decimal? Valor = null);
+public sealed record DatosAsignacionConcepto(Guid? TerceroId = null, Guid? FamiliaId = null, Guid? ProductoId = null, decimal? Valor = null,
+    string? TipoTercero = null, DateOnly? Desde = null, DateOnly? Hasta = null, Guid? AcreedorId = null);
 
 /// <summary>
-/// Cuándo se pone solo un concepto en las líneas: para un cliente o proveedor (o cualquiera, si no se indica),
-/// y para un artículo, una familia (con sus subfamilias) o todos. <see cref="Valor"/> sustituye al valor por
-/// defecto del concepto (p. ej. otro porcentaje de comisión para un cliente).
+/// Cuándo se pone solo un concepto en las líneas: para un cliente o proveedor, un tipo de cliente o proveedor, o
+/// cualquiera; para un artículo, una familia (con sus subfamilias) o todos; y, si se indica, solo entre dos fechas.
+/// <see cref="Valor"/> sustituye al valor por defecto del concepto (p. ej. otra comisión para un cliente) y
+/// <see cref="AcreedorId"/>, a su acreedor (otro transportista para esa ruta).
 /// </summary>
 public sealed class AsignacionConcepto
 {
@@ -26,7 +28,21 @@ public sealed class AsignacionConcepto
         FamiliaId = d.ProductoId is null ? d.FamiliaId : null;
         ProductoId = d.ProductoId;
         Valor = d.Valor is { } v ? Math.Round(v, 4, MidpointRounding.AwayFromZero) : null;
+        TipoTercero = d.TerceroId is null && !string.IsNullOrWhiteSpace(d.TipoTercero) ? d.TipoTercero.Trim() : null;
+        Desde = d.Desde;
+        Hasta = d.Hasta;
+        AcreedorId = d.AcreedorId;
     }
+
+    /// <summary>Tipo de cliente o proveedor (el campo «Tipo» de su ficha) para el que vale, si no es para uno concreto.</summary>
+    public string? TipoTercero { get; private set; }
+
+    public DateOnly? Desde { get; private set; }
+
+    public DateOnly? Hasta { get; private set; }
+
+    /// <summary>Acreedor (transportista, comisionista…) a quien se debe el concepto en estas líneas; si es null, el del concepto.</summary>
+    public Guid? AcreedorId { get; private set; }
 
     public Guid Id { get; private set; }
 
@@ -39,17 +55,43 @@ public sealed class AsignacionConcepto
     public decimal? Valor { get; private set; }
 
     /// <summary>
-    /// Si la asignación vale para el tercero y el artículo dados, cuánto de específica es (más alto, más
-    /// específica): artículo &gt; familia (la más cercana) &gt; todos, y a igualdad, la del tercero. Null si no vale.
+    /// Si la asignación vale para la línea, cuánto de específica es (más alto, más específica), con la jerarquía de
+    /// Hispatec: <b>manda el tercero</b> (el cliente o proveedor, luego su tipo, luego cualquiera) y, dentro de cada
+    /// nivel, el artículo (el artículo, luego la familia más cercana, luego todos). A igualdad, la de vigencia acotada.
+    /// Null si no vale (otro tercero, otro tipo, otro artículo o fuera de fechas).
     /// </summary>
-    internal int? Encaje(Guid? terceroId, Guid? productoId, IReadOnlyList<Guid> familias)
+    internal int? Encaje(Guid? terceroId, string? tipoTercero, Guid? productoId, IReadOnlyList<Guid> familias, DateOnly? fecha)
     {
-        if (TerceroId is { } t && t != terceroId)
+        if (fecha is { } dia && ((Desde is { } d && dia < d) || (Hasta is { } h && dia > h)))
         {
             return null;
         }
 
-        int nivel;
+        int nivelTercero;
+        if (TerceroId is { } t)
+        {
+            if (t != terceroId)
+            {
+                return null;
+            }
+
+            nivelTercero = 2;
+        }
+        else if (TipoTercero is { } tipo)
+        {
+            if (!string.Equals(tipo, tipoTercero?.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            nivelTercero = 1;
+        }
+        else
+        {
+            nivelTercero = 0;
+        }
+
+        int nivelArticulo;
         if (ProductoId is { } p)
         {
             if (p != productoId)
@@ -57,7 +99,7 @@ public sealed class AsignacionConcepto
                 return null;
             }
 
-            nivel = 1000;
+            nivelArticulo = 2000;
         }
         else if (FamiliaId is { } f)
         {
@@ -67,14 +109,14 @@ public sealed class AsignacionConcepto
                 return null;
             }
 
-            nivel = 500 - i;
+            nivelArticulo = 1000 - i;
         }
         else
         {
-            nivel = 0;
+            nivelArticulo = 0;
         }
 
-        return nivel * 2 + (TerceroId is null ? 0 : 1);
+        return (nivelTercero * 10000 + nivelArticulo) * 2 + (Desde is not null || Hasta is not null ? 1 : 0);
     }
 }
 
@@ -130,6 +172,18 @@ public sealed class ConceptoLinea : RaizAgregadoGrupo<Guid>
     /// <summary>Cómo se reparte un importe fijo puesto al documento entero.</summary>
     public RepartoConcepto Reparto { get; private set; }
 
+    /// <summary>Orden de aplicación en la línea (los de orden menor van antes; importa para la cascada).</summary>
+    public int Orden { get; private set; }
+
+    /// <summary>Base de un porcentaje: la línea, o la línea más los conceptos de importe anteriores (cascada).</summary>
+    public BasePorcentajeConcepto BasePorcentaje { get; private set; }
+
+    /// <summary>Acreedor por defecto (proveedor: transportista, comisionista…) a quien se debe el concepto; se liquida con su factura.</summary>
+    public Guid? AcreedorId { get; private set; }
+
+    /// <summary>Cuenta propia del concepto en la contabilidad de la factura (si es null, va a la cuenta de la línea).</summary>
+    public string? CuentaContable { get; private set; }
+
     public bool Activo { get; private set; }
 
     public IReadOnlyList<AsignacionConcepto> Asignaciones => _asignaciones;
@@ -173,7 +227,8 @@ public sealed class ConceptoLinea : RaizAgregadoGrupo<Guid>
             return Resultado.Fallo(Error.Validacion("concepto.texto", $"El texto del documento es de hasta {LongitudMaximaNombre} caracteres."));
         }
 
-        if (!Enum.IsDefined(datos.Ambito) || !Enum.IsDefined(datos.Efecto) || !Enum.IsDefined(datos.Sentido) || !Enum.IsDefined(datos.Calculo) || !Enum.IsDefined(datos.Reparto))
+        if (!Enum.IsDefined(datos.Ambito) || !Enum.IsDefined(datos.Efecto) || !Enum.IsDefined(datos.Sentido) || !Enum.IsDefined(datos.Calculo) || !Enum.IsDefined(datos.Reparto)
+            || !Enum.IsDefined(datos.BasePorcentaje))
         {
             return Resultado.Fallo(Error.Validacion("concepto.tipo", "El ámbito, el efecto, el sentido, el cálculo o el reparto no son válidos."));
         }
@@ -181,6 +236,12 @@ public sealed class ConceptoLinea : RaizAgregadoGrupo<Guid>
         if (ErrorValor(datos.Valor, datos.Calculo) is { } error)
         {
             return Resultado.Fallo(error);
+        }
+
+        var cuenta = string.IsNullOrWhiteSpace(datos.CuentaContable) ? null : datos.CuentaContable.Trim();
+        if (cuenta is not null && (cuenta.Length > 20 || !cuenta.All(char.IsAsciiDigit)))
+        {
+            return Resultado.Fallo(Error.Validacion("concepto.cuenta", "La cuenta contable del concepto son solo dígitos (hasta 20)."));
         }
 
         var asignaciones = new List<AsignacionConcepto>();
@@ -191,8 +252,14 @@ public sealed class ConceptoLinea : RaizAgregadoGrupo<Guid>
                 return Resultado.Fallo(Error.Validacion(e.Codigo, $"Asignación {i}: {e.Mensaje}"));
             }
 
+            if (a.Desde is { } desde && a.Hasta is { } hasta && hasta < desde)
+            {
+                return Resultado.Fallo(Error.Validacion("concepto.vigencia", $"Asignación {i}: la fecha final es anterior a la inicial."));
+            }
+
             var nueva = new AsignacionConcepto(a);
-            if (asignaciones.Any(o => o.TerceroId == nueva.TerceroId && o.FamiliaId == nueva.FamiliaId && o.ProductoId == nueva.ProductoId))
+            if (asignaciones.Any(o => o.TerceroId == nueva.TerceroId && string.Equals(o.TipoTercero, nueva.TipoTercero, StringComparison.OrdinalIgnoreCase)
+                && o.FamiliaId == nueva.FamiliaId && o.ProductoId == nueva.ProductoId && o.Desde == nueva.Desde && o.Hasta == nueva.Hasta))
             {
                 return Resultado.Fallo(Error.Validacion("concepto.asignacion_repetida", $"La asignación {i} repite el tercero y el artículo o la familia de otra."));
             }
@@ -208,6 +275,10 @@ public sealed class ConceptoLinea : RaizAgregadoGrupo<Guid>
         Calculo = datos.Calculo;
         Valor = Math.Round(datos.Valor, 4, MidpointRounding.AwayFromZero);
         Reparto = datos.Reparto;
+        Orden = datos.Orden;
+        BasePorcentaje = datos.BasePorcentaje;
+        AcreedorId = datos.AcreedorId;
+        CuentaContable = cuenta;
         Activo = activo;
         _asignaciones.Clear();
         _asignaciones.AddRange(asignaciones);
@@ -222,9 +293,9 @@ public sealed class ConceptoLinea : RaizAgregadoGrupo<Guid>
         ActualizadoEn = reloj.AhoraUtc;
     }
 
-    /// <summary>La asignación más específica que vale para el tercero y el artículo, o null si ninguna.</summary>
-    public AsignacionConcepto? AsignacionPara(Guid? terceroId, Guid? productoId, IReadOnlyList<Guid> familias) =>
-        _asignaciones.Select(a => (a, Encaje: a.Encaje(terceroId, productoId, familias)))
+    /// <summary>La asignación más específica que vale para la línea (tercero, tipo de tercero, artículo y fecha), o null si ninguna.</summary>
+    public AsignacionConcepto? AsignacionPara(Guid? terceroId, Guid? productoId, IReadOnlyList<Guid> familias, string? tipoTercero = null, DateOnly? fecha = null) =>
+        _asignaciones.Select(a => (a, Encaje: a.Encaje(terceroId, tipoTercero, productoId, familias, fecha)))
             .Where(x => x.Encaje is not null)
             .OrderByDescending(x => x.Encaje)
             .Select(x => x.a)
@@ -253,4 +324,8 @@ public sealed record DatosConcepto(
     decimal Valor,
     RepartoConcepto Reparto = RepartoConcepto.PorImporte,
     string? TextoDocumento = null,
-    IReadOnlyList<DatosAsignacionConcepto>? Asignaciones = null);
+    IReadOnlyList<DatosAsignacionConcepto>? Asignaciones = null,
+    int Orden = 0,
+    BasePorcentajeConcepto BasePorcentaje = BasePorcentajeConcepto.Linea,
+    Guid? AcreedorId = null,
+    string? CuentaContable = null);
