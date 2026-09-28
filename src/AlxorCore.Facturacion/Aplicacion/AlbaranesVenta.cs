@@ -70,9 +70,18 @@ internal static class AlbaranesVentaStock
     }
 
     /// <summary>Líneas de la factura que recoge el albarán: su precio, sus conceptos y la referencia al albarán en la descripción.</summary>
-    public static IEnumerable<LineaComando> LineasFactura(AlbaranVenta a) => a.Lineas.Select(l => new LineaComando(
-        l.Cantidad, $"Alb. {a.NumeroCompleto} · {l.Descripcion}", l.PrecioUnitario, l.CodigoIva, l.PorcentajeDescuento, l.ProductoId,
-        ConceptosCopiados: l.Conceptos, AlbaranVentaId: a.Id, SinSalidaStock: a.StockDescontado, CosteUnitario: l.CosteUnitario));
+    public static IEnumerable<LineaComando> LineasFactura(AlbaranVenta a) => LineasFactura(a, new Dictionary<int, decimal>());
+
+    /// <summary>
+    /// Líneas de la factura con lo devuelto (devoluciones pendientes de abono) ya descontado; una línea devuelta entera no
+    /// sale. Los conceptos de la línea (cargos y abonos) se copian tal como se aplicaron en el albarán.
+    /// </summary>
+    public static IEnumerable<LineaComando> LineasFactura(AlbaranVenta a, IReadOnlyDictionary<int, decimal> devuelto) => a.Lineas
+        .Select(l => (Linea: l, Cantidad: l.Cantidad - (devuelto.TryGetValue(l.Orden, out var d) ? d : 0m)))
+        .Where(x => x.Cantidad > 0m)
+        .Select(x => new LineaComando(
+            x.Cantidad, $"Alb. {a.NumeroCompleto} · {x.Linea.Descripcion}", x.Linea.PrecioUnitario, x.Linea.CodigoIva, x.Linea.PorcentajeDescuento, x.Linea.ProductoId,
+            ConceptosCopiados: x.Linea.Conceptos, AlbaranVentaId: a.Id, SinSalidaStock: a.StockDescontado, CosteUnitario: x.Linea.CosteUnitario));
 
     /// <summary>
     /// Conceptos de una línea de pedido para la parte entregada: los porcentajes sobre la nueva base (en su orden, con la
@@ -248,9 +257,14 @@ public sealed class FacturarAlbaranesVenta
     private readonly IRepositorioPedidosVenta _pedidos;
     private readonly EmitirFactura _emitir;
     private readonly IUnidadDeTrabajoFacturacion _unidad;
+    private readonly IRepositorioDevolucionesVenta? _devoluciones;
+    private readonly IReloj? _reloj;
 
-    public FacturarAlbaranesVenta(IRepositorioAlbaranesVenta albaranes, IRepositorioPedidosVenta pedidos, EmitirFactura emitir, IUnidadDeTrabajoFacturacion unidad)
+    public FacturarAlbaranesVenta(IRepositorioAlbaranesVenta albaranes, IRepositorioPedidosVenta pedidos, EmitirFactura emitir, IUnidadDeTrabajoFacturacion unidad,
+        IRepositorioDevolucionesVenta? devoluciones = null, IReloj? reloj = null)
     {
+        _devoluciones = devoluciones;
+        _reloj = reloj;
         _albaranes = albaranes;
         _pedidos = pedidos;
         _emitir = emitir;
@@ -325,13 +339,28 @@ public sealed class FacturarAlbaranesVenta
         }
 
         var ordenados = albaranes.OrderBy(a => a.Fecha).ThenBy(a => a.Numero).ToList();
-        var lineas = ordenados.SelectMany(AlbaranesVentaStock.LineasFactura).ToList();
+
+        // Lo devuelto y aún sin abonar se descuenta en la propia factura del albarán.
+        var devoluciones = _devoluciones is null ? []
+            : (await _devoluciones.DeAlbaranesAsync(ordenados.Select(a => a.Id).ToList(), ct).ConfigureAwait(false))
+                .Where(d => d.Estado == EstadoDevolucionVenta.Registrada).ToList();
+        var lineas = ordenados.SelectMany(a => AlbaranesVentaStock.LineasFactura(a, DevolucionesAlbaran.Devuelto(devoluciones.Where(d => d.AlbaranId == a.Id)))).ToList();
+        if (lineas.Count == 0)
+        {
+            return Resultado.Fallo<FacturaDto>(Error.Conflicto("albaranventa.devuelto_entero", "Todo lo entregado se ha devuelto: no hay nada que facturar."));
+        }
+
         // La fecha de operación es la de la última entrega (art. 75 LIVA: el devengo es la puesta a disposición).
         var comando = new EmitirFacturaComando(ordenados[0].ClienteId, lineas, fechaEmision, ordenados[^1].Fecha, DiasVencimiento: diasVencimiento, FormaPagoId: formaPagoId);
         var factura = await _emitir.EjecutarAsync(empresaId, comando, ct).ConfigureAwait(false);
         if (factura.EsFallo)
         {
             return factura;
+        }
+
+        foreach (var d in devoluciones)
+        {
+            d.Abonar(FormaAbonoDevolucion.EnFacturaDelAlbaran, factura.Valor.Id, _reloj ?? RelojSistemaDevoluciones.Instancia);
         }
 
         foreach (var a in ordenados)
@@ -370,15 +399,25 @@ public sealed class LiberarAlbaranesFactura
 {
     private readonly IRepositorioAlbaranesVenta _albaranes;
     private readonly IRepositorioPedidosVenta _pedidos;
+    private readonly IRepositorioDevolucionesVenta? _devoluciones;
 
-    public LiberarAlbaranesFactura(IRepositorioAlbaranesVenta albaranes, IRepositorioPedidosVenta pedidos)
+    public LiberarAlbaranesFactura(IRepositorioAlbaranesVenta albaranes, IRepositorioPedidosVenta pedidos, IRepositorioDevolucionesVenta? devoluciones = null)
     {
         _albaranes = albaranes;
         _pedidos = pedidos;
+        _devoluciones = devoluciones;
     }
 
     public async Task EjecutarAsync(Guid facturaId, CancellationToken ct = default)
     {
+        if (_devoluciones is not null)
+        {
+            foreach (var d in await _devoluciones.DeFacturaAsync(facturaId, ct).ConfigureAwait(false))
+            {
+                d.LiberarFactura(facturaId);
+            }
+        }
+
         foreach (var a in await _albaranes.DeFacturaAsync(facturaId, ct).ConfigureAwait(false))
         {
             a.LiberarFactura(facturaId);
@@ -388,4 +427,12 @@ public sealed class LiberarAlbaranesFactura
             }
         }
     }
+}
+
+/// <summary>Reloj de respaldo cuando el caso de uso se construye sin reloj (pruebas unitarias antiguas).</summary>
+internal sealed class RelojSistemaDevoluciones : IReloj
+{
+    public static readonly RelojSistemaDevoluciones Instancia = new();
+
+    public DateTimeOffset AhoraUtc => DateTimeOffset.UtcNow;
 }

@@ -48,6 +48,40 @@ documenta qué, cuánto y a qué precio se entrega. Numera por empresa · ejerci
 - Los albaranes anteriores a este cambio no sacaron la mercancía (`stock_descontado = false`): si se
   facturan ahora, la factura sí la saca.
 
+## Devoluciones de venta
+
+Siguen `DevolucionesVenta` de Hispatec. Una **devolución** (serie `DV`, numerada por ejercicio) se registra sobre un
+albarán y recoge qué líneas y cuánto vuelve.
+
+- **Límite:** nunca se devuelve más de lo entregado. Se suman las devoluciones anteriores que no estén anuladas (`devolucion.excede`). `GET /devoluciones-venta/devolubles/{albaranId}` da, por línea, lo entregado, lo devuelto y lo que aún se puede devolver.
+- **Almacén:** la mercancía marcada «reingresa» vuelve al almacén al registrar la devolución. La que no, se considera merma o destruida en destino.
+- **Abono:**
+  - si el albarán **aún no está facturado**, su factura sale con lo devuelto descontado; una línea devuelta entera no sale. La devolución queda *abonada en la factura del albarán*. Si se anula esa factura, la devolución vuelve a quedar pendiente;
+  - si el albarán **ya está facturado**, «Abonar» (`POST /devoluciones-venta/{id}/abonar`) emite una **rectificativa por sustitución** de la factura vigente con las cantidades devueltas descontadas. La factura vigente es la del albarán o la última rectificativa que la sustituye, de modo que varias devoluciones se encadenan;
+  - no se rectifica una factura que descuenta anticipos (se hace a mano), ni se deja una rectificativa sin líneas: si se devuelve la factura entera, se anula;
+  - también se puede cerrar **sin abono**, por ejemplo si la mercancía se repone.
+- **Anular:** solo una devolución no abonada; lo que reingresó vuelve a salir del almacén.
+- **Límites en otros documentos:** un albarán con devoluciones no se anula (`albaranventa.con_devoluciones`). Uno devuelto entero no se factura (`albaranventa.devuelto_entero`).
+- **Conceptos de línea:** los cargos y abonos de la línea del albarán se copian tal como se aplicaron; no se prorratean por lo devuelto.
+
+## Reclamaciones sobre ventas
+
+Siguen «Reclamaciones sobre ventas» y «Conceptos para reclamaciones» de Hispatec.
+
+- **Conceptos:** un maestro por empresa, con código único (calidad, calibre, retraso, rotura…). Se da de baja sin borrarse; uno de baja no sirve para reclamaciones nuevas.
+- **Reclamación** (serie `RC`): del cliente, opcionalmente sobre un albarán o una factura suyos, con concepto, descripción e importe reclamado.
+- **Ciclo:**
+  - *abierta* → *en trámite* (con responsable) → *resuelta* (aceptada, aceptada en parte o rechazada);
+  - al resolverla se indican lo reconocido, la explicación y, si la hay, la devolución o la rectificativa que la compensa;
+  - una reclamación rechazada no reconoce importe;
+  - una resuelta se puede reabrir, y una registrada por error se anula.
+- **Informe** (`GET /reclamaciones/informe`): totales, abiertas, lo reclamado y lo reconocido, y los días medios de resolución, por concepto y por cliente.
+
+Pantallas: *Ventas → Devoluciones*, *Ventas → Reclamaciones* (con el informe y los conceptos) y el botón «Devolver» en la
+lista de albaranes. Tablas: `facturacion.devolucion_venta`, `linea_devolucion_venta`, `reclamacion_venta` y
+`concepto_reclamacion`, todas con RLS. Tienen comprobaciones de estado y de cantidades positivas, y numeración única por
+empresa y ejercicio (migración `DevolucionesReclamaciones`). Pruebas: `DevolucionesReclamacionesTests`.
+
 ## Facturación del pedido
 
 `POST /pedidos-venta/{id}/facturar` genera una **factura real** reutilizando `EmitirFactura` (con su

@@ -352,10 +352,12 @@ public sealed class AnularAlbaranVenta
     private readonly IReloj _reloj;
 
     private readonly IStockVentas? _stock;
+    private readonly IRepositorioDevolucionesVenta? _devoluciones;
 
     public AnularAlbaranVenta(IRepositorioPedidosVenta pedidos, IRepositorioAlbaranesVenta albaranes, IUnidadDeTrabajoFacturacion unidad, IReloj reloj,
-        IStockVentas? stock = null)
+        IStockVentas? stock = null, IRepositorioDevolucionesVenta? devoluciones = null)
     {
+        _devoluciones = devoluciones;
         _stock = stock;
         _pedidos = pedidos;
         _albaranes = albaranes;
@@ -379,6 +381,12 @@ public sealed class AnularAlbaranVenta
             {
                 return Resultado.Fallo<AlbaranVentaDto>(Error.NoEncontrado("pedidoventa.no_encontrado", "No se encontró el pedido."));
             }
+        }
+
+        if (_devoluciones is not null
+            && (await _devoluciones.DeAlbaranesAsync([albaran.Id], ct).ConfigureAwait(false)).Any(d => d.Estado != EstadoDevolucionVenta.Anulada))
+        {
+            return Resultado.Fallo<AlbaranVentaDto>(Error.Conflicto("albaranventa.con_devoluciones", "El albarán tiene devoluciones: anúlalas antes."));
         }
 
         var anulado = albaran.Anular(motivo, _reloj);

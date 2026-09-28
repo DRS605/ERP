@@ -70,6 +70,10 @@ public static class RegistroServicios
         // Ciclo de venta: pedido de venta y albarán de entrega.
         servicios.AddScoped<IRepositorioPedidosVenta, RepositorioPedidosVenta>();
         servicios.AddScoped<IRepositorioAlbaranesVenta, RepositorioAlbaranesVenta>();
+        servicios.AddScoped<IRepositorioDevolucionesVenta, RepositorioDevolucionesVenta>();
+        servicios.AddScoped<IRepositorioReclamaciones, RepositorioReclamaciones>();
+        servicios.AddScoped<GestionDevolucionesVenta>();
+        servicios.AddScoped<GestionReclamaciones>();
         servicios.AddScoped<CrearPedidoVenta>();
         servicios.AddScoped<DecidirPedidoVenta>();
         servicios.AddScoped<ListarPedidosVenta>();

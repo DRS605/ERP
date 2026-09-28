@@ -46,6 +46,12 @@ public sealed class FacturacionDbContext : DbContextEmpresaBase, IUnidadDeTrabaj
 
     public DbSet<MensajeSalida> MensajesSalida => Set<MensajeSalida>();
 
+    public DbSet<DevolucionVenta> DevolucionesVenta => Set<DevolucionVenta>();
+
+    public DbSet<ReclamacionVenta> Reclamaciones => Set<ReclamacionVenta>();
+
+    public DbSet<ConceptoReclamacion> ConceptosReclamacion => Set<ConceptoReclamacion>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Esquema);

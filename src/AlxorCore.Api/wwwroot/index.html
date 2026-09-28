@@ -472,7 +472,7 @@
     // Menú agrupado en carpetas: Ventas, Compras y Artículos.
     const NAV = [
       { t:"item", k:"inicio", l:"Inicio" },
-      { t:"grupo", k:"ventas", l:"Ventas", items:[["clientes","Clientes"],["presupuestos","Presupuestos"],["pedidosventa","Pedidos de venta"],["albaranesventa","Albaranes"],["facturas","Facturas"],["tpv","TPV · Tickets"],["recurrentes","Facturación periódica"],["anticipos","Anticipos"]] },
+      { t:"grupo", k:"ventas", l:"Ventas", items:[["clientes","Clientes"],["presupuestos","Presupuestos"],["pedidosventa","Pedidos de venta"],["albaranesventa","Albaranes"],["devolucionesventa","Devoluciones"],["reclamaciones","Reclamaciones"],["facturas","Facturas"],["tpv","TPV · Tickets"],["recurrentes","Facturación periódica"],["anticipos","Anticipos"]] },
       { t:"grupo", k:"compras", l:"Compras", items:[["proveedores","Proveedores"],["solicitudes","Solicitudes"],["pedidos","Pedidos de compra"],["recepcion","Buzón de facturas"],["gastos","Facturas de proveedor"],["cargosacreedor","Cargos de acreedores"]] },
       { t:"grupo", k:"articulos", l:"Artículos y almacén", items:[["productos","Artículos"],["familias","Familias"],["tarifas","Tarifas de precios"],["conceptoslinea","Conceptos de línea"],["inventario","Inventario / Almacenes"],["produccion","Producción"]] },
       { t:"grupo", k:"logistica", l:"Expedición y aduanas", items:[["cartasporte","Cartas de porte · CMR"],["aduanas","Aduanas · Intrastat"]] },
@@ -484,7 +484,7 @@
       { t:"item", k:"proyectos", l:"Proyectos" },
       { t:"grupo", k:"ajustes", l:"Configuración", items:[["ajustes","Ajustes"],["aprobaciones","Aprobaciones"],["integraciones","API, webhooks y EDI"]] },
     ];
-    const TITULOS = { liquidacionespagos:"Liquidaciones de pagos y entregas a cuenta", agroenvases:"Agro · envases por tercero", cargosacreedor:"Cargos de acreedores (portes, comisiones)", albaranesventa:"Albaranes de venta", analisis:"Análisis de datos", bancos:"Bancos y cajas", cartera:"Efectos de cartera", agrorecepciones:"Agro · recepciones de fruta", agropartidas:"Agro · partidas y palés", agroconfeccion:"Agro · confección", agroliquidaciones:"Agro · liquidaciones al agricultor", agrotrazabilidad:"Agro · trazabilidad", agroinforme:"Agro · informe de campaña", agromaestros:"Agro · campañas, agricultores y precios", analitica:"Analítica · resultados", analiticapend:"Analítica · pendientes de imputar", analiticamaestros:"Analítica · centros, partidas y reglas", presupuestoscont:"Presupuestos contables", impagados:"Impagados y reclamaciones", anticipos:"Anticipos de clientes", cartasporte:"Cartas de porte · CMR", aduanas:"Aduanas e Intrastat", intragrupo:"Operaciones entre empresas del grupo", actividades:"Actividades de negocio", inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Facturas de proveedor y gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos",tarifas:"Tarifas de precios", conceptoslinea:"Conceptos de línea", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", gestion:"Análisis de gestión", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", divisas:"Divisas y tipos de cambio", aprobaciones:"Aprobaciones y control de firmas", integraciones:"API pública, webhooks y EDI", ajustes:"Ajustes" };
+    const TITULOS = { devolucionesventa:"Devoluciones de venta", reclamaciones:"Reclamaciones sobre ventas", liquidacionespagos:"Liquidaciones de pagos y entregas a cuenta", agroenvases:"Agro · envases por tercero", cargosacreedor:"Cargos de acreedores (portes, comisiones)", albaranesventa:"Albaranes de venta", analisis:"Análisis de datos", bancos:"Bancos y cajas", cartera:"Efectos de cartera", agrorecepciones:"Agro · recepciones de fruta", agropartidas:"Agro · partidas y palés", agroconfeccion:"Agro · confección", agroliquidaciones:"Agro · liquidaciones al agricultor", agrotrazabilidad:"Agro · trazabilidad", agroinforme:"Agro · informe de campaña", agromaestros:"Agro · campañas, agricultores y precios", analitica:"Analítica · resultados", analiticapend:"Analítica · pendientes de imputar", analiticamaestros:"Analítica · centros, partidas y reglas", presupuestoscont:"Presupuestos contables", impagados:"Impagados y reclamaciones", anticipos:"Anticipos de clientes", cartasporte:"Cartas de porte · CMR", aduanas:"Aduanas e Intrastat", intragrupo:"Operaciones entre empresas del grupo", actividades:"Actividades de negocio", inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Facturas de proveedor y gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos",tarifas:"Tarifas de precios", conceptoslinea:"Conceptos de línea", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", gestion:"Análisis de gestión", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", divisas:"Divisas y tipos de cambio", aprobaciones:"Aprobaciones y control de firmas", integraciones:"API pública, webhooks y EDI", ajustes:"Ajustes" };
     // Plan contratado de la empresa activa (lo devuelve /empresas/{id}/seleccionar).
     let plan = null;
     // Vista → módulo contratable que necesita. Las vistas que no están aquí son de la base.
@@ -605,7 +605,7 @@
       document.getElementById("viewTitle").textContent=TITULOS[k]||k;
       if(!contratado(k)){ const m=NOMBRE_MODULO[MODULO_VISTA[k]]||MODULO_VISTA[k];
         view(panel("No incluido en tu plan",`<p class="muted" style="margin:0 0 14px">Esta pantalla forma parte del módulo <strong>${m}</strong>, que tu plan no incluye.</p><button class="btn small" onclick="ir('ajustes')">Ver planes en Ajustes →</button>`)); return; }
-      ({cartera:vCartera,liquidacionespagos:vLiquidacionesPagos,agroenvases:vAgroEnvases,albaranesventa:vAlbaranesVenta,cargosacreedor:vCargosAcreedor,analisis:()=>irAnalisis(),bancos:vBancos,agrorecepciones:vAgroRecepciones,agropartidas:vAgroPartidas,agroconfeccion:vAgroConfeccion,agroliquidaciones:vAgroLiquidaciones,agrotrazabilidad:vAgroTrazabilidad,agroinforme:()=>vAgroInforme(),agromaestros:()=>vAgroMaestros(),analitica:vAnalitica,analiticapend:vAnaliticaPend,analiticamaestros:vAnaliticaMaestros,presupuestoscont:vPresupuestosCont,impagados:vImpagados,anticipos:vAnticipos,cartasporte:vCartasPorte,aduanas:vAduanas,intragrupo:vIntragrupo,actividades:vActividades,inicio:vInicio,presupuestos:()=>irDocumento("presupuesto"),facturas:()=>irDocumento("factura"),tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:()=>irDocumento("pedido"),clientes:vClientes,productos:vProductos,familias:vFamilias,tarifas:vTarifas,conceptoslinea:vConceptosLinea,gastos:()=>irDocumento("gasto"),solicitudes:vSolicitudes,pedidos:()=>irDocumento("compra"),inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,gestion:vGestion,contabilidad:vContabilidad,inmovilizado:vInmovilizado,divisas:vDivisas,aprobaciones:vAprobaciones,integraciones:vIntegraciones,ajustes:vAjustes}[k])();
+      ({cartera:vCartera,devolucionesventa:vDevolucionesVenta,reclamaciones:vReclamaciones,liquidacionespagos:vLiquidacionesPagos,agroenvases:vAgroEnvases,albaranesventa:vAlbaranesVenta,cargosacreedor:vCargosAcreedor,analisis:()=>irAnalisis(),bancos:vBancos,agrorecepciones:vAgroRecepciones,agropartidas:vAgroPartidas,agroconfeccion:vAgroConfeccion,agroliquidaciones:vAgroLiquidaciones,agrotrazabilidad:vAgroTrazabilidad,agroinforme:()=>vAgroInforme(),agromaestros:()=>vAgroMaestros(),analitica:vAnalitica,analiticapend:vAnaliticaPend,analiticamaestros:vAnaliticaMaestros,presupuestoscont:vPresupuestosCont,impagados:vImpagados,anticipos:vAnticipos,cartasporte:vCartasPorte,aduanas:vAduanas,intragrupo:vIntragrupo,actividades:vActividades,inicio:vInicio,presupuestos:()=>irDocumento("presupuesto"),facturas:()=>irDocumento("factura"),tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:()=>irDocumento("pedido"),clientes:vClientes,productos:vProductos,familias:vFamilias,tarifas:vTarifas,conceptoslinea:vConceptosLinea,gastos:()=>irDocumento("gasto"),solicitudes:vSolicitudes,pedidos:()=>irDocumento("compra"),inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,gestion:vGestion,contabilidad:vContabilidad,inmovilizado:vInmovilizado,divisas:vDivisas,aprobaciones:vAprobaciones,integraciones:vIntegraciones,ajustes:vAjustes}[k])();
     }
     const view = h => { desmontarDocs(); document.getElementById("view").innerHTML=h; try{ mejorarTablas(); }catch(e){} };
 
@@ -3791,6 +3791,7 @@
           a.estado==="PendienteFacturar"?`<button class="btn small" onclick="facturarAlbaranes(['${a.id}'])">Facturar</button>`:"",
           a.estado!=="Anulado"&&a.estado!=="Facturado"?`<button class="btn small ghost" onclick="anularAlbaranDirecto('${a.id}')">Anular</button>`:"",fra,
           `<button class="btn small ghost" onclick="abrirPdfRuta('/albaranes-venta/${a.id}/pdf${a.estado==="PendienteValorar"?"?valorado=false":""}')" title="PDF (con precios si está valorado)">PDF</button>`,
+          a.estado==="PendienteFacturar"||a.estado==="Facturado"?`<button class="btn small ghost" onclick="modalDevolucionVenta('${a.id}')" title="Registrar lo que el cliente devuelve">Devolver</button>`:"",
           a.estado!=="Anulado"?`<button class="btn small ghost" onclick="descargarRuta('/integraciones/edi/albaranes/${a.id}/desadv')" title="Aviso de expedición EDIFACT DESADV con los SSCC de los palés">DESADV</button>`:""].filter(Boolean).join(" ");
         return `<tr><td>${sel}</td><td class="mono">${a.numeroCompleto}</td><td class="muted">${fdate(a.fecha)}</td><td>${a.clienteNombre}</td><td>${a.pedidoId?'<span class="muted">de pedido</span>':"directo"}</td><td class="num">${a.lineas.length}</td><td class="num">${eur(a.base)}</td><td>${ESTADO_ALB[a.estado]||a.estado}</td><td class="right" style="white-space:nowrap">${acc}</td></tr>`;}).join("");
       const cuerpo=lista.length?`<table data-seleccion="no"><thead><tr><th></th><th>Número</th><th>Fecha</th><th>Cliente</th><th>Origen</th><th class="num">Líneas</th><th class="num">Base</th><th>Estado</th><th></th></tr></thead><tbody>${filas}</tbody></table>`
@@ -3808,6 +3809,109 @@
     async function facturarAlbaranes(ids){
       try{ const f=await api("/albaranes-venta/facturar",{method:"POST",body:JSON.stringify({albaranIds:ids})});
         toast(`Factura ${f.numeroCompleto} emitida (${eur(f.total)}).`,"ok"); vAlbaranesVenta(); } catch(e){ toast(e.message,"err"); }
+    }
+    /* ---------- Devoluciones de venta ---------- */
+    const ESTADO_DEV={Registrada:'<span class="pill part">Pendiente de abono</span>',Abonada:'<span class="pill ok">Abonada</span>',Anulada:'<span class="pill">Anulada</span>'};
+    const FORMA_DEV={EnFacturaDelAlbaran:"En la factura del albarán",Rectificativa:"Rectificativa",SinAbono:"Sin abono"};
+    let devFiltro={estado:""};
+    async function vDevolucionesVenta(){
+      view('<div class="muted">Cargando…</div>');
+      const lista=await api("/devoluciones-venta"+(devFiltro.estado?"?estado="+devFiltro.estado:""));
+      const optEst=[["","Todas"],["Registrada","Pendientes de abono"],["Abonada","Abonadas"],["Anulada","Anuladas"]].map(([v,l])=>`<option value="${v}"${v===devFiltro.estado?" selected":""}>${l}</option>`).join("");
+      const filas=lista.map(d=>{
+        const acc=[d.estado==="Registrada"?`<button class="btn small" onclick="abonarDevolucion('${d.id}')" title="Solo si el albarán ya está facturado: rectificativa de su factura">Abonar</button>`:"",
+          d.estado==="Registrada"?`<button class="btn small ghost" onclick="cerrarDevolucion('${d.id}')">Sin abono</button>`:"",
+          d.estado==="Registrada"?`<button class="btn small ghost" onclick="anularDevolucion('${d.id}')">Anular</button>`:"",
+          d.facturaAbonoId?`<button class="btn small ghost" onclick="irDocumento('factura',{pantalla:'vista',id:'${d.facturaAbonoId}'})">Ver factura</button>`:""].filter(Boolean).join(" ");
+        const lineas=d.lineas.map(l=>`${num3(l.cantidad)} × ${l.descripcion}${l.reingresa?"":' <span class="muted">(no reingresa)</span>'}`).join("<br>");
+        return `<tr><td class="mono">${d.numero}</td><td class="muted">${fdate(d.fecha)}</td><td>${d.cliente}</td><td class="mono">${d.albaran}</td><td>${d.motivo}<div class="muted" style="font-size:12px">${lineas}</div></td><td class="num">${eur(d.base)}</td><td>${ESTADO_DEV[d.estado]||d.estado}${d.formaAbono?`<div class="muted" style="font-size:12px">${FORMA_DEV[d.formaAbono]||d.formaAbono}</div>`:""}</td><td class="right" style="white-space:nowrap">${acc}</td></tr>`;}).join("");
+      view(panel("Devoluciones de venta",`<p class="muted" style="margin:0 0 12px">Se registran desde el albarán («Devolver»). Lo que vuelve en buen estado entra en el almacén. Si el albarán aún no estaba facturado, su factura ya sale con lo devuelto descontado; si lo estaba, «Abonar» emite la rectificativa de la factura.</p>
+        <div style="margin-bottom:12px;max-width:240px"><label>Estado</label><select onchange="devFiltro.estado=this.value;vDevolucionesVenta()">${optEst}</select></div>`
+        +(lista.length?`<table><thead><tr><th>Número</th><th>Fecha</th><th>Cliente</th><th>Albarán</th><th>Motivo y líneas</th><th class="num">Importe</th><th>Estado</th><th></th></tr></thead><tbody>${filas}</tbody></table>`:'<p class="muted" style="margin:0">No hay devoluciones.</p>')));
+    }
+    function num3(v){ return Number(v).toLocaleString("es-ES",{maximumFractionDigits:3}); }
+    async function modalDevolucionVenta(albaranId){
+      const [dv,a]=await Promise.all([api(`/devoluciones-venta/devolubles/${albaranId}`),api(`/albaranes-venta/${albaranId}`)]);
+      const recs=(await api(`/reclamaciones?clienteId=${a.clienteId}`).catch(()=>[])).filter(r=>r.estado==="Abierta"||r.estado==="EnTramite");
+      const filas=dv.lineas.map(l=>`<tr><td>${l.descripcion}</td><td class="num">${num3(l.entregado)}</td><td class="num">${num3(l.devuelto)}</td><td><input class="dev_c" data-orden="${l.orden}" type="number" step="0.001" min="0" max="${l.devolvible}" value="0" style="width:90px" ${l.devolvible<=0?"disabled":""}/></td><td style="text-align:center"><input class="dev_r" data-orden="${l.orden}" type="checkbox" checked style="width:auto" ${l.productoId?"":"disabled"}/></td></tr>`).join("");
+      abrir(`Devolución del albarán ${dv.albaran}`,`<p class="muted" style="margin:0 0 10px">${dv.estado==="Facturado"?"El albarán está facturado: la devolución se abonará con una rectificativa.":"El albarán aún no está facturado: lo devuelto se descontará en su factura."}</p>
+        <table><thead><tr><th>Línea</th><th class="num">Entregado</th><th class="num">Ya devuelto</th><th>Devuelve</th><th title="Vuelve al almacén">Almacén</th></tr></thead><tbody>${filas}</tbody></table>
+        <label>Motivo</label><input id="dev_mot" placeholder="Calidad, calibre, rotura, error de pedido…"/>
+        <div class="grid2"><div><label>Fecha</label><input id="dev_fec" type="date" value="${new Date().toISOString().slice(0,10)}"/></div>
+        <div><label>Reclamación (opcional)</label><select id="dev_rec"><option value="">—</option>${recs.map(r=>`<option value="${r.id}">${r.numero} · ${r.concepto||""}</option>`).join("")}</select></div></div>
+        <p class="muted" style="font-size:12px;margin:8px 0 0">Desmarca «Almacén» si la mercancía no vuelve al almacén (merma o destruida en destino).</p>`,
+        async()=>{ const reing=Object.fromEntries([...document.querySelectorAll(".dev_r")].map(c=>[c.dataset.orden,c.checked]));
+          const lineas=[...document.querySelectorAll(".dev_c")].filter(i=>Number(i.value)>0).map(i=>({ordenAlbaran:Number(i.dataset.orden),cantidad:Number(i.value),reingresa:!!reing[i.dataset.orden]}));
+          const d=await api("/devoluciones-venta",{method:"POST",body:JSON.stringify({albaranId,motivo:val("dev_mot"),fecha:val("dev_fec"),reclamacionId:val("dev_rec")||null,lineas})});
+          toast(`Devolución ${d.numero} registrada (${eur(d.base)}).`,"ok"); ir("devolucionesventa"); });
+    }
+    async function abonarDevolucion(id){ if(!confirm("Se emitirá una rectificativa de la factura del albarán con lo devuelto descontado. ¿Continuar?")) return;
+      try{ const d=await api(`/devoluciones-venta/${id}/abonar`,{method:"POST",body:"{}"}); toast("Devolución abonada con rectificativa.","ok"); vDevolucionesVenta(); }catch(e){ toast(e.message,"err"); } }
+    async function cerrarDevolucion(id){ if(!confirm("¿Cerrar la devolución sin abono (mercancía repuesta)?")) return;
+      try{ await api(`/devoluciones-venta/${id}/cerrar-sin-abono`,{method:"POST"}); toast("Devolución cerrada sin abono.","ok"); vDevolucionesVenta(); }catch(e){ toast(e.message,"err"); } }
+    async function anularDevolucion(id){ const motivo=prompt("Motivo de la anulación (lo que reingresó vuelve a salir del almacén):"); if(motivo===null) return;
+      try{ await api(`/devoluciones-venta/${id}/anular`,{method:"POST",body:JSON.stringify({motivo})}); toast("Devolución anulada.","ok"); vDevolucionesVenta(); }catch(e){ toast(e.message,"err"); } }
+
+    /* ---------- Reclamaciones sobre ventas ---------- */
+    const ESTADO_REC={Abierta:'<span class="pill warn">Abierta</span>',EnTramite:'<span class="pill part">En trámite</span>',Resuelta:'<span class="pill ok">Resuelta</span>',Anulada:'<span class="pill">Anulada</span>'};
+    const RESOL_REC={Aceptada:"Aceptada",AceptadaParcial:"Aceptada en parte",Rechazada:"Rechazada"};
+    let recFiltro={estado:""};
+    async function vReclamaciones(){
+      view('<div class="muted">Cargando…</div>');
+      const [lista,conceptos,inf]=await Promise.all([api("/reclamaciones"+(recFiltro.estado?"?estado="+recFiltro.estado:"")),api("/reclamaciones/conceptos"),api("/reclamaciones/informe")]);
+      const optEst=[["","Todas"],["Abierta","Abiertas"],["EnTramite","En trámite"],["Resuelta","Resueltas"],["Anulada","Anuladas"]].map(([v,l])=>`<option value="${v}"${v===recFiltro.estado?" selected":""}>${l}</option>`).join("");
+      const filas=lista.map(r=>{
+        const abierta=r.estado==="Abierta"||r.estado==="EnTramite";
+        const acc=[abierta?`<button class="btn small secondary" onclick="tramitarReclamacion('${r.id}')">Tramitar</button>`:"",
+          abierta?`<button class="btn small" onclick="modalResolverReclamacion('${r.id}','${r.clienteId}')">Resolver</button>`:"",
+          r.estado==="Resuelta"?`<button class="btn small ghost" onclick="accionReclamacion('${r.id}','reabrir')">Reabrir</button>`:"",
+          r.estado!=="Anulada"&&r.estado!=="Resuelta"?`<button class="btn small ghost" onclick="accionReclamacion('${r.id}','anular')">Anular</button>`:""].filter(Boolean).join(" ");
+        return `<tr><td class="mono">${r.numero}</td><td class="muted">${fdate(r.fecha)}</td><td>${r.cliente}</td><td>${r.concepto||"—"}</td><td>${r.descripcion}${r.responsable?`<div class="muted" style="font-size:12px">Responsable: ${r.responsable}</div>`:""}${r.textoResolucion?`<div class="muted" style="font-size:12px">${RESOL_REC[r.resolucion]||""}: ${r.textoResolucion}</div>`:""}</td><td class="num">${r.importeReclamado==null?"—":eur(r.importeReclamado)}</td><td class="num">${r.importeReconocido==null?"—":eur(r.importeReconocido)}</td><td>${ESTADO_REC[r.estado]||r.estado}</td><td class="right"><div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;min-width:170px">${acc}</div></td></tr>`;}).join("");
+      const panelL=panel("Reclamaciones sobre ventas",`<div style="margin-bottom:12px;max-width:240px"><label>Estado</label><select onchange="recFiltro.estado=this.value;vReclamaciones()">${optEst}</select></div>`
+        +(lista.length?`<table><thead><tr><th>Número</th><th>Fecha</th><th>Cliente</th><th>Concepto</th><th>Descripción</th><th class="num">Reclamado</th><th class="num">Reconocido</th><th>Estado</th><th></th></tr></thead><tbody>${filas}</tbody></table>`:'<p class="muted" style="margin:0">No hay reclamaciones.</p>'),
+        `<button class="btn small" onclick="modalReclamacion()">+ Reclamación</button>`);
+      const filaInf=f=>`<tr><td>${f.clave}</td><td class="num">${f.numero}</td><td class="num">${f.aceptadas}</td><td class="num">${f.rechazadas}</td><td class="num">${eur(f.reclamado)}</td><td class="num">${eur(f.reconocido)}</td><td class="num">${f.diasMedios==null?"—":num3(f.diasMedios)}</td></tr>`;
+      const cab='<thead><tr><th></th><th class="num">Nº</th><th class="num">Aceptadas</th><th class="num">Rechazadas</th><th class="num">Reclamado</th><th class="num">Reconocido</th><th class="num">Días medios</th></tr></thead>';
+      const panelI=panel("Informe de reclamaciones",`<div class="kpis" style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:12px"><div><div class="muted">Total</div><strong>${inf.total}</strong></div><div><div class="muted">Abiertas</div><strong>${inf.abiertas}</strong></div><div><div class="muted">Reclamado</div><strong>${eur(inf.reclamado)}</strong></div><div><div class="muted">Reconocido</div><strong>${eur(inf.reconocido)}</strong></div><div><div class="muted">Días medios de resolución</div><strong>${inf.diasMedios==null?"—":num3(inf.diasMedios)}</strong></div></div>
+        <h4 style="margin:8px 0 6px">Por concepto</h4><table>${cab}<tbody>${inf.porConcepto.map(filaInf).join("")||'<tr><td colspan="7" class="muted">—</td></tr>'}</tbody></table>
+        <h4 style="margin:14px 0 6px">Por cliente</h4><table>${cab}<tbody>${inf.porCliente.map(filaInf).join("")||'<tr><td colspan="7" class="muted">—</td></tr>'}</tbody></table>`);
+      const panelC=panel("Conceptos para reclamaciones",(conceptos.length?`<table><thead><tr><th>Código</th><th>Nombre</th><th>Estado</th><th></th></tr></thead><tbody>${conceptos.map(c=>`<tr><td class="mono">${c.codigo}</td><td>${c.nombre}</td><td>${c.activo?'<span class="pill ok">Activo</span>':'<span class="pill">De baja</span>'}</td><td class="right"><button class="btn small ghost" onclick='modalConceptoReclamacion(${JSON.stringify(c)})'>Editar</button> <button class="btn small ghost" onclick="activarConceptoReclamacion('${c.id}',${!c.activo})">${c.activo?"Dar de baja":"Reactivar"}</button></td></tr>`).join("")}</tbody></table>`:'<p class="muted" style="margin:0">Sin conceptos. Crea los motivos habituales: calidad, calibre, retraso, rotura…</p>'),
+        `<button class="btn small" onclick="modalConceptoReclamacion()">+ Concepto</button>`);
+      view(panelL+panelI+panelC);
+    }
+    function modalConceptoReclamacion(c){
+      abrir(c?"Concepto de reclamación":"Nuevo concepto de reclamación",`<label>Código</label><input id="cr_cod" maxlength="20" value="${c?.codigo||""}"/><label>Nombre</label><input id="cr_nom" maxlength="100" value="${c?.nombre||""}"/>`,
+        async()=>{ await api(c?`/reclamaciones/conceptos/${c.id}`:"/reclamaciones/conceptos",{method:c?"PUT":"POST",body:JSON.stringify({codigo:val("cr_cod"),nombre:val("cr_nom")})}); toast("Concepto guardado.","ok"); vReclamaciones(); });
+    }
+    async function activarConceptoReclamacion(id,activo){ try{ await api(`/reclamaciones/conceptos/${id}/${activo?"reactivar":"baja"}`,{method:"POST"}); vReclamaciones(); }catch(e){ toast(e.message,"err"); } }
+    async function modalReclamacion(){
+      const [clientes,conceptos]=await Promise.all([api("/clientes"),api("/reclamaciones/conceptos")]);
+      abrir("Nueva reclamación",`<div class="grid2"><div><label>Cliente</label><select id="rc_cli" onchange="cargarAlbaranesReclamacion()">${clientes.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join("")}</select></div>
+        <div><label>Concepto</label><select id="rc_con">${conceptos.filter(c=>c.activo).map(c=>`<option value="${c.id}">${c.nombre}</option>`).join("")}</select></div></div>
+        <label>Albarán (opcional)</label><select id="rc_alb"><option value="">—</option></select>
+        <label>Qué reclama</label><textarea id="rc_des" rows="3"></textarea>
+        <div class="grid2"><div><label>Importe reclamado (opcional)</label><input id="rc_imp" type="number" step="0.01"/></div><div><label>Fecha</label><input id="rc_fec" type="date" value="${new Date().toISOString().slice(0,10)}"/></div></div>`,
+        async()=>{ const alb=val("rc_alb"); const albaran=alb?(window._recAlbs||[]).find(a=>a.id===alb):null;
+          const r=await api("/reclamaciones",{method:"POST",body:JSON.stringify({clienteId:val("rc_cli"),conceptoId:val("rc_con"),albaranId:alb||null,facturaId:albaran?.facturaId||null,descripcion:val("rc_des"),importeReclamado:val("rc_imp")===""?null:Number(val("rc_imp")),fecha:val("rc_fec")})});
+          toast(`Reclamación ${r.numero} registrada.`,"ok"); vReclamaciones(); });
+      cargarAlbaranesReclamacion();
+    }
+    async function cargarAlbaranesReclamacion(){ const cli=val("rc_cli"); if(!cli) return;
+      const albs=(await api(`/albaranes-venta?clienteId=${cli}`).catch(()=>[])).filter(a=>a.estado!=="Anulado"); window._recAlbs=albs;
+      document.getElementById("rc_alb").innerHTML='<option value="">—</option>'+albs.map(a=>`<option value="${a.id}">${a.numeroCompleto} · ${fdate(a.fecha)} · ${eur(a.base)}</option>`).join(""); }
+    async function tramitarReclamacion(id){ const responsable=prompt("Responsable de la tramitación:"); if(responsable===null) return;
+      try{ await api(`/reclamaciones/${id}/tramitar`,{method:"POST",body:JSON.stringify({responsable})}); vReclamaciones(); }catch(e){ toast(e.message,"err"); } }
+    async function accionReclamacion(id,accion){ if(accion==="anular"&&!confirm("¿Anular la reclamación?")) return;
+      try{ await api(`/reclamaciones/${id}/${accion}`,{method:"POST"}); vReclamaciones(); }catch(e){ toast(e.message,"err"); } }
+    async function modalResolverReclamacion(id,clienteId){
+      const devs=await api(`/devoluciones-venta?clienteId=${clienteId}`).catch(()=>[]);
+      abrir("Resolver reclamación",`<label>Resolución</label><select id="rr_res"><option value="Aceptada">Aceptada</option><option value="AceptadaParcial">Aceptada en parte</option><option value="Rechazada">Rechazada</option></select>
+        <label>Importe reconocido</label><input id="rr_imp" type="number" step="0.01"/>
+        <label>Devolución con que se resuelve (opcional)</label><select id="rr_dev"><option value="">—</option>${devs.filter(d=>d.estado!=="Anulada").map(d=>`<option value="${d.id}">${d.numero} · ${d.albaran} · ${eur(d.base)}</option>`).join("")}</select>
+        <label>Explicación</label><textarea id="rr_txt" rows="3"></textarea>`,
+        async()=>{ const dev=val("rr_dev"); const d=devs.find(x=>x.id===dev);
+          await api(`/reclamaciones/${id}/resolver`,{method:"POST",body:JSON.stringify({resolucion:val("rr_res"),importeReconocido:val("rr_imp")===""?null:Number(val("rr_imp")),texto:val("rr_txt"),devolucionId:dev||null,facturaAbonoId:d?.formaAbono==="Rectificativa"?d.facturaAbonoId:null})});
+          toast("Reclamación resuelta.","ok"); vReclamaciones(); });
     }
     async function anularAlbaranDirecto(id){
       const motivo=prompt("Motivo de la anulación (la mercancía vuelve al almacén):"); if(motivo===null) return;
