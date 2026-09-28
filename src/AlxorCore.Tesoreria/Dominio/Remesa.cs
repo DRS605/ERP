@@ -24,6 +24,25 @@ public enum EstadoRemesa
     Anulada = 4,
 }
 
+/// <summary>
+/// Modalidad de una remesa de cobro, como en Hispatec: al vencimiento (el banco abona cada recibo al cobrarlo), en
+/// gestión de cobro (igual, con comisión e IVA) o al descuento (el banco adelanta el nominal menos intereses y gastos
+/// y el riesgo queda vivo en 5208 hasta el vencimiento).
+/// </summary>
+public enum ModalidadRemesa
+{
+    Vencimiento = 1,
+    GestionCobro = 2,
+    Descuento = 3,
+}
+
+/// <summary>Condiciones del banco para una remesa en gestión de cobro o al descuento (porcentajes en %).</summary>
+public sealed record CondicionesRemesa(decimal PorcentajeInteres = 0m, int DiasMinimos = 0, decimal GastosFijos = 0m, decimal GastosPorEfecto = 0m,
+    decimal Timbres = 0m, decimal OtrosGastos = 0m, decimal PorcentajeComision = 0m, decimal PorcentajeIvaComision = 0m);
+
+/// <summary>Lo que liquida el banco: intereses, comisión con su IVA, gastos y el líquido que abona.</summary>
+public sealed record CalculoLiquidacionRemesa(int Dias, decimal Intereses, decimal Comision, decimal IvaComision, decimal Gastos, decimal Liquido);
+
 /// <summary>Línea de una remesa: un documento (factura, gasto o efecto) por el importe que se cobra o paga.</summary>
 public sealed class LineaRemesa
 {
@@ -168,6 +187,40 @@ public sealed class Remesa : RaizAgregadoEmpresa<Guid>
 
     public IReadOnlyList<LineaRemesa> Lineas => _lineas;
 
+    public ModalidadRemesa Modalidad { get; private set; } = ModalidadRemesa.Vencimiento;
+
+    public decimal PorcentajeInteres { get; private set; }
+
+    public int DiasMinimos { get; private set; }
+
+    public decimal GastosFijos { get; private set; }
+
+    public decimal GastosPorEfecto { get; private set; }
+
+    public decimal Timbres { get; private set; }
+
+    public decimal OtrosGastos { get; private set; }
+
+    public decimal PorcentajeComision { get; private set; }
+
+    public decimal PorcentajeIvaComision { get; private set; }
+
+    /// <summary>Intereses del descuento (liquidada).</summary>
+    public decimal Intereses { get; private set; }
+
+    public decimal Comision { get; private set; }
+
+    public decimal IvaComision { get; private set; }
+
+    /// <summary>Gastos fijos, por efecto, timbres y otros (liquidada).</summary>
+    public decimal Gastos { get; private set; }
+
+    /// <summary>Lo que abonó el banco: el nominal menos intereses, comisión, IVA y gastos.</summary>
+    public decimal? Liquido { get; private set; }
+
+    /// <summary>Al descuento: fecha en que venció y se canceló el riesgo (5208 contra 4311). Null mientras siga vivo.</summary>
+    public DateOnly? RiesgoCanceladoEn { get; private set; }
+
     public string Codigo => $"{Ejercicio}/{Numero}";
 
     public bool EstaViva => Estado is EstadoRemesa.Generada or EstadoRemesa.Presentada;
@@ -210,6 +263,80 @@ public sealed class Remesa : RaizAgregadoEmpresa<Guid>
 
         _lineas.Add(new LineaRemesa(tipoDocumento, documentoId, documento, terceroNombre, iban, mandato, mandatoFecha, importe));
         Total = Math.Round(_lineas.Sum(l => l.Importe), 2);
+        return Resultado.Ok();
+    }
+
+    /// <summary>Fija la modalidad y las condiciones del banco (solo remesas de cobro, antes de liquidarlas).</summary>
+    public Resultado Condiciones(ModalidadRemesa modalidad, CondicionesRemesa? condiciones)
+    {
+        if (!Enum.IsDefined(modalidad))
+        {
+            return Resultado.Fallo(Error.Validacion("remesa.modalidad", "Modalidad no válida: Vencimiento, GestionCobro o Descuento."));
+        }
+
+        if (modalidad != ModalidadRemesa.Vencimiento && Tipo != TipoRemesa.Cobro)
+        {
+            return Resultado.Fallo(Error.Validacion("remesa.modalidad", "Solo las remesas de cobro se llevan en gestión de cobro o al descuento."));
+        }
+
+        if (!EstaViva)
+        {
+            return Resultado.Fallo(Error.Conflicto("remesa.estado", "La remesa ya no está viva: no se cambian sus condiciones."));
+        }
+
+        var c = modalidad == ModalidadRemesa.Vencimiento ? new CondicionesRemesa() : condiciones ?? new CondicionesRemesa();
+        if (c.PorcentajeInteres < 0 || c.DiasMinimos < 0 || c.GastosFijos < 0 || c.GastosPorEfecto < 0 || c.Timbres < 0 || c.OtrosGastos < 0
+            || c.PorcentajeComision < 0 || c.PorcentajeIvaComision < 0 || c.PorcentajeInteres > 100 || c.PorcentajeComision > 100 || c.PorcentajeIvaComision > 100)
+        {
+            return Resultado.Fallo(Error.Validacion("remesa.condiciones", "Los porcentajes y gastos no pueden ser negativos (ni los porcentajes mayores que 100)."));
+        }
+
+        Modalidad = modalidad;
+        PorcentajeInteres = modalidad == ModalidadRemesa.Descuento ? c.PorcentajeInteres : 0m;
+        DiasMinimos = modalidad == ModalidadRemesa.Descuento ? c.DiasMinimos : 0;
+        GastosFijos = c.GastosFijos;
+        GastosPorEfecto = c.GastosPorEfecto;
+        Timbres = modalidad == ModalidadRemesa.Descuento ? c.Timbres : 0m;
+        OtrosGastos = c.OtrosGastos;
+        PorcentajeComision = c.PorcentajeComision;
+        PorcentajeIvaComision = c.PorcentajeIvaComision;
+        return Resultado.Ok();
+    }
+
+    /// <summary>
+    /// Lo que liquida el banco en <paramref name="fecha"/>, como en Hispatec: intereses = nominal × % × máx(días hasta el
+    /// vencimiento, días mínimos) / 360 (solo al descuento); comisión = nominal × %; su IVA; gastos = fijos + por efecto ×
+    /// nº de efectos + timbres + otros. Líquido = nominal − todo eso.
+    /// </summary>
+    public CalculoLiquidacionRemesa Calcular(DateOnly fecha)
+    {
+        var dias = Math.Max(FechaCargo.DayNumber - fecha.DayNumber, 0);
+        var intereses = Modalidad == ModalidadRemesa.Descuento ? Math.Round(Total * PorcentajeInteres / 100m * Math.Max(dias, DiasMinimos) / 360m, 2) : 0m;
+        var comision = Modalidad == ModalidadRemesa.Vencimiento ? 0m : Math.Round(Total * PorcentajeComision / 100m, 2);
+        var iva = Math.Round(comision * PorcentajeIvaComision / 100m, 2);
+        var gastos = Modalidad == ModalidadRemesa.Vencimiento ? 0m : Math.Round(GastosFijos + GastosPorEfecto * _lineas.Count + Timbres + OtrosGastos, 2);
+        return new CalculoLiquidacionRemesa(dias, intereses, comision, iva, gastos, Math.Round(Total - intereses - comision - iva - gastos, 2));
+    }
+
+    /// <summary>Al descuento, al vencer: el riesgo con el banco (5208) se cancela contra los efectos descontados (4311).</summary>
+    public Resultado CancelarRiesgo(DateOnly fecha)
+    {
+        if (Modalidad != ModalidadRemesa.Descuento || Estado != EstadoRemesa.Liquidada)
+        {
+            return Resultado.Fallo(Error.Conflicto("remesa.no_descontada", "Solo se cancela el riesgo de una remesa al descuento ya abonada por el banco."));
+        }
+
+        if (RiesgoCanceladoEn is not null)
+        {
+            return Resultado.Fallo(Error.Conflicto("remesa.riesgo_cancelado", "El riesgo de esta remesa ya está cancelado."));
+        }
+
+        if (fecha < FechaCargo)
+        {
+            return Resultado.Fallo(Error.Validacion("remesa.no_vencida", $"El riesgo se cancela al vencimiento ({FechaCargo:dd/MM/yyyy}), no antes."));
+        }
+
+        RiesgoCanceladoEn = fecha;
         return Resultado.Ok();
     }
 
@@ -259,6 +386,15 @@ public sealed class Remesa : RaizAgregadoEmpresa<Guid>
 
         Estado = EstadoRemesa.Liquidada;
         FechaLiquidacion = fecha;
+        if (Modalidad != ModalidadRemesa.Vencimiento)
+        {
+            var c = Calcular(fecha);
+            Intereses = c.Intereses;
+            Comision = c.Comision;
+            IvaComision = c.IvaComision;
+            Gastos = c.Gastos;
+            Liquido = c.Liquido;
+        }
     }
 
     /// <summary>Anula una remesa aún no liquidada (p. ej. rechazada por el banco): sus documentos quedan libres.</summary>

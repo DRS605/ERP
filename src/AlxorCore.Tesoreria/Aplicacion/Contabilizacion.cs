@@ -171,6 +171,13 @@ public sealed class ContabilizacionTesoreria
 
     private static string Recortar(string texto) => texto.Length > 80 ? texto[..80] : texto;
 
+    /// <summary>Identificador estable derivado de otro y una etiqueta (varios asientos de un mismo documento, cola idempotente).</summary>
+    internal static Guid Derivado(Guid id, string etiqueta)
+    {
+        var h = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(id.ToString("N") + ":" + etiqueta));
+        return new Guid(h.AsSpan(0, 16));
+    }
+
     /// <summary>Identificador estable para la anulación de un anticipo (la cola es idempotente por origen).</summary>
     internal static Guid DeterministaAnulacion(Guid id)
     {

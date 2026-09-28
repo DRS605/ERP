@@ -358,6 +358,12 @@ public sealed class AnularMovimiento
             return Resultado.Fallo<MovimientoDto>(Error.Conflicto("movimiento.ya_anulado", "Este cobro o pago ya está anulado."));
         }
 
+        if (original.CuentaPuente == CuentasPuente.Descontados)
+        {
+            return Resultado.Fallo<MovimientoDto>(Error.Conflicto("movimiento.de_descuento",
+                "Este cobro es de una remesa al descuento: si el cliente no paga, registra la devolución del recibo."));
+        }
+
         EntregaCuentaProveedor? entrega = null;
         if (original.CuentaPuente is not null && _liquidaciones is not null)
         {

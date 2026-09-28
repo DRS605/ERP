@@ -118,6 +118,38 @@ contabilizados directamente, desde la fecha del saldo inicial). Incluye una fila
 (570/572 genéricas) cuando no es cero. La pantalla de previsión **parte de ese total** y acumula los vencimientos
 reales y las previsiones manuales (`PrevisionTesoreria`: `{ sentido, concepto, importe, fecha }`).
 
+## Remesas de cobro al descuento y en gestión de cobro
+
+Como en Hispatec (`RemesasDescuentoNegociacion` y `RemesasGestionCobro`), una remesa de cobro tiene **modalidad**:
+al vencimiento (la SEPA de siempre), en gestión de cobro o al descuento. Se elige al crearla (`modalidad`,
+`condiciones`) o después, mientras está viva (`PUT /tesoreria/remesas/{id}/condiciones`).
+
+- **Condiciones del banco:** interés anual y días mínimos (solo al descuento), comisión y su IVA, gastos fijos por
+  remesa y por efecto, timbres y otros gastos.
+- **Cálculo** (`GET …/calculo?fecha=`):
+  - intereses = nominal × % × máx(días hasta el cobro, días mínimos) / 360;
+  - comisión = nominal × %, más su IVA;
+  - gastos = fijos + por efecto × nº de efectos + timbres + otros;
+  - líquido = nominal − intereses − comisión − IVA − gastos.
+- **Al descuento**, al marcarla «Descontada» (liquidar):
+  - cada factura se cobra con cuenta puente **4311** (efectos descontados contra el cliente): deja de estar pendiente;
+  - el banco abona el nominal contra **5208** (deudas por efectos descontados);
+  - cargos: intereses a **665**, comisión y gastos a 626 e IVA a 472. El banco queda con el líquido.
+- **Vencimiento** (`POST …/cancelar-riesgo`, botón «Vencida», no antes de la fecha de cobro): 5208 contra 4311 por
+  lo no devuelto.
+- **Devolución de un recibo descontado:** el cobro se anula (430 contra 4311) y el banco carga el nominal. Antes del
+  vencimiento va contra 5208; después, contra 4311. Un cobro descontado no se anula suelto
+  (`movimiento.de_descuento`).
+- **En gestión de cobro:** al cobrarla, cada recibo va al banco como siempre, y la comisión (626) y su IVA (472) se
+  cargan en el banco.
+- **Errores:** `remesa.modalidad`, `remesa.condiciones`, `remesa.liquido`, `remesa.no_descontada`,
+  `remesa.riesgo_cancelado` y `remesa.no_vencida`.
+- **Pendiente:**
+  - intereses por efecto con su propio vencimiento (hoy se usa la fecha de cobro de la remesa);
+  - la cuenta 4315 de efectos impagados;
+  - la renovación de efectos;
+  - la clasificación de dudosos.
+
 ## Entregas a cuenta y liquidación de pagos
 
 Como en Hispatec (`EntregasCuentaProveedor` y `Liquidaciones`), para pagar a proveedores y agricultores.

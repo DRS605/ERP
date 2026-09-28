@@ -144,9 +144,18 @@ public sealed class GestionDevoluciones
         {
             // Contraasiento del cobro (cliente al debe, banco al haber) y, si hay, los gastos de devolución.
             await _contabilizacion.EncolarMovimientoAsync(anulacion.Valor, aplicacionAnticipo: false, cobro, $"Devolución {motivo}", ct).ConfigureAwait(false);
+            var banco = await _contabilizacion.CuentaTesoreriaAsync(cobro.CuentaBancariaId ?? remesa?.CuentaBancariaId, cobro.Metodo, ct).ConfigureAwait(false);
+            if (remesa is { Modalidad: ModalidadRemesa.Descuento })
+            {
+                // Recibo descontado y devuelto: el banco nos carga el nominal. Antes del vencimiento sale de la deuda por
+                // efectos descontados (5208); después, de los efectos descontados (4311) que ya se cancelaron contra ella.
+                _contabilizacion.EncolarAsientoDirecto(empresaId, GestionRemesas.OrigenRemesaDescuento, ContabilizacionTesoreria.Derivado(devolucion.Valor.Id, "descuento"),
+                    SentidoMovimiento.Pago, $"Devolución {documento} descontado ({motivo})", fecha, cobro.Importe, banco,
+                    remesa.RiesgoCanceladoEn is null ? CuentasPuente.Deudas : CuentasPuente.Descontados);
+            }
+
             if (gastos > 0m)
             {
-                var banco = await _contabilizacion.CuentaTesoreriaAsync(cobro.CuentaBancariaId, cobro.Metodo, ct).ConfigureAwait(false);
                 if (efectoGastos is not null)
                 {
                     // Cobro «anulado» sin contrapartida fija: cuenta del cliente al debe, banco al haber.

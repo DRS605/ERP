@@ -727,4 +727,10 @@ public static class CuentasPuente
 
     /// <summary>Partidas pendientes de aplicación: compensar lo que se debe al proveedor con lo que debe él como cliente.</summary>
     public const string Compensaciones = "555";
+
+    /// <summary>Efectos comerciales descontados: la factura cobrada por una remesa al descuento, hasta su vencimiento.</summary>
+    public const string Descontados = "4311";
+
+    /// <summary>Deudas por efectos descontados: el riesgo con el banco hasta el vencimiento.</summary>
+    public const string Deudas = "5208";
 }

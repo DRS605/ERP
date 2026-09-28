@@ -93,6 +93,20 @@ public static class EndpointsBancos
                 (await caso.AnularAsync(id, ct).ConfigureAwait(false)).AOk())
             .WithSummary("Anula una remesa no liquidada (rechazada o por error): sus documentos quedan libres para otra.")
             .RequierePermiso(Permisos.CobroRegistrar);
+        remesas.MapPut("/{id:guid}/condiciones", async (Guid id, CondicionesRemesaComando comando, GestionRemesas caso, CancellationToken ct) =>
+                (await caso.CondicionesAsync(id, comando, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Modalidad (al vencimiento, en gestión de cobro o al descuento) y condiciones del banco de una remesa de cobro viva.")
+            .RequierePermiso(Permisos.CobroRegistrar);
+        remesas.MapGet("/{id:guid}/calculo", async (Guid id, DateOnly? fecha, GestionRemesas caso, CancellationToken ct) =>
+                (await caso.CalcularAsync(id, fecha, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Lo que liquidaría el banco en esa fecha: días, intereses, comisión, IVA, gastos y líquido.")
+            .RequierePermiso(Permisos.CobroRegistrar);
+        remesas.MapPost("/{id:guid}/cancelar-riesgo", async (Guid id, PeticionFechaRemesa? peticion, IContextoEmpresa contexto, GestionRemesas caso, CancellationToken ct) =>
+                contexto.EmpresaId is not { } empresa
+                    ? ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."))
+                    : (await caso.CancelarRiesgoAsync(empresa, id, peticion?.Fecha, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Al vencimiento de una remesa al descuento: cancela el riesgo con el banco (5208 contra 4311) de los recibos no devueltos.")
+            .RequierePermiso(Permisos.CobroRegistrar);
 
         // ---------------------------------------------------------------- devoluciones de recibos
         var devoluciones = rutas.MapGroup("/tesoreria/devoluciones").WithTags("Tesorería · devoluciones");
@@ -185,3 +199,6 @@ public static class EndpointsBancos
 
     private static Error SinEmpresa() => Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero.");
 }
+
+/// <summary>Fecha de una operación sobre una remesa (por defecto, la de hoy o la del vencimiento).</summary>
+public sealed record PeticionFechaRemesa(DateOnly? Fecha);

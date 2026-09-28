@@ -30,7 +30,11 @@ public sealed record GenerarRemesaComando(IReadOnlyList<Guid> FacturaIds, DateOn
 /// </summary>
 public sealed record CrearRemesaComando(
     TipoRemesa Tipo, IReadOnlyList<Guid>? FacturaIds = null, IReadOnlyList<Guid>? EfectoIds = null, IReadOnlyList<Guid>? GastoIds = null,
-    DateOnly? FechaCargo = null, string? Esquema = null, string? Secuencia = null, Guid? CuentaBancariaId = null);
+    DateOnly? FechaCargo = null, string? Esquema = null, string? Secuencia = null, Guid? CuentaBancariaId = null,
+    ModalidadRemesa Modalidad = ModalidadRemesa.Vencimiento, CondicionesRemesa? Condiciones = null);
+
+/// <summary>Modalidad y condiciones del banco de una remesa de cobro viva.</summary>
+public sealed record CondicionesRemesaComando(ModalidadRemesa Modalidad, CondicionesRemesa? Condiciones = null);
 
 public sealed record LineaRemesaDto(
     Guid Id, string TipoDocumento, Guid DocumentoId, string Documento, string TerceroNombre, string? Iban, string? Mandato, decimal Importe,
@@ -38,7 +42,9 @@ public sealed record LineaRemesaDto(
 
 public sealed record RemesaDto(
     Guid Id, string Tipo, string Codigo, DateOnly Fecha, DateOnly FechaCargo, Guid? CuentaBancariaId, string? CuentaBancaria, string? Esquema, string? Secuencia,
-    string Estado, string EstadoTexto, decimal Total, int NumeroLineas, string NombreArchivo, DateOnly? FechaLiquidacion, IReadOnlyList<LineaRemesaDto> Lineas);
+    string Estado, string EstadoTexto, decimal Total, int NumeroLineas, string NombreArchivo, DateOnly? FechaLiquidacion, IReadOnlyList<LineaRemesaDto> Lineas,
+    string Modalidad = "Vencimiento", CondicionesRemesa? Condiciones = null, decimal Intereses = 0m, decimal Comision = 0m, decimal IvaComision = 0m,
+    decimal Gastos = 0m, decimal? Liquido = null, DateOnly? RiesgoCanceladoEn = null);
 
 /// <summary>Remesa creada, con los documentos que no se pudieron incluir y por qué.</summary>
 public sealed record RemesaCreadaDto(RemesaDto Remesa, IReadOnlyList<string> Omitidos);
@@ -288,6 +294,12 @@ public sealed class GestionRemesas
             return Resultado.Fallo<RemesaCreadaDto>(remesa.Error);
         }
 
+        var condiciones = remesa.Valor.Condiciones(comando.Modalidad, comando.Condiciones);
+        if (condiciones.EsFallo)
+        {
+            return Resultado.Fallo<RemesaCreadaDto>(condiciones.Error);
+        }
+
         var omitidas = new List<string>();
         var adeudos = new List<XmlSepa.Adeudo>();
         var vivasF = await _remesas.DocumentosVivosAsync(TipoDocumentoTesoreria.Factura, facturaIds, ct).ConfigureAwait(false);
@@ -440,6 +452,77 @@ public sealed class GestionRemesas
         return Resultado.Ok(await DtoAsync(r, ct).ConfigureAwait(false));
     }
 
+    /// <summary>Cambia la modalidad (al vencimiento, en gestión de cobro o al descuento) y las condiciones de una remesa viva.</summary>
+    public async Task<Resultado<RemesaDto>> CondicionesAsync(Guid id, CondicionesRemesaComando comando, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(comando);
+        var r = await _remesas.ObtenerAsync(id, ct).ConfigureAwait(false);
+        if (r is null)
+        {
+            return NoEncontrada<RemesaDto>();
+        }
+
+        var c = r.Condiciones(comando.Modalidad, comando.Condiciones);
+        if (c.EsFallo)
+        {
+            return Resultado.Fallo<RemesaDto>(c.Error);
+        }
+
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(await DtoAsync(r, ct).ConfigureAwait(false));
+    }
+
+    /// <summary>Lo que liquidaría el banco en esa fecha (intereses, comisión, IVA, gastos y líquido), sin registrar nada.</summary>
+    public async Task<Resultado<CalculoLiquidacionRemesa>> CalcularAsync(Guid id, DateOnly? fecha, CancellationToken ct = default)
+    {
+        var r = await _remesas.ObtenerAsync(id, ct).ConfigureAwait(false);
+        return r is null ? NoEncontrada<CalculoLiquidacionRemesa>() : Resultado.Ok(r.Calcular(fecha ?? (r.Modalidad == ModalidadRemesa.Descuento ? Hoy : r.FechaCargo)));
+    }
+
+    /// <summary>
+    /// Al vencimiento de una remesa al descuento: el riesgo con el banco se cancela (5208 contra 4311) por lo que no se
+    /// devolvió. Los recibos devueltos antes ya pagaron su riesgo al banco.
+    /// </summary>
+    public async Task<Resultado<RemesaDto>> CancelarRiesgoAsync(Guid empresaId, Guid id, DateOnly? fecha, CancellationToken ct = default)
+    {
+        var r = await _remesas.ObtenerAsync(id, ct).ConfigureAwait(false);
+        if (r is null)
+        {
+            return NoEncontrada<RemesaDto>();
+        }
+
+        var dia = fecha ?? (Hoy < r.FechaCargo ? r.FechaCargo : Hoy);
+        var c = r.CancelarRiesgo(dia);
+        if (c.EsFallo)
+        {
+            return Resultado.Fallo<RemesaDto>(c.Error);
+        }
+
+        var movimientos = r.Lineas.Where(l => l.MovimientoId is not null).Select(l => l.MovimientoId!.Value).ToList();
+        var devueltas = new HashSet<Guid>();
+        if (_devoluciones is not null && movimientos.Count > 0)
+        {
+            devueltas.UnionWith((await _devoluciones.MotivosPorMovimientoAsync(movimientos, ct).ConfigureAwait(false)).Keys);
+        }
+
+        var vivo = Redondeo.Dos(r.Lineas.Where(l => l.MovimientoId is { } m && !devueltas.Contains(m)).Sum(l => l.Importe));
+        if (_contabilizacion is not null && vivo > 0)
+        {
+            _contabilizacion.EncolarAsientoDirecto(empresaId, OrigenRemesaDescuento, ContabilizacionTesoreria.Derivado(r.Id, "riesgo"), SentidoMovimiento.Cobro,
+                $"Vencimiento remesa al descuento {r.Codigo}", dia, vivo, CuentasPuente.Deudas, CuentasPuente.Descontados);
+        }
+
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        if (_contabilizacion is not null)
+        {
+            await _contabilizacion.DespacharAsync(ct: ct).ConfigureAwait(false);
+        }
+
+        return Resultado.Ok(await DtoAsync(r, ct).ConfigureAwait(false));
+    }
+
+    public const string OrigenRemesaDescuento = "RemesaDescuento";
+
     public async Task<Resultado<RemesaDto>> AnularAsync(Guid id, CancellationToken ct = default)
     {
         var r = await _remesas.ObtenerAsync(id, ct).ConfigureAwait(false);
@@ -497,11 +580,20 @@ public sealed class GestionRemesas
         }
 
         var sentido = r.Tipo == TipoRemesa.Cobro ? SentidoMovimiento.Cobro : SentidoMovimiento.Pago;
-        var metodo = (r.Tipo == TipoRemesa.Cobro ? "Domiciliación remesa " : "Transferencia remesa ") + r.Codigo;
+        var descuento = r.Modalidad == ModalidadRemesa.Descuento;
+        var metodo = (r.Tipo == TipoRemesa.Cobro ? (descuento ? "Descuento remesa " : "Domiciliación remesa ") : "Transferencia remesa ") + r.Codigo;
+        var calculo = r.Calcular(fecha);
+        if (r.Modalidad != ModalidadRemesa.Vencimiento && calculo.Liquido <= 0)
+        {
+            return Resultado.Fallo<RemesaDto>(Error.Validacion("remesa.liquido", "Los intereses y gastos se comen todo el nominal: revisa las condiciones de la remesa."));
+        }
+
         var mapa = new Dictionary<Guid, Guid>();
         foreach (var linea in r.Lineas)
         {
-            var m = Movimiento.Crear(empresaId, linea.TipoDocumento, linea.DocumentoId, sentido, linea.Importe, fecha, metodo, _reloj, r.CuentaBancariaId);
+            // Al descuento, cada factura pasa a efectos descontados (4311 contra el cliente): el dinero llega en un solo abono.
+            var m = Movimiento.Crear(empresaId, linea.TipoDocumento, linea.DocumentoId, sentido, linea.Importe, fecha, metodo, _reloj, r.CuentaBancariaId,
+                descuento ? CuentasPuente.Descontados : null);
             if (m.EsFallo)
             {
                 return Resultado.Fallo<RemesaDto>(m.Error);
@@ -516,6 +608,30 @@ public sealed class GestionRemesas
         }
 
         r.Liquidar(fecha, mapa);
+        if (_contabilizacion is not null && r.Modalidad != ModalidadRemesa.Vencimiento)
+        {
+            var banco = await _contabilizacion.CuentaTesoreriaAsync(r.CuentaBancariaId, null, ct).ConfigureAwait(false);
+            void Cargo(string etiqueta, string texto, decimal importe, string cuenta)
+            {
+                if (importe > 0)
+                {
+                    _contabilizacion.EncolarAsientoDirecto(empresaId, OrigenRemesaDescuento, ContabilizacionTesoreria.Derivado(r.Id, etiqueta), SentidoMovimiento.Pago,
+                        $"{texto} remesa {r.Codigo}", fecha, importe, banco, cuenta);
+                }
+            }
+
+            if (descuento)
+            {
+                // El banco abona el nominal y queda la deuda por efectos descontados hasta el vencimiento.
+                _contabilizacion.EncolarAsientoDirecto(empresaId, OrigenRemesaDescuento, ContabilizacionTesoreria.Derivado(r.Id, "abono"), SentidoMovimiento.Cobro,
+                    $"Descuento remesa {r.Codigo}", fecha, r.Total, banco, CuentasPuente.Deudas);
+            }
+
+            Cargo("intereses", "Intereses del descuento", calculo.Intereses, "665");
+            Cargo("comision", "Comisión y gastos", Redondeo.Dos(calculo.Comision + calculo.Gastos), "626");
+            Cargo("iva", "IVA de la comisión", calculo.IvaComision, "472");
+        }
+
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
         if (_contabilizacion is not null)
         {
@@ -564,7 +680,8 @@ public sealed class GestionRemesas
     private static RemesaDto Dto(Remesa r, Dictionary<Guid, string> bancos, IReadOnlyDictionary<Guid, string>? devueltas, bool conLineas) => new(
         r.Id, r.Tipo.ToString(), r.Codigo, r.Fecha, r.FechaCargo, r.CuentaBancariaId,
         r.CuentaBancariaId is { } b && bancos.TryGetValue(b, out var nb) ? nb : null, r.Esquema, r.Secuencia, r.Estado.ToString(),
-        Remesa.Descripcion(r.Tipo, r.Estado), r.Total, r.Lineas.Count, r.NombreArchivo, r.FechaLiquidacion,
+        r.Modalidad == ModalidadRemesa.Descuento && r.Estado == EstadoRemesa.Liquidada ? (r.RiesgoCanceladoEn is null ? "Descontada" : "Vencida")
+            : Remesa.Descripcion(r.Tipo, r.Estado), r.Total, r.Lineas.Count, r.NombreArchivo, r.FechaLiquidacion,
         conLineas
             ? r.Lineas.Select(l =>
             {
@@ -573,7 +690,11 @@ public sealed class GestionRemesas
                 return new LineaRemesaDto(l.Id, l.TipoDocumento.ToString(), l.DocumentoId, l.Documento, l.TerceroNombre, l.Iban, l.Mandato, l.Importe,
                     l.MovimientoId, devuelta, motivo);
             }).ToList()
-            : []);
+            : [],
+        r.Modalidad.ToString(),
+        r.Modalidad == ModalidadRemesa.Vencimiento ? null : new CondicionesRemesa(r.PorcentajeInteres, r.DiasMinimos, r.GastosFijos, r.GastosPorEfecto, r.Timbres,
+            r.OtrosGastos, r.PorcentajeComision, r.PorcentajeIvaComision),
+        r.Intereses, r.Comision, r.IvaComision, r.Gastos, r.Liquido, r.RiesgoCanceladoEn);
 
     private static Resultado<T> NoEncontrada<T>() => Resultado.Fallo<T>(Error.NoEncontrado("remesa.no_encontrada", "La remesa no existe."));
 }
