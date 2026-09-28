@@ -170,6 +170,16 @@ public interface IDocumentosExpedicion
 
     Task<Resultado> AnularAlbaranAsync(Guid albaranId, string motivo, CancellationToken ct = default) => Task.FromResult(Resultado.Ok());
 
+    /// <summary>
+    /// Vuelta de solo algunos palés de un albarán: una devolución de venta con lo que traen (kilos o cajas según la unidad
+    /// del artículo), que corrige el albarán sin anularlo. Devuelve el número de la devolución.
+    /// </summary>
+    Task<Resultado<string?>> DevolverParcialAsync(Guid empresaId, Guid albaranId, IReadOnlyList<(Guid ProductoId, decimal Kilos, int Cajas)> lineas, string motivo,
+        CancellationToken ct = default) => Task.FromResult(Resultado.Ok<string?>(null));
+
+    /// <summary>Anula las devoluciones que dejaron las vueltas parciales de palés del albarán (antes de anularlo porque han vuelto todos).</summary>
+    Task<Resultado> AnularDevolucionesDeVueltaAsync(Guid empresaId, Guid albaranId, CancellationToken ct = default) => Task.FromResult(Resultado.Ok());
+
     /// <summary>Albarán de venta directo (sin pedido): los envases que se le facturan a un cliente. Sin precio, el de su tarifa o el del artículo.</summary>
     Task<Resultado<(Guid Id, string Numero)>> EmitirAlbaranDirectoAsync(Guid empresaId, Guid clienteId, DateOnly fecha, string? referencia,
         IReadOnlyList<(Guid ProductoId, decimal Cantidad, decimal? Precio)> lineas, CancellationToken ct = default) =>

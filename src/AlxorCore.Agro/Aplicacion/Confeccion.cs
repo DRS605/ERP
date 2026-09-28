@@ -1037,11 +1037,36 @@ public sealed class PalesAgro
             await _documentos.AnularCartaPorteAsync(cartaId, "Expedición anulada.", ct).ConfigureAwait(false);
         }
 
-        // Igual con el albarán: al volver todos sus palés se anula, y lo servido vuelve a quedar pendiente en el pedido.
-        if (albaranPale is { } alb && _documentos is not null
-            && (await _repo.PalesDeAlbaranAsync(alb, ct).ConfigureAwait(false)).All(p => p.Estado != EstadoPale.Expedido))
+        // Igual con el albarán: al volver todos sus palés se anula, y lo servido vuelve a quedar pendiente en el pedido. Si
+        // vuelven solo algunos, una devolución de venta con lo que traen corrige el albarán.
+        if (albaranPale is { } alb && _documentos is not null)
         {
-            await _documentos.AnularAlbaranAsync(alb, "Expedición anulada.", ct).ConfigureAwait(false);
+            if ((await _repo.PalesDeAlbaranAsync(alb, ct).ConfigureAwait(false)).All(p => p.Estado != EstadoPale.Expedido))
+            {
+                if ((await _documentos.AnularDevolucionesDeVueltaAsync(empresaId, alb, ct).ConfigureAwait(false)).EsCorrecto)
+                {
+                    await _documentos.AnularAlbaranAsync(alb, "Expedición anulada.", ct).ConfigureAwait(false);
+                }
+            }
+            else
+            {
+                var contenido = new List<(Guid ProductoId, decimal Kilos, int Cajas)>();
+                foreach (var (partida, kilos, cajas) in salida)
+                {
+                    if (await _repo.PartidaAsync(partida, ct).ConfigureAwait(false) is { } p)
+                    {
+                        contenido.Add((p.ProductoId, kilos, Math.Max(cajas, 0)));
+                    }
+                }
+
+                var porProducto = contenido.GroupBy(c => c.ProductoId).Select(g => (g.Key, g.Sum(c => c.Kilos), g.Sum(c => c.Cajas))).ToList();
+                var devolucion = await _documentos.DevolverParcialAsync(empresaId, alb, porProducto, $"Vuelta del palé {pale.Sscc}", ct).ConfigureAwait(false);
+                if (devolucion.EsFallo)
+                {
+                    return Resultado.Fallo<PaleDto>(Error.Conflicto(devolucion.Error.Codigo,
+                        $"El palé ha vuelto, pero no se pudo corregir el albarán: {devolucion.Error.Mensaje} Regístralo como devolución del albarán."));
+                }
+            }
         }
 
         return Resultado.Ok(await DtoAsync(pale, ct).ConfigureAwait(false));

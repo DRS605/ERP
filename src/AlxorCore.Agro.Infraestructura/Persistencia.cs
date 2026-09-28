@@ -182,6 +182,11 @@ internal sealed class ConfiguracionConcepto : IEntityTypeConfiguration<ConceptoL
         Columnas.Enum(b.Property(x => x.Tipo), "tipo");
         b.Property(x => x.Valor).HasColumnName("valor").HasColumnType(Columnas.PrecioKg).IsRequired();
         b.Property(x => x.Activo).HasColumnName("activo").IsRequired();
+        b.Property(x => x.AgricultorId).HasColumnName("agricultor_id");
+        b.Property(x => x.ProductoId).HasColumnName("producto_id");
+        b.Property(x => x.EnvaseProductoId).HasColumnName("envase_producto_id");
+        b.Property(x => x.Abono).HasColumnName("abono").IsRequired();
+        b.Ignore(x => x.Filtrado);
         b.HasIndex(x => new { x.EmpresaId, x.Codigo }).IsUnique().HasDatabaseName("ux_concepto_liquidacion_codigo");
     }
 }

@@ -257,6 +257,37 @@ public sealed class AgroEndpointsTests : IClassFixture<FabricaApiPruebas>
     }
 
     [Fact]
+    public async Task Los_cargos_y_abonos_de_la_liquidacion_se_aplican_por_agricultor_articulo_y_envase()
+    {
+        var e = await EscenarioAsync();
+        (await e.Api.PutAsJsonAsync($"/agro/agricultores/{e.Agricultor}", new { e.ProveedorId, Regimen = "Reagp", AutofacturacionDesde = new DateOnly(Anio, 1, 1) })).EnsureSuccessStatusCode();
+        await RecibirAsync(e, Dia);
+        (await e.Api.PutAsJsonAsync($"/agro/campanas/{e.Campana}/articulos", new { ProductoId = e.Naranja, Metodo = "PorPeriodo" })).EnsureSuccessStatusCode();
+        await IdAsync(e.Api, $"/agro/campanas/{e.Campana}/precios", new { ProductoId = e.Naranja, Desde = new DateOnly(Anio, 3, 1), Hasta = new DateOnly(Anio, 3, 31), PrecioKg = 0.30m });
+        var otroProveedor = await IdAsync(e.Api, "/proveedores", new { Nombre = "Pedro Hortelano", NifFiscal = Ayudas.GenerarNif() });
+        var otro = await IdAsync(e.Api, "/agro/agricultores", new { ProveedorId = otroProveedor, Regimen = "Reagp" });
+        var caja = await IdAsync(e.Api, "/productos", new { Nombre = "Caja campo", PrecioUnitario = 0m, Tipo = "Bien", Unidad = "ud" });
+
+        // Uso del palot por envase recibido, un premio por kilo solo para este agricultor, un cargo de otro agricultor y
+        // uno por caja (esta entrega viene en palots): los dos últimos no se aplican.
+        await IdAsync(e.Api, "/agro/conceptos", new { Codigo = "PALOT", Nombre = "Uso de palot", Tipo = "PorEnvase", Valor = 0.50m, EnvaseProductoId = e.Palot });
+        await IdAsync(e.Api, "/agro/conceptos", new { Codigo = "PREMIO", Nombre = "Premio de calidad", Tipo = "PorKilo", Valor = 0.02m, Abono = true, AgricultorId = e.Agricultor, ProductoId = e.Naranja });
+        await IdAsync(e.Api, "/agro/conceptos", new { Codigo = "OTRO", Nombre = "Cargo de otro", Tipo = "Fijo", Valor = 99m, AgricultorId = otro });
+        await IdAsync(e.Api, "/agro/conceptos", new { Codigo = "CAJA", Nombre = "Uso de caja", Tipo = "PorEnvase", Valor = 1m, EnvaseProductoId = caja });
+        (await ProblemaAsync(await e.Api.PostAsJsonAsync("/agro/conceptos", new { Codigo = "X", Nombre = "X", Tipo = "Fijo", Valor = 1m, AgricultorId = Guid.NewGuid() }),
+            HttpStatusCode.NotFound)).Codigo.Should().Be("agricultor.no_encontrado");
+
+        var datos = new { AgricultorId = e.Agricultor, CampanaId = e.Campana, Desde = new DateOnly(Anio, 3, 1), Hasta = new DateOnly(Anio, 3, 31), Fecha = new DateOnly(Anio, 3, 31) };
+        var liq = await OkAsync<LiquidacionResp>(await e.Api.PostAsJsonAsync("/agro/liquidaciones", datos));
+        liq.Bruto.Should().Be(3_000m);
+        liq.TotalDescuentos.Should().Be(20m - 200m, "40 palots × 0,50 de cargo y 10.000 kg × 0,02 de premio");
+        liq.BaseImponible.Should().Be(3_180m);
+        var emitida = await OkAsync<LiquidacionResp>(await e.Api.PostAsync(new Uri($"/agro/liquidaciones/{liq.Id}/emitir", UriKind.Relative), null));
+        emitida.Estado.Should().Be("Emitida");
+        emitida.BaseImponible.Should().Be(3_180m);
+    }
+
+    [Fact]
     public async Task La_liquidacion_por_periodo_en_regimen_general_detecta_precios_cambiados()
     {
         var e = await EscenarioAsync();

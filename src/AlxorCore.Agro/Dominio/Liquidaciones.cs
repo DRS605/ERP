@@ -117,7 +117,7 @@ public sealed class LineaClasificacion : EntidadBase<Guid>
 
 /// <summary>Línea de recepción a liquidar.</summary>
 public sealed record LineaALiquidar(Guid LineaRecepcionId, Guid RecepcionId, Guid PartidaId, string Etiqueta, Guid ProductoId, DateOnly Fecha, decimal NetoKg,
-    Guid? EnvaseProductoId = null);
+    Guid? EnvaseProductoId = null, int Envases = 0);
 
 /// <summary>Muestra de una categoría en la clasificación definitiva.</summary>
 public sealed record MuestraCategoria(Guid CategoriaId, string Categoria, decimal KgMuestra);
@@ -239,12 +239,30 @@ public static class Valoracion
 
         var totalKg = valoradas.Sum(v => v.Kilos);
         var bruto = valoradas.Sum(v => v.Importe);
-        var descuentos = conceptos.Where(c => c.Activo).Select(c => c.Tipo switch
+        // Cada concepto, sobre las entregas que encajan con su artículo y su envase; una bonificación resta del descuento.
+        var entregas = lineas.ToDictionary(l => l.LineaRecepcionId);
+        var descuentos = new List<DescuentoValorado>();
+        foreach (var c in conceptos.Where(c => c.Activo))
         {
-            TipoConceptoLiquidacion.PorKilo => new DescuentoValorado(c.Id, c.Nombre, c.Tipo, c.Valor, totalKg, Redondeo.Dos(totalKg * c.Valor)),
-            TipoConceptoLiquidacion.PorcentajeBruto => new DescuentoValorado(c.Id, c.Nombre, c.Tipo, c.Valor, bruto, Redondeo.Dos(bruto * c.Valor / 100m)),
-            _ => new DescuentoValorado(c.Id, c.Nombre, c.Tipo, c.Valor, 0m, Redondeo.Dos(c.Valor)),
-        }).ToList();
+            var suyas = valoradas.Where(v => c.ValeParaEntrega(entregas[v.LineaRecepcionId].ProductoId, entregas[v.LineaRecepcionId].EnvaseProductoId)).ToList();
+            if (c.Filtrado && suyas.Count == 0)
+            {
+                continue;
+            }
+
+            var kg = suyas.Sum(v => v.Kilos);
+            var importe = suyas.Sum(v => v.Importe);
+            var envases = suyas.Select(v => v.LineaRecepcionId).Distinct().Sum(id => entregas[id].Envases);
+            var d = c.Tipo switch
+            {
+                TipoConceptoLiquidacion.PorKilo => new DescuentoValorado(c.Id, c.Nombre, c.Tipo, c.Valor, kg, Redondeo.Dos(kg * c.Valor)),
+                TipoConceptoLiquidacion.PorcentajeBruto => new DescuentoValorado(c.Id, c.Nombre, c.Tipo, c.Valor, importe, Redondeo.Dos(importe * c.Valor / 100m)),
+                TipoConceptoLiquidacion.PorEnvase => new DescuentoValorado(c.Id, c.Nombre, c.Tipo, c.Valor, envases, Redondeo.Dos(envases * c.Valor)),
+                _ => new DescuentoValorado(c.Id, c.Nombre, c.Tipo, c.Valor, 0m, Redondeo.Dos(c.Valor)),
+            };
+            descuentos.Add(c.Abono ? d with { Importe = -d.Importe } : d);
+        }
+
         var totalDescuentos = descuentos.Sum(d => d.Importe);
         var baseImponible = bruto - totalDescuentos;
         if (baseImponible < 0m)

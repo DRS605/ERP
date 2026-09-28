@@ -42,9 +42,11 @@ public sealed record PrecioDto(Guid Id, Guid CampanaId, Guid ProductoId, Guid? C
     public static PrecioDto De(PrecioLiquidacion p) => new(p.Id, p.CampanaId, p.ProductoId, p.CategoriaId, p.Desde, p.Hasta, p.PrecioKg, p.Tipo.ToString(), p.EnvaseProductoId);
 }
 
-public sealed record ConceptoDto(Guid Id, string Codigo, string Nombre, string Tipo, decimal Valor, bool Activo)
+public sealed record ConceptoDto(Guid Id, string Codigo, string Nombre, string Tipo, decimal Valor, bool Activo, Guid? AgricultorId = null, Guid? ProductoId = null,
+    Guid? EnvaseProductoId = null, bool Abono = false)
 {
-    public static ConceptoDto De(ConceptoLiquidacion c) => new(c.Id, c.Codigo, c.Nombre, c.Tipo.ToString(), c.Valor, c.Activo);
+    public static ConceptoDto De(ConceptoLiquidacion c) => new(c.Id, c.Codigo, c.Nombre, c.Tipo.ToString(), c.Valor, c.Activo, c.AgricultorId, c.ProductoId,
+        c.EnvaseProductoId, c.Abono);
 }
 
 public sealed record TarifaDto(Guid Id, string Recurso, string Categoria, string TipoHora, DateOnly Desde, DateOnly? Hasta, decimal CosteUnitario)
@@ -85,7 +87,8 @@ public sealed record RendimientoDto(Guid Id, Guid ProductoId, Guid? EnvaseProduc
     public static RendimientoDto De(RendimientoConfeccion r) => new(r.Id, r.ProductoId, r.EnvaseProductoId, r.CajasHora, decimal.Round(3600m / r.CajasHora, 2));
 }
 
-public sealed record DatosConcepto(string? Codigo, string? Nombre, TipoConceptoLiquidacion Tipo, decimal Valor, bool Activo = true);
+public sealed record DatosConcepto(string? Codigo, string? Nombre, TipoConceptoLiquidacion Tipo, decimal Valor, bool Activo = true, Guid? AgricultorId = null,
+    Guid? ProductoId = null, Guid? EnvaseProductoId = null, bool Abono = false);
 
 public sealed record DatosTarifa(RecursoCoste Recurso, string? Categoria, TipoHora TipoHora, DateOnly Desde, DateOnly? Hasta, decimal CosteUnitario);
 
@@ -692,7 +695,13 @@ public sealed class MaestrosAgro
     public async Task<Resultado<ConceptoDto>> CrearConceptoAsync(Guid empresaId, DatosConcepto datos, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(datos);
-        var c = ConceptoLiquidacion.Crear(empresaId, datos.Codigo, datos.Nombre, datos.Tipo, datos.Valor);
+        if (datos.AgricultorId is { } ag && await _repo.AgricultorAsync(ag, ct).ConfigureAwait(false) is null)
+        {
+            return Resultado.Fallo<ConceptoDto>(Error.NoEncontrado("agricultor.no_encontrado", "El agricultor no existe."));
+        }
+
+        var c = ConceptoLiquidacion.Crear(empresaId, datos.Codigo, datos.Nombre, datos.Tipo, datos.Valor, datos.AgricultorId, datos.ProductoId, datos.EnvaseProductoId,
+            datos.Abono);
         if (c.EsFallo)
         {
             return Resultado.Fallo<ConceptoDto>(c.Error);

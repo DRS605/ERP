@@ -87,6 +87,8 @@ public static class ReferenciasRegistros
                 ("agro.linea_movimiento_envases.envase_producto_id", "movimientos de envases con terceros"),
                 ("agro.limite_envase.envase_producto_id", "límites de envases"),
                 ("agro.envase_pool.envase_producto_id", "envases de pools"),
+                ("agro.concepto_liquidacion.producto_id", "cargos y abonos de liquidación"),
+                ("agro.concepto_liquidacion.envase_producto_id", "cargos y abonos de liquidación (como envase)"),
                 ("agro.linea_orden_carga.producto_id", "órdenes de carga"),
                 ("agro.precio_liquidacion.envase_producto_id", "precios de liquidación por envase"),
                 ("agro.rendimiento_confeccion.envase_producto_id", "rendimientos de confección"),

@@ -17,6 +17,8 @@ public sealed class PalesRapidosTests : IClassFixture<FabricaApiPruebas>
 
     public PalesRapidosTests(FabricaApiPruebas fabrica) => _fabrica = fabrica;
 
+    private sealed record LineaDevolucionResp(decimal Cantidad);
+    private sealed record DevolucionResp(Guid Id, string Estado, List<LineaDevolucionResp> Lineas);
     private sealed record IdResp(Guid Id);
     private sealed record SeleccionResp(string Token);
     private sealed record ProblemaResp(string Title, string Codigo);
@@ -235,11 +237,15 @@ public sealed class PalesRapidosTests : IClassFixture<FabricaApiPruebas>
         (await e.Api.GetFromJsonAsync<PedidoResp>($"/pedidos-venta/{pedido.Id}"))!.Lineas.Single().CantidadServida.Should().Be(2_000m);
         salida[0].ReferenciaExpedicion.Should().Be(albaranes.Single().NumeroCompleto);
 
-        // Vuelven los dos: el albarán se anula y lo servido vuelve a quedar pendiente.
-        foreach (var p in salida)
-        {
-            (await e.Api.PostAsync(new Uri($"/agro/pales/{p.Id}/anular-expedicion", UriKind.Relative), null)).EnsureSuccessStatusCode();
-        }
+        // Vuelve uno: una devolución de venta con sus 1.000 kg corrige el albarán, que sigue vivo.
+        (await e.Api.PostAsync(new Uri($"/agro/pales/{salida[0].Id}/anular-expedicion", UriKind.Relative), null)).EnsureSuccessStatusCode();
+        var devoluciones = (await e.Api.GetFromJsonAsync<List<DevolucionResp>>($"/devoluciones-venta?albaranId={albaranes.Single().Id}"))!;
+        devoluciones.Should().ContainSingle(d => d.Estado != "Anulada" && d.Lineas.Single().Cantidad == 1_000m);
+        (await e.Api.GetFromJsonAsync<List<AlbaranResp>>($"/pedidos-venta/{pedido.Id}/albaranes"))!.Single().Anulado.Should().BeFalse();
+
+        // Vuelve el otro: se anula la devolución y el albarán, y lo servido vuelve a quedar pendiente.
+        (await e.Api.PostAsync(new Uri($"/agro/pales/{salida[1].Id}/anular-expedicion", UriKind.Relative), null)).EnsureSuccessStatusCode();
+        (await e.Api.GetFromJsonAsync<List<DevolucionResp>>($"/devoluciones-venta?albaranId={albaranes.Single().Id}"))!.Should().OnlyContain(d => d.Estado == "Anulada");
 
         (await e.Api.GetFromJsonAsync<List<AlbaranResp>>($"/pedidos-venta/{pedido.Id}/albaranes"))!.Single().Anulado.Should().BeTrue();
         var tras = (await e.Api.GetFromJsonAsync<PedidoResp>($"/pedidos-venta/{pedido.Id}"))!;

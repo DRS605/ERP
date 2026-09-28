@@ -230,12 +230,21 @@ estén ya en otra liquidación. Así se valora (portado de `growerSettlement.ts`
 | Concepto | Cálculo |
 |---|---|
 | Bruto | Por clasificación: los kilos netos de cada partida se reparten por categorías **sin perder un gramo**. Por periodo: el precio vigente en la fecha de entrega. Cada línea guarda el precio aplicado. |
-| Descuentos | Por kilo, porcentaje del bruto o fijo. |
+| Cargos y abonos | Por kilo, porcentaje del bruto, **por envase** recibido (bulto) o fijo. Un abono (bonificación) suma en vez de descontar. |
 | Base | Bruto − descuentos (nunca negativa). |
 | Impuesto | Compensación REAGP (12 %) o IVA (4 %) sobre la base. |
 | Retención | Porcentaje de IRPF sobre la base. |
 | Total factura | Base + impuesto. |
 | A pagar | Total − retención. |
+
+**Cargos y abonos de las recepciones** (como los cargos por agricultor, artículo y envase de Hispatec). Cada concepto
+de liquidación (`agro.concepto_liquidacion`) puede valer solo para un **agricultor**, un **artículo** o un **envase**:
+
+- con artículo o envase, se calcula solo sobre las entregas que encajan: sus kilos, su importe o sus envases (por
+  ejemplo, 0,50 € por palot recibido);
+- si no encaja ninguna entrega, no sale;
+- con `Abono`, es una bonificación (un premio de calidad): el importe va en negativo y aumenta la base;
+- la base sigue sin poder ser negativa. En el borrador y en la autofactura cada concepto sale con su base y su importe.
 
 Sin precio o sin clasificación definitiva es un **error**, nunca un cero, y la **previsualización**
 devuelve todos los problemas de una vez.
@@ -420,6 +429,17 @@ Es una versión ligera de `OrdenesCarga` de Hispatec, montada sobre la expedici�
 - **Pantalla:** *Agro → Órdenes de carga*. Tiene el lector de SSCC (se escanea y se pulsa Intro), las líneas, los palés cargados y el camión dibujado por posiciones.
 - **Fuera de alcance** (P3): la PDA con lector, la situación de los muelles, las pilas de palés, el traspaso entre centros con recepción de la orden y las integraciones de temperatura o de control de accesos.
 
+## Vuelta de palés expedidos
+
+Al anular la expedición de un palé que salió con un albarán del pedido:
+
+- si ya han vuelto **todos** los palés del albarán, se anula el albarán (lo servido vuelve a quedar pendiente en el
+  pedido) y las devoluciones que dejaron las vueltas parciales;
+- si vuelven **solo algunos**, se registra una **devolución de venta** del albarán con lo que trae el palé (kilos o cajas
+  según la unidad del artículo, repartidos entre sus líneas), con reingreso en el almacén. Así el albarán queda
+  corregido: si no estaba facturado, su factura sale sin lo devuelto; si lo estaba, la devolución se abona con una
+  rectificativa desde Ventas → Devoluciones.
+
 ## Impresos y EDI
 
 - **PDF de la liquidación al agricultor:** `GET /agro/liquidaciones/{id}/pdf`. Es la hoja que recibe el agricultor, con las entregas, los descuentos, el impuesto o la compensación REAGP, la retención y el líquido.
@@ -429,11 +449,9 @@ Es una versión ligera de `OrdenesCarga` de Hispatec, montada sobre la expedici�
 
 - **Otros módulos:**
   - reflejar las partidas en Inventario, para una valoración única de existencias;
-  - que una vuelta parcial (solo algunos palés de un albarán) corrija el albarán; hoy se anula cuando vuelven todos.
 - **Liquidaciones:**
-  - anticipos a cuenta;
-  - liquidaciones masivas de todos los agricultores del periodo;
-  - REAGP del IGIC en Canarias (hoy se indica a mano el impuesto de la autofactura).
+  - REAGP del IGIC en Canarias (hoy se indica a mano el impuesto de la autofactura): falta confirmar el porcentaje de
+    compensación vigente antes de darlo de alta en el catálogo de impuestos.
 - **Operativa:**
   - lectura de cajas con escáner en el punto de paletizado (hoy se indican las cajas en pantalla);
   - lectura directa de básculas;

@@ -84,11 +84,13 @@ public sealed class DocumentosExpedicionFacturacion : IDocumentosExpedicion
 
     private readonly ListarPedidosVenta? _listar;
     private readonly CrearAlbaranVenta? _crearAlbaran;
+    private readonly GestionDevolucionesVenta? _devoluciones;
 
     public DocumentosExpedicionFacturacion(CrearCartaPorte crear, AnularCartaPorte anular, ObtenerPedidoVenta pedido, EntregarPedido entregar,
         AnularAlbaranVenta anularAlbaran, AlxorCore.Catalogo.Aplicacion.IConsultaProductos productos, ListarPedidosVenta? listar = null,
-        CrearAlbaranVenta? crearAlbaran = null)
+        CrearAlbaranVenta? crearAlbaran = null, GestionDevolucionesVenta? devoluciones = null)
     {
+        _devoluciones = devoluciones;
         _crearAlbaran = crearAlbaran;
         _listar = listar;
         _crear = crear;
@@ -184,6 +186,72 @@ public sealed class DocumentosExpedicionFacturacion : IDocumentosExpedicion
 
         var r = await _entregar.EjecutarAsync(empresaId, albaran.PedidoVentaId, new EntregarPedidoComando(entregas, albaran.Fecha, albaran.Referencia), ct).ConfigureAwait(false);
         return r.EsFallo ? Resultado.Fallo<(Guid, string)>(r.Error) : Resultado.Ok((r.Valor.Id, r.Valor.NumeroCompleto));
+    }
+
+    public async Task<Resultado<string?>> DevolverParcialAsync(Guid empresaId, Guid albaranId, IReadOnlyList<(Guid ProductoId, decimal Kilos, int Cajas)> lineas, string motivo,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(lineas);
+        if (_devoluciones is null)
+        {
+            return Resultado.Ok<string?>(null);
+        }
+
+        var devolubles = await _devoluciones.DevolublesAsync(albaranId, ct).ConfigureAwait(false);
+        if (devolubles.EsFallo)
+        {
+            return Resultado.Fallo<string?>(devolubles.Error);
+        }
+
+        // Lo que trae cada artículo se reparte entre sus líneas del albarán con algo por devolver, como al emitirlo.
+        var comando = new List<LineaDevolucionComando>();
+        foreach (var (productoId, kilos, cajas) in lineas)
+        {
+            var producto = await _productos.ObtenerAsync(productoId, ct).ConfigureAwait(false);
+            var porKilos = cajas == 0 || (producto?.Unidad ?? string.Empty).Trim().ToLowerInvariant() is "kg" or "kilo" or "kilos" or "kilogramo" or "kilogramos";
+            var restante = porKilos ? kilos : cajas;
+            foreach (var l in devolubles.Valor.Lineas.Where(l => l.ProductoId == productoId && l.Devolvible > 0m))
+            {
+                var toma = Math.Min(restante, l.Devolvible);
+                comando.Add(new LineaDevolucionComando(l.Orden, toma));
+                restante -= toma;
+                if (restante <= 0m)
+                {
+                    break;
+                }
+            }
+        }
+
+        if (comando.Count == 0)
+        {
+            return Resultado.Ok<string?>(null);
+        }
+
+        var r = await _devoluciones.CrearAsync(empresaId, new CrearDevolucionComando(albaranId, motivo, comando), ct).ConfigureAwait(false);
+        return r.EsFallo ? Resultado.Fallo<string?>(r.Error) : Resultado.Ok<string?>(r.Valor.Numero);
+    }
+
+    /// <summary>Motivo con que empiezan las devoluciones de una vuelta parcial de palés.</summary>
+    public const string MotivoVuelta = "Vuelta del palé";
+
+    public async Task<Resultado> AnularDevolucionesDeVueltaAsync(Guid empresaId, Guid albaranId, CancellationToken ct = default)
+    {
+        if (_devoluciones is null)
+        {
+            return Resultado.Ok();
+        }
+
+        foreach (var d in (await _devoluciones.ListarAsync(empresaId, new FiltroDevoluciones(AlbaranId: albaranId), ct).ConfigureAwait(false))
+                     .Where(d => d.Estado != "Anulada" && d.Motivo.StartsWith(MotivoVuelta, StringComparison.Ordinal)))
+        {
+            var r = await _devoluciones.AnularAsync(empresaId, d.Id, "Han vuelto todos los palés: se anula el albarán", ct).ConfigureAwait(false);
+            if (r.EsFallo)
+            {
+                return Resultado.Fallo(r.Error);
+            }
+        }
+
+        return Resultado.Ok();
     }
 
     public async Task<Resultado<(Guid Id, string Numero)>> EmitirAlbaranDirectoAsync(Guid empresaId, Guid clienteId, DateOnly fecha, string? referencia,

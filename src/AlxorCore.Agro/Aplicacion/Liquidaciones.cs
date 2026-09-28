@@ -386,7 +386,7 @@ public sealed class LiquidacionesAgro
         Guid empresaId, Guid campanaId, IReadOnlyList<LineaALiquidar> lineas, Agricultor agricultor, CancellationToken ct)
     {
         var precios = await PreciosAsync(empresaId, campanaId, lineas.Select(l => l.PartidaId).ToList(), ct).ConfigureAwait(false);
-        var conceptos = await _repo.ConceptosAsync(empresaId, ct).ConfigureAwait(false);
+        var conceptos = (await _repo.ConceptosAsync(empresaId, ct).ConfigureAwait(false)).Where(c => c.ValeParaAgricultor(agricultor.Id)).ToList();
         var porcentaje = AlxorCore.Nucleo.Comun.Impuesto.PorCodigoImpuesto(agricultor.CodigoImpuesto).Valor.Porcentaje;
         var r = Valoracion.Calcular(lineas, conceptos, porcentaje, agricultor.PorcentajeRetencion, precios, out var errores);
         return (r.EsCorrecto ? r.Valor : null, errores);
@@ -405,7 +405,7 @@ public sealed class LiquidacionesAgro
             .Where(x => !ocupadas.Contains(x.l.Id) || propias.Contains(x.l.Id))
             .OrderBy(x => x.r.Fecha).ThenBy(x => x.r.Numero).ThenBy(x => x.l.NumeroLinea)
             .Select(x => new LineaALiquidar(x.l.Id, x.r.Id, x.l.PartidaId!.Value, $"{x.r.NumeroCompleto} línea {x.l.NumeroLinea} ({x.l.ProductoNombre})",
-                x.l.ProductoId, x.r.Fecha, x.l.NetoKg ?? 0m, x.l.EnvaseProductoId))
+                x.l.ProductoId, x.r.Fecha, x.l.NetoKg ?? 0m, x.l.EnvaseProductoId, x.l.Envases ?? 0))
             .ToList();
     }
 

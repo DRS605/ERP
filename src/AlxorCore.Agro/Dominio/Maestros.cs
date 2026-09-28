@@ -538,9 +538,16 @@ public enum TipoConceptoLiquidacion
 
     /// <summary>Importe fijo por liquidación (cuota, seguro…).</summary>
     Fijo = 3,
+
+    /// <summary>Tantos euros por envase (bulto) recibido: palot, caja… (Hispatec: importe por unidad en envases).</summary>
+    PorEnvase = 4,
 }
 
-/// <summary>Concepto de descuento de las liquidaciones.</summary>
+/// <summary>
+/// Concepto de las liquidaciones al agricultor: un descuento (o, con <see cref="Abono"/>, una bonificación que suma).
+/// Como los cargos de las recepciones de Hispatec, puede valer solo para un agricultor, un artículo o un envase; entonces
+/// se calcula solo sobre las entregas que encajan (sus kilos, su importe o sus envases).
+/// </summary>
 public sealed class ConceptoLiquidacion : RaizAgregadoEmpresa<Guid>
 {
     private ConceptoLiquidacion(Guid id)
@@ -564,6 +571,26 @@ public sealed class ConceptoLiquidacion : RaizAgregadoEmpresa<Guid>
 
     public string Nombre { get; private set; }
 
+    /// <summary>Solo para este agricultor (null: para todos).</summary>
+    public Guid? AgricultorId { get; private set; }
+
+    /// <summary>Solo sobre las entregas de este artículo (null: de todos).</summary>
+    public Guid? ProductoId { get; private set; }
+
+    /// <summary>Solo sobre las entregas en este envase (null: en cualquiera).</summary>
+    public Guid? EnvaseProductoId { get; private set; }
+
+    /// <summary>Bonificación: suma al importe de la fruta en vez de descontar.</summary>
+    public bool Abono { get; private set; }
+
+    public bool ValeParaAgricultor(Guid agricultorId) => AgricultorId is null || AgricultorId == agricultorId;
+
+    public bool ValeParaEntrega(Guid productoId, Guid? envaseProductoId) =>
+        (ProductoId is null || ProductoId == productoId) && (EnvaseProductoId is null || EnvaseProductoId == envaseProductoId);
+
+    /// <summary>Si el concepto se limita a unas entregas (artículo o envase).</summary>
+    public bool Filtrado => ProductoId is not null || EnvaseProductoId is not null;
+
     public TipoConceptoLiquidacion Tipo { get; private set; }
 
     /// <summary>€/kg, porcentaje o euros, según el tipo.</summary>
@@ -571,7 +598,8 @@ public sealed class ConceptoLiquidacion : RaizAgregadoEmpresa<Guid>
 
     public bool Activo { get; private set; }
 
-    public static Resultado<ConceptoLiquidacion> Crear(Guid empresaId, string? codigo, string? nombre, TipoConceptoLiquidacion tipo, decimal valor)
+    public static Resultado<ConceptoLiquidacion> Crear(Guid empresaId, string? codigo, string? nombre, TipoConceptoLiquidacion tipo, decimal valor,
+        Guid? agricultorId = null, Guid? productoId = null, Guid? envaseProductoId = null, bool abono = false)
     {
         var error = ReglasAgro.CodigoNombre(ref codigo, ref nombre, "concepto");
         if (error is null && (!Enum.IsDefined(tipo) || valor < 0m || (tipo == TipoConceptoLiquidacion.PorcentajeBruto && valor > 100m)))
@@ -579,7 +607,16 @@ public sealed class ConceptoLiquidacion : RaizAgregadoEmpresa<Guid>
             error = Error.Validacion("concepto.valor", "El tipo o el valor del concepto no son válidos.");
         }
 
-        return error is not null ? Resultado.Fallo<ConceptoLiquidacion>(error) : Resultado.Ok(new ConceptoLiquidacion(Guid.NewGuid(), empresaId, codigo!, nombre!, tipo, valor));
+        if (error is not null)
+        {
+            return Resultado.Fallo<ConceptoLiquidacion>(error);
+        }
+
+        var c = new ConceptoLiquidacion(Guid.NewGuid(), empresaId, codigo!, nombre!, tipo, valor)
+        {
+            AgricultorId = agricultorId, ProductoId = productoId, EnvaseProductoId = envaseProductoId, Abono = abono,
+        };
+        return Resultado.Ok(c);
     }
 
     public void FijarActivo(bool activo) => Activo = activo;
