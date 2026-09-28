@@ -34,6 +34,8 @@ public sealed class OperacionesRegistrosTests : IClassFixture<FabricaApiPruebas>
         ["/facturas/simular"] = "solo calcula: no guarda nada",
         ["/compras/pedidos/simular"] = "solo calcula: no guarda nada",
         ["/gastos/simular"] = "solo calcula: no guarda nada",
+        ["/analisis/consulta"] = "consulta de solo lectura (POST por el tamaño de la definición): no guarda nada",
+        ["/analisis/detalle"] = "consulta de solo lectura: no guarda nada",
         ["/inventario/entrada"] = "movimiento de almacén: se corrige con otro movimiento (ajuste o salida)",
         ["/inventario/salida"] = "movimiento de almacén: se corrige con otro movimiento",
         ["/inventario/ajuste"] = "es la propia corrección de existencias",
