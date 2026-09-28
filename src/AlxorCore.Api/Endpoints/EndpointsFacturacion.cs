@@ -280,18 +280,37 @@ public static class EndpointsFacturacion
         return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, ct).ConfigureAwait(false));
     }
 
-    private static async Task<IResult> BuscarAsync(IContextoEmpresa contexto, BuscarFacturas caso,
+    private static async Task<IResult> BuscarAsync(IContextoEmpresa contexto, BuscarFacturas caso, IConsultaFacturas consulta,
+        AlxorCore.Tesoreria.Aplicacion.IConsultaTesoreria tesoreria, AlxorCore.Nucleo.Tiempo.IReloj reloj,
         string? texto, string? estado, DateOnly? desde, DateOnly? hasta, decimal? importeMin, decimal? importeMax, Guid? clienteId,
-        int? pagina, int? tamanoPagina, CancellationToken ct)
+        string? serie, string? cobro, int? pagina, int? tamanoPagina, CancellationToken ct)
     {
-        if (contexto.EmpresaId is null)
+        if (contexto.EmpresaId is not { } empresaId)
         {
             return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
         }
 
-        var filtro = new FiltroFacturas(texto, estado, desde, hasta, importeMin, importeMax, clienteId);
-        var paginacion = Paginacion.Normalizar(pagina, tamanoPagina);
-        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, filtro, paginacion, ct).ConfigureAwait(false));
+        if (TotalesListados.ValidarCobro(cobro) is { } errorCobro)
+        {
+            return ResultadosHttp.AProblema(errorCobro);
+        }
+
+        // Totales y estado de cobro sobre todo el resultado filtrado (no solo sobre la página).
+        var filtro = new FiltroFacturas(texto, estado, desde, hasta, importeMin, importeMax, clienteId, serie);
+        var hoy = DateOnly.FromDateTime(reloj.AhoraUtc.UtcDateTime);
+        var documentos = (await consulta.FiltradasAsync(empresaId, filtro, ct).ConfigureAwait(false))
+            .Select(f => new DocumentoListado(f.Id, f.Estado, f.FechaVencimiento, f.BaseImponible, f.CuotaIva, f.RetencionIrpf, f.Total)).ToList();
+        var (pendientes, filtrados) = await TotalesListados.SaldosAsync(documentos, AlxorCore.Tesoreria.Dominio.TipoDocumentoTesoreria.Factura, cobro, hoy, tesoreria, ct).ConfigureAwait(false);
+        if (filtrados is not null)
+        {
+            filtro = filtro with { Ids = filtrados };
+            var set = filtrados.ToHashSet();
+            documentos = documentos.Where(d => set.Contains(d.Id)).ToList();
+        }
+
+        var paginaResultado = await caso.EjecutarAsync(empresaId, filtro, Paginacion.Normalizar(pagina, tamanoPagina), ct).ConfigureAwait(false);
+        var pendientesPagina = paginaResultado.Elementos.ToDictionary(f => f.Id, f => pendientes.GetValueOrDefault(f.Id));
+        return Results.Ok(PaginaConTotales<FacturaResumen>.Desde(paginaResultado, TotalesListados.Calcular(documentos, pendientes, hoy), pendientesPagina));
     }
 
     private static async Task<IResult> ObtenerAsync(Guid id, ObtenerFactura caso, CancellationToken ct) =>

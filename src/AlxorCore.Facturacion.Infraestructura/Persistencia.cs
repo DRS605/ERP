@@ -359,11 +359,36 @@ internal sealed class RepositorioFacturas : IRepositorioFacturas, IConsultaFactu
             .ToList();
     }
 
+    public async Task<IReadOnlyList<FacturaFiltrada>> FiltradasAsync(Guid empresaId, FiltroFacturas filtro, CancellationToken ct = default)
+    {
+        var filas = await Filtrar(empresaId, filtro)
+            .Select(f => new { f.Id, f.Estado, f.FechaVencimiento, f.BaseImponible, f.CuotaIva, f.RetencionIrpf, f.Total })
+            .ToListAsync(ct).ConfigureAwait(false);
+        return filas.Select(f => new FacturaFiltrada(f.Id, f.Estado.ToString(), f.FechaVencimiento, f.BaseImponible, f.CuotaIva, f.RetencionIrpf, f.Total)).ToList();
+    }
+
     public async Task<PaginaResultado<FacturaResumen>> BuscarAsync(Guid empresaId, FiltroFacturas filtro, Paginacion paginacion, CancellationToken ct = default)
     {
-        ArgumentNullException.ThrowIfNull(filtro);
         ArgumentNullException.ThrowIfNull(paginacion);
+        var consulta = Filtrar(empresaId, filtro);
 
+        var total = await consulta.CountAsync(ct).ConfigureAwait(false);
+        var facturas = await consulta
+            .OrderByDescending(f => f.FechaEmision).ThenByDescending(f => f.Numero)
+            .Skip(paginacion.Saltar).Take(paginacion.TamanoPagina)
+            .ToListAsync(ct).ConfigureAwait(false);
+
+        var elementos = facturas
+            .Select(f => new FacturaResumen(
+                f.Id, f.NumeroCompleto, f.FechaEmision, f.FechaVencimiento, f.ClienteNombre, f.ClienteNif, f.BaseImponible, f.CuotaIva, f.RetencionIrpf, f.Total, f.Estado.ToString(), f.TipoFactura.ToString(), f.ClienteId, f.ActividadNegocioId, f.Impuesto))
+            .ToList();
+        return PaginaResultado<FacturaResumen>.Crear(elementos, total, paginacion);
+    }
+
+    /// <summary>Consulta de facturas con los filtros del listado aplicados (en la base de datos).</summary>
+    private IQueryable<Factura> Filtrar(Guid empresaId, FiltroFacturas filtro)
+    {
+        ArgumentNullException.ThrowIfNull(filtro);
         var consulta = _contexto.Facturas.Where(f => f.EmpresaId == empresaId);
 
         if (!string.IsNullOrWhiteSpace(filtro.Texto))
@@ -405,17 +430,19 @@ internal sealed class RepositorioFacturas : IRepositorioFacturas, IConsultaFactu
             consulta = consulta.Where(f => f.ClienteId == clienteId);
         }
 
-        var total = await consulta.CountAsync(ct).ConfigureAwait(false);
-        var facturas = await consulta
-            .OrderByDescending(f => f.FechaEmision).ThenByDescending(f => f.Numero)
-            .Skip(paginacion.Saltar).Take(paginacion.TamanoPagina)
-            .ToListAsync(ct).ConfigureAwait(false);
+        if (!string.IsNullOrWhiteSpace(filtro.Serie))
+        {
+            var serie = filtro.Serie.Trim();
+            consulta = consulta.Where(f => f.Prefijo == serie);
+        }
 
-        var elementos = facturas
-            .Select(f => new FacturaResumen(
-                f.Id, f.NumeroCompleto, f.FechaEmision, f.FechaVencimiento, f.ClienteNombre, f.ClienteNif, f.BaseImponible, f.CuotaIva, f.RetencionIrpf, f.Total, f.Estado.ToString(), f.TipoFactura.ToString(), f.ClienteId, f.ActividadNegocioId, f.Impuesto))
-            .ToList();
-        return PaginaResultado<FacturaResumen>.Crear(elementos, total, paginacion);
+        if (filtro.Ids is { } ids)
+        {
+            var lista = ids.ToList();
+            consulta = consulta.Where(f => lista.Contains(f.Id));
+        }
+
+        return consulta;
     }
 
     public async Task<IReadOnlyList<ConceptoDocumentoDto>> ListarConceptosAsync(Guid empresaId, DateOnly desde, DateOnly hasta, CancellationToken ct = default)

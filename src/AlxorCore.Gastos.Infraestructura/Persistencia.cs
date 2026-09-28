@@ -186,11 +186,31 @@ internal sealed class RepositorioGastos : IRepositorioGastos, IConsultaGastos
         return gastos.Select(GastoDto.Desde).ToList();
     }
 
+    public async Task<IReadOnlyList<GastoFiltrado>> FiltradosAsync(Guid empresaId, FiltroGastos filtro, CancellationToken ct = default)
+    {
+        var filas = await Filtrar(empresaId, filtro)
+            .Select(g => new { g.Id, g.Estado, g.Fecha, Primero = g.Vencimientos.Min(v => (DateOnly?)v.Fecha), g.BaseImponible, g.CuotaIva, g.RetencionIrpf, g.Total })
+            .ToListAsync(ct).ConfigureAwait(false);
+        return filas.Select(g => new GastoFiltrado(g.Id, g.Estado.ToString(), g.Primero ?? g.Fecha, g.BaseImponible, g.CuotaIva, g.RetencionIrpf, g.Total)).ToList();
+    }
+
     public async Task<PaginaResultado<GastoDto>> BuscarAsync(Guid empresaId, FiltroGastos filtro, Paginacion paginacion, CancellationToken ct = default)
     {
-        ArgumentNullException.ThrowIfNull(filtro);
         ArgumentNullException.ThrowIfNull(paginacion);
+        var consulta = Filtrar(empresaId, filtro);
 
+        var total = await consulta.CountAsync(ct).ConfigureAwait(false);
+        var gastos = await consulta
+            .OrderByDescending(g => g.Fecha)
+            .Skip(paginacion.Saltar).Take(paginacion.TamanoPagina)
+            .ToListAsync(ct).ConfigureAwait(false);
+        return PaginaResultado<GastoDto>.Crear(gastos.Select(GastoDto.Desde).ToList(), total, paginacion);
+    }
+
+    /// <summary>Consulta de gastos con los filtros del listado aplicados (en la base de datos).</summary>
+    private IQueryable<Gasto> Filtrar(Guid empresaId, FiltroGastos filtro)
+    {
+        ArgumentNullException.ThrowIfNull(filtro);
         var consulta = _contexto.Gastos.Where(g => g.EmpresaId == empresaId);
 
         if (!string.IsNullOrWhiteSpace(filtro.Texto))
@@ -232,12 +252,13 @@ internal sealed class RepositorioGastos : IRepositorioGastos, IConsultaGastos
             consulta = consulta.Where(g => g.ProveedorId == proveedorId);
         }
 
-        var total = await consulta.CountAsync(ct).ConfigureAwait(false);
-        var gastos = await consulta
-            .OrderByDescending(g => g.Fecha)
-            .Skip(paginacion.Saltar).Take(paginacion.TamanoPagina)
-            .ToListAsync(ct).ConfigureAwait(false);
-        return PaginaResultado<GastoDto>.Crear(gastos.Select(GastoDto.Desde).ToList(), total, paginacion);
+        if (filtro.Ids is { } ids)
+        {
+            var lista = ids.ToList();
+            consulta = consulta.Where(g => lista.Contains(g.Id));
+        }
+
+        return consulta;
     }
 }
 

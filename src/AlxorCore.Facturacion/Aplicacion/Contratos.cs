@@ -77,7 +77,8 @@ public sealed record FacturaResumen(
 
 /// <summary>
 /// Filtros de búsqueda de facturas en servidor. Todos son opcionales (null = no filtra por ese
-/// criterio). <paramref name="Texto"/> busca en número, nombre y NIF del cliente.
+/// criterio). <paramref name="Texto"/> busca en número, nombre y NIF del cliente; <paramref name="Serie"/> es el
+/// prefijo de la serie; <paramref name="Ids"/> restringe a esos documentos (lo usa el filtro por estado de cobro).
 /// </summary>
 public sealed record FiltroFacturas(
     string? Texto = null,
@@ -86,7 +87,12 @@ public sealed record FiltroFacturas(
     DateOnly? Hasta = null,
     decimal? ImporteMin = null,
     decimal? ImporteMax = null,
-    Guid? ClienteId = null);
+    Guid? ClienteId = null,
+    string? Serie = null,
+    IReadOnlyCollection<Guid>? Ids = null);
+
+/// <summary>Datos mínimos de cada factura de un listado filtrado (todas las páginas), para calcular totales y saldos.</summary>
+public sealed record FacturaFiltrada(Guid Id, string Estado, DateOnly FechaVencimiento, decimal BaseImponible, decimal CuotaIva, decimal RetencionIrpf, decimal Total);
 
 /// <summary>Repositorio de facturas (escritura).</summary>
 public interface IRepositorioFacturas
@@ -116,6 +122,10 @@ public interface IConsultaFacturas
 
     /// <summary>Búsqueda paginada y filtrada de facturas (el filtrado ocurre en la base de datos).</summary>
     Task<PaginaResultado<FacturaResumen>> BuscarAsync(Guid empresaId, FiltroFacturas filtro, Paginacion paginacion, CancellationToken ct = default);
+
+    /// <summary>Todas las facturas que cumplen el filtro (sin paginar), con sus importes: base de los totales del listado.</summary>
+    Task<IReadOnlyList<FacturaFiltrada>> FiltradasAsync(Guid empresaId, FiltroFacturas filtro, CancellationToken ct = default) =>
+        throw new NotSupportedException("Esta consulta de facturas no calcula totales de listado.");
 
     /// <summary>Líneas de las facturas emitidas en un periodo, para el cálculo de márgenes.</summary>
     Task<IReadOnlyList<LineaMargenDto>> ListarLineasMargenAsync(Guid empresaId, DateOnly desde, DateOnly hasta, CancellationToken ct = default);

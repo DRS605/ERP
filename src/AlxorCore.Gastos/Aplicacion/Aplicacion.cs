@@ -63,7 +63,7 @@ public interface IRepositorioGastos
 
 /// <summary>
 /// Filtros de búsqueda de gastos en servidor (todos opcionales). <paramref name="Texto"/> busca en el
-/// concepto y en el texto libre del proveedor.
+/// concepto y en el texto libre del proveedor; <paramref name="Ids"/> restringe a esos gastos (filtro por estado de pago).
 /// </summary>
 public sealed record FiltroGastos(
     string? Texto = null,
@@ -72,7 +72,11 @@ public sealed record FiltroGastos(
     DateOnly? Hasta = null,
     decimal? ImporteMin = null,
     decimal? ImporteMax = null,
-    Guid? ProveedorId = null);
+    Guid? ProveedorId = null,
+    IReadOnlyCollection<Guid>? Ids = null);
+
+/// <summary>Datos mínimos de cada gasto de un listado filtrado (todas las páginas), para totales y saldos. El vencimiento es el primero de sus plazos (o la fecha).</summary>
+public sealed record GastoFiltrado(Guid Id, string Estado, DateOnly Vencimiento, decimal BaseImponible, decimal CuotaIva, decimal RetencionIrpf, decimal Total);
 
 /// <summary>Consultas de lectura de gastos (las usan la API, Tesorería e Informes).</summary>
 public interface IConsultaGastos
@@ -83,6 +87,10 @@ public interface IConsultaGastos
 
     /// <summary>Búsqueda paginada y filtrada de gastos (el filtrado ocurre en la base de datos).</summary>
     Task<PaginaResultado<GastoDto>> BuscarAsync(Guid empresaId, FiltroGastos filtro, Paginacion paginacion, CancellationToken ct = default);
+
+    /// <summary>Todos los gastos que cumplen el filtro (sin paginar), con sus importes: base de los totales del listado.</summary>
+    Task<IReadOnlyList<GastoFiltrado>> FiltradosAsync(Guid empresaId, FiltroGastos filtro, CancellationToken ct = default) =>
+        throw new NotSupportedException("Esta consulta de gastos no calcula totales de listado.");
 }
 
 /// <summary>Unidad de trabajo del módulo Gastos.</summary>

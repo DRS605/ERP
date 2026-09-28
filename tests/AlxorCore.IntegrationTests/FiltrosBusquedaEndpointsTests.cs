@@ -67,6 +67,70 @@ public sealed class FiltrosBusquedaEndpointsTests : IClassFixture<FabricaApiPrue
         pag2.HayMas.Should().BeFalse();
     }
 
+    private sealed record TotalesResp(int Documentos, decimal BaseImponible, decimal Impuestos, decimal Retenciones, decimal Total, decimal Pendiente, decimal Vencido, int DocumentosVencidos);
+    private sealed record PagTotResp<T>(IReadOnlyList<T> Elementos, int Total, int TotalPaginas, TotalesResp Totales, Dictionary<Guid, decimal> Pendientes);
+
+    [Fact]
+    public async Task Facturas_devuelven_totales_de_todo_el_filtro_y_filtran_por_serie_y_cobro()
+    {
+        var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+        var acme = await CrearClienteAsync(cliente, "ACME Ibérica SL", "B12345674");
+        await CrearFacturaAsync(cliente, acme, "2026-01-10", 100m);   // 121
+        await CrearFacturaAsync(cliente, acme, "2026-02-10", 1000m);  // 1210
+        await CrearFacturaAsync(cliente, acme, "2026-03-10", 500m);   // 605
+
+        // Totales de las 3 facturas aunque la página tenga 1.
+        var pag = await cliente.GetFromJsonAsync<PagTotResp<FacturaResp>>("/facturas/buscar?pagina=1&tamanoPagina=1");
+        pag!.Elementos.Should().HaveCount(1);
+        pag.TotalPaginas.Should().Be(3);
+        pag.Totales.Documentos.Should().Be(3);
+        pag.Totales.BaseImponible.Should().Be(1600m);
+        pag.Totales.Impuestos.Should().Be(336m);
+        pag.Totales.Total.Should().Be(1936m);
+        pag.Totales.Pendiente.Should().Be(1936m);
+        pag.Pendientes.Should().ContainKey(pag.Elementos[0].Id);
+
+        // Cobro total de la de 1210: deja de estar pendiente.
+        var todas = await cliente.GetFromJsonAsync<PagTotResp<FacturaResp>>("/facturas/buscar?importeMin=1000");
+        var grande = todas!.Elementos.Single();
+        (await cliente.PostAsJsonAsync("/cobros", new { FacturaId = grande.Id, Importe = 1210m, Metodo = "Transferencia" })).IsSuccessStatusCode.Should().BeTrue();
+
+        var pendientes = await cliente.GetFromJsonAsync<PagTotResp<FacturaResp>>("/facturas/buscar?cobro=pendiente");
+        pendientes!.Total.Should().Be(2);
+        pendientes.Totales.Total.Should().Be(726m);
+        pendientes.Totales.Pendiente.Should().Be(726m);
+        var cobradas = await cliente.GetFromJsonAsync<PagTotResp<FacturaResp>>("/facturas/buscar?cobro=cobrada");
+        cobradas!.Elementos.Should().ContainSingle(f => f.Id == grande.Id);
+        cobradas.Totales.Pendiente.Should().Be(0m);
+        var vencidas = await cliente.GetFromJsonAsync<PagTotResp<FacturaResp>>("/facturas/buscar?cobro=vencida");
+        vencidas!.Total.Should().Be(2); // al contado, vencidas desde su fecha
+        vencidas.Totales.DocumentosVencidos.Should().Be(2);
+
+        // Serie (prefijo): la de por defecto las recoge todas; otra, ninguna.
+        var prefijo = grande.NumeroCompleto[..grande.NumeroCompleto.IndexOf("20", StringComparison.Ordinal)];
+        (await cliente.GetFromJsonAsync<PagTotResp<FacturaResp>>($"/facturas/buscar?serie={prefijo}"))!.Total.Should().Be(3);
+        (await cliente.GetFromJsonAsync<PagTotResp<FacturaResp>>("/facturas/buscar?serie=ZZ"))!.Totales.Documentos.Should().Be(0);
+
+        (await cliente.GetAsync("/facturas/buscar?cobro=raro")).StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task Gastos_devuelven_totales_de_todo_el_filtro()
+    {
+        var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+        await cliente.PostAsJsonAsync("/gastos", new { Concepto = "Luz enero", BaseImponible = 100m, CodigoIva = "IVA21", Fecha = "2026-01-05" });
+        await cliente.PostAsJsonAsync("/gastos", new { Concepto = "Gasolina febrero", BaseImponible = 60m, CodigoIva = "IVA21", Fecha = "2026-02-05" });
+
+        var pag = await cliente.GetFromJsonAsync<PagTotResp<GastoResp>>("/gastos/buscar?tamanoPagina=1");
+        pag!.Elementos.Should().HaveCount(1);
+        pag.Totales.Documentos.Should().Be(2);
+        pag.Totales.BaseImponible.Should().Be(160m);
+        pag.Totales.Total.Should().Be(193.6m);
+        pag.Totales.Pendiente.Should().Be(193.6m);
+        (await cliente.GetFromJsonAsync<PagTotResp<GastoResp>>("/gastos/buscar?cobro=pagada"))!.Total.Should().Be(0);
+        (await cliente.GetFromJsonAsync<PagTotResp<GastoResp>>("/gastos/buscar?cobro=pendiente&texto=luz"))!.Totales.Total.Should().Be(121m);
+    }
+
     [Fact]
     public async Task Gastos_filtran_por_texto_y_fecha()
     {

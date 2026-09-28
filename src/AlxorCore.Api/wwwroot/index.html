@@ -258,6 +258,30 @@
     th.sortable:hover { color:var(--accent); }
     th.sortable .caret { display:inline-block; width:0; height:0; margin-left:5px; vertical-align:middle; opacity:.55; }
     th.sortable.asc .caret { border-left:4px solid transparent; border-right:4px solid transparent; border-bottom:5px solid currentColor; }
+    /* Rejillas: filtros por columna, totales, grupos y selección */
+    .cols-btn.on { border-color:var(--accent); color:var(--accent); background:var(--accent-soft); }
+    .rej-badge { background:var(--accent); color:#fff; border-radius:999px; font-size:10.5px; font-weight:750; padding:1px 6px; margin-left:2px; }
+    .rej-agrupar { width:auto; padding:6px 10px; font-size:12.5px; border-radius:10px; background:var(--bg); color:var(--muted); font-weight:600; max-width:220px; }
+    .rej-sel { font-size:12.5px; background:var(--accent-soft); color:var(--ink); border-radius:999px; padding:4px 12px; white-space:nowrap; }
+    .rej-sel a { color:var(--accent); text-decoration:none; margin-left:4px; font-weight:700; }
+    .cols-menu .rej-op { display:block; width:100%; text-align:left; background:none; border:none; padding:7px 8px; border-radius:8px; font-size:13px; color:var(--ink); font-weight:500; }
+    .cols-menu .rej-op:hover { background:var(--accent-soft); color:var(--accent); }
+    thead tr.rej-filtros td { padding:6px 8px; background:var(--bg); border-bottom:1px solid var(--line); vertical-align:top; }
+    thead tr.rej-filtros td:first-child { padding-left:20px; }
+    tr.rej-filtros input, tr.rej-filtros select { padding:5px 8px; font-size:12px; border-radius:8px; min-width:72px; }
+    tr.rej-filtros input[type="date"] { min-width:118px; }
+    .rej-rango { display:flex; flex-direction:column; gap:4px; }
+    th.rej-chk, td.rej-chk { width:34px; padding-right:0 !important; }
+    th.rej-chk input, td.rej-chk input { width:auto; margin:0; cursor:pointer; }
+    tbody tr.rej-marcada { background:var(--accent-soft); }
+    tbody tr.rej-grupo { background:var(--bg); cursor:pointer; border-top:1px solid var(--line); }
+    tbody tr.rej-grupo td { padding-top:9px; padding-bottom:9px; font-size:13px; }
+    tbody tr.rej-grupo td.num { font-weight:700; }
+    tbody tr.rej-grupo:hover { background:var(--accent-soft); }
+    .rej-caret { display:inline-block; width:12px; color:var(--accent); }
+    tfoot tr.rej-total td { font-weight:750; border-top:2px solid var(--line); background:var(--bg); padding-top:11px; padding-bottom:11px; white-space:nowrap; }
+    .rej-media { font-weight:600; color:var(--muted); }
+    td.rej-etq { white-space:nowrap; }
     th.sortable.desc .caret { border-left:4px solid transparent; border-right:4px solid transparent; border-top:5px solid currentColor; }
     tr.fila-link { cursor:pointer; }
     /* Filas de previsión (ingresos/gastos previstos): se distinguen a simple vista. */
@@ -593,7 +617,7 @@
       desmontarDocs(); const el=document.getElementById("view"); el.innerHTML='<div class="muted">Cargando…</div>';
       try{ _docsModulo=_docsModulo||await import("/app-docs/documentos.js"); }
       catch(e){ el.innerHTML=panel("No se pudo cargar la pantalla",`<p class="muted" style="margin:0">${agEsc(e.message)}</p>`); return; }
-      el.innerHTML=""; const cont=document.createElement("div"); el.appendChild(cont);
+      el.innerHTML=""; const cont=document.createElement("div"); cont.dataset.rejilla="no"; el.appendChild(cont);
       _docsDesmontar=_docsModulo.montar(cont,{token:()=>token,aviso:(m,t)=>toast(m,t||""),irA:v=>ir(v)},Object.assign({tipo,pantalla:"lista"},ruta||{}));
     }
 
@@ -601,95 +625,409 @@
     const _norm = s => (s||"").toString().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").trim();
     // Convierte el texto de una celda a número (formato español: 1.234,56 € / 12,5 %). NaN si no lo es.
     function _celdaNum(t){ let s=(t||"").replace(/[^\d.,-]/g,"").trim(); if(!s) return NaN; s=s.replace(/\./g,"").replace(",","."); const n=parseFloat(s); return (isFinite(n)&&/\d/.test(t))?n:NaN; }
-    // Fecha dd/mm/aaaa → clave ordenable aaaammdd (o null si no lo es).
-    function _celdaFecha(t){ const m=(t||"").match(/^\s*(\d{1,2})\/(\d{1,2})\/(\d{2,4})\s*$/); return m?(m[3].padStart(4,"20")+m[2].padStart(2,"0")+m[1].padStart(2,"0")):null; }
+    // Fecha dd/mm/aaaa al principio de la celda (puede seguir texto: «31/01/2026 Vencida») → clave aaaammdd, o null.
+    function _celdaFecha(t){ const m=(t||"").match(/^\s*(\d{1,2})\/(\d{1,2})\/(\d{4}|\d{2})(?![\d\/])/); return m?(m[3].padStart(4,"20")+m[2].padStart(2,"0")+m[1].padStart(2,"0")):null; }
 
-    /** Añade buscador + ordenación por columnas a las tablas grandes del contenido. */
-    // Columnas ocultas por el usuario, recordadas por firma de la tabla (localStorage).
+    /* ---------- Rejillas: herramientas comunes a todas las tablas de las pantallas ----------
+       Toda tabla de #view con cabecera y ≥ 2 filas recibe: ordenación por columna, buscador, filtros por
+       columna, fila de totales (de lo visible), selección con suma, agrupación con subtotales, columnas
+       de quita y pon, exportación a Excel/CSV e impresión. Es heurístico: detecta importes, fechas y
+       códigos por el contenido y la cabecera. Una tabla puede ajustarlo con:
+         data-rejilla="no"   (sin nada)          data-totales="no"  (sin fila de totales)
+         data-seleccion="no" (sin casillas)      data-agrupar="no"  (sin agrupación)
+         data-pagina="1"     (los totales son de la página de una lista paginada)
+         data-agrupar-por="Columna" (agrupación propuesta si el usuario no ha elegido otra)
+         <th data-suma> / <th data-media> / <th data-sin-total> (forzar el total de una columna). */
+
+    /** Número en formato español de una celda: «1.234,56 €», «-12,00», «12,5 %», «3 kg», «0,85 €/kg». null si no lo es. */
+    function _rejNum(t){
+      const s=(t||"").replace(/[  ]/g," ").replace(/−/g,"-").trim();
+      const m=s.match(/^([-+]?)\s*(\d[\d.]*)(?:,(\d+))?\s*(€\s*\/\s*kg|€\/ud\.?|€|%|kg|uds?\.?|h)?$/i);
+      if(!m) return null;
+      let ent=m[2], dec=m[3]||"";
+      if(ent.includes(".")){
+        if(/^\d{1,3}(\.\d{3})+$/.test(ent)) ent=ent.replace(/\./g,"");          // separador de miles
+        else if(!dec && /^\d+\.\d+$/.test(ent)){ dec=ent.split(".")[1]; ent=ent.split(".")[0]; } // 1.5 escrito con punto
+        else return null;
+      }
+      const v=Number(ent+(dec?"."+dec:""))*(m[1]==="-"?-1:1);
+      if(!isFinite(v)) return null;
+      return { v, dec:dec.length, suf:(m[4]||"").replace(/\s+/g,"").toLowerCase() };
+    }
+    // Cabeceras que son identificadores o clasificaciones: nunca se suman.
+    const _REJ_CODIGO=new Set(["nº","n°","num","numero","codigo","cod","nif","cif","dni","nif-iva","ano","anio","ejercicio","campana","tipo","cuenta","subcuenta","telefono","tel","movil","iban","bic","swift","cp","referencia","ref","lote","asiento","fila","orden","nivel","sscc","ean","gtin","mes","periodo","trimestre","version","serie","id","mrn","dua","sigpac","prefijo","pedido","albaran","palet","pale","partida"]);
+    // Cabeceras de precios, porcentajes, factores… : se promedian en vez de sumarse.
+    const _REJ_MEDIA=/precio|tarifa|€\s*\/|eur\/kg|coste ud|coste unit|unitario|pvp|factor|cambio|porcentaje|%|\bdias\b|\bmedia\b|promedio|rendimiento|margen %/;
+    function _rejEsCodigo(h){ if(/^n\s*[.ºo°]\s*$|^n\s*\.?\s*[º°]/.test(h)) return true; return h.split(/[^a-z0-9ºª°-]+/).some(w=>_REJ_CODIGO.has(w)); }
+    // Texto visible de una celda, sin el avatar con la inicial ni los textos de los botones.
+    function _rejTexto(c){
+      if(!c) return "";
+      if(c.querySelector(".avatar,button,.caret,input,select")){ const k=c.cloneNode(true); k.querySelectorAll(".avatar,button,.caret,input,select").forEach(e=>e.remove()); return k.textContent.replace(/\s+/g," ").trim(); }
+      return c.textContent.replace(/\s+/g," ").trim();
+    }
+    const _rejVacio = t => !t || /^[—–-]$/.test(t);
+    function _rejFmt(col,v,media){
+      if(v==null||!isFinite(v)) return "";
+      if(col.tipo==="moneda") return eur(v);
+      if(col.tipo==="porcentaje") return v.toLocaleString("es-ES",{minimumFractionDigits:Math.min(col.dec,2),maximumFractionDigits:2})+" %";
+      const dec=media?Math.max(col.dec,2):col.dec;
+      const t=v.toLocaleString("es-ES",{minimumFractionDigits:Math.min(dec,4),maximumFractionDigits:Math.min(Math.max(dec,0),4)});
+      return col.suf ? t+" "+(col.suf.startsWith("€/")?"€/"+col.suf.slice(2):col.suf) : t;
+    }
     function _colsKey(ths){ return "alxcols:"+ths.map(t=>_norm(t.textContent)).join("|"); }
     function _colsGet(k){ try{ return new Set(JSON.parse(localStorage.getItem(k)||"[]")); }catch(e){ return new Set(); } }
     function _colsSet(k,set){ try{ localStorage.setItem(k,JSON.stringify([...set])); }catch(e){} }
+    function _grupoGet(k){ try{ return localStorage.getItem("alxgrp:"+k)||""; }catch(e){ return ""; } }
+    function _grupoSet(k,v){ try{ if(v) localStorage.setItem("alxgrp:"+k,v); else localStorage.removeItem("alxgrp:"+k); }catch(e){} }
+
+    /** Clasifica las columnas de una tabla por su cabecera y su contenido. */
+    function _rejColumnas(ths,datos,M){
+      const heads=ths.map(t=>_norm(_rejTexto(t)));
+      const conDebeHaber=heads.includes("debe")&&heads.includes("haber");
+      return ths.map((th,i)=>{
+        const h=heads[i];
+        const col={ i, nombre:_rejTexto(th), h, tipo:"texto", total:null, dec:0, suf:"", distintos:null };
+        if(!h) return col;
+        const vals=datos.map(r=>M.get(r)[i]).filter(t=>!_rejVacio(t));
+        if(!vals.length) return col;
+        if(vals.filter(t=>_celdaFecha(t)).length>=vals.length*0.8){ col.tipo="fecha"; return col; }
+        const nums=vals.map(_rejNum).filter(Boolean);
+        const forzado=th.hasAttribute("data-suma")?"suma":(th.hasAttribute("data-media")?"media":(th.hasAttribute("data-sin-total")?"no":null));
+        if(nums.length>=Math.max(1,vals.length*0.8)){
+          const sufs={}; nums.forEach(n=>sufs[n.suf]=(sufs[n.suf]||0)+1);
+          col.suf=Object.entries(sufs).sort((a,b)=>b[1]-a[1])[0][0];
+          col.dec=Math.max(...nums.map(n=>n.dec));
+          const enteros=nums.every(n=>n.dec===0&&!n.suf);
+          const alineadaNum=th.classList.contains("num")||th.classList.contains("right");
+          const codigo=_rejEsCodigo(h)||(enteros&&!alineadaNum)||(enteros&&nums.every(n=>n.v>=1990&&n.v<=2100&&Number.isInteger(n.v))&&!alineadaNum);
+          if(codigo&&!forzado){ col.tipo="codigo"; }
+          else {
+            col.tipo=col.suf==="%"?"porcentaje":(col.suf==="€"?"moneda":"numero");
+            const media=col.tipo==="porcentaje"||col.suf.startsWith("€/")||_REJ_MEDIA.test(h);
+            col.total=forzado?(forzado==="no"?null:forzado):(media?"media":"suma");
+            // Tipos impositivos (21 %, 15 %…): ni se suman ni se promedian.
+            if(!forzado&&col.tipo==="porcentaje"&&/\b(iva|igic|ipsi|irpf|retencion|recargo|tipo)\b/.test(h)) col.total=null;
+            // Saldo acumulado (libro mayor, extractos): la suma no significa nada.
+            if(!forzado&&conDebeHaber&&/^saldo( acumulado)?$/.test(h)) col.total=null;
+          }
+        }
+        if(col.tipo==="texto"||col.tipo==="codigo"){
+          const d=new Map(); vals.forEach(t=>d.set(t,(d.get(t)||0)+1));
+          col.distintos=[...d.keys()].sort((a,b)=>_norm(a).localeCompare(_norm(b),"es",{numeric:true}));
+        }
+        return col;
+      });
+    }
 
     function mejorarTablas(){
       const cont=document.getElementById("view"); if(!cont) return;
-      cont.querySelectorAll("table").forEach(tabla=>{
-        const thead=tabla.tHead, tbody=tabla.tBodies[0];
-        if(!thead||!tbody||tabla.dataset.pro) return;
-        const filas=[...tbody.rows]; if(filas.length<2) return; // tablas mínimas: sin adornos
-        tabla.dataset.pro="1";
-        const ths=[...thead.rows[0].cells];
-        const nombradas=ths.map((t,i)=>({t,i})).filter(x=>_norm(x.t.textContent)); // columnas con título
+      // Barras huérfanas (su tabla se sustituyó sin tocar la barra).
+      cont.querySelectorAll(".tabla-tools").forEach(b=>{ if(b._tabla&&!b._tabla.isConnected) b.remove(); });
+      cont.querySelectorAll("table").forEach(tabla=>{ try{ _rejMontar(tabla); }catch(e){ console.error("rejilla",e); } });
+    }
 
-        // Mostrar/ocultar una columna (cabecera + celda de cada fila).
-        const setCol=(idx,vis)=>{ if(ths[idx]) ths[idx].style.display=vis?"":"none"; [...tbody.rows].forEach(r=>{ if(r.cells[idx]) r.cells[idx].style.display=vis?"":"none"; }); };
+    function _rejMontar(tabla){
+      const thead=tabla.tHead, tbody=tabla.tBodies[0];
+      if(!thead||!tbody||tabla.dataset.pro||tabla.closest('[data-rejilla="no"]')||tabla.parentElement?.closest("td,th")) return;
+      const todas=[...tbody.rows]; if(todas.length<2) return; // tablas mínimas: sin adornos
+      let ths=[...thead.rows[0].cells];
+      const nCols0=ths.length;
+      const key=_colsKey(ths);
 
-        // Ordenación por columna (solo cabeceras con texto).
-        nombradas.forEach(({t:th,i:idx})=>{
-          th.classList.add("sortable"); th.insertAdjacentHTML("beforeend",'<span class="caret"></span>');
-          th.addEventListener("click",()=>{
-            const asc=!(th.classList.contains("asc"));
-            ths.forEach(o=>o.classList.remove("asc","desc"));
-            th.classList.add(asc?"asc":"desc");
-            const rows=[...tbody.rows];
-            rows.sort((a,b)=>{
-              const ta=(a.cells[idx]?.textContent)||"", tb=(b.cells[idx]?.textContent)||"";
-              const fa=_celdaFecha(ta), fb=_celdaFecha(tb);
-              let r;
-              if(fa!==null&&fb!==null) r=fa.localeCompare(fb);
-              else { const na=_celdaNum(ta), nb=_celdaNum(tb); r=(!isNaN(na)&&!isNaN(nb))?(na-nb):_norm(ta).localeCompare(_norm(tb)); }
-              return asc?r:-r;
-            });
-            rows.forEach(r=>tbody.appendChild(r));
-          });
-        });
+      // Filas fijas: totales propios de la pantalla, «saldo anterior», avisos a lo ancho. Arriba o abajo del todo.
+      const esFija=r=>{ if(r.cells.length!==nCols0||[...r.cells].some(c=>c.colSpan>1)) return true;
+        const c=r.cells[0], t=_norm(c?.textContent); const s=c?.querySelector("strong");
+        return /^(total|totales|subtotal|suma|saldo anterior|saldo inicial|saldo final|resultado)\b/.test(t)&&!!s&&_norm(s.textContent)===t; };
+      let a=0,b=todas.length; while(a<b&&esFija(todas[a])) a++; while(b>a&&esFija(todas[b-1])) b--;
+      const fijasIni=todas.slice(0,a), fijasFin=todas.slice(b);
+      const datos=todas.slice(a,b); if(datos.length<2) return;
+      const estructurada=datos.some(esFija); // secciones y subtotales intercalados (PyG, balance…)
+      tabla.dataset.pro="1";
+      const nativos=fijasFin.some(r=>/^(total|totales|suma)/.test(_norm(r.cells[0]?.textContent)));
 
-        // Barra de herramientas: buscador + selector de columnas.
-        const tools=document.createElement("div"); tools.className="tabla-tools";
-        tools.innerHTML='<div class="tabla-buscar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg><input type="search" placeholder="Filtrar en la tabla…"/></div><span class="tabla-info"></span><span class="spacer"></span>';
-        tabla.parentNode.insertBefore(tools,tabla);
-        const input=tools.querySelector("input"), info=tools.querySelector(".tabla-info");
-        const total=filas.length;
-        const pintaInfo=v=>{ info.textContent = v ? `${[...tbody.rows].filter(r=>r.style.display!=="none").length} de ${total}` : `${total} registro${total===1?"":"s"}`; };
-        input.addEventListener("input",()=>{ const q=_norm(input.value); [...tbody.rows].forEach(r=>{ r.style.display=(!q||_norm(r.textContent).includes(q))?"":"none"; }); pintaInfo(q); });
-        pintaInfo("");
+      let M=new Map(); datos.forEach(r=>M.set(r,[...r.cells].map(_rejTexto)));
+      const cols0=_rejColumnas(ths,datos,M);
+      const sinTotales=tabla.dataset.totales==="no"||estructurada;
+      const hayImportes=cols0.some(c=>c.total==="suma"&&(c.tipo==="moneda"||c.suf==="kg"));
 
-        // Exportar a CSV: solo las columnas visibles (las elegidas) y las filas del filtro activo.
-        const exp=document.createElement("button"); exp.type="button"; exp.className="cols-btn"; exp.title="Exportar a CSV las columnas y filas visibles";
-        exp.innerHTML='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M8 11l4 4 4-4"/><path d="M4 19h16"/></svg>Exportar';
-        exp.addEventListener("click",()=>exportarTablaCsv(tabla));
-        tools.appendChild(exp);
+      // Casilla de selección (primera columna) si hay importes y la tabla no tiene ya las suyas.
+      const conSel=hayImportes&&!estructurada&&tabla.dataset.seleccion!=="no"&&!tbody.querySelector('input[type="checkbox"]');
+      const off=conSel?1:0;
+      if(conSel){
+        const th=document.createElement("th"); th.className="rej-chk"; th.innerHTML='<input type="checkbox" title="Seleccionar las filas visibles"/>';
+        thead.rows[0].insertBefore(th,thead.rows[0].cells[0]);
+        todas.forEach(r=>{ const td=document.createElement("td"); td.className="rej-chk";
+          if(M.has(r)){ td.innerHTML='<input type="checkbox"/>'; td.addEventListener("click",e=>e.stopPropagation()); }
+          r.insertBefore(td,r.cells[0]); });
+        ths=[...thead.rows[0].cells];
+        const M2=new Map(); datos.forEach(r=>M2.set(r,[""].concat(M.get(r)))); M=M2;
+      }
+      const cols=conSel?[{i:0,nombre:"",h:"",tipo:"sel",total:null,dec:0,suf:"",distintos:null}].concat(cols0.map(c=>Object.assign(c,{i:c.i+1}))):cols0;
+      const nCols=cols.length;
+      const conTotal=cols.filter(c=>c.total);
+      const rowNorm=new Map(); datos.forEach(r=>rowNorm.set(r,_norm(M.get(r).join(" "))));
+      const numDe=(r,i)=>{ const n=_rejNum(M.get(r)[i]); return n?n.v:null; };
 
-        // Selector de columnas «de quita y pon» (recuerda la elección por tabla).
-        if(nombradas.length>=3){
-          const key=_colsKey(ths); const ocultas=_colsGet(key);
-          ocultas.forEach(i=>setCol(i,false));
-          const wrap=document.createElement("div"); wrap.className="cols-wrap";
-          wrap.innerHTML=`<button class="cols-btn" type="button"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16"/></svg>Columnas</button><div class="cols-menu"><div class="tit">Mostrar columnas</div>${nombradas.map(({t,i})=>`<label><input type="checkbox" data-i="${i}" ${ocultas.has(i)?"":"checked"}/> ${t.textContent.replace(/\s*$/,"")}</label>`).join("")}</div>`;
-          tools.appendChild(wrap);
-          const btn=wrap.querySelector(".cols-btn"), menu=wrap.querySelector(".cols-menu");
-          btn.addEventListener("click",e=>{ e.stopPropagation(); document.querySelectorAll(".cols-menu.show").forEach(m=>{ if(m!==menu) m.classList.remove("show"); }); menu.classList.toggle("show"); });
-          menu.addEventListener("click",e=>e.stopPropagation());
-          menu.querySelectorAll("input").forEach(chk=>chk.addEventListener("change",()=>{ const i=Number(chk.dataset.i); setCol(i,chk.checked); if(chk.checked) ocultas.delete(i); else ocultas.add(i); _colsSet(key,ocultas); }));
+      // Estado de la rejilla.
+      const st={ q:"", filtros:{}, orden:datos.slice(), grupo:"", plegados:new Set(), sel:new Set(), ocultas:new Set([..._colsGet(key)].map(i=>Number(i)+off)) };
+      tabla._rej={ st, cols, datos, M, fijasIni, fijasFin, off, conTotal, nativos, sinTotales, key,
+        titulo:()=>{ const h=tabla.closest(".panel")?.querySelector(".panel-head h2")?.textContent?.trim(); const v=(document.getElementById("viewTitle")?.textContent||"").trim(); return h&&_norm(h)!==_norm(v)?(v?v+" · ":"")+h:(v||h||"Listado"); },
+        visibles:()=>st.orden.filter(pasa), pinta:()=>pintar(), resumen:f=>resumen(f), conTfoot:()=>!!(tfoot&&tfoot.rows.length) };
+
+      const filtroActivo=f=>f&&Object.entries(f).some(([k,v])=>k!=="tipo"&&v!=="");
+      const nFiltros=()=>Object.values(st.filtros).filter(filtroActivo).length;
+      function pasa(r){
+        if(st.q&&!rowNorm.get(r).includes(st.q)) return false;
+        for(const [i,f] of Object.entries(st.filtros)){
+          if(!filtroActivo(f)) continue;
+          const t=M.get(r)[i];
+          if(f.tipo==="fecha"){ const k=_celdaFecha(t); if(!k) return false; if(f.desde&&k<f.desde.replace(/-/g,"")) return false; if(f.hasta&&k>f.hasta.replace(/-/g,"")) return false; }
+          else if(f.tipo==="num"){ const n=numDe(r,i); if(n==null) return false; const mn=f.min!==""?_celdaNum(f.min):NaN, mx=f.max!==""?_celdaNum(f.max):NaN; if(!isNaN(mn)&&n<mn-1e-9) return false; if(!isNaN(mx)&&n>mx+1e-9) return false; }
+          else if(f.tipo==="sel"){ if(t!==f.v) return false; }
+          else if(f.q&&!_norm(t).includes(_norm(f.q))) return false;
         }
+        return true;
+      }
+      const resumen=filas=>{ const out={}; conTotal.forEach(c=>{ let s=0,n=0; filas.forEach(r=>{ const v=numDe(r,c.i); if(v!=null){ s+=v; n++; } }); out[c.i]=c.total==="media"?(n?s/n:null):s; }); return out; };
+      const etiquetaCol=()=>{ const c=cols.find(c=>c.tipo!=="sel"&&!c.total&&!st.ocultas.has(c.i)); return c?c.i:-1; };
+      const celdaTotal=(c,v)=>c.total==="media"?`<span class="rej-media" title="Media de las filas">⌀ ${_rejFmt(c,v,true)}</span>`:_rejFmt(c,v,false);
+      // Fila de grupo o de totales: la etiqueta ocupa las columnas sin total que la siguen.
+      function filaResumen(clase,etiqueta,valores){
+        const tr=document.createElement("tr"); tr.className=clase; const et=etiquetaCol();
+        const vis=cols.filter(c=>!st.ocultas.has(c.i)); let h="";
+        for(let k=0;k<vis.length;k++){ const c=vis[k];
+          if(c.i===et){ let n=1; while(k+n<vis.length&&!vis[k+n].total) n++; h+=`<td colspan="${n}" class="rej-etq">${etiqueta}</td>`; k+=n-1; continue; }
+          h+=(c.total&&valores[c.i]!=null)?`<td class="num">${celdaTotal(c,valores[c.i])}</td>`:"<td></td>"; }
+        tr.innerHTML=h; return tr;
+      }
+
+      // --- Pintado: filtra, ordena, agrupa y recalcula totales y selección.
+      let tfoot=null;
+      function pintar(){
+        const vis=st.orden.filter(pasa), visSet=new Set(vis);
+        datos.forEach(r=>{ r.style.display=visSet.has(r)?"":"none"; });
+        tbody.querySelectorAll("tr.rej-grupo").forEach(g=>g.remove());
+        const frag=document.createDocumentFragment();
+        fijasIni.forEach(r=>frag.appendChild(r));
+        const gcol=st.grupo?cols.find(c=>c.nombre===st.grupo):null;
+        if(gcol){
+          const grupos=new Map(); st.orden.forEach(r=>{ const k=M.get(r)[gcol.i]||"(vacío)"; if(!grupos.has(k)) grupos.set(k,[]); grupos.get(k).push(r); });
+          const sortCol=cols.find(c=>ths[c.i]?.classList.contains("asc")||ths[c.i]?.classList.contains("desc"));
+          let claves=[...grupos.keys()];
+          if(!sortCol||sortCol.i===gcol.i){ claves.sort((x,y)=>_norm(x).localeCompare(_norm(y),"es",{numeric:true})); if(sortCol&&ths[sortCol.i].classList.contains("desc")) claves.reverse(); }
+          claves.forEach(k=>{
+            const filas=grupos.get(k), v=filas.filter(r=>visSet.has(r)); if(!v.length){ filas.forEach(r=>frag.appendChild(r)); return; }
+            const plegado=st.plegados.has(k);
+            const g=filaResumen("rej-grupo"+(plegado?" plegado":""),`<span class="rej-caret">${plegado?"▸":"▾"}</span> <strong>${agEsc(k)}</strong> <span class="muted">· ${v.length}</span>`,conTotal.length?resumen(v):{});
+            g.title=plegado?"Desplegar":"Plegar"; g.addEventListener("click",()=>{ if(st.plegados.has(k)) st.plegados.delete(k); else st.plegados.add(k); pintar(); });
+            frag.appendChild(g); filas.forEach(r=>{ if(plegado) r.style.display="none"; frag.appendChild(r); });
+          });
+        } else st.orden.forEach(r=>frag.appendChild(r));
+        fijasFin.forEach(r=>frag.appendChild(r));
+        tbody.appendChild(frag);
+
+        // Totales de lo visible.
+        const filtrando=!!st.q||nFiltros()>0;
+        if(conTotal.length&&!sinTotales&&(!nativos||filtrando)){
+          if(!tfoot){ tfoot=tabla.createTFoot(); }
+          const et=tabla.dataset.pagina?"Total página":(nativos?"Total filtrado":"Total");
+          tfoot.innerHTML=""; tfoot.appendChild(filaResumen("rej-total",`${et} · ${vis.length}`,resumen(vis)));
+        } else if(tfoot){ tfoot.innerHTML=""; }
+        info.textContent=filtrando?`${vis.length} de ${datos.length}`:`${datos.length} registro${datos.length===1?"":"s"}`;
+        pintaSel(visSet); pintaFiltrosBtn();
+      }
+
+      // --- Barra de herramientas.
+      const tools=document.createElement("div"); tools.className="tabla-tools"; tools._tabla=tabla;
+      tools.innerHTML='<div class="tabla-buscar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg><input type="search" placeholder="Filtrar en la tabla…"/></div><span class="tabla-info"></span><span class="rej-sel" style="display:none"></span><span class="spacer"></span>';
+      tabla.parentNode.insertBefore(tools,tabla);
+      const input=tools.querySelector("input"), info=tools.querySelector(".tabla-info"), selInfo=tools.querySelector(".rej-sel");
+      let tq=null;
+      input.addEventListener("input",()=>{ clearTimeout(tq); tq=setTimeout(()=>{ st.q=_norm(input.value); pintar(); },120); });
+      const boton=(html,titulo,fn)=>{ const b=document.createElement("button"); b.type="button"; b.className="cols-btn"; b.title=titulo; b.innerHTML=html; b.addEventListener("click",e=>{ e.stopPropagation(); fn(b,e); }); tools.appendChild(b); return b; };
+      const ico=p=>`<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+
+      // Filtros por columna (fila bajo la cabecera).
+      let filaFiltros=null, btnLimpiar=null;
+      const filtrables=cols.filter(c=>c.tipo!=="sel"&&c.nombre&&(c.tipo!=="texto"||c.distintos));
+      const btnFiltros=filtrables.length?boton(ico('<path d="M3 5h18l-7 8v6l-4-2v-4z"/>')+'Filtros<span class="rej-badge" style="display:none"></span>',"Filtrar por columna",()=>{
+        if(!filaFiltros) crearFiltros(); const ver=filaFiltros.style.display==="none"; filaFiltros.style.display=ver?"":"none"; btnFiltros.classList.toggle("on",ver);
+        if(ver) filaFiltros.querySelector("input,select")?.focus(); }):null;
+      function pintaFiltrosBtn(){
+        if(!btnFiltros) return; const n=nFiltros(); const bd=btnFiltros.querySelector(".rej-badge"); bd.textContent=n; bd.style.display=n?"":"none";
+        if(btnLimpiar) btnLimpiar.style.display=(n||st.q)?"":"none";
+      }
+      function crearFiltros(){
+        filaFiltros=document.createElement("tr"); filaFiltros.className="rej-filtros"; filaFiltros.style.display="none";
+        cols.forEach(c=>{
+          const td=document.createElement("td"); if(st.ocultas.has(c.i)) td.style.display="none";
+          const set=(k,v)=>{ st.filtros[c.i]=Object.assign(st.filtros[c.i]||{},{[k]:v}); clearTimeout(tq); tq=setTimeout(pintar,150); };
+          if(c.tipo==="sel"||!c.nombre){ filaFiltros.appendChild(td); return; }
+          if(c.tipo==="fecha"){ st.filtros[c.i]={tipo:"fecha",desde:"",hasta:""};
+            td.innerHTML='<div class="rej-rango"><input type="date" title="Desde" data-k="desde"/><input type="date" title="Hasta" data-k="hasta"/></div>'; }
+          else if(c.total||c.tipo==="numero"||c.tipo==="moneda"||c.tipo==="porcentaje"){ st.filtros[c.i]={tipo:"num",min:"",max:""};
+            td.innerHTML='<div class="rej-rango"><input type="text" inputmode="decimal" placeholder="mín." data-k="min"/><input type="text" inputmode="decimal" placeholder="máx." data-k="max"/></div>'; }
+          else if(c.distintos&&c.distintos.length<=15&&c.distintos.length<datos.length){ st.filtros[c.i]={tipo:"sel",v:""};
+            td.innerHTML=`<select data-k="v"><option value="">(todos)</option>${c.distintos.map(v=>`<option value="${agEsc(v)}">${agEsc(v)}</option>`).join("")}</select>`; }
+          else { st.filtros[c.i]={tipo:"txt",q:""}; td.innerHTML='<input type="text" placeholder="contiene…" data-k="q"/>'; }
+          td.querySelectorAll("input,select").forEach(el=>{ el.addEventListener(el.tagName==="SELECT"?"change":"input",()=>set(el.dataset.k,el.value)); el.addEventListener("click",e=>e.stopPropagation()); });
+          filaFiltros.appendChild(td);
+        });
+        thead.appendChild(filaFiltros);
+      }
+      if(btnFiltros){
+        btnLimpiar=boton("Limpiar","Quitar la búsqueda y los filtros",()=>{ st.q=""; input.value=""; Object.values(st.filtros).forEach(f=>Object.keys(f).forEach(k=>{ if(k!=="tipo") f[k]=""; }));
+          filaFiltros?.querySelectorAll("input,select").forEach(el=>el.value=""); pintar(); });
+        btnLimpiar.classList.add("rej-limpiar"); btnLimpiar.style.display="none";
+      }
+
+      // Agrupar por una columna de texto con pocos valores distintos.
+      const agrupables=(estructurada||tabla.dataset.agrupar==="no")?[]:cols.filter(c=>c.distintos&&c.distintos.length>=2&&c.distintos.length<=50&&c.distintos.length<datos.length);
+      if(agrupables.length){
+        const g=document.createElement("select"); g.className="rej-agrupar"; g.title="Agrupar por";
+        g.innerHTML=`<option value="">Sin agrupar</option>${agrupables.map(c=>`<option value="${agEsc(c.nombre)}">Agrupar: ${agEsc(c.nombre)}</option>`).join("")}`;
+        // Agrupación recordada por el usuario o, si no hay, la que proponga la pantalla (data-agrupar-por).
+        const rec=_grupoGet(key)||tabla.dataset.agruparPor||""; if(rec!=="-"&&agrupables.some(c=>c.nombre===rec)){ st.grupo=rec; g.value=rec; }
+        g.addEventListener("change",()=>{ st.grupo=g.value; st.plegados.clear(); _grupoSet(key,g.value||(tabla.dataset.agruparPor?"-":"")); pintar(); });
+        g.addEventListener("click",e=>e.stopPropagation());
+        tools.appendChild(g);
+      }
+
+      // Ordenación por columna (solo cabeceras con texto).
+      cols.filter(c=>c.nombre&&c.tipo!=="sel").forEach(c=>{
+        const th=ths[c.i]; th.classList.add("sortable"); th.insertAdjacentHTML("beforeend",'<span class="caret"></span>');
+        th.addEventListener("click",()=>{
+          const asc=!th.classList.contains("asc"); ths.forEach(o=>o.classList.remove("asc","desc")); th.classList.add(asc?"asc":"desc");
+          const clave=r=>{ const t=M.get(r)[c.i]; if(_rejVacio(t)) return null; if(c.tipo==="fecha") return _celdaFecha(t)||t;
+            if(c.total||c.tipo==="numero"||c.tipo==="moneda"||c.tipo==="porcentaje"){ const n=_rejNum(t); return n?n.v:_celdaNum(t); } return _norm(t); };
+          st.orden.sort((x,y)=>{ const a=clave(x), b=clave(y); if(a===b) return 0; if(a==null) return 1; if(b==null) return -1;
+            const r=(typeof a==="number"&&typeof b==="number")?a-b:String(a).localeCompare(String(b),"es",{numeric:true}); return asc?r:-r; });
+          pintar();
+        });
       });
+
+      // Mostrar/ocultar una columna en todas las filas alineadas (cabecera, filtros, datos, grupos y totales).
+      const setCol=(idx,vis)=>{ if(vis) st.ocultas.delete(idx); else st.ocultas.add(idx);
+        [...tabla.rows].forEach(r=>{ if(r.cells.length===nCols&&r.cells[idx]) r.cells[idx].style.display=vis?"":"none"; }); };
+      st.ocultas.forEach(i=>setCol(i,false));
+      const nombradas=cols.filter(c=>c.nombre&&c.tipo!=="sel");
+      if(nombradas.length>=3){
+        const wrap=document.createElement("div"); wrap.className="cols-wrap";
+        wrap.innerHTML=`<button class="cols-btn" type="button">${ico('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16"/>')}Columnas</button><div class="cols-menu"><div class="tit">Mostrar columnas</div>${nombradas.map(c=>`<label><input type="checkbox" data-i="${c.i}" ${st.ocultas.has(c.i)?"":"checked"}/> ${agEsc(c.nombre)}</label>`).join("")}</div>`;
+        tools.appendChild(wrap);
+        const btn=wrap.querySelector(".cols-btn"), menu=wrap.querySelector(".cols-menu");
+        btn.addEventListener("click",e=>{ e.stopPropagation(); document.querySelectorAll(".cols-menu.show").forEach(m=>{ if(m!==menu) m.classList.remove("show"); }); menu.classList.toggle("show"); });
+        menu.addEventListener("click",e=>e.stopPropagation());
+        menu.querySelectorAll("input").forEach(chk=>chk.addEventListener("change",()=>{ setCol(Number(chk.dataset.i),chk.checked); _colsSet(key,new Set([...st.ocultas].map(i=>i-off))); pintar(); }));
+      }
+
+      // Exportar (Excel o CSV) e imprimir: columnas visibles y filas del filtro, en el orden actual.
+      const wrapE=document.createElement("div"); wrapE.className="cols-wrap";
+      wrapE.innerHTML=`<button class="cols-btn" type="button" title="Exportar las columnas y filas visibles">${ico('<path d="M12 3v12"/><path d="M8 11l4 4 4-4"/><path d="M4 19h16"/>')}Exportar</button><div class="cols-menu"><div class="tit">Exportar lo visible</div><button type="button" class="rej-op" data-f="xlsx">Excel (.xlsx)</button><button type="button" class="rej-op" data-f="csv">CSV (;)</button></div>`;
+      tools.appendChild(wrapE);
+      const menuE=wrapE.querySelector(".cols-menu");
+      wrapE.querySelector(".cols-btn").addEventListener("click",e=>{ e.stopPropagation(); document.querySelectorAll(".cols-menu.show").forEach(m=>{ if(m!==menuE) m.classList.remove("show"); }); menuE.classList.toggle("show"); });
+      menuE.querySelectorAll(".rej-op").forEach(o=>o.addEventListener("click",e=>{ e.stopPropagation(); menuE.classList.remove("show"); if(o.dataset.f==="xlsx") exportarTablaXlsx(tabla); else exportarTablaCsv(tabla); }));
+      boton(ico('<path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 14h12v7H6z"/>')+"Imprimir","Imprimir la tabla (columnas y filas visibles)",()=>imprimirTabla(tabla));
+
+      // Selección de filas con suma de los importes.
+      function pintaSel(visSet){
+        if(!conSel) return;
+        const sel=[...st.sel].filter(r=>visSet.has(r));
+        const cab=ths[0].querySelector("input"); const nv=visSet.size;
+        cab.checked=nv>0&&sel.length===nv; cab.indeterminate=sel.length>0&&sel.length<nv;
+        datos.forEach(r=>{ const ch=r.cells[0].querySelector("input"); if(ch) ch.checked=st.sel.has(r); r.classList.toggle("rej-marcada",st.sel.has(r)); });
+        if(!sel.length){ selInfo.style.display="none"; return; }
+        const s=resumen(sel);
+        selInfo.innerHTML=`<strong>${sel.length} seleccionada${sel.length===1?"":"s"}</strong>${conTotal.filter(c=>c.total==="suma"&&!st.ocultas.has(c.i)).slice(0,3).map(c=>` · <span class="muted">${agEsc(c.nombre)}</span> <strong>${_rejFmt(c,s[c.i])}</strong>`).join("")} <a href="#" title="Quitar la selección">✕</a>`;
+        selInfo.style.display=""; selInfo.querySelector("a").onclick=e=>{ e.preventDefault(); st.sel.clear(); pintar(); };
+      }
+      if(conSel){
+        ths[0].querySelector("input").addEventListener("click",e=>{ e.stopPropagation(); const vis=st.orden.filter(pasa); const todasSel=vis.every(r=>st.sel.has(r)); vis.forEach(r=>{ if(todasSel) st.sel.delete(r); else st.sel.add(r); }); pintar(); });
+        ths[0].addEventListener("click",e=>e.stopPropagation());
+        datos.forEach(r=>r.cells[0].querySelector("input").addEventListener("change",e=>{ if(e.target.checked) st.sel.add(r); else st.sel.delete(r); pintaSel(new Set(st.orden.filter(pasa))); }));
+      }
+      pintar();
     }
     document.addEventListener("click",()=>document.querySelectorAll(".cols-menu.show").forEach(m=>m.classList.remove("show")));
+    // Las pantallas que pintan sus tablas después (listas paginadas, pestañas, consultas) también se mejoran.
+    (function(){ const v=document.getElementById("view"); if(!v||!window.MutationObserver) return; let t=null;
+      new MutationObserver(()=>{ if(t) return; t=setTimeout(()=>{ t=null; try{ mejorarTablas(); }catch(e){} },40); }).observe(v,{childList:true,subtree:true}); })();
 
-    // Exporta a CSV una tabla respetando las columnas visibles (elegidas) y las filas del filtro activo.
-    function _txtCelda(c){ return (c?c.textContent:"").replace(/\s+/g," ").trim(); }
+    // Datos de una rejilla tal como se ven: columnas visibles con título y filas del filtro activo, en su orden.
+    function _txtCelda(c){ return _rejTexto(c); }
     function _csv(v){ v=v==null?"":String(v); return /[";\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }
+    function _rejVista(tabla){
+      const R=tabla._rej, ths=[...tabla.tHead.rows[0].cells];
+      if(!R){ // tabla sin mejorar (p. ej. una sola fila)
+        const cols=ths.map((t,i)=>({i,nombre:_rejTexto(t),tipo:"texto"})).filter(c=>c.nombre&&ths[c.i].style.display!=="none");
+        const filas=[...tabla.tBodies[0].rows].filter(r=>r.style.display!=="none"&&r.cells.length===ths.length).map(r=>cols.map(c=>_rejTexto(r.cells[c.i])));
+        return { titulo:(document.getElementById("viewTitle")?.textContent||"Listado").trim(), cols, filas, total:null, grupos:null };
+      }
+      const cols=R.cols.filter(c=>c.nombre&&c.tipo!=="sel"&&!R.st.ocultas.has(c.i));
+      const vis=R.visibles();
+      const filas=vis.map(r=>cols.map(c=>R.M.get(r)[c.i]));
+      let total=null;
+      if(R.conTfoot()){ const s=R.resumen(vis); total=cols.map(c=>c.total&&s[c.i]!=null?_rejFmt(c,s[c.i],c.total==="media"):"");
+        const et=cols.findIndex(c=>!c.total); if(et>=0) total[et]=`Total · ${vis.length}`; }
+      return { titulo:R.titulo(), cols, filas, total, R, vis };
+    }
+    function _rejNombreFichero(t){ return (t||"informe").trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,70)||"informe"; }
+    function _rejDescargar(blob,nombre){ const u=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=u; a.download=nombre; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(u),60000); }
     function exportarTablaCsv(tabla){
-      const ths=[...tabla.tHead.rows[0].cells];
-      // Columnas exportables: con título y visibles (no ocultadas por el usuario).
-      const cols=ths.map((t,i)=>({t,i})).filter(x=>_norm(x.t.textContent)&&x.t.style.display!=="none");
-      if(!cols.length){ toast("No hay columnas que exportar.","err"); return; }
-      const lineas=[cols.map(c=>_csv(_txtCelda(c.t))).join(";")];
-      [...tabla.tBodies[0].rows].forEach(r=>{ if(r.style.display==="none") return; lineas.push(cols.map(c=>_csv(_txtCelda(r.cells[c.i]))).join(";")); });
-      const titulo=(document.getElementById("viewTitle")?.textContent||"informe").trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")||"informe";
-      const fecha=new Date().toISOString().slice(0,10);
+      const d=_rejVista(tabla);
+      if(!d.cols.length){ toast("No hay columnas que exportar.","err"); return; }
+      const lineas=[d.cols.map(c=>_csv(c.nombre)).join(";")].concat(d.filas.map(f=>f.map(_csv).join(";")));
       const blob=new Blob(["﻿"+lineas.join("\r\n")],{type:"text/csv;charset=utf-8"});
-      const u=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=u; a.download=`${titulo}-${fecha}.csv`; a.click(); setTimeout(()=>URL.revokeObjectURL(u),60000);
-      toast(`Exportadas ${lineas.length-1} fila(s) · ${cols.length} columna(s).`,"ok");
+      _rejDescargar(blob,`${_rejNombreFichero(d.titulo)}-${new Date().toISOString().slice(0,10)}.csv`);
+      toast(`Exportadas ${d.filas.length} fila(s) · ${d.cols.length} columna(s).`,"ok");
+    }
+    async function exportarTablaXlsx(tabla){
+      const d=_rejVista(tabla);
+      if(!d.cols.length){ toast("No hay columnas que exportar.","err"); return; }
+      const tipo=c=>({moneda:"moneda",porcentaje:"porcentaje",numero:"numero",fecha:"fecha"}[c.tipo]||"texto");
+      const valor=(c,t)=>{ if(_rejVacio(t)) return null; if(c.tipo==="fecha"){ const m=t.match(/^\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/); return m?m[1]:t; }
+        if(tipo(c)!=="texto"){ const n=_rejNum(t); return n?n.v:t; } return t; };
+      const peticion={ titulo:d.titulo,
+        columnas:d.cols.map(c=>({ titulo:c.nombre, tipo:tipo(c), total:c.total==="suma"?"suma":(c.total==="media"?"media":"no") })),
+        filas:d.filas.map(f=>f.map((t,j)=>valor(d.cols[j],t))) };
+      if(d.total||(d.R&&d.R.conTotal.length&&!d.R.sinTotales)) peticion.totales=[`Total · ${d.filas.length}`];
+      try{
+        const r=await fetch(API+"/exportar/xlsx",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+token},body:JSON.stringify(peticion)});
+        if(!r.ok){ let m="HTTP "+r.status; try{ const b=await r.json(); m=b.title||m; }catch(e){} throw new Error(m); }
+        _rejDescargar(await r.blob(),`${_rejNombreFichero(d.titulo)}-${new Date().toISOString().slice(0,10)}.xlsx`);
+        toast(`Excel generado: ${d.filas.length} fila(s) · ${d.cols.length} columna(s).`,"ok");
+      }catch(e){ toast("No se pudo exportar a Excel: "+e.message,"err"); }
+    }
+    // Imprime solo la tabla (columnas y filas visibles, grupos, totales) en una ventana aparte.
+    function imprimirTabla(tabla){
+      const d=_rejVista(tabla);
+      const w=window.open("","_blank"); if(!w){ toast("El navegador ha bloqueado la ventana de impresión.","err"); return; }
+      const num=c=>c.total||["numero","moneda","porcentaje"].includes(c.tipo);
+      const fila=(vals,cls)=>`<tr${cls?` class="${cls}"`:""}>${vals.map((v,j)=>`<td${num(d.cols[j])?' class="n"':""}>${agEsc(v)}</td>`).join("")}</tr>`;
+      let cuerpo="";
+      if(d.R&&d.R.st.grupo){
+        const gi=d.R.cols.find(c=>c.nombre===d.R.st.grupo).i; const grupos=new Map();
+        d.filas.forEach((f,k)=>{ const clave=d.R.M.get(d.vis[k])[gi]||"(vacío)"; if(!grupos.has(clave)) grupos.set(clave,[]); grupos.get(clave).push(f); });
+        [...grupos.keys()].sort((x,y)=>_norm(x).localeCompare(_norm(y),"es",{numeric:true})).forEach(k=>{
+          const fs=grupos.get(k);
+          const sub=d.cols.map((c,j)=>{ if(!c.total) return ""; const vs=fs.map(f=>_rejNum(f[j])).filter(Boolean).map(n=>n.v); if(!vs.length) return ""; const s=vs.reduce((a,b)=>a+b,0); return _rejFmt(c,c.total==="media"?s/vs.length:s,c.total==="media"); });
+          const et=d.cols.findIndex(c=>!c.total); if(et>=0) sub[et]=`${k} · ${fs.length}`;
+          cuerpo+=fila(sub,"g")+fs.map(f=>fila(f)).join("");
+        });
+      } else cuerpo=d.filas.map(f=>fila(f)).join("");
+      const filtros=d.R?[d.R.st.q?`búsqueda «${agEsc(d.R.st.q)}»`:""].concat(Object.entries(d.R.st.filtros).filter(([,f])=>Object.entries(f).some(([k,v])=>k!=="tipo"&&v!=="")).map(([i,f])=>{ const c=d.R.cols[Number(i)]; const v=Object.entries(f).filter(([k,v])=>k!=="tipo"&&v!=="").map(([k,v])=>(k==="q"||k==="v")?v:`${k} ${v}`).join(", "); return `${agEsc(c.nombre)}: ${agEsc(v)}`; })).filter(Boolean):[];
+      w.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${agEsc(d.titulo)}</title><style>
+        body{font:12px -apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:#0f172a;margin:24px}
+        h1{font-size:17px;margin:0 0 2px} .sub{color:#64748b;margin:0 0 14px;font-size:11px}
+        table{width:100%;border-collapse:collapse} th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.03em;color:#475569;border-bottom:1.5px solid #0f172a;padding:6px 8px}
+        td{padding:5px 8px;border-bottom:1px solid #e2e8f0;vertical-align:top} .n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+        tr.g td{background:#f1f5f9;font-weight:700} tfoot td{font-weight:700;border-top:1.5px solid #0f172a;border-bottom:3px double #0f172a}
+        thead{display:table-header-group} tr{page-break-inside:avoid} @page{margin:14mm}
+      </style></head><body><h1>${agEsc(d.titulo)}</h1><p class="sub">${agEsc(empresa?.razonSocial||"")} · ${new Date().toLocaleString("es-ES")} · ${d.filas.length} fila(s)${filtros.length?" · Filtros: "+filtros.join(" · "):""}</p>
+      <table><thead><tr>${d.cols.map(c=>`<th${num(c)?' class="n"':""}>${agEsc(c.nombre)}</th>`).join("")}</tr></thead><tbody>${cuerpo}</tbody>${d.total?`<tfoot>${fila(d.total)}</tfoot>`:""}</table>
+      </body></html>`);
+      w.document.close(); setTimeout(()=>{ try{ w.focus(); w.print(); }catch(e){} },300);
     }
 
     /* ---------- Búsqueda global (⌘K) ---------- */
@@ -814,7 +1152,7 @@
       res.innerHTML = '<div class="muted">Cargando…</div>';
       let pg; try { pg = await api(`${cfg.endpoint}?${qs.toString()}`); } catch(e){ res.innerHTML = `<p class="muted">Error: ${e.message}</p>`; return; }
       if (!pg.total){ res.innerHTML = activos ? '<div class="empty"><h3>Sin resultados</h3><p class="muted">No hay registros con esos filtros. Prueba a ampliar la búsqueda o pulsa Limpiar.</p></div>' : vacio(...cfg.vacio); return; }
-      res.innerHTML = `<table><thead>${cfg.cabecera}</thead><tbody>${pg.elementos.map(cfg.fila).join('')}</tbody></table>${lsPaginador(clave, pg)}`;
+      res.innerHTML = `<table${pg.totalPaginas>1?' data-pagina="1"':''}><thead>${cfg.cabecera}</thead><tbody>${pg.elementos.map(cfg.fila).join('')}</tbody></table>${lsPaginador(clave, pg)}`;
     }
     function lsPaginador(clave, pg){
       if (pg.totalPaginas <= 1) return `<p class="muted" style="font-size:12px;margin:12px 0 0">${pg.total} resultado${pg.total===1?'':'s'}.</p>`;
@@ -1348,7 +1686,7 @@
           {id:"pr_fam",param:"familiaId",tipo:"select",label:"Familia",opciones:famOpts},
           {...FILTRO_BAJAS,id:"pr_bajas"},
         ],
-        cabecera:`<tr><th>Artículo</th><th>Código / EAN</th><th>Familia</th><th>Proveedor habitual</th><th class="num">Venta</th><th class="num">Compra</th><th class="num">Margen</th><th class="num">IVA</th><th class="num">Stock</th><th></th></tr>`,
+        cabecera:`<tr><th>Artículo</th><th>Código / EAN</th><th>Familia</th><th>Proveedor habitual</th><th class="num" data-media>Venta</th><th class="num" data-media>Compra</th><th class="num" data-media>Margen</th><th class="num" data-sin-total>IVA</th><th class="num">Stock</th><th></th></tr>`,
         fila:p=>`<tr style="cursor:pointer" onclick="verHistorico('${p.id}','${p.nombre.replace(/'/g,"")}')"><td><strong>${p.nombre}</strong>${badge(p)}${pillBaja(p.activo)}</td><td class="muted mono">${p.referencia||"—"}</td><td class="muted">${p.familia||"—"}</td><td class="muted">${p.proveedorHabitualId?provNombre(p.proveedorHabitualId):"—"}</td><td class="num">${eur(p.precioUnitario)}</td><td class="num muted">${p.precioCompra?eur(p.precioCompra):"—"}</td><td class="num">${margen(p)}</td><td class="num">${p.porcentajeIva}%</td><td class="num">${stockCell(p)}</td><td class="right" style="white-space:nowrap">${stockBtn(p)}${varBtn(p)}<button class="btn small secondary" onclick="editarProducto('${p.id}',event)">Editar</button> <button class="btn small secondary" onclick="event.stopPropagation();duplicarProducto('${p.id}')" title="Duplicar">⎘</button> ${botonesMaestro('/productos/'+p.id,p.nombre,p.activo,'vProductos')}</td></tr>`,
         vacio:["articulos","Sin artículos todavía","Crea productos o servicios con su código para reutilizarlos al facturar.",`<button class="btn small" onclick="modalProducto()">+ Nuevo artículo</button>`],
       });
@@ -2050,7 +2388,7 @@
       };
       window._asientoHtml=asientoHtml;
       const diarioTabla=diario.length
-        ? `<table><thead><tr><th>Asiento</th><th class="num">Debe</th><th class="num">Haber</th></tr></thead><tbody>${diario.map(asientoHtml).join("")}</tbody></table>`
+        ? `<table data-totales="no" data-seleccion="no" data-agrupar="no"><thead><tr><th>Asiento</th><th class="num">Debe</th><th class="num">Haber</th></tr></thead><tbody>${diario.map(asientoHtml).join("")}</tbody></table>`
         : vacio("informes","Sin asientos en "+anio,"Los asientos aparecerán aquí (manuales o generados al contabilizar facturas en modo Completo).",`<button class="btn small" onclick="modalAsiento()">+ Nuevo asiento</button>`);
       // Balance
       const totD=balance.reduce((a,b)=>a+b.sumaDebe,0), totH=balance.reduce((a,b)=>a+b.sumaHaber,0);
@@ -2113,7 +2451,7 @@
         const pasivo=`<table><thead><tr><th>Patrimonio neto y pasivo</th><th class="num">Importe</th></tr></thead><tbody>
           ${eps("A) Patrimonio neto",b.patrimonioNeto)}${eps("B) Pasivo no corriente",b.pasivoNoCorriente)}${eps("C) Pasivo corriente",b.pasivoCorriente)}
           <tr style="border-top:2px solid var(--line)"><td><strong>Total P. neto y pasivo</strong></td><td class="num"><strong>${eur(b.totalPatrimonioNetoYPasivo)}</strong></td></tr></tbody></table>`;
-        const pygTabla=`<table><thead><tr><th>Concepto</th><th class="num">Importe</th></tr></thead><tbody>
+        const pygTabla=`<table data-totales="no"><thead><tr><th>Concepto</th><th class="num">Importe</th></tr></thead><tbody>
           ${pg.explotacion.map(l=>`<tr><td>${l.concepto}</td><td class="num">${eur(l.importe)}</td></tr>`).join("")}
           <tr style="border-top:1px solid var(--line)"><td><strong>Resultado de explotación</strong></td><td class="num"><strong>${eur(pg.resultadoExplotacion)}</strong></td></tr>
           ${pg.financiero.map(l=>`<tr><td>${l.concepto}</td><td class="num">${eur(l.importe)}</td></tr>`).join("")}
@@ -2281,7 +2619,7 @@
     function filtrarDiario(codigo){
       const lista=(window._diarioTodos||[]).filter(a=>!codigo||a.diario===codigo).sort((x,y)=>codigo?x.numeroDiario-y.numeroDiario:0);
       const el=document.getElementById("diario_cuerpo"); if(!el) return;
-      el.innerHTML=lista.length?`<table><thead><tr><th>Asiento</th><th class="num">Debe</th><th class="num">Haber</th></tr></thead><tbody>${lista.map(window._asientoHtml).join("")}</tbody></table>`
+      el.innerHTML=lista.length?`<table data-totales="no" data-seleccion="no" data-agrupar="no"><thead><tr><th>Asiento</th><th class="num">Debe</th><th class="num">Haber</th></tr></thead><tbody>${lista.map(window._asientoHtml).join("")}</tbody></table>`
         :`<p class="muted" style="margin:0">Sin asientos en el diario ${agEsc(codigo)}.</p>`;
       mejorarTablas();
     }
@@ -4709,7 +5047,7 @@
       const fila=e=>`<tr><td>${e.sentido==="Cobro"?'<span class="pill part">Cobro</span>':'<span class="pill wait">Pago</span>'}</td><td><strong>${agEsc(e.terceroNombre)}</strong></td><td class="muted">${agEsc(e.documento)}</td><td class="muted">${fdate(e.vencimiento)}</td><td class="num">${eur(e.importe)}</td><td class="num"><strong>${eur(e.pendiente)}</strong></td><td class="muted">${e.origen||""}</td><td class="right" style="white-space:nowrap">${e.anulado?'<span class="pill neg">Anulado</span>':`${e.pendiente<e.importe?`<button class="btn small ghost" onclick="verMovimientos('/cartera/${e.id}/saldo','Movimientos de ${agEsc(e.documento).replace(/'/g,"")}',vCartera)">Movimientos</button> `:`<button class="btn small ghost" onclick="anularEfecto('${e.id}')">Anular</button> `}<button class="btn small secondary" onclick="modalLiquidarEfecto('${e.id}',${e.pendiente},'${e.sentido}')">${e.sentido==="Cobro"?"Cobrar":"Pagar"}</button>`}</td></tr>`;
       const cobros=lista.filter(e=>e.sentido==="Cobro"), pagos=lista.filter(e=>e.sentido==="Pago");
       const tot=l=>eur(l.reduce((s,e)=>s+e.pendiente,0));
-      view(panel(`Efectos pendientes · a cobrar ${tot(cobros)} · a pagar ${tot(pagos)}`,lista.length?`<table><thead><tr><th></th><th>Tercero</th><th>Documento</th><th>Vencimiento</th><th class="num">Importe</th><th class="num">Pendiente</th><th>Origen</th><th></th></tr></thead><tbody>${lista.map(fila).join("")}</tbody></table>`
+      view(panel(`Efectos pendientes · a cobrar ${tot(cobros)} · a pagar ${tot(pagos)}`,lista.length?`<table data-agrupar-por="Sentido"><thead><tr><th>Sentido</th><th>Tercero</th><th>Documento</th><th>Vencimiento</th><th class="num">Importe</th><th class="num">Pendiente</th><th>Origen</th><th></th></tr></thead><tbody>${lista.map(fila).join("")}</tbody></table>`
         :'<p class="muted" style="margin:0">No hay efectos pendientes. Aquí aparece la cartera viva traída de otro ERP (por ejemplo, en la migración desde Hispatec): vencimientos que no tienen factura ni gasto en ALXOR.</p>',
         `<label style="display:flex;gap:6px;align-items:center;font-size:13px"><input id="car_todos" type="checkbox" style="width:auto" ${todos?"checked":""} onchange="vCartera()"/> Ver también los liquidados</label>`));
     }
