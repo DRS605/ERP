@@ -176,15 +176,17 @@ function Disenador(props: {
   async function exportar(formato: "xlsx" | "csv") {
     if (!res) return;
     const nombres = res.dimensiones.map((d) => d.nombre);
-    const cabecera: { titulo: string; tipo: string }[] = nombres.map((n) => ({ titulo: n, tipo: "texto" }));
+    // Porcentajes en puntos (21 = 21 %); las medidas no sumables llevan media o nada en la fila de totales del Excel.
+    const cabecera: { titulo: string; tipo: string; total?: string }[] = nombres.map((n) => ({ titulo: n, tipo: "texto" }));
+    const totalDe = (m: { tipo: string; aditiva: boolean }) => (m.aditiva ? "suma" : "no");
     const tipoX = (t: string) => (t === "Moneda" ? "moneda" : t === "Porcentaje" ? "porcentaje" : t === "Numero" ? "numero" : "texto");
     if (res.columna) {
-      res.valoresColumna.forEach((v) => res.medidas.forEach((m) => cabecera.push({ titulo: `${clave(v, res.columna!.clave)} · ${m.nombre}`, tipo: tipoX(m.tipo) })));
-      res.medidas.forEach((m) => cabecera.push({ titulo: `Total · ${m.nombre}`, tipo: tipoX(m.tipo) }));
+      res.valoresColumna.forEach((v) => res.medidas.forEach((m) => cabecera.push({ titulo: `${clave(v, res.columna!.clave)} · ${m.nombre}`, tipo: tipoX(m.tipo), total: totalDe(m) })));
+      res.medidas.forEach((m) => cabecera.push({ titulo: `Total · ${m.nombre}`, tipo: tipoX(m.tipo), total: totalDe(m) }));
     } else {
       res.medidas.forEach((m) => {
-        cabecera.push({ titulo: m.nombre, tipo: tipoX(m.tipo) });
-        if (res.desdeAnterior) { cabecera.push({ titulo: `${m.nombre} (anterior)`, tipo: tipoX(m.tipo) }); cabecera.push({ titulo: `${m.nombre} Δ %`, tipo: "porcentaje" }); }
+        cabecera.push({ titulo: m.nombre, tipo: tipoX(m.tipo), total: totalDe(m) });
+        if (res.desdeAnterior) { cabecera.push({ titulo: `${m.nombre} (anterior)`, tipo: tipoX(m.tipo), total: totalDe(m) }); cabecera.push({ titulo: `${m.nombre} Δ %`, tipo: "porcentaje", total: "no" }); }
       });
     }
     const cuerpo = res.filas.filter((f) => f.nivel > 0).map((f) => {
@@ -195,7 +197,7 @@ function Disenador(props: {
       } else {
         res.medidas.forEach((_m, mi) => {
           fila.push(f.valores[mi]);
-          if (res.desdeAnterior) { fila.push(f.anteriores?.[mi] ?? null); const v = variacion(f.valores[mi], f.anteriores?.[mi]); fila.push(v === null ? null : v / 100); }
+          if (res.desdeAnterior) { fila.push(f.anteriores?.[mi] ?? null); fila.push(variacion(f.valores[mi], f.anteriores?.[mi])); }
         });
       }
       return fila;
