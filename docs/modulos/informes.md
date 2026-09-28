@@ -159,3 +159,5 @@ botón *Cierre de caja* del TPV.
   (facturas emitidas y recibidas del periodo, periodo fuera de rango); informes de gestión (ventas por
   cliente ordenadas, ventas por artículo con margen, compras por proveedor, comparativa mensual,
   rotación de stock, y aging + extracto con actualización del pendiente tras un cobro parcial).
+
+> Para análisis libres (dimensiones × medidas, tabla dinámica, comparación, filtros y informes guardados) ver [Análisis de datos](analisis.md).

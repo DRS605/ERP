@@ -91,6 +91,7 @@ public static class EndpointsCuenta
         OrganizacionDbContext organizacion,
         AlxorCore.Agro.Infraestructura.AgroDbContext agro,
         AlxorCore.Migracion.Infraestructura.MigracionDbContext migracion,
+        AlxorCore.Analisis.Infraestructura.AnalisisDbContext analisis,
         CancellationToken ct)
     {
         if (contexto.EmpresaId is not { } id)
@@ -134,6 +135,7 @@ public static class EndpointsCuenta
         await catalogo.HistoricoPrecios.Where(h => h.GrupoId == grupo).ExecuteDeleteAsync(ct).ConfigureAwait(false);
         await catalogo.Productos.Where(p => p.GrupoId == grupo).ExecuteDeleteAsync(ct).ConfigureAwait(false);
         await catalogo.Familias.Where(f => f.GrupoId == grupo).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+        await analisis.Informes.Where(i => i.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
         await BorradoEmpresa.EjecutarAsync(auditoria, id, () => auditoria.Registros.Where(a => a.EmpresaId == id).ExecuteDeleteAsync(ct), ct).ConfigureAwait(false);
         await organizacion.Series.Where(s => s.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
         await organizacion.Membresias.Where(m => m.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
