@@ -39,7 +39,21 @@ public sealed class LineaFactura : EntidadBase<Guid>
         Base = CalcularBaseBruta(Cantidad, PrecioUnitario, PorcentajeDescuento) + ImporteConceptos;
         CuotaIva = Redondeo.Dos(Base * PorcentajeIva / 100m);
         CuotaRecargo = Redondeo.Dos(Base * PorcentajeRecargo / 100m);
+        CuentaContable = string.IsNullOrWhiteSpace(datos.CuentaContable) ? null : datos.CuentaContable.Trim();
+        AnticipoId = datos.AnticipoId;
     }
+
+    /// <summary>
+    /// Cuenta de la base de esta línea, si no es la de ventas de la regla: 438 en la factura de un anticipo y en la línea
+    /// que lo descuenta de la factura final.
+    /// </summary>
+    public string? CuentaContable { get; private set; }
+
+    /// <summary>Anticipo facturado que descuenta esta línea (base e impuesto en negativo) en la factura final.</summary>
+    public Guid? AnticipoId { get; private set; }
+
+    /// <summary>Número de la línea en la factura (1, 2, 3…): el orden en que se emitió, en pantalla, PDF y registros.</summary>
+    public int Orden { get; internal set; }
 
     /// <summary>Empresa (para el aislamiento multiempresa de la tabla de líneas).</summary>
     public Guid EmpresaId { get; private set; }

@@ -21,6 +21,9 @@ public enum EstadoPresupuesto
 /// <summary>Línea de un presupuesto (no fiscal; se recalcula al editar).</summary>
 public sealed class LineaPresupuesto : EntidadBase<Guid>
 {
+    /// <summary>Número de la línea en el documento (1, 2, 3…).</summary>
+    public int Orden { get; internal set; }
+
     private LineaPresupuesto(Guid id)
         : base(id)
     {
@@ -129,7 +132,15 @@ public sealed class Presupuesto : RaizAgregadoEmpresa<Guid>
 
     public DateTimeOffset CreadoEn { get; private set; }
 
-    public IReadOnlyList<LineaPresupuesto> Lineas => _lineas.AsReadOnly();
+    /// <summary>Líneas en su orden (la base de datos no garantiza el orden en que las devuelve).</summary>
+    public IReadOnlyList<LineaPresupuesto> Lineas => _lineas.OrderBy(l => l.Orden).ToList().AsReadOnly();
+
+    /// <summary>Añade una línea con el número siguiente.</summary>
+    private void AgregarLinea(LineaPresupuesto linea)
+    {
+        linea.Orden = _lineas.Count + 1;
+        _lineas.Add(linea);
+    }
 
     public static Resultado<Presupuesto> Crear(
         Guid empresaId, string numeroCompleto, Guid clienteId, string clienteNombre, DateOnly fecha, DateOnly validez, IReadOnlyList<NuevaLinea> lineas, IReloj reloj)
@@ -196,7 +207,7 @@ public sealed class Presupuesto : RaizAgregadoEmpresa<Guid>
         _lineas.Clear();
         foreach (var datos in lineas)
         {
-            _lineas.Add(new LineaPresupuesto(EmpresaId, datos));
+            AgregarLinea(new LineaPresupuesto(EmpresaId, datos));
         }
 
         BaseImponible = Redondeo.Dos(_lineas.Sum(l => l.Base));

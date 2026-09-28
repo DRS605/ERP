@@ -64,3 +64,37 @@ RLS por empresa y `CHECK` de importes y niveles.
 - **Asiento de cancelación**: cada aplicación registra el cobro de la factura y su asiento, 438 Anticipos de clientes
   al debe y 430 Clientes al haber (no mueve dinero: el banco ya se movió al recibir el anticipo, 572 a 438).
 - **Listado de clientes**: columna «Anticipos» con lo pendiente de aplicar de cada cliente y su total.
+
+### Anticipos con factura (IVA al cobrar, art. 75.2 LIVA)
+
+El IVA de un anticipo se devenga cuando se cobra, así que lo normal es **emitir la factura del anticipo**. En
+*Anticipos → Nuevo anticipo* la casilla «Emitir factura de anticipo» viene marcada: se indica el importe cobrado (IVA
+incluido) y el impuesto, y el ERP:
+
+1. Emite la factura del anticipo (serie del cliente, VeriFactu, SII como `F1`): una línea «Anticipo a cuenta: …» cuya
+   base va a la **438 Anticipos de clientes** (no es venta) y su IVA a la 477. La base se ajusta para que el total sea
+   exactamente lo cobrado. Asiento: 430 al debe; 438 y 477 al haber.
+2. Registra su cobro (57x a 430) en el banco o caja elegido.
+3. Guarda el anticipo enlazado a su factura, con la base pendiente de descontar.
+
+En la **factura final** el editor avisa de los anticipos facturados del cliente («Descontar en esta factura», marcado):
+se añade una línea negativa por anticipo con su base e IVA («Anticipo a cuenta, fra. X de fecha»), como mucho hasta la
+base de la factura (lo que sobre queda para la siguiente). La factura final solo declara la diferencia. Asiento:
+430 por el total neto al debe, 438 al debe por la base descontada, 70x por la venta completa y 477 por el IVA neto.
+Los informes de ventas y el análisis cuentan la venta completa (las líneas de la 438 no son venta).
+
+- Un anticipo facturado no se aplica como cobro (`anticipo.facturado`) ni se anula desde Anticipos: se anula su factura
+  (si no está descontado; primero hay que devolver el cobro) y el anticipo queda anulado.
+- Si se anula la factura final, sus descuentos se deshacen (apunte contrario: la tabla es de solo inserción) y el
+  anticipo vuelve a quedar disponible.
+- `POST /anticipos` con `facturar: true`, `codigoIva` y `cuentaBancariaId`; `POST /facturas` y `/facturas/simular`
+  con `descontarAnticipos: [{ anticipoId, base? }]`.
+- Los anticipos sin factura (casilla desmarcada) siguen como antes: 57x a 438 y se aplican como cobro de la factura
+  final (438 a 430).
+
+### Orden de las líneas de los documentos
+
+Las líneas de facturas, presupuestos, pedidos de venta y de compra, albaranes de venta y de compra, solicitudes de
+compra, facturas periódicas y cartas de porte guardan su número (`orden`): pantalla, PDF, Facturae y SII las muestran
+en el orden en que se escribieron (la base de datos no garantiza el orden en que devuelve las filas). Los documentos
+anteriores a este cambio se numeraron en el orden en que estaban guardados.

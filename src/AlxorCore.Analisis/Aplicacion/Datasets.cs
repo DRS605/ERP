@@ -89,7 +89,7 @@ public static class CatalogoDatasets
     private static DatasetAnalisis Ventas() => new(
         "ventas",
         "Ventas",
-        "Líneas de las facturas emitidas (sin anuladas ni sustituidas): importes, cantidades, kilos, coste y margen.",
+        "Líneas de las facturas emitidas (sin anuladas ni sustituidas, ni anticipos): importes, cantidades, kilos, coste y margen.",
         null,
         """
         facturacion.linea_factura l
@@ -99,7 +99,8 @@ public static class CatalogoDatasets
         LEFT JOIN terceros.cliente c ON c.id = f.cliente_id
         LEFT JOIN organizacion.actividad_negocio an ON an.id = f.actividad_negocio_id
         """,
-        "f.estado NOT IN ('Anulada', 'Rectificada')",
+        // Las líneas de anticipos (cuenta 438: la factura del anticipo y su descuento en la final) no son venta.
+        "f.estado NOT IN ('Anulada', 'Rectificada') AND coalesce(l.cuenta_contable, '') <> '438'",
         "f.fecha_emision",
         [
             new("cliente", "Cliente", "f.cliente_nombre", "Cliente"),

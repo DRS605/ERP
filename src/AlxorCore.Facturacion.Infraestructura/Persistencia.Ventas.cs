@@ -28,6 +28,7 @@ internal sealed class ConfiguracionPedidoVenta : IEntityTypeConfiguration<Pedido
 
         builder.OwnsMany(p => p.Lineas, linea =>
         {
+            linea.Property(x => x.Orden).HasColumnName("orden").HasDefaultValue(0).IsRequired();
             linea.ToTable("linea_pedido_venta");
             linea.WithOwner().HasForeignKey("pedido_venta_id");
             linea.HasKey(l => l.Id);
@@ -46,6 +47,7 @@ internal sealed class ConfiguracionPedidoVenta : IEntityTypeConfiguration<Pedido
             linea.Ignore(l => l.BaseBruta);
             linea.Ignore(l => l.Base);
         });
+        builder.Navigation(p => p.Lineas).UsePropertyAccessMode(PropertyAccessMode.Field);
 
         builder.HasIndex(p => new { p.EmpresaId, p.Ejercicio, p.Numero }).IsUnique().HasDatabaseName("ux_pedido_venta_empresa_ejercicio_numero");
         builder.Ignore(p => p.EventosDominio);
@@ -74,6 +76,7 @@ internal sealed class ConfiguracionAlbaranVenta : IEntityTypeConfiguration<Albar
 
         builder.OwnsMany(a => a.Lineas, linea =>
         {
+            linea.Property(x => x.Orden).HasColumnName("orden").HasDefaultValue(0).IsRequired();
             linea.ToTable("linea_albaran_venta");
             linea.WithOwner().HasForeignKey("albaran_venta_id");
             linea.HasKey(l => l.Id);
@@ -83,6 +86,7 @@ internal sealed class ConfiguracionAlbaranVenta : IEntityTypeConfiguration<Albar
             linea.Property(l => l.Descripcion).HasColumnName("descripcion").HasMaxLength(300).IsRequired();
             linea.Property(l => l.Cantidad).HasColumnName("cantidad").HasColumnType("numeric(14,3)").IsRequired();
         });
+        builder.Navigation(a => a.Lineas).UsePropertyAccessMode(PropertyAccessMode.Field);
 
         builder.HasIndex(a => new { a.EmpresaId, a.PedidoId }).HasDatabaseName("ix_albaran_venta_empresa_pedido");
         builder.Ignore(a => a.EventosDominio);
@@ -211,6 +215,7 @@ internal sealed class ConfiguracionCartaPorte : IEntityTypeConfiguration<CartaPo
 
         builder.OwnsMany(c => c.Lineas, linea =>
         {
+            linea.Property(x => x.Orden).HasColumnName("orden").HasDefaultValue(0).IsRequired();
             linea.ToTable("linea_carta_porte");
             linea.WithOwner().HasForeignKey("carta_porte_id");
             linea.HasKey(l => l.Id);
@@ -224,6 +229,7 @@ internal sealed class ConfiguracionCartaPorte : IEntityTypeConfiguration<CartaPo
             linea.Property(l => l.VolumenM3).HasColumnName("volumen_m3").HasColumnType("numeric(12,3)");
             linea.Property(l => l.CodigoArancelario).HasColumnName("codigo_arancelario").HasMaxLength(10);
         });
+        builder.Navigation(c => c.Lineas).UsePropertyAccessMode(PropertyAccessMode.Field);
 
         builder.HasIndex(c => new { c.EmpresaId, c.Serie, c.Ejercicio, c.Numero })
             .IsUnique().HasDatabaseName("ux_carta_porte_empresa_serie_ejercicio_numero");

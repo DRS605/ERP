@@ -15,6 +15,9 @@ public sealed record DatosLineaCarta(string? Descripcion, int Bultos, decimal Pe
 /// <summary>Línea de mercancía de una carta de porte: qué se transporta, en cuántos bultos y su peso.</summary>
 public sealed class LineaCartaPorte
 {
+    /// <summary>Número de la línea en el documento (1, 2, 3…).</summary>
+    public int Orden { get; internal set; }
+
     private LineaCartaPorte() => Descripcion = null!;
 
     internal LineaCartaPorte(Guid id, string descripcion, int bultos, decimal pesoKg)
@@ -233,7 +236,15 @@ public sealed class CartaPorte : RaizAgregadoEmpresa<Guid>
         return Resultado.Ok();
     }
 
-    public IReadOnlyList<LineaCartaPorte> Lineas => _lineas;
+    /// <summary>Líneas en su orden (la base de datos no garantiza el orden en que las devuelve).</summary>
+    public IReadOnlyList<LineaCartaPorte> Lineas => _lineas.OrderBy(l => l.Orden).ToList().AsReadOnly();
+
+    /// <summary>Añade una línea con el número siguiente.</summary>
+    private void AgregarLinea(LineaCartaPorte linea)
+    {
+        linea.Orden = _lineas.Count + 1;
+        _lineas.Add(linea);
+    }
 
     /// <summary>Total de bultos de la carta de porte.</summary>
     public int TotalBultos => _lineas.Sum(l => l.Bultos);
@@ -294,7 +305,7 @@ public sealed class CartaPorte : RaizAgregadoEmpresa<Guid>
         {
             var linea = new LineaCartaPorte(Guid.NewGuid(), l.Descripcion!.Trim(), l.Bultos, l.PesoKg);
             linea.Completar(l);
-            carta._lineas.Add(linea);
+            carta.AgregarLinea(linea);
         }
 
         return Resultado.Ok(carta);

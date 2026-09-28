@@ -87,7 +87,15 @@ public sealed class FacturaRecurrente : RaizAgregadoEmpresa<Guid>
 
     public DateTimeOffset CreadoEn { get; private set; }
 
-    public IReadOnlyList<LineaRecurrente> Lineas => _lineas.AsReadOnly();
+    /// <summary>Líneas en su orden (la base de datos no garantiza el orden en que las devuelve).</summary>
+    public IReadOnlyList<LineaRecurrente> Lineas => _lineas.OrderBy(l => l.Orden).ToList().AsReadOnly();
+
+    /// <summary>Añade una línea con el número siguiente.</summary>
+    private void AgregarLinea(LineaRecurrente linea)
+    {
+        linea.Orden = _lineas.Count + 1;
+        _lineas.Add(linea);
+    }
 
     /// <summary>Crea una factura recurrente con su plantilla de líneas.</summary>
     public static Resultado<FacturaRecurrente> Crear(
@@ -114,7 +122,7 @@ public sealed class FacturaRecurrente : RaizAgregadoEmpresa<Guid>
             Guid.NewGuid(), empresaId, nombre!.Trim(), clienteId, periodicidad, primeraEmision, fechaFin, porcentajeIrpf, reloj.AhoraUtc);
         foreach (var linea in lineas)
         {
-            recurrente._lineas.Add(new LineaRecurrente(empresaId, linea));
+            recurrente.AgregarLinea(new LineaRecurrente(empresaId, linea));
         }
 
         recurrente.RegistrarEvento(new FacturaRecurrenteCreada(recurrente.Id, empresaId, recurrente.Nombre, reloj.AhoraUtc));
@@ -147,7 +155,7 @@ public sealed class FacturaRecurrente : RaizAgregadoEmpresa<Guid>
         _lineas.Clear();
         foreach (var linea in lineas)
         {
-            _lineas.Add(new LineaRecurrente(EmpresaId, linea));
+            AgregarLinea(new LineaRecurrente(EmpresaId, linea));
         }
 
         return Resultado.Ok();
@@ -257,6 +265,9 @@ public sealed record LineaPlantilla(
 /// </summary>
 public sealed class LineaRecurrente : EntidadBase<Guid>
 {
+    /// <summary>Número de la línea en el documento (1, 2, 3…).</summary>
+    public int Orden { get; internal set; }
+
     private LineaRecurrente(Guid id)
         : base(id)
     {

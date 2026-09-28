@@ -185,7 +185,20 @@ public sealed class PosterDocumento
             lineas.Add(new LineaAsiento(PlanBasico.CuentaRetencionVenta, d.RetencionIrpf, 0m, "Retención IRPF"));
         }
 
-        lineas.Add(new LineaAsiento(cuentaIngreso, 0m, d.BaseImponible, concepto));
+        // Con líneas con cuenta propia (anticipos: 438) su base va a esa cuenta; el resto, a la de ventas. La línea que
+        // descuenta un anticipo tiene base negativa: queda al debe de la 438 (cancela el anticipo facturado).
+        if (d.Lineas.Any(l => !string.IsNullOrWhiteSpace(l.CuentaGasto)))
+        {
+            foreach (var g in d.Lineas.GroupBy(l => string.IsNullOrWhiteSpace(l.CuentaGasto) ? cuentaIngreso : l.CuentaGasto!))
+            {
+                lineas.Add(new LineaAsiento(g.Key, 0m, Math.Round(g.Sum(l => l.Base), 2), concepto));
+            }
+        }
+        else
+        {
+            lineas.Add(new LineaAsiento(cuentaIngreso, 0m, d.BaseImponible, concepto));
+        }
+
         if (d.CuotaIva != 0m)
         {
             lineas.Add(new LineaAsiento(PlanBasico.CuentaIvaRepercutido, 0m, d.CuotaIva, "IVA repercutido"));

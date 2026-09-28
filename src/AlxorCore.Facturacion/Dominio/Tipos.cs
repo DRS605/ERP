@@ -58,7 +58,9 @@ public sealed record NuevaLinea(
     Guid? ProductoId = null,
     decimal CosteUnitario = 0m,
     decimal PorcentajeRecargo = 0m,
-    IReadOnlyList<ConceptoAplicado>? Conceptos = null);
+    IReadOnlyList<ConceptoAplicado>? Conceptos = null,
+    string? CuentaContable = null,
+    Guid? AnticipoId = null);
 
 /// <summary>Se ha emitido un albarán de venta (entrega de mercancía).</summary>
 public sealed record AlbaranVentaEmitido(Guid AlbaranId, Guid EmpresaId, Guid PedidoId, Guid ClienteId, DateTimeOffset OcurridoEn) : IEventoDominio;

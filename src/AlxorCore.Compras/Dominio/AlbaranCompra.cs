@@ -7,6 +7,9 @@ namespace AlxorCore.Compras.Dominio;
 /// <summary>Línea de un albarán de recepción (referencia a la línea del pedido).</summary>
 public sealed class LineaAlbaran
 {
+    /// <summary>Número de la línea en el documento (1, 2, 3…).</summary>
+    public int Orden { get; internal set; }
+
     private LineaAlbaran() { Descripcion = null!; }
 
     internal LineaAlbaran(Guid id, Guid lineaPedidoId, Guid? productoId, string descripcion, decimal cantidad)
@@ -68,7 +71,15 @@ public sealed class AlbaranCompra : RaizAgregadoEmpresa<Guid>
 
     public DateTimeOffset CreadoEn { get; private set; }
 
-    public IReadOnlyList<LineaAlbaran> Lineas => _lineas;
+    /// <summary>Líneas en su orden (la base de datos no garantiza el orden en que las devuelve).</summary>
+    public IReadOnlyList<LineaAlbaran> Lineas => _lineas.OrderBy(l => l.Orden).ToList().AsReadOnly();
+
+    /// <summary>Añade una línea con el número siguiente.</summary>
+    private void AgregarLinea(LineaAlbaran linea)
+    {
+        linea.Orden = _lineas.Count + 1;
+        _lineas.Add(linea);
+    }
 
     /// <summary>Almacén en que entró la mercancía (null si no se registró entrada de inventario).</summary>
     public Guid? AlmacenId { get; private set; }
@@ -108,7 +119,7 @@ public sealed class AlbaranCompra : RaizAgregadoEmpresa<Guid>
         var albaran = new AlbaranCompra(Guid.NewGuid(), empresaId, pedidoId, numero, fecha, referencia?.Trim(), serie, reloj.AhoraUtc) { AlmacenId = almacenId, AlbaranVentaOrigenId = albaranVentaOrigenId };
         foreach (var l in lineas)
         {
-            albaran._lineas.Add(new LineaAlbaran(Guid.NewGuid(), l.LineaPedidoId, l.ProductoId, l.Descripcion?.Trim() ?? string.Empty, l.Cantidad));
+            albaran.AgregarLinea(new LineaAlbaran(Guid.NewGuid(), l.LineaPedidoId, l.ProductoId, l.Descripcion?.Trim() ?? string.Empty, l.Cantidad));
         }
 
         return Resultado.Ok(albaran);

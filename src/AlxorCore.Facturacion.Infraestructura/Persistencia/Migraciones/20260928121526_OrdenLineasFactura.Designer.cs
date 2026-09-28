@@ -3,6 +3,7 @@ using System;
 using AlxorCore.Facturacion.Infraestructura;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AlxorCore.Facturacion.Infraestructura.Persistencia.Migraciones
 {
     [DbContext(typeof(FacturacionDbContext))]
-    partial class FacturacionDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260928121526_OrdenLineasFactura")]
+    partial class OrdenLineasFactura
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1048,12 +1051,6 @@ namespace AlxorCore.Facturacion.Infraestructura.Persistencia.Migraciones
                                 .HasColumnType("uuid")
                                 .HasColumnName("linea_pedido_id");
 
-                            b1.Property<int>("Orden")
-                                .ValueGeneratedOnAdd()
-                                .HasColumnType("integer")
-                                .HasDefaultValue(0)
-                                .HasColumnName("orden");
-
                             b1.Property<Guid?>("ProductoId")
                                 .HasColumnType("uuid")
                                 .HasColumnName("producto_id");
@@ -1106,12 +1103,6 @@ namespace AlxorCore.Facturacion.Infraestructura.Persistencia.Migraciones
                                 .HasMaxLength(200)
                                 .HasColumnType("character varying(200)")
                                 .HasColumnName("marcas");
-
-                            b1.Property<int>("Orden")
-                                .ValueGeneratedOnAdd()
-                                .HasColumnType("integer")
-                                .HasDefaultValue(0)
-                                .HasColumnName("orden");
 
                             b1.Property<decimal>("PesoKg")
                                 .HasColumnType("numeric(14,3)")
@@ -1295,12 +1286,6 @@ namespace AlxorCore.Facturacion.Infraestructura.Persistencia.Migraciones
                                 .HasColumnType("uuid")
                                 .HasColumnName("empresa_id");
 
-                            b1.Property<int>("Orden")
-                                .ValueGeneratedOnAdd()
-                                .HasColumnType("integer")
-                                .HasDefaultValue(0)
-                                .HasColumnName("orden");
-
                             b1.Property<decimal>("PorcentajeDescuento")
                                 .HasColumnType("numeric(5,2)")
                                 .HasColumnName("descuento");
@@ -1384,12 +1369,6 @@ namespace AlxorCore.Facturacion.Infraestructura.Persistencia.Migraciones
                                 .HasDefaultValue(0m)
                                 .HasColumnName("importe_conceptos");
 
-                            b1.Property<int>("Orden")
-                                .ValueGeneratedOnAdd()
-                                .HasColumnType("integer")
-                                .HasDefaultValue(0)
-                                .HasColumnName("orden");
-
                             b1.Property<decimal>("PorcentajeDescuento")
                                 .HasColumnType("numeric(5,2)")
                                 .HasColumnName("descuento");
@@ -1472,12 +1451,6 @@ namespace AlxorCore.Facturacion.Infraestructura.Persistencia.Migraciones
                                 .HasColumnType("numeric(14,2)")
                                 .HasDefaultValue(0m)
                                 .HasColumnName("importe_conceptos");
-
-                            b1.Property<int>("Orden")
-                                .ValueGeneratedOnAdd()
-                                .HasColumnType("integer")
-                                .HasDefaultValue(0)
-                                .HasColumnName("orden");
 
                             b1.Property<decimal>("PorcentajeDescuento")
                                 .HasColumnType("numeric(5,2)")

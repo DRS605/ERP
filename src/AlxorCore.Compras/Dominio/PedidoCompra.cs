@@ -20,6 +20,9 @@ public enum EstadoPedido
 /// <summary>Línea de un pedido de compra, con seguimiento de lo recibido y lo facturado.</summary>
 public sealed class LineaPedido
 {
+    /// <summary>Número de la línea en el documento (1, 2, 3…).</summary>
+    public int Orden { get; internal set; }
+
     private LineaPedido() { Descripcion = null!; }
 
     internal LineaPedido(Guid id, Guid? productoId, string descripcion, decimal cantidad, decimal precioUnitario)
@@ -191,7 +194,15 @@ public sealed class PedidoCompra : RaizAgregadoEmpresa<Guid>
 
     public DateTimeOffset CreadoEn { get; private set; }
 
-    public IReadOnlyList<LineaPedido> Lineas => _lineas;
+    /// <summary>Líneas en su orden (la base de datos no garantiza el orden en que las devuelve).</summary>
+    public IReadOnlyList<LineaPedido> Lineas => _lineas.OrderBy(l => l.Orden).ToList().AsReadOnly();
+
+    /// <summary>Añade una línea con el número siguiente.</summary>
+    private void AgregarLinea(LineaPedido linea)
+    {
+        linea.Orden = _lineas.Count + 1;
+        _lineas.Add(linea);
+    }
 
     public decimal Total => Redondeo.Dos(_lineas.Sum(l => l.Importe));
 
@@ -256,7 +267,7 @@ public sealed class PedidoCompra : RaizAgregadoEmpresa<Guid>
         var pedido = new PedidoCompra(Guid.NewGuid(), empresaId, proveedorId, proveedorTexto.Trim(), fecha, fecha.Year, numero, serie, solicitudOrigenId, reloj.AhoraUtc);
         foreach (var l in lineas)
         {
-            pedido._lineas.Add(new LineaPedido(Guid.NewGuid(), l.ProductoId, l.Descripcion.Trim(), l.Cantidad, Redondeo.Dos(l.Precio)));
+            pedido.AgregarLinea(new LineaPedido(Guid.NewGuid(), l.ProductoId, l.Descripcion.Trim(), l.Cantidad, Redondeo.Dos(l.Precio)));
         }
 
         return Resultado.Ok(pedido);
@@ -298,7 +309,7 @@ public sealed class PedidoCompra : RaizAgregadoEmpresa<Guid>
         _lineas.Clear();
         foreach (var l in lineas)
         {
-            _lineas.Add(new LineaPedido(Guid.NewGuid(), l.ProductoId, l.Descripcion.Trim(), l.Cantidad, Redondeo.Dos(l.Precio)));
+            AgregarLinea(new LineaPedido(Guid.NewGuid(), l.ProductoId, l.Descripcion.Trim(), l.Cantidad, Redondeo.Dos(l.Precio)));
         }
 
         return Resultado.Ok();

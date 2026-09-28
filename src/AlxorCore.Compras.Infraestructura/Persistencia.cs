@@ -50,6 +50,7 @@ internal sealed class ConfiguracionSolicitud : IEntityTypeConfiguration<Solicitu
         builder.Property(s => s.CreadoEn).HasColumnName("creado_en").IsRequired();
         builder.OwnsMany(s => s.Lineas, l =>
         {
+            l.Property(x => x.Orden).HasColumnName("orden").HasDefaultValue(0).IsRequired();
             l.ToTable("linea_solicitud");
             l.WithOwner().HasForeignKey("solicitud_id");
             l.HasKey(x => x.Id);
@@ -57,6 +58,7 @@ internal sealed class ConfiguracionSolicitud : IEntityTypeConfiguration<Solicitu
             l.Property(x => x.Descripcion).HasColumnName("descripcion").HasMaxLength(SolicitudCompra.LongitudMaximaTexto).IsRequired();
             l.Property(x => x.Cantidad).HasColumnName("cantidad").HasColumnType("numeric(14,3)").IsRequired();
         });
+        builder.Navigation(s => s.Lineas).UsePropertyAccessMode(PropertyAccessMode.Field);
         builder.HasIndex(s => new { s.EmpresaId, s.Estado }).HasDatabaseName("ix_solicitud_empresa_estado");
         builder.Ignore(s => s.EventosDominio);
     }
@@ -88,6 +90,7 @@ internal sealed class ConfiguracionPedido : IEntityTypeConfiguration<PedidoCompr
         builder.Property(p => p.CreadoEn).HasColumnName("creado_en").IsRequired();
         builder.OwnsMany(p => p.Lineas, l =>
         {
+            l.Property(x => x.Orden).HasColumnName("orden").HasDefaultValue(0).IsRequired();
             l.ToTable("linea_pedido");
             l.WithOwner().HasForeignKey("pedido_id");
             l.HasKey(x => x.Id);
@@ -103,6 +106,7 @@ internal sealed class ConfiguracionPedido : IEntityTypeConfiguration<PedidoCompr
             l.Property(x => x.ImporteConceptos).HasColumnName("importe_conceptos").HasColumnType("numeric(14,2)").HasDefaultValue(0m).IsRequired();
             l.Property(x => x.CosteConceptos).HasColumnName("coste_conceptos").HasColumnType("numeric(14,2)").HasDefaultValue(0m).IsRequired();
         });
+        builder.Navigation(p => p.Lineas).UsePropertyAccessMode(PropertyAccessMode.Field);
         builder.HasIndex(p => new { p.EmpresaId, p.Estado }).HasDatabaseName("ix_pedido_empresa_estado");
         builder.HasIndex(p => new { p.EmpresaId, p.Ejercicio, p.ProveedorId, p.Numero })
             .IsUnique().HasDatabaseName("ux_pedido_serie_proveedor");
@@ -133,6 +137,7 @@ internal sealed class ConfiguracionAlbaran : IEntityTypeConfiguration<AlbaranCom
         builder.Property(a => a.MotivoAnulacion).HasColumnName("motivo_anulacion").HasMaxLength(200);
         builder.OwnsMany(a => a.Lineas, l =>
         {
+            l.Property(x => x.Orden).HasColumnName("orden").HasDefaultValue(0).IsRequired();
             l.ToTable("linea_albaran");
             l.WithOwner().HasForeignKey("albaran_id");
             l.HasKey(x => x.Id);
@@ -142,6 +147,7 @@ internal sealed class ConfiguracionAlbaran : IEntityTypeConfiguration<AlbaranCom
             l.Property(x => x.Descripcion).HasColumnName("descripcion").HasMaxLength(PedidoCompra.LongitudMaximaTexto).IsRequired();
             l.Property(x => x.Cantidad).HasColumnName("cantidad").HasColumnType("numeric(14,3)").IsRequired();
         });
+        builder.Navigation(a => a.Lineas).UsePropertyAccessMode(PropertyAccessMode.Field);
         builder.HasIndex(a => new { a.EmpresaId, a.PedidoId }).HasDatabaseName("ix_albaran_empresa_pedido");
         builder.Ignore(a => a.EventosDominio);
     }

@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useDocs } from "./contexto";
 import { Dialogo, EditorConceptos, SelectorTercero } from "./Componentes";
 import { Rejilla, lineaVacia, type CalculoLinea } from "./Rejilla";
-import { anticiposDisponibles, repartoAnticipos, type Anticipo, type ConceptoAplicado, type ConceptoCatalogo, type ConceptoSolicitado, type Factura, type FormaPago, type LineaEdicion, type Producto, type Tercero, type TipoIva, type TipoVenta } from "./tipos";
+import { anticiposDisponibles, anticiposFacturados, repartoAnticipos, type Anticipo, type ConceptoAplicado, type ConceptoCatalogo, type ConceptoSolicitado, type Factura, type FormaPago, type LineaEdicion, type Producto, type Tercero, type TipoIva, type TipoVenta } from "./tipos";
 import { eur, hoyIso, nuevaClave, num2, redondear2, useRetardado, useUltimaPeticion } from "./util";
 
 export const NOMBRE_TIPO: Record<TipoVenta, string> = { presupuesto: "presupuesto", pedido: "pedido de venta", factura: "factura" };
@@ -73,6 +73,9 @@ export function EditorVenta(props: { tipo: TipoVenta; id?: string | null; semill
   // Anticipos del cliente pendientes de aplicar: se avisa y, al emitir la factura, se aplican (asiento 438 a 430).
   const [anticipos, setAnticipos] = useState<Anticipo[]>([]);
   const [aplicarAnticipos, setAplicarAnticipos] = useState(true);
+  // Anticipos con factura (su IVA ya declarado): se descuentan en esta factura con una línea negativa (base e IVA).
+  const [facturados, setFacturados] = useState<Anticipo[]>([]);
+  const [descontar, setDescontar] = useState(true);
   const ultima = useUltimaPeticion();
 
   // Catálogos.
@@ -111,9 +114,12 @@ export function EditorVenta(props: { tipo: TipoVenta; id?: string | null; semill
   useEffect(() => {
     if (props.tipo !== "factura" || rectificativa || !clienteId) {
       setAnticipos([]);
+      setFacturados([]);
       return;
     }
-    api.get<Anticipo[]>(`/anticipos?clienteId=${clienteId}`).then((l) => setAnticipos(anticiposDisponibles(l))).catch(() => setAnticipos([]));
+    api.get<Anticipo[]>(`/anticipos?clienteId=${clienteId}`)
+      .then((l) => { setAnticipos(anticiposDisponibles(l)); setFacturados(anticiposFacturados(l)); })
+      .catch(() => { setAnticipos([]); setFacturados([]); });
   }, [api, clienteId, props.tipo, rectificativa]);
   const disponibleAnticipos = redondear2(anticipos.reduce((t, a) => t + a.disponible, 0));
 
@@ -136,6 +142,7 @@ export function EditorVenta(props: { tipo: TipoVenta; id?: string | null; semill
       recargoEquivalencia: recargo,
       porcentajeIrpf: irpf,
       conceptosDocumento: conceptosDoc,
+      descontarAnticipos: descontar && facturados.length ? facturados.map((a) => ({ anticipoId: a.id })) : null,
       lineas: validas.map(({ l }) => ({
         cantidad: l.cantidad,
         descripcion: l.descripcion.trim() || null,
@@ -146,7 +153,7 @@ export function EditorVenta(props: { tipo: TipoVenta; id?: string | null; semill
         ...(rectificativa ? { conceptos: [] } : l.conceptos === undefined ? {} : { conceptos: l.conceptos }),
       })),
     }),
-    [clienteId, fecha, serie, dias, formaPagoId, recargo, irpf, conceptosDoc, validas, props.tipo, rectificativa],
+    [clienteId, fecha, serie, dias, formaPagoId, recargo, irpf, conceptosDoc, validas, props.tipo, rectificativa, descontar, facturados],
   );
   const comandoRetardado = useRetardado(comando, 350);
 
@@ -353,6 +360,15 @@ export function EditorVenta(props: { tipo: TipoVenta; id?: string | null; semill
                 {cliente.tarifaId && <div className="muted">Con tarifa de precios propia</div>}
                 {cliente.recargoEquivalencia && <div className="muted">En recargo de equivalencia</div>}
                 {calculo?.avisoRiesgo && <div className="dx-aviso">⚠ {calculo.avisoRiesgo}</div>}
+                {facturados.length > 0 && (
+                  <div className="dx-anticipo">
+                    <div>🧾 Anticipos facturados pendientes de descontar: <strong>{eur(facturados.reduce((t, a) => t + (a.disponibleBase ?? 0), 0))}</strong> de base ({facturados.map((a) => a.facturaNumero).join(", ")}).</div>
+                    <label className="dx-check">
+                      <input type="checkbox" checked={descontar} onChange={(e) => setDescontar(e.target.checked)} />
+                      Descontar en esta factura (línea negativa con su base e IVA; hasta la base de la factura)
+                    </label>
+                  </div>
+                )}
                 {disponibleAnticipos > 0 && (
                   <div className="dx-anticipo">
                     <div>💶 Tiene <strong>{eur(disponibleAnticipos)}</strong> en {anticipos.length === 1 ? "un anticipo pendiente" : `${anticipos.length} anticipos pendientes`} de aplicar.</div>
@@ -388,6 +404,9 @@ export function EditorVenta(props: { tipo: TipoVenta; id?: string | null; semill
         <div className="panel dx-totales">
           {desglose.map(([codigo, x]) => (
             <div key={codigo} className="dx-tot"><span className="muted">{nombreIva(codigo)} · base {num2(x.base)}</span><span>{eur(x.cuota)}</span></div>
+          ))}
+          {calculo?.lineas.filter((l) => l.anticipoId).map((l) => (
+            <div key={l.anticipoId} className="dx-tot dx-tot-anticipo"><span className="muted">{l.descripcion}</span><span>{eur(l.base + l.cuotaIva + l.cuotaRecargo)}</span></div>
           ))}
           <div className="dx-tot"><span className="muted">Base imponible</span><span>{eur(calculo?.baseImponible)}</span></div>
           <div className="dx-tot"><span className="muted">Impuestos</span><span>{eur(calculo?.cuotaIva)}</span></div>

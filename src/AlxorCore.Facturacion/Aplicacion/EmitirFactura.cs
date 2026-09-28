@@ -21,7 +21,9 @@ public sealed record LineaComando(
     Guid? ProductoId = null,
     decimal? CosteUnitario = null,
     IReadOnlyList<ConceptoSolicitado>? Conceptos = null,
-    IReadOnlyList<ConceptoAplicado>? ConceptosCopiados = null);
+    IReadOnlyList<ConceptoAplicado>? ConceptosCopiados = null,
+    string? CuentaContable = null,
+    Guid? AnticipoId = null);
 
 /// <summary>Datos para emitir una factura. <c>DiasVencimiento</c> es el plazo de pago (0 = contado).</summary>
 public sealed record EmitirFacturaComando(
@@ -35,7 +37,8 @@ public sealed record EmitirFacturaComando(
     bool RecargoEquivalencia = false,
     Guid? FormaPagoId = null,
     Guid? ActividadNegocioId = null,
-    IReadOnlyList<ConceptoSolicitado>? ConceptosDocumento = null);
+    IReadOnlyList<ConceptoSolicitado>? ConceptosDocumento = null,
+    IReadOnlyList<DescuentoAnticipoSolicitado>? DescontarAnticipos = null);
 
 /// <summary>
 /// Caso de uso estrella: emitir una factura. Compone cliente (Terceros), productos/impuestos
@@ -60,6 +63,7 @@ public sealed class EmitirFactura
     private readonly IResolverPrecioVenta _precios;
     private readonly IReloj _reloj;
     private readonly IResolverConceptos? _conceptos;
+    private readonly IAnticiposFactura? _anticipos;
 
     public EmitirFactura(
         IConsultaClientes clientes,
@@ -77,9 +81,11 @@ public sealed class EmitirFactura
         IResolverIvaEmpresa resolverIva,
         IResolverPrecioVenta precios,
         IReloj reloj,
-        IResolverConceptos? conceptos = null)
+        IResolverConceptos? conceptos = null,
+        IAnticiposFactura? anticipos = null)
     {
         _conceptos = conceptos;
+        _anticipos = anticipos;
         _resolverIva = resolverIva;
         _precios = precios;
         _clientes = clientes;
@@ -96,6 +102,15 @@ public sealed class EmitirFactura
         _riesgo = riesgo;
         _reloj = reloj;
     }
+
+    /// <summary>
+    /// Líneas para la contabilización cuando alguna lleva su propia cuenta (anticipos: 438); si no, null y el asiento
+    /// va entero a la cuenta de ventas de la regla.
+    /// </summary>
+    internal static IReadOnlyList<LineaContable>? LineasConCuenta(Factura f) =>
+        f.Lineas.Any(l => l.CuentaContable is not null)
+            ? f.Lineas.Select(l => new LineaContable(l.Base, l.CodigoIva, l.CuotaIva, l.CuotaIva, l.CuotaRecargo, CuentaGasto: l.CuentaContable)).ToList()
+            : null;
 
     public Task<Resultado<FacturaDto>> EjecutarAsync(Guid empresaId, EmitirFacturaComando comando, CancellationToken ct = default) =>
         EjecutarInternoAsync(empresaId, comando, false, ct);
@@ -139,6 +154,32 @@ public sealed class EmitirFactura
         }
 
         var lineas = conConceptos.Valor;
+
+        // Anticipos facturados que se descuentan: líneas negativas con su base e impuesto (cuenta 438), como mucho la base de la factura.
+        if (comando.DescontarAnticipos is { Count: > 0 } descontar)
+        {
+            if (_anticipos is null)
+            {
+                return Resultado.Fallo<FacturaDto>(Error.Validacion("factura.anticipos", "No se pueden descontar anticipos en esta instalación."));
+            }
+
+            var baseFactura = lineas.Sum(l => LineaFactura.CalcularBaseBruta(l.Cantidad, l.PrecioUnitario, l.PorcentajeDescuento) + ConceptosLinea.SumaPrecio(l.Conceptos));
+            var descuentos = await _anticipos.LineasDescuentoAsync(cliente.Id, descontar, baseFactura, ct).ConfigureAwait(false);
+            if (descuentos.EsFallo)
+            {
+                return Resultado.Fallo<FacturaDto>(descuentos.Error);
+            }
+
+            var resueltos = await ResolucionLineasFactura.ResolverAsync(descuentos.Valor, _productos, ct, comando.RecargoEquivalencia, empresaId, _resolverIva,
+                (producto, cantidad, c) => _precios.ResolverAsync(cliente.TarifaId, producto, cantidad, fechaPrecio, c), impuesto).ConfigureAwait(false);
+            if (resueltos.EsFallo)
+            {
+                return Resultado.Fallo<FacturaDto>(resueltos.Error);
+            }
+
+            lineas = [.. lineas, .. resueltos.Valor];
+        }
+
         var mencionFiscal = await ResolucionLineasFactura.MencionFiscalAsync(empresaId, lineas, _resolverIva, ct).ConfigureAwait(false);
         var hoy = DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
         var fechaEmision = comando.FechaEmision ?? hoy;
@@ -259,9 +300,15 @@ public sealed class EmitirFactura
         _encolarSalida.Contabilizacion(empresaId, new DocumentoContabilizable(
             SentidoContable.Venta, "FacturaVenta", f.Id, f.NumeroCompleto, f.ClienteId, f.ClienteNombre,
             f.FechaEmision, f.BaseImponible, codigoIva, f.CuotaIva, f.PorcentajeIrpf, f.RetencionIrpf, f.Total, productoId, familia, cliente.Tipo,
-            ActividadNegocioId: f.ActividadNegocioId));
+            ActividadNegocioId: f.ActividadNegocioId, Lineas: LineasConCuenta(f)));
 
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
+
+        // Los anticipos descontados quedan anotados (ya no están disponibles para otra factura).
+        if (_anticipos is not null && f.Lineas.Any(l => l.AnticipoId is not null))
+        {
+            await _anticipos.AnotarAsync(f, ct).ConfigureAwait(false);
+        }
 
         // Ya confirmada la factura, despacha la bandeja de salida (encola la contabilización). Si fallara,
         // el mensaje queda pendiente y se reintenta; la factura ya está a salvo.
@@ -409,7 +456,8 @@ internal static class ResolucionLineasFactura
             }
 
             resueltas.Add(new NuevaLinea(
-                descripcion, linea.Cantidad, precio.Value, codigoResuelto, porcentaje, descuento, linea.ProductoId, coste ?? 0m, porcentajeRecargo));
+                descripcion, linea.Cantidad, precio.Value, codigoResuelto, porcentaje, descuento, linea.ProductoId, coste ?? 0m, porcentajeRecargo,
+                CuentaContable: linea.CuentaContable, AnticipoId: linea.AnticipoId));
         }
 
         return Resultado.Ok(resueltas);

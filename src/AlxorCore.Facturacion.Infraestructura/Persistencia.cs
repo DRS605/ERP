@@ -137,9 +137,14 @@ internal sealed class ConfiguracionFactura : IEntityTypeConfiguration<Factura>
             linea.Property(l => l.Conceptos).ComoConceptos();
             linea.Property(l => l.ImporteConceptos).HasColumnName("importe_conceptos").HasColumnType("numeric(14,2)").HasDefaultValue(0m).IsRequired();
             linea.Property(l => l.CosteConceptos).HasColumnName("coste_conceptos").HasColumnType("numeric(14,2)").HasDefaultValue(0m).IsRequired();
+            linea.Property(l => l.CuentaContable).HasColumnName("cuenta_contable").HasMaxLength(12);
+            linea.Property(l => l.Orden).HasColumnName("orden").HasDefaultValue(0).IsRequired();
+            linea.Property(l => l.AnticipoId).HasColumnName("anticipo_id");
+            linea.HasIndex(l => l.AnticipoId).HasDatabaseName("ix_linea_factura_anticipo");
             linea.Ignore(l => l.CosteTotal);
             linea.Ignore(l => l.Margen);
         });
+        builder.Navigation(f => f.Lineas).UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }
 
@@ -169,6 +174,7 @@ internal sealed class ConfiguracionFacturaRecurrente : IEntityTypeConfiguration<
 
         builder.OwnsMany(r => r.Lineas, linea =>
         {
+            linea.Property(x => x.Orden).HasColumnName("orden").HasDefaultValue(0).IsRequired();
             linea.ToTable("linea_recurrente");
             linea.WithOwner().HasForeignKey("factura_recurrente_id");
             linea.HasKey(l => l.Id);
@@ -184,6 +190,7 @@ internal sealed class ConfiguracionFacturaRecurrente : IEntityTypeConfiguration<
             linea.Property(l => l.Base).HasColumnName("base").HasColumnType("numeric(14,2)").IsRequired();
             linea.Property(l => l.CuotaIva).HasColumnName("cuota_iva").HasColumnType("numeric(14,2)").IsRequired();
         });
+        builder.Navigation(r => r.Lineas).UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }
 
@@ -498,6 +505,7 @@ internal sealed class ConfiguracionPresupuesto : IEntityTypeConfiguration<Presup
 
         builder.OwnsMany(p => p.Lineas, linea =>
         {
+            linea.Property(x => x.Orden).HasColumnName("orden").HasDefaultValue(0).IsRequired();
             linea.ToTable("linea_presupuesto");
             linea.WithOwner().HasForeignKey("presupuesto_id");
             linea.HasKey(l => l.Id);
@@ -517,6 +525,7 @@ internal sealed class ConfiguracionPresupuesto : IEntityTypeConfiguration<Presup
             linea.Property(l => l.CosteConceptos).HasColumnName("coste_conceptos").HasColumnType("numeric(14,2)").HasDefaultValue(0m).IsRequired();
             linea.Ignore(l => l.BaseBruta);
         });
+        builder.Navigation(p => p.Lineas).UsePropertyAccessMode(PropertyAccessMode.Field);
 
         builder.HasIndex(p => new { p.EmpresaId, p.Fecha }).HasDatabaseName("ix_presupuesto_empresa_fecha");
         builder.Ignore(p => p.EventosDominio);

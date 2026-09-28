@@ -2,16 +2,17 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { abrirFichero, useDocs } from "./contexto";
 import { ConceptosAplicados, Dialogo } from "./Componentes";
-import { anticiposDisponibles, repartoAnticipos, type Albaran, type Almacen, type Anticipo, type Factura, type FormaPago, type PedidoCompra, type PedidoVenta, type Presupuesto, type Saldo, type TipoIva } from "./tipos";
+import { anticiposDisponibles, anticiposFacturados, repartoAnticipos, type Albaran, type Almacen, type Anticipo, type Factura, type FormaPago, type PedidoCompra, type PedidoVenta, type Presupuesto, type Saldo, type TipoIva } from "./tipos";
 import { cant, clasePill, eur, fecha, hoyIso, num2 } from "./util";
 
-function Cabecera(props: { titulo: ReactNode; estado?: string; acciones?: ReactNode; volver: () => void }) {
+function Cabecera(props: { titulo: ReactNode; estado?: string; extra?: ReactNode; acciones?: ReactNode; volver: () => void }) {
   return (
     <div className="panel-head">
       <h2 style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <button className="btn small secondary" onClick={props.volver} title="Volver a la lista">←</button>
         {props.titulo}
         {props.estado && <span className={clasePill(props.estado)}>{props.estado}</span>}
+        {props.extra}
       </h2>
       <div className="dx-acciones">{props.acciones}</div>
     </div>
@@ -62,10 +63,13 @@ export function VistaFactura(props: { id: string }) {
   const [motivo, setMotivo] = useState("");
   useEffect(() => void api.get<Saldo>(`/facturas/${props.id}/saldo`).then(setSaldo).catch(() => setSaldo(null)), [api, props.id, f]);
   const [anticipos, setAnticipos] = useState<Anticipo[]>([]);
+  const [facturados, setFacturados] = useState<Anticipo[]>([]);
   const [aplicar, setAplicar] = useState<{ id: string; importe: number }[] | null>(null);
   useEffect(() => {
     if (!f?.clienteId || f.estado !== "Emitida") return;
-    api.get<Anticipo[]>(`/anticipos?clienteId=${f.clienteId}`).then((l) => setAnticipos(anticiposDisponibles(l))).catch(() => setAnticipos([]));
+    api.get<Anticipo[]>(`/anticipos?clienteId=${f.clienteId}`)
+      .then((l) => { setAnticipos(anticiposDisponibles(l)); setFacturados(anticiposFacturados(l)); })
+      .catch(() => setAnticipos([]));
   }, [api, f]);
   const disponibleAnticipos = anticipos.reduce((t, a) => t + a.disponible, 0);
   if (error) return <div className="panel"><p className="dx-rojo">{error}</p></div>;
@@ -73,12 +77,15 @@ export function VistaFactura(props: { id: string }) {
   const semilla = { clienteId: f.clienteId ?? undefined, lineas: f.lineas };
   const coste = f.lineas.reduce((t, l) => t + (l.base - l.margen), 0);
   const emitida = f.estado === "Emitida";
+  // Factura de un anticipo: su base va a la 438 (no es venta) y se descontará en la factura final.
+  const esAnticipo = f.lineas.some((l) => l.cuentaContable === "438" && !l.anticipoId);
   return (
     <div className="dx-editor">
       <div className="panel">
         <Cabecera
           titulo={<>{f.tipo === "Rectificativa" ? "Rectificativa" : f.tipo === "Simplificada" ? "Ticket" : "Factura"} <span className="mono">{f.numeroCompleto}</span></>}
           estado={f.estado}
+          extra={esAnticipo ? <span className="pill part">Factura de anticipo</span> : f.lineas.some((l) => l.anticipoId) ? <span className="pill">Descuenta anticipos</span> : null}
           volver={() => navegar({ tipo: "factura", pantalla: "lista" })}
           acciones={
             <>
@@ -103,6 +110,9 @@ export function VistaFactura(props: { id: string }) {
               saldo.pendiente <= 0 ? <span className="pill ok">Cobrada</span> : <>Pendiente <strong>{eur(saldo.pendiente)}</strong>{saldo.liquidado > 0 && <div className="muted">Cobrado {eur(saldo.liquidado)}</div>}</>
             ) : "—"}
             {saldo && saldo.pendiente > 0 && emitida && anfitrion.irA && <div><Enlace alPulsar={() => anfitrion.irA!("cobros")}>Registrar cobro</Enlace></div>}
+            {saldo && saldo.pendiente > 0 && emitida && facturados.length > 0 && !esAnticipo && (
+              <div className="dx-anticipo">🧾 Anticipos facturados sin descontar: <strong>{eur(facturados.reduce((t, a) => t + (a.disponibleBase ?? 0), 0))}</strong> de base. Se descuentan al hacer la siguiente factura (o rectifica esta para incluirlos).</div>
+            )}
             {saldo && saldo.pendiente > 0 && emitida && disponibleAnticipos > 0 && (
               <div className="dx-anticipo">
                 💶 Anticipos del cliente sin aplicar: <strong>{eur(disponibleAnticipos)}</strong>

@@ -23,7 +23,7 @@ public static class EndpointsCobranza
 
         var anticipos = rutas.MapGroup("/anticipos").WithTags("Cobranza");
         anticipos.MapPost("", RegistrarAnticipoAsync)
-            .WithSummary("Registra un anticipo (entrega a cuenta) de un cliente.")
+            .WithSummary("Registra un anticipo de un cliente. Con Facturar (y CodigoIva) emite la factura del anticipo con su IVA (art. 75.2 LIVA) y registra su cobro.")
             .RequierePermiso(Permisos.CobroRegistrar);
         anticipos.MapGet("", async (Guid? clienteId, ListarAnticipos caso, CancellationToken ct) =>
                 Results.Ok(await caso.EjecutarAsync(clienteId, ct).ConfigureAwait(false)))
@@ -57,14 +57,18 @@ public static class EndpointsCobranza
 
     private static Error SinEmpresa() => Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero.");
 
-    private static async Task<IResult> RegistrarAnticipoAsync(RegistrarAnticipoComando comando, IContextoEmpresa contexto, RegistrarAnticipo caso, CancellationToken ct)
+    private static async Task<IResult> RegistrarAnticipoAsync(RegistrarAnticipoComando comando, IContextoEmpresa contexto, RegistrarAnticipo caso,
+        RegistrarAnticipoFacturado conFactura, CancellationToken ct)
     {
         if (contexto.EmpresaId is null)
         {
             return ResultadosHttp.AProblema(SinEmpresa());
         }
 
-        var r = await caso.EjecutarAsync(contexto.EmpresaId.Value, comando, ct).ConfigureAwait(false);
+        // Con factura (lo normal): factura del anticipo con su IVA, su cobro y el anticipo. Sin ella, solo el anticipo (57x a 438).
+        var r = comando.Facturar
+            ? await conFactura.EjecutarAsync(contexto.EmpresaId.Value, comando with { Factura = null }, ct).ConfigureAwait(false)
+            : await caso.EjecutarAsync(contexto.EmpresaId.Value, comando with { Factura = null }, ct).ConfigureAwait(false);
         return r.EsCorrecto ? r.ACreado($"/anticipos/{r.Valor.Id}") : ResultadosHttp.AProblema(r.Error);
     }
 

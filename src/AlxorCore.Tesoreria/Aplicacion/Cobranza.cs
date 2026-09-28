@@ -15,14 +15,21 @@ public sealed record AplicacionAnticipoDto(Guid FacturaId, decimal Importe, Date
 /// <summary>Vista de un anticipo con su saldo.</summary>
 public sealed record AnticipoDto(
     Guid Id, Guid ClienteId, DateOnly Fecha, decimal Importe, decimal Aplicado, decimal Disponible, string Estado, string Concepto,
-    IReadOnlyList<AplicacionAnticipoDto> Aplicaciones)
+    IReadOnlyList<AplicacionAnticipoDto> Aplicaciones, Guid? FacturaId = null, string? FacturaNumero = null, decimal? BaseFacturada = null,
+    decimal DisponibleBase = 0m, string? CodigoIva = null)
 {
     public static AnticipoDto Desde(Anticipo a) => new(a.Id, a.ClienteId, a.Fecha, a.Importe, a.Aplicado, a.Disponible, a.Estado.ToString(),
-        a.Concepto, a.Aplicaciones.Select(x => new AplicacionAnticipoDto(x.FacturaId, x.Importe, x.Fecha)).ToList());
+        a.Concepto, a.Aplicaciones.Select(x => new AplicacionAnticipoDto(x.FacturaId, x.Importe, x.Fecha)).ToList(),
+        a.FacturaId, a.FacturaNumero, a.BaseFacturada, a.DisponibleBase, a.CodigoIva);
 }
 
 /// <summary>Datos para registrar un anticipo de cliente.</summary>
-public sealed record RegistrarAnticipoComando(Guid ClienteId, decimal Importe, DateOnly? Fecha = null, string? Concepto = null, string? Metodo = null);
+/// <remarks>
+/// Con <c>Facturar</c> (lo normal: el IVA se devenga al cobrar el anticipo) se emite la factura del anticipo con el
+/// impuesto <c>CodigoIva</c> y el cobro se registra contra ella; <c>Factura</c> la rellena quien la emite.
+/// </remarks>
+public sealed record RegistrarAnticipoComando(Guid ClienteId, decimal Importe, DateOnly? Fecha = null, string? Concepto = null, string? Metodo = null,
+    bool Facturar = false, string? CodigoIva = null, Guid? CuentaBancariaId = null, DatosFacturaAnticipo? Factura = null);
 
 /// <summary>Datos para aplicar un anticipo a una factura. Sin importe, se aplica lo máximo posible.</summary>
 public sealed record AplicarAnticipoComando(Guid FacturaId, decimal? Importe = null, DateOnly? Fecha = null);
@@ -31,6 +38,9 @@ public sealed record AplicarAnticipoComando(Guid FacturaId, decimal? Importe = n
 public interface IRepositorioAnticipos
 {
     void Agregar(Anticipo anticipo);
+
+    /// <summary>El anticipo cuya factura es esta (si la hay).</summary>
+    Task<Anticipo?> ObtenerPorFacturaAsync(Guid facturaId, CancellationToken ct = default);
 
     Task<Anticipo?> ObtenerAsync(Guid id, CancellationToken ct = default);
 
@@ -68,14 +78,19 @@ public sealed class RegistrarAnticipo
         }
 
         var fecha = comando.Fecha ?? DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
-        var anticipo = Anticipo.Registrar(empresaId, comando.ClienteId, comando.Importe, fecha, comando.Concepto, comando.Metodo, _reloj);
+        var anticipo = Anticipo.Registrar(empresaId, comando.ClienteId, comando.Importe, fecha, comando.Concepto, comando.Metodo, _reloj, comando.Factura);
         if (anticipo.EsFallo)
         {
             return Resultado.Fallo<AnticipoDto>(anticipo.Error);
         }
 
         _anticipos.Agregar(anticipo.Valor);
-        _contabilizacion?.EncolarAnticipo(anticipo.Valor, cliente.Nombre, anulacion: false);
+
+        // Con factura, el asiento es el de la factura (430 a 438 y 477) y el de su cobro (57x a 430): aquí no hay otro.
+        if (comando.Factura is null)
+        {
+            _contabilizacion?.EncolarAnticipo(anticipo.Valor, cliente.Nombre, anulacion: false);
+        }
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
         if (_contabilizacion is not null)
         {
@@ -90,6 +105,93 @@ public sealed class RegistrarAnticipo
 /// Caso de uso: aplicar un anticipo a una factura del mismo cliente. Registra un cobro de la factura
 /// (con las mismas reglas: sin sobrepago) y anota la aplicación en el anticipo, en la misma transacción.
 /// </summary>
+/// <summary>
+/// Descuentos de anticipos facturados en las facturas finales: comprobar cuánto se puede descontar (antes de emitir),
+/// anotarlo (después) y deshacerlo si la factura final se anula.
+/// </summary>
+public sealed class DescuentosAnticipo
+{
+    private readonly IRepositorioAnticipos _anticipos;
+    private readonly IUnidadDeTrabajoTesoreria _unidad;
+
+    public DescuentosAnticipo(IRepositorioAnticipos anticipos, IUnidadDeTrabajoTesoreria unidad)
+    {
+        _anticipos = anticipos;
+        _unidad = unidad;
+    }
+
+    /// <summary>Anticipo y base a descontar (lo pedido o lo que queda).</summary>
+    public async Task<Resultado<(AnticipoDto Anticipo, decimal Base)>> PrepararAsync(Guid anticipoId, Guid clienteId, decimal? baseSolicitada, CancellationToken ct = default)
+    {
+        var anticipo = await _anticipos.ObtenerAsync(anticipoId, ct).ConfigureAwait(false);
+        if (anticipo is null)
+        {
+            return Resultado.Fallo<(AnticipoDto, decimal)>(Error.NoEncontrado("anticipo.no_encontrado", "El anticipo no existe."));
+        }
+
+        var b = anticipo.BaseDescontable(clienteId, baseSolicitada);
+        return b.EsFallo ? Resultado.Fallo<(AnticipoDto, decimal)>(b.Error) : Resultado.Ok((AnticipoDto.Desde(anticipo), b.Valor));
+    }
+
+    public async Task<Resultado> AnotarAsync(Guid facturaId, DateOnly fecha, IReadOnlyList<(Guid AnticipoId, decimal Base, decimal Importe)> descuentos, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(descuentos);
+        foreach (var (anticipoId, baseDescontada, importe) in descuentos)
+        {
+            var anticipo = await _anticipos.ObtenerAsync(anticipoId, ct).ConfigureAwait(false);
+            if (anticipo is null)
+            {
+                return Resultado.Fallo(Error.NoEncontrado("anticipo.no_encontrado", "El anticipo no existe."));
+            }
+
+            var r = anticipo.AnotarDescuento(facturaId, baseDescontada, importe, fecha);
+            if (r.EsFallo)
+            {
+                return r;
+            }
+        }
+
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok();
+    }
+
+    /// <summary>Error si la factura es la de un anticipo que ya se ha descontado.</summary>
+    public async Task<Error?> ComprobarAnulacionAsync(Guid facturaId, CancellationToken ct = default)
+    {
+        var anticipo = await _anticipos.ObtenerPorFacturaAsync(facturaId, ct).ConfigureAwait(false);
+        return anticipo is not null && anticipo.Aplicado != 0m
+            ? Error.Conflicto("anticipo.descontado", $"Es la factura del anticipo y ya está descontado en otra factura: anula antes esa factura.")
+            : null;
+    }
+
+    /// <summary>La factura de un anticipo se ha anulado: el anticipo queda anulado (su cobro se devuelve aparte).</summary>
+    public async Task FacturaAnticipoAnuladaAsync(Guid facturaId, IReloj reloj, CancellationToken ct = default)
+    {
+        var anticipo = await _anticipos.ObtenerPorFacturaAsync(facturaId, ct).ConfigureAwait(false);
+        if (anticipo is not null && anticipo.AnularPorFactura(reloj).EsCorrecto)
+        {
+            await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>La factura final se ha anulado: sus anticipos vuelven a quedar disponibles.</summary>
+    public async Task RevertirAsync(IEnumerable<Guid> anticipos, Guid facturaId, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(anticipos);
+        var cambios = false;
+        foreach (var id in anticipos.Distinct())
+        {
+            var anticipo = await _anticipos.ObtenerAsync(id, ct).ConfigureAwait(false);
+            cambios |= anticipo?.RevertirDescuentos(facturaId, DateOnly.FromDateTime(DateTime.Today)) == true;
+        }
+
+        if (cambios)
+        {
+            await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        }
+    }
+}
+
 /// <summary>Caso de uso: anular un anticipo registrado por error o devuelto (sin nada aplicado).</summary>
 public sealed class AnularAnticipo
 {

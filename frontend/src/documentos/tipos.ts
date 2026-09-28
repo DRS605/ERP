@@ -112,6 +112,10 @@ export interface LineaFactura {
   conceptos?: ConceptoAplicado[] | null;
   importeConceptos: number;
   costeConceptos: number;
+  /** Cuenta propia de la línea (438 en anticipos). */
+  cuentaContable?: string | null;
+  /** Anticipo facturado que descuenta esta línea (importes en negativo). */
+  anticipoId?: string | null;
 }
 
 export interface Factura {
@@ -352,11 +356,21 @@ export interface Anticipo {
   disponible: number;
   estado: string;
   concepto: string;
+  /** Factura del anticipo (con su IVA): se descuenta en la factura final con una línea negativa. */
+  facturaId?: string | null;
+  facturaNumero?: string | null;
+  baseFacturada?: number | null;
+  disponibleBase?: number;
+  codigoIva?: string | null;
 }
 
 /** Anticipos con algo por aplicar, del más antiguo al más reciente. */
 export const anticiposDisponibles = (lista: Anticipo[]) =>
-  lista.filter((a) => a.disponible > 0 && a.estado !== "Anulado").sort((a, b) => a.fecha.localeCompare(b.fecha));
+  lista.filter((a) => a.disponible > 0 && a.estado !== "Anulado" && !a.facturaId).sort((a, b) => a.fecha.localeCompare(b.fecha));
+
+/** Anticipos facturados con base por descontar en la factura final, del más antiguo al más reciente. */
+export const anticiposFacturados = (lista: Anticipo[]) =>
+  lista.filter((a) => !!a.facturaId && (a.disponibleBase ?? 0) > 0 && a.estado !== "Anulado").sort((a, b) => a.fecha.localeCompare(b.fecha));
 
 /** Reparto de un importe entre los anticipos, el más antiguo primero (lo que se aplica de cada uno). */
 export function repartoAnticipos(anticipos: Anticipo[], importe: number): { id: string; importe: number }[] {

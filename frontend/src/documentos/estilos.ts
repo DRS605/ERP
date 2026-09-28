@@ -12,6 +12,7 @@ export const ESTILOS = `
 .dx-aviso { margin-top:8px; color:#b45309; font-weight:600; }
 .dx-anticipo { margin-top:8px; padding:8px 10px; border-radius:10px; background:var(--accent-soft); color:var(--ink); font-size:12.5px; }
 .dx-anticipo .dx-check { margin-top:6px !important; }
+.dx-tot-anticipo span:last-child { color:var(--accent); }
 .dx-rojo { color:#dc2626; }
 .dx-buscador { position:relative; }
 .dx-lista { position:absolute; z-index:40; left:0; right:0; top:calc(100% + 2px); min-width:420px; max-height:320px; overflow:auto; background:var(--surface,#fff); border:1px solid var(--line); border-radius:10px; box-shadow:0 12px 30px rgba(15,23,42,.14); }

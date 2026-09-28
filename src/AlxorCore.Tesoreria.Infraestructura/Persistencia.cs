@@ -283,6 +283,13 @@ internal sealed class ConfiguracionAnticipo : IEntityTypeConfiguration<Anticipo>
         builder.Property(a => a.Metodo).HasColumnName("metodo").HasMaxLength(60);
         builder.Property(a => a.CreadoEn).HasColumnName("creado_en").IsRequired();
         builder.Property(a => a.AnuladoEn).HasColumnName("anulado_en");
+        builder.Property(a => a.FacturaId).HasColumnName("factura_id");
+        builder.Property(a => a.FacturaNumero).HasColumnName("factura_numero").HasMaxLength(40);
+        builder.Property(a => a.BaseFacturada).HasColumnName("base_facturada").HasColumnType("numeric(14,2)");
+        builder.Property(a => a.CodigoIva).HasColumnName("codigo_iva").HasMaxLength(10);
+        builder.HasIndex(a => a.FacturaId).HasDatabaseName("ix_anticipo_factura");
+        builder.Ignore(a => a.Facturado);
+        builder.Ignore(a => a.DisponibleBase);
         builder.OwnsMany(a => a.Aplicaciones, ap =>
         {
             ap.ToTable("aplicacion_anticipo");
@@ -292,7 +299,8 @@ internal sealed class ConfiguracionAnticipo : IEntityTypeConfiguration<Anticipo>
             ap.Property(x => x.FacturaId).HasColumnName("factura_id").IsRequired();
             ap.Property(x => x.Importe).HasColumnName("importe").HasColumnType("numeric(14,2)").IsRequired();
             ap.Property(x => x.Fecha).HasColumnName("fecha").IsRequired();
-            ap.Property(x => x.MovimientoId).HasColumnName("movimiento_id").IsRequired();
+            ap.Property(x => x.MovimientoId).HasColumnName("movimiento_id");
+            ap.Property(x => x.Base).HasColumnName("base").HasColumnType("numeric(14,2)");
             ap.HasIndex("anticipo_id").HasDatabaseName("ix_aplicacion_anticipo_anticipo");
             ap.HasIndex(x => x.MovimientoId).IsUnique().HasDatabaseName("ux_aplicacion_anticipo_movimiento");
         });
@@ -356,6 +364,9 @@ internal sealed class RepositorioAnticipos : IRepositorioAnticipos
 
     public Task<Anticipo?> ObtenerAsync(Guid id, CancellationToken ct = default) =>
         _contexto.Anticipos.SingleOrDefaultAsync(a => a.Id == id, ct);
+
+    public Task<Anticipo?> ObtenerPorFacturaAsync(Guid facturaId, CancellationToken ct = default) =>
+        _contexto.Anticipos.SingleOrDefaultAsync(a => a.FacturaId == facturaId, ct);
 
     public async Task<IReadOnlyList<Anticipo>> ListarAsync(Guid? clienteId, CancellationToken ct = default) =>
         await _contexto.Anticipos.Where(a => clienteId == null || a.ClienteId == clienteId)

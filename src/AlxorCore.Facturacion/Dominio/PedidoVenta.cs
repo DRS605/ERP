@@ -20,6 +20,9 @@ public enum EstadoPedidoVenta
 /// <summary>Línea de un pedido de venta, con seguimiento de lo servido y lo facturado.</summary>
 public sealed class LineaPedidoVenta
 {
+    /// <summary>Número de la línea en el documento (1, 2, 3…).</summary>
+    public int Orden { get; internal set; }
+
     private LineaPedidoVenta()
     {
         Descripcion = null!;
@@ -137,7 +140,15 @@ public sealed class PedidoVenta : RaizAgregadoEmpresa<Guid>
 
     public DateTimeOffset CreadoEn { get; private set; }
 
-    public IReadOnlyList<LineaPedidoVenta> Lineas => _lineas;
+    /// <summary>Líneas en su orden (la base de datos no garantiza el orden en que las devuelve).</summary>
+    public IReadOnlyList<LineaPedidoVenta> Lineas => _lineas.OrderBy(l => l.Orden).ToList().AsReadOnly();
+
+    /// <summary>Añade una línea con el número siguiente.</summary>
+    private void AgregarLinea(LineaPedidoVenta linea)
+    {
+        linea.Orden = _lineas.Count + 1;
+        _lineas.Add(linea);
+    }
 
     public decimal Total => Redondeo.Dos(_lineas.Sum(l => l.Base));
 
@@ -218,7 +229,7 @@ public sealed class PedidoVenta : RaizAgregadoEmpresa<Guid>
     {
         foreach (var l in lineas)
         {
-            _lineas.Add(new LineaPedidoVenta(Guid.NewGuid(), l.ProductoId, l.Descripcion.Trim(), l.Cantidad,
+            AgregarLinea(new LineaPedidoVenta(Guid.NewGuid(), l.ProductoId, l.Descripcion.Trim(), l.Cantidad,
                 Redondeo.Dos(l.Precio), l.Descuento, string.IsNullOrWhiteSpace(l.CodigoIva) ? "IVA21" : l.CodigoIva.Trim()));
         }
     }

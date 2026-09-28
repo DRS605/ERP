@@ -18,6 +18,9 @@ public enum EstadoSolicitud
 /// <summary>Línea de una solicitud de compra.</summary>
 public sealed class LineaSolicitud
 {
+    /// <summary>Número de la línea en el documento (1, 2, 3…).</summary>
+    public int Orden { get; internal set; }
+
     private LineaSolicitud() { Descripcion = null!; }
 
     internal LineaSolicitud(Guid id, string descripcion, decimal cantidad)
@@ -62,7 +65,15 @@ public sealed class SolicitudCompra : RaizAgregadoEmpresa<Guid>
 
     public DateTimeOffset CreadoEn { get; private set; }
 
-    public IReadOnlyList<LineaSolicitud> Lineas => _lineas;
+    /// <summary>Líneas en su orden (la base de datos no garantiza el orden en que las devuelve).</summary>
+    public IReadOnlyList<LineaSolicitud> Lineas => _lineas.OrderBy(l => l.Orden).ToList().AsReadOnly();
+
+    /// <summary>Añade una línea con el número siguiente.</summary>
+    private void AgregarLinea(LineaSolicitud linea)
+    {
+        linea.Orden = _lineas.Count + 1;
+        _lineas.Add(linea);
+    }
 
     /// <summary>Solo se modifica o elimina mientras no se ha convertido en pedido.</summary>
     public bool Editable => Estado is EstadoSolicitud.Borrador or EstadoSolicitud.Rechazada;
@@ -92,7 +103,7 @@ public sealed class SolicitudCompra : RaizAgregadoEmpresa<Guid>
         _lineas.Clear();
         foreach (var l in lineas)
         {
-            _lineas.Add(new LineaSolicitud(Guid.NewGuid(), l.Descripcion.Trim(), l.Cantidad));
+            AgregarLinea(new LineaSolicitud(Guid.NewGuid(), l.Descripcion.Trim(), l.Cantidad));
         }
 
         return Resultado.Ok();
@@ -124,7 +135,7 @@ public sealed class SolicitudCompra : RaizAgregadoEmpresa<Guid>
         var solicitud = new SolicitudCompra(Guid.NewGuid(), empresaId, proveedorSugerido?.Trim(), notas?.Trim(), reloj.AhoraUtc);
         foreach (var l in lineas)
         {
-            solicitud._lineas.Add(new LineaSolicitud(Guid.NewGuid(), l.Descripcion.Trim(), l.Cantidad));
+            solicitud.AgregarLinea(new LineaSolicitud(Guid.NewGuid(), l.Descripcion.Trim(), l.Cantidad));
         }
 
         return Resultado.Ok(solicitud);

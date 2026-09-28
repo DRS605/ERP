@@ -166,7 +166,8 @@ public sealed class Factura : RaizAgregadoEmpresa<Guid>
         EstadoEnvioAeat = "Registrado";
     }
 
-    public IReadOnlyList<LineaFactura> Lineas => _lineas.AsReadOnly();
+    /// <summary>Líneas en su orden de emisión (la base de datos no garantiza el orden en que las devuelve).</summary>
+    public IReadOnlyList<LineaFactura> Lineas => _lineas.OrderBy(l => l.Orden).ToList().AsReadOnly();
 
     /// <summary>
     /// Emite una factura ordinaria, calculando sus importes (IVA por línea + retención de IRPF) y
@@ -220,7 +221,7 @@ public sealed class Factura : RaizAgregadoEmpresa<Guid>
         var factura = new Factura(Guid.NewGuid(), empresaId, numero, fechaEmision, fechaOperacion, fechaVencimiento ?? fechaEmision, cliente, porcentajeIrpf, reloj.AhoraUtc);
         foreach (var datos in lineas)
         {
-            factura._lineas.Add(new LineaFactura(empresaId, datos));
+            factura._lineas.Add(new LineaFactura(empresaId, datos) { Orden = factura._lineas.Count + 1 });
         }
 
         factura.BaseImponible = Redondeo.Dos(factura._lineas.Sum(l => l.Base));
@@ -229,6 +230,10 @@ public sealed class Factura : RaizAgregadoEmpresa<Guid>
         factura.RecargoEquivalencia = factura.RecargoTotal > 0m;
         factura.RetencionIrpf = Redondeo.Dos(factura.BaseImponible * porcentajeIrpf / 100m);
         factura.Total = Redondeo.Dos(factura.BaseImponible + factura.CuotaIva + factura.RecargoTotal - factura.RetencionIrpf);
+        if (factura._lineas.Any(l => l.AnticipoId is not null) && (factura.BaseImponible < 0m || factura.Total < 0m))
+        {
+            return Resultado.Fallo<Factura>(Error.Validacion("factura.anticipo_excede", "El anticipo descontado no puede superar el importe de la factura."));
+        }
 
         factura.RegistrarEvento(new FacturaEmitida(factura.Id, empresaId, factura.NumeroCompleto, factura.Total, reloj.AhoraUtc));
         return Resultado.Ok(factura);
@@ -272,7 +277,7 @@ public sealed class Factura : RaizAgregadoEmpresa<Guid>
         };
         foreach (var datos in lineas)
         {
-            factura._lineas.Add(new LineaFactura(empresaId, datos));
+            factura._lineas.Add(new LineaFactura(empresaId, datos) { Orden = factura._lineas.Count + 1 });
         }
 
         factura.BaseImponible = Redondeo.Dos(factura._lineas.Sum(l => l.Base));
@@ -346,7 +351,7 @@ public sealed class Factura : RaizAgregadoEmpresa<Guid>
         };
         foreach (var datos in lineas)
         {
-            factura._lineas.Add(new LineaFactura(empresaId, datos));
+            factura._lineas.Add(new LineaFactura(empresaId, datos) { Orden = factura._lineas.Count + 1 });
         }
 
         factura.BaseImponible = Redondeo.Dos(factura._lineas.Sum(l => l.Base));
@@ -410,12 +415,13 @@ public sealed class Factura : RaizAgregadoEmpresa<Guid>
             return Error.Validacion("factura.linea_cantidad", "La cantidad debe ser mayor que cero.");
         }
 
-        if (linea.PrecioUnitario < 0)
+        // Solo la línea que descuenta un anticipo ya facturado va en negativo (base e impuesto).
+        if (linea.PrecioUnitario < 0 && linea.AnticipoId is null)
         {
             return Error.Validacion("factura.linea_precio", "El precio no puede ser negativo.");
         }
 
-        if (linea.PorcentajeDescuento is >= 0 and <= 100
+        if (linea.AnticipoId is null && linea.PorcentajeDescuento is >= 0 and <= 100
             && LineaFactura.CalcularBaseBruta(linea.Cantidad, linea.PrecioUnitario, linea.PorcentajeDescuento) + ConceptosLinea.SumaPrecio(linea.Conceptos) < 0m)
         {
             return Error.Validacion("factura.linea_negativa", "Los conceptos de línea no pueden dejar una línea con importe negativo.");

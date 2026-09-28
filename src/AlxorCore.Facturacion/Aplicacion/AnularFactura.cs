@@ -18,9 +18,11 @@ public sealed class AnularFactura
     private readonly IConsultaEmpresas _empresas;
     private readonly IUnidadDeTrabajoFacturacion _unidadDeTrabajo;
     private readonly IReloj _reloj;
+    private readonly IAnticiposFactura? _anticipos;
 
-    public AnularFactura(IRepositorioFacturas facturas, IConsultaEmpresas empresas, IUnidadDeTrabajoFacturacion unidadDeTrabajo, IReloj reloj)
+    public AnularFactura(IRepositorioFacturas facturas, IConsultaEmpresas empresas, IUnidadDeTrabajoFacturacion unidadDeTrabajo, IReloj reloj, IAnticiposFactura? anticipos = null)
     {
+        _anticipos = anticipos;
         _facturas = facturas;
         _empresas = empresas;
         _unidadDeTrabajo = unidadDeTrabajo;
@@ -37,6 +39,11 @@ public sealed class AnularFactura
             return Resultado.Fallo<FacturaDto>(Error.NoEncontrado("factura.no_encontrada", "La factura no existe."));
         }
 
+        if (_anticipos is not null && await _anticipos.ComprobarAnulacionAsync(factura, ct).ConfigureAwait(false) is { } bloqueo)
+        {
+            return Resultado.Fallo<FacturaDto>(bloqueo);
+        }
+
         var emisor = await _empresas.ObtenerAsync(empresaId, ct).ConfigureAwait(false);
         var huellaAnterior = await _facturas.UltimaHuellaAsync(empresaId, ct).ConfigureAwait(false);
 
@@ -47,6 +54,11 @@ public sealed class AnularFactura
         }
 
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        if (_anticipos is not null)
+        {
+            await _anticipos.FacturaAnuladaAsync(factura, ct).ConfigureAwait(false);
+        }
+
         return Resultado.Ok(FacturaDto.Desde(factura));
     }
 }
