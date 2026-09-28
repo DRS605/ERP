@@ -49,7 +49,7 @@ Una pantalla puede afinar el comportamiento con atributos:
 | `<table data-totales="no">` | Sin pie de totales (p. ej. el libro diario, donde el asiento y sus apuntes se sumarían dos veces). |
 | `<table data-seleccion="no">` / `data-agrupar="no"` | Sin casillas / sin agrupación. |
 | `<table data-agrupar-por="Sentido">` | Agrupación propuesta mientras el usuario no elija otra (efectos de cartera: cobros y pagos por separado). |
-| `<table data-pagina="1">` | El pie dice «Total página» (lo pone solo `listaServidor` cuando hay más de una página). |
+| `<table data-pagina="1">` | El pie dice «Total página» (lo pone `listaServidor` cuando hay más de una página y la pantalla no trae totales del servidor). |
 | `<th data-suma>` / `<th data-media>` / `<th data-sin-total>` | Fuerza el cálculo de esa columna (artículos: precios de venta y compra en media, IVA sin total). |
 
 ## Exportación a Excel: `POST /exportar/xlsx`
@@ -105,3 +105,24 @@ Presupuestos, pedidos de venta, facturas, pedidos de compra y facturas de provee
 (`documentos`, `baseImponible`, `impuestos`, `retenciones`, `total`, `pendiente`, `vencido`, `documentosVencidos`)
 y `pendientes` (pendiente de cada documento de la página). El pendiente sale de Tesorería (total menos lo cobrado o
 pagado) de los documentos vivos: sin anulados ni facturas rectificadas.
+
+## Maestros con cifras: clientes, proveedores y artículos
+
+`GET /clientes/buscar`, `GET /proveedores/buscar` y `GET /productos/buscar` admiten `ejercicio` (por defecto el
+actual) y, si el usuario puede ver facturas (clientes y artículos) o gastos (proveedores), devuelven además de la
+paginación:
+
+- `totales`: de **todo el filtro** (no solo de la página), calculados en el servidor, con `registros`.
+  - Clientes: `facturas` y `facturado` (base) del ejercicio, `pendiente` y `vencido` de cobro a hoy.
+  - Proveedores: `facturas` y `comprado` (base) del ejercicio, `pendiente` de pago y `vencido` (lo exigible según
+    los vencimientos de cada factura menos lo pagado).
+  - Artículos: `stock` y `valorStock` (a precio de compra) de la empresa activa, `unidadesVendidas` y `ventas` (base)
+    del ejercicio.
+- `cifras`: las mismas por cada fila de la página (`{ id: { campo: valor } }`).
+- `ejercicio`: el ejercicio de las cifras.
+
+El pendiente es el total menos lo cobrado o pagado en Tesorería, de documentos vivos (sin anulados ni sustituidos),
+igual que en las pantallas de cobros y pagos. Las consultas (`Comun/CifrasMaestros.cs`) usan la conexión de solo
+lectura del análisis, con la RLS de la empresa. En pantalla, el pie «Total · N — todo el filtro» lo pone la propia
+lista (`cfg.pie`) y la rejilla no añade el suyo de página (`data-totales="no"`); el selector «Cifras del ejercicio»
+cambia las columnas del año.

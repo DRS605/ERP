@@ -37,6 +37,7 @@ public class RetencionesIrpfTests
         public Task<ProveedorDto?> ObtenerAsync(Guid proveedorId, CancellationToken ct = default) => Task.FromResult<ProveedorDto?>(null);
         public Task<IReadOnlyList<ProveedorDto>> ListarAsync(Guid empresaId, bool incluirInactivos = false, IReadOnlyCollection<Guid>? act = null, CancellationToken ct = default) => Task.FromResult(lista);
         public Task<PaginaResultado<ProveedorDto>> BuscarAsync(Guid e, FiltroTerceros f, Paginacion p, CancellationToken ct = default) => throw new NotImplementedException();
+        public Task<IReadOnlyList<Guid>> IdsFiltradosAsync(Guid e, FiltroTerceros f, CancellationToken ct = default) => throw new NotImplementedException();
     }
 
     private sealed class FakeEmpresas(EmpresaDto? empresa) : IConsultaEmpresas

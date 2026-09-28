@@ -105,7 +105,7 @@
     .themebtn:hover { color: var(--accent); border-color: var(--accent); }
     .themebtn svg { width:18px; height:18px; }
     .avatar { width:32px; height:32px; border-radius:50%; background: var(--grad); color:#fff; display:grid; place-items:center; font-weight:650; font-size:13px; flex:none; }
-    .content { padding: 28px 30px; max-width: 1120px; width: 100%; }
+    .content { padding: 28px 30px; max-width: 1480px; width: 100%; }
 
     .greet { margin-bottom: 22px; }
     .greet h1 { font-size: 24px; letter-spacing:-.02em; margin: 0 0 4px; }
@@ -139,6 +139,8 @@
     .kpi.warn .chipico { background:#fdf1e5; color: var(--warn); }
     .kpi.pos .chipico { background:#e7f6ee; color: var(--pos); }
     .kpi .val.neg { color: var(--neg); }
+    tr.lista-total td { border-top: 2px solid var(--ink); font-weight: 600; white-space: nowrap; }
+    td.num.neg, td.num.neg strong { color: var(--neg); }
     .kpi .top .trend { font-size: 12px; font-weight: 800; padding: 3px 8px; border-radius: 999px; }
     .kpi .top .trend.up { color: var(--pos); background: rgba(15,157,88,.12); }
     .kpi .top .trend.down { color: var(--neg); background: rgba(224,83,61,.12); }
@@ -772,6 +774,8 @@
         todas.forEach(r=>{ const td=document.createElement("td"); td.className="rej-chk";
           if(M.has(r)){ td.innerHTML='<input type="checkbox"/>'; td.addEventListener("click",e=>e.stopPropagation()); }
           r.insertBefore(td,r.cells[0]); });
+        // Un pie propio de la pantalla (p. ej. totales del servidor) también necesita la celda de la casilla.
+        if(tabla.tFoot) [...tabla.tFoot.rows].forEach(r=>{ const td=document.createElement("td"); td.className="rej-chk"; r.insertBefore(td,r.cells[0]); });
         ths=[...thead.rows[0].cells];
         const M2=new Map(); datos.forEach(r=>M2.set(r,[""].concat(M.get(r)))); M=M2;
       }
@@ -1164,11 +1168,15 @@
       const cfg = _lsCfg[clave]; const res = document.getElementById('lsRes'); if (!cfg || !res) return;
       const qs = new URLSearchParams(); qs.set('pagina', pagina); qs.set('tamanoPagina', cfg.tam || 25);
       let activos = false;
-      cfg.filtros.forEach(f => { const el = document.getElementById('lf_'+f.id); if (!el) return; const v = (el.value||'').trim(); if (v !== '') { qs.set(f.param, v); activos = true; } });
+      cfg.filtros.forEach(f => { const el = document.getElementById('lf_'+f.id); if (!el) return; const v = (el.value||'').trim(); if (v !== '') { qs.set(f.param, v); if (!f.noFiltra) activos = true; } });
       res.innerHTML = '<div class="muted">Cargando…</div>';
       let pg; try { pg = await api(`${cfg.endpoint}?${qs.toString()}`); } catch(e){ res.innerHTML = `<p class="muted">Error: ${e.message}</p>`; return; }
       if (!pg.total){ res.innerHTML = activos ? '<div class="empty"><h3>Sin resultados</h3><p class="muted">No hay registros con esos filtros. Prueba a ampliar la búsqueda o pulsa Limpiar.</p></div>' : vacio(...cfg.vacio); return; }
-      res.innerHTML = `<table${pg.totalPaginas>1?' data-pagina="1"':''}><thead>${cfg.cabecera}</thead><tbody>${pg.elementos.map(cfg.fila).join('')}</tbody></table>${lsPaginador(clave, pg)}`;
+      // Con totales del servidor (de todo el filtro, no solo de la página) el pie lo pone la pantalla, no la rejilla.
+      const cab = typeof cfg.cabecera === 'function' ? cfg.cabecera(pg) : cfg.cabecera;
+      const pie = pg.totales && cfg.pie ? `<tfoot>${cfg.pie(pg.totales, pg)}</tfoot>` : '';
+      const attrs = (pg.totalPaginas>1?' data-pagina="1"':'') + (pie?' data-totales="no"':'');
+      res.innerHTML = `<div style="overflow-x:auto"><table${attrs}><thead>${cab}</thead><tbody>${pg.elementos.map(el=>cfg.fila(el,pg)).join('')}</tbody>${pie}</table></div>${lsPaginador(clave, pg)}`;
     }
     function lsPaginador(clave, pg){
       if (pg.totalPaginas <= 1) return `<p class="muted" style="font-size:12px;margin:12px 0 0">${pg.total} resultado${pg.total===1?'':'s'}.</p>`;
@@ -1176,7 +1184,12 @@
       const next = pg.pagina < pg.totalPaginas ? `<button class="btn small secondary" onclick="lsCargar('${clave}',${pg.pagina+1})">Siguiente →</button>` : '';
       return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:14px"><span class="muted" style="font-size:12px">${pg.total} resultados · página ${pg.pagina} de ${pg.totalPaginas}</span><div style="display:flex;gap:8px">${prev}${next}</div></div>`;
     }
-    function lsLimpiar(clave){ const cfg = _lsCfg[clave]; if(!cfg) return; cfg.filtros.forEach(f => { const el = document.getElementById('lf_'+f.id); if (el) el.value = ''; }); lsCargar(clave, 1); }
+    function lsLimpiar(clave){ const cfg = _lsCfg[clave]; if(!cfg) return; cfg.filtros.forEach(f => { const el = document.getElementById('lf_'+f.id); if (!el) return; if (el.tagName === 'SELECT') el.selectedIndex = 0; else el.value = ''; }); lsCargar(clave, 1); }
+    // Filtro de ejercicio de las cifras de los maestros (facturado, comprado, ventas del año).
+    const FILTRO_EJERCICIO = () => { const y=new Date().getFullYear(); return {param:"ejercicio",tipo:"select",label:"Cifras del ejercicio",noFiltra:true,opciones:[0,1,2,3,4].map(i=>[String(y-i),String(y-i)])}; };
+    const cifra = (pg,id,campo) => (pg.cifras&&pg.cifras[id]) ? pg.cifras[id][campo] : null;
+    const celdaEur = (v,cls="") => `<td class="num ${cls}">${v==null?'<span class="muted">—</span>':(v===0?'<span class="muted">0,00 €</span>':eur(v))}</td>`;
+    const pieMaestro = (t,etq,celdas,huecoAntes,huecoDespues) => `<tr class="lista-total"><td style="white-space:normal"><strong>Total · ${Number(t.registros||0).toLocaleString("es-ES")}</strong><div class="muted" style="font-weight:400;font-size:11.5px;max-width:220px">${etq}</div></td>${'<td></td>'.repeat(huecoAntes)}${celdas}${'<td></td>'.repeat(huecoDespues)}</tr>`;
     const kIcon = { fact:'<svg viewBox="0 0 24 24"><path d="M6 2h9l5 5v15H6z"/><path d="M9 13h6M9 17h6"/></svg>', cobro:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9 12h6"/></svg>', gasto:'<svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/></svg>', pago:'<svg viewBox="0 0 24 24"><path d="M4 7h16v10H4z"/><path d="M4 11h16"/></svg>' };
 
     async function vInicio() {
@@ -1663,9 +1676,10 @@
       const acc=`<div style="display:flex;gap:10px"><button class="btn small ghost" onclick="modalImportar('clientes')">↥ Importar CSV</button><button class="btn small" onclick="modalCliente()">+ Nuevo cliente</button></div>`;
       listaServidor({
         clave:"clientes", endpoint:"/clientes/buscar", titulo:"Clientes", acciones:acc,
-        filtros:[{id:"cl_txt",param:"texto",tipo:"texto",label:"Buscar",ancho:"240px",ph:"Nombre, NIF o email…"},{...FILTRO_BAJAS,id:"cl_bajas"}],
-        cabecera:`<tr><th>Nombre</th><th>NIF</th><th>Email</th><th class="num">IRPF</th><th>Cuenta</th><th></th></tr>`,
-        fila:c=>`<tr><td>${ini(c.nombre)}<strong>${c.nombre}</strong>${pillBaja(c.activo)}</td><td class="muted">${c.nifFiscal||"—"}</td><td class="muted">${c.email||"—"}</td><td class="num">${c.porcentajeIrpfDefecto>0?c.porcentajeIrpfDefecto+"%":"—"}</td><td class="muted">${mapa[c.id]||"—"}</td><td class="right" style="white-space:nowrap"><button class="btn small secondary" onclick="editarCliente('${c.id}')">Editar</button> ${botonesMaestro('/clientes/'+c.id,c.nombre,c.activo,'vClientes')}</td></tr>`,
+        filtros:[{id:"cl_txt",param:"texto",tipo:"texto",label:"Buscar",ancho:"240px",ph:"Nombre, NIF o email…"},{...FILTRO_BAJAS,id:"cl_bajas"},{...FILTRO_EJERCICIO(),id:"cl_ej"}],
+        cabecera:pg=>`<tr><th>Nombre</th><th>NIF</th><th>Email</th><th>Cuenta</th>${pg.totales?`<th class="num">Facturas ${pg.ejercicio}</th><th class="num">Facturado ${pg.ejercicio}</th><th class="num">Pendiente</th><th class="num">Vencido</th>`:''}<th></th></tr>`,
+        pie:t=>pieMaestro(t,"todo el filtro",`<td class="num"><strong>${Number(t.facturas).toLocaleString("es-ES")}</strong></td><td class="num"><strong>${eur(t.facturado)}</strong></td><td class="num"><strong>${eur(t.pendiente)}</strong></td><td class="num ${t.vencido>0?'neg':''}"><strong>${eur(t.vencido)}</strong></td>`,3,1),
+        fila:(c,pg)=>`<tr><td>${ini(c.nombre)}<strong>${c.nombre}</strong>${pillBaja(c.activo)}</td><td class="muted">${c.nifFiscal||"—"}</td><td class="muted">${c.email||"—"}</td><td class="muted">${mapa[c.id]||"—"}</td>${pg.totales?`<td class="num">${cifra(pg,c.id,"facturas")??'<span class="muted">0</span>'}</td>${celdaEur(cifra(pg,c.id,"facturado"))}${celdaEur(cifra(pg,c.id,"pendiente"))}${celdaEur(cifra(pg,c.id,"vencido"),cifra(pg,c.id,"vencido")>0?'neg':'')}`:''}<td class="right" style="white-space:nowrap"><button class="btn small secondary" onclick="editarCliente('${c.id}')">Editar</button> ${botonesMaestro('/clientes/'+c.id,c.nombre,c.activo,'vClientes')}</td></tr>`,
         vacio:["clientes","Sin clientes todavía","Añade tu primer cliente o impórtalos desde un CSV.",`<button class="btn small" onclick="modalCliente()">+ Nuevo cliente</button>`],
       });
     }
@@ -1678,9 +1692,10 @@
       listaServidor({
         clave:"proveedores", endpoint:"/proveedores/buscar", titulo:"Proveedores",
         acciones:`<button class="btn small" onclick="modalProveedor()">+ Nuevo proveedor</button>`,
-        filtros:[{id:"pv_txt",param:"texto",tipo:"texto",label:"Buscar",ancho:"240px",ph:"Nombre, NIF o email…"},{...FILTRO_BAJAS,id:"pv_bajas"}],
-        cabecera:`<tr><th>Nombre</th><th>NIF</th><th>Forma de pago</th><th>Email</th><th class="num">IRPF</th><th>Cuenta</th><th></th></tr>`,
-        fila:p=>`<tr><td>${ini(p.nombre)}<strong>${p.nombre}</strong>${pillBaja(p.activo)}</td><td class="muted">${p.nifFiscal||"—"}</td><td class="muted">${pago(p.formaPago)}</td><td class="muted">${p.email||"—"}</td><td class="num">${p.porcentajeIrpfDefecto>0?p.porcentajeIrpfDefecto+"%":"—"}</td><td class="muted">${mapa[p.id]||"—"}</td><td class="right" style="white-space:nowrap"><button class="btn small secondary" onclick="editarProveedor('${p.id}')">Editar</button> ${botonesMaestro('/proveedores/'+p.id,p.nombre,p.activo,'vProveedores')}</td></tr>`,
+        filtros:[{id:"pv_txt",param:"texto",tipo:"texto",label:"Buscar",ancho:"240px",ph:"Nombre, NIF o email…"},{...FILTRO_BAJAS,id:"pv_bajas"},{...FILTRO_EJERCICIO(),id:"pv_ej"}],
+        cabecera:pg=>`<tr><th>Nombre</th><th>NIF</th><th>Forma de pago</th><th>Cuenta</th>${pg.totales?`<th class="num">Facturas ${pg.ejercicio}</th><th class="num">Comprado ${pg.ejercicio}</th><th class="num">Pendiente de pago</th><th class="num">Vencido</th>`:''}<th></th></tr>`,
+        pie:t=>pieMaestro(t,"todo el filtro",`<td class="num"><strong>${Number(t.facturas).toLocaleString("es-ES")}</strong></td><td class="num"><strong>${eur(t.comprado)}</strong></td><td class="num"><strong>${eur(t.pendiente)}</strong></td><td class="num ${t.vencido>0?'neg':''}"><strong>${eur(t.vencido)}</strong></td>`,3,1),
+        fila:(p,pg)=>`<tr><td>${ini(p.nombre)}<strong>${p.nombre}</strong>${pillBaja(p.activo)}</td><td class="muted">${p.nifFiscal||"—"}</td><td class="muted">${pago(p.formaPago)}</td><td class="muted">${mapa[p.id]||"—"}</td>${pg.totales?`<td class="num">${cifra(pg,p.id,"facturas")??'<span class="muted">0</span>'}</td>${celdaEur(cifra(pg,p.id,"comprado"))}${celdaEur(cifra(pg,p.id,"pendiente"))}${celdaEur(cifra(pg,p.id,"vencido"),cifra(pg,p.id,"vencido")>0?'neg':'')}`:''}<td class="right" style="white-space:nowrap"><button class="btn small secondary" onclick="editarProveedor('${p.id}')">Editar</button> ${botonesMaestro('/proveedores/'+p.id,p.nombre,p.activo,'vProveedores')}</td></tr>`,
         vacio:["proveedores","Sin proveedores todavía","Da de alta a tus proveedores para asociarlos a tus gastos.",`<button class="btn small" onclick="modalProveedor()">+ Nuevo proveedor</button>`],
       });
     }
@@ -1692,7 +1707,7 @@
       const stockCell=p=>{ if(!p.controlarStock) return '<span class="muted">—</span>'; const s=p.stock||0; const cls=s<=0?'neg':(s<5?'wait':'ok'); return `<span class="pill ${cls}">${numCant(s)}</span>`; };
       const stockBtn=p=>p.controlarStock?`<button class="btn small ghost" onclick="event.stopPropagation();modalStock('${p.id}')" title="Stock">📦</button> `:'';
       const badge=p=>{ if(p.esPlantilla) return ' <span class="pill part" style="font-size:10px">plantilla</span>'; if(p.productoPadreId) return ` <span class="pill" style="font-size:10px">variante: ${p.variante}</span>`; if(p.esCompuesto) return ` <span class="pill" style="font-size:10px;cursor:pointer" onclick="event.stopPropagation();modalEscandallo('${p.id}','${p.nombre.replace(/['"\\]/g,"")}')" title="Ver composición">${p.tipoComposicion==="Kit"?"kit":"compuesto"}</span>`; return ''; };
-      const varBtn=p=>p.productoPadreId?'':`<button class="btn small secondary" onclick="event.stopPropagation();modalVariantes('${p.id}','${p.nombre.replace(/'/g,"")}')" title="Variantes">Variantes</button> `;
+      const varBtn=p=>p.productoPadreId?'':`<button class="btn small secondary" onclick="event.stopPropagation();modalVariantes('${p.id}','${p.nombre.replace(/'/g,"")}')" title="Variantes">⎇</button> `;
       const famOpts=[["","Todas las familias"]].concat((fams||[]).filter(f=>f.activo).map(f=>[f.id,`${'— '.repeat(f.nivel)}${f.nombre}`]));
       const acciones=`<div style="display:flex;gap:10px;align-items:center"><button class="btn small ghost" onclick="modalImportar('productos')">↥ Importar CSV</button><button class="btn small" onclick="modalProducto()">+ Nuevo</button></div>`;
       listaServidor({
@@ -1701,9 +1716,11 @@
           {id:"pr_txt",param:"texto",tipo:"texto",label:"Buscar",ancho:"220px",ph:"Nombre o código…"},
           {id:"pr_fam",param:"familiaId",tipo:"select",label:"Familia",opciones:famOpts},
           {...FILTRO_BAJAS,id:"pr_bajas"},
+          {...FILTRO_EJERCICIO(),id:"pr_ej"},
         ],
-        cabecera:`<tr><th>Artículo</th><th>Código / EAN</th><th>Familia</th><th>Proveedor habitual</th><th class="num" data-media>Venta</th><th class="num" data-media>Compra</th><th class="num" data-media>Margen</th><th class="num" data-sin-total>IVA</th><th class="num">Stock</th><th></th></tr>`,
-        fila:p=>`<tr style="cursor:pointer" onclick="verHistorico('${p.id}','${p.nombre.replace(/'/g,"")}')"><td><strong>${p.nombre}</strong>${badge(p)}${pillBaja(p.activo)}</td><td class="muted mono">${p.referencia||"—"}</td><td class="muted">${p.familia||"—"}</td><td class="muted">${p.proveedorHabitualId?provNombre(p.proveedorHabitualId):"—"}</td><td class="num">${eur(p.precioUnitario)}</td><td class="num muted">${p.precioCompra?eur(p.precioCompra):"—"}</td><td class="num">${margen(p)}</td><td class="num">${p.porcentajeIva}%</td><td class="num">${stockCell(p)}</td><td class="right" style="white-space:nowrap">${stockBtn(p)}${varBtn(p)}<button class="btn small secondary" onclick="editarProducto('${p.id}',event)">Editar</button> <button class="btn small secondary" onclick="event.stopPropagation();duplicarProducto('${p.id}')" title="Duplicar">⎘</button> ${botonesMaestro('/productos/'+p.id,p.nombre,p.activo,'vProductos')}</td></tr>`,
+        cabecera:pg=>`<tr><th>Artículo</th><th>Código / EAN</th><th>Familia</th><th>Proveedor habitual</th><th class="num" data-media>Venta</th><th class="num" data-media>Compra</th><th class="num" data-media>Margen</th><th class="num" data-sin-total>IVA</th><th class="num">Stock</th>${pg.totales?`<th class="num">Valor stock</th><th class="num">Uds. ${pg.ejercicio}</th><th class="num">Ventas ${pg.ejercicio}</th>`:''}<th></th></tr>`,
+        pie:t=>pieMaestro(t,"todo el filtro · stock valorado a precio de compra",`<td class="num"><strong>${numCant(t.stock)}</strong></td><td class="num"><strong>${eur(t.valorStock)}</strong></td><td class="num"><strong>${numCant(t.unidadesVendidas)}</strong></td><td class="num"><strong>${eur(t.ventas)}</strong></td>`,7,1),
+        fila:(p,pg)=>`<tr style="cursor:pointer" onclick="verHistorico('${p.id}','${p.nombre.replace(/'/g,"")}')"><td><strong>${p.nombre}</strong>${badge(p)}${pillBaja(p.activo)}</td><td class="muted mono">${p.referencia||"—"}</td><td class="muted">${p.familia||"—"}</td><td class="muted">${p.proveedorHabitualId?provNombre(p.proveedorHabitualId):"—"}</td><td class="num">${eur(p.precioUnitario)}</td><td class="num muted">${p.precioCompra?eur(p.precioCompra):"—"}</td><td class="num">${margen(p)}</td><td class="num">${p.porcentajeIva}%</td><td class="num">${stockCell(p)}</td>${pg.totales?`${celdaEur(p.controlarStock?cifra(pg,p.id,"valorStock"):null)}<td class="num">${cifra(pg,p.id,"unidadesVendidas")?numCant(cifra(pg,p.id,"unidadesVendidas")):'<span class="muted">—</span>'}</td>${celdaEur(cifra(pg,p.id,"ventas"))}`:''}<td class="right" style="white-space:nowrap">${stockBtn(p)}${varBtn(p)}<button class="btn small secondary" onclick="editarProducto('${p.id}',event)" title="Editar">✎</button> <button class="btn small secondary" onclick="event.stopPropagation();duplicarProducto('${p.id}')" title="Duplicar">⎘</button> ${botonesMaestro('/productos/'+p.id,p.nombre,p.activo,'vProductos')}</td></tr>`,
         vacio:["articulos","Sin artículos todavía","Crea productos o servicios con su código para reutilizarlos al facturar.",`<button class="btn small" onclick="modalProducto()">+ Nuevo artículo</button>`],
       });
     }

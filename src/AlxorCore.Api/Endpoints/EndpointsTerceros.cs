@@ -119,7 +119,7 @@ public static class EndpointsTerceros
     }
 
     private static async Task<IResult> BuscarProvAsync(IContextoEmpresa contexto, ClaimsPrincipal usuario, IConsultaVisibilidad visibilidad, BuscarProveedores caso,
-        string? texto, bool? incluirInactivos, int? pagina, int? tamanoPagina, CancellationToken ct)
+        IConsultaProveedores consulta, CifrasMaestros cifras, string? texto, bool? incluirInactivos, int? pagina, int? tamanoPagina, int? ejercicio, CancellationToken ct)
     {
         if (contexto.GrupoId is null)
         {
@@ -128,11 +128,20 @@ public static class EndpointsTerceros
 
         var permitidas = await ActividadesPermitidasAsync(usuario, visibilidad, AreaVisibilidad.Compras, ct).ConfigureAwait(false);
         var filtro = new FiltroTerceros(texto, incluirInactivos ?? false, permitidas);
-        return Results.Ok(await caso.EjecutarAsync(contexto.GrupoId.Value, filtro, Paginacion.Normalizar(pagina, tamanoPagina), ct).ConfigureAwait(false));
+        var resultado = await caso.EjecutarAsync(contexto.GrupoId.Value, filtro, Paginacion.Normalizar(pagina, tamanoPagina), ct).ConfigureAwait(false);
+        if (!usuario.HasClaim(AlxorCore.Nucleo.Seguridad.ClaimsAlxor.Permiso, Permisos.GastoLeer))
+        {
+            return Results.Ok(resultado);
+        }
+
+        var año = CifrasMaestros.Ejercicio(ejercicio);
+        var todos = await consulta.IdsFiltradosAsync(contexto.GrupoId.Value, filtro, ct).ConfigureAwait(false);
+        var c = await cifras.ProveedoresAsync(todos, resultado.Elementos.Select(e => e.Id), año, ct).ConfigureAwait(false);
+        return Results.Ok(PaginaConCifras<ProveedorDto>.Desde(resultado, año, c));
     }
 
     private static async Task<IResult> BuscarClientesAsync(IContextoEmpresa contexto, ClaimsPrincipal usuario, IConsultaVisibilidad visibilidad, BuscarClientes caso,
-        string? texto, bool? incluirInactivos, int? pagina, int? tamanoPagina, CancellationToken ct)
+        IConsultaClientes consulta, CifrasMaestros cifras, string? texto, bool? incluirInactivos, int? pagina, int? tamanoPagina, int? ejercicio, CancellationToken ct)
     {
         if (contexto.GrupoId is null)
         {
@@ -141,7 +150,17 @@ public static class EndpointsTerceros
 
         var permitidas = await ActividadesPermitidasAsync(usuario, visibilidad, AreaVisibilidad.Ventas, ct).ConfigureAwait(false);
         var filtro = new FiltroTerceros(texto, incluirInactivos ?? false, permitidas);
-        return Results.Ok(await caso.EjecutarAsync(contexto.GrupoId.Value, filtro, Paginacion.Normalizar(pagina, tamanoPagina), ct).ConfigureAwait(false));
+        var resultado = await caso.EjecutarAsync(contexto.GrupoId.Value, filtro, Paginacion.Normalizar(pagina, tamanoPagina), ct).ConfigureAwait(false);
+        if (!usuario.HasClaim(AlxorCore.Nucleo.Seguridad.ClaimsAlxor.Permiso, Permisos.FacturaLeer))
+        {
+            return Results.Ok(resultado);
+        }
+
+        // Cifras de la empresa activa: las de la página y los totales de todo el filtro (no solo de la página).
+        var año = CifrasMaestros.Ejercicio(ejercicio);
+        var todos = await consulta.IdsFiltradosAsync(contexto.GrupoId.Value, filtro, ct).ConfigureAwait(false);
+        var c = await cifras.ClientesAsync(todos, resultado.Elementos.Select(e => e.Id), año, ct).ConfigureAwait(false);
+        return Results.Ok(PaginaConCifras<ClienteDto>.Desde(resultado, año, c));
     }
 
     private static async Task<IResult> ObtenerProvAsync(Guid id, ObtenerProveedor caso, CancellationToken ct) =>

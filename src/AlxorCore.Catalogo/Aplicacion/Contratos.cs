@@ -132,6 +132,9 @@ public interface IConsultaProductos
     /// <summary>Búsqueda paginada y filtrada de productos (el filtrado ocurre en la base de datos).</summary>
     Task<PaginaResultado<ProductoDto>> BuscarAsync(Guid empresaId, FiltroProductos filtro, Paginacion paginacion, CancellationToken ct = default);
 
+    /// <summary>Identificadores de todos los artículos del filtro (sin paginar), para calcular totales en el servidor.</summary>
+    Task<IReadOnlyList<Guid>> IdsFiltradosAsync(Guid grupoId, FiltroProductos filtro, CancellationToken ct = default);
+
     Task<IReadOnlyList<ProductoDto>> ListarVariantesAsync(Guid padreId, CancellationToken ct = default);
 }
 

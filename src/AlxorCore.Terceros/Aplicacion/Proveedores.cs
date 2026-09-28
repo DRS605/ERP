@@ -38,6 +38,9 @@ public interface IConsultaProveedores
 
     /// <summary>Búsqueda paginada y filtrada de proveedores (el filtrado ocurre en la base de datos).</summary>
     Task<PaginaResultado<ProveedorDto>> BuscarAsync(Guid grupoId, FiltroTerceros filtro, Paginacion paginacion, CancellationToken ct = default);
+
+    /// <summary>Identificadores de todos los proveedores del filtro (sin paginar), para calcular totales en el servidor.</summary>
+    Task<IReadOnlyList<Guid>> IdsFiltradosAsync(Guid grupoId, FiltroTerceros filtro, CancellationToken ct = default);
 }
 
 /// <summary>Datos de un proveedor para crear o actualizar.</summary>

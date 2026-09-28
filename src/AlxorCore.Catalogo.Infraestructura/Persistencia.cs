@@ -354,6 +354,23 @@ internal sealed class RepositorioProductos : IRepositorioProductos, IConsultaPro
         ArgumentNullException.ThrowIfNull(filtro);
         ArgumentNullException.ThrowIfNull(paginacion);
 
+        var consulta = Filtrados(filtro);
+        var total = await consulta.CountAsync(ct).ConfigureAwait(false);
+        var productos = await consulta
+            .OrderBy(p => p.Nombre)
+            .Skip(paginacion.Saltar).Take(paginacion.TamanoPagina)
+            .ToListAsync(ct).ConfigureAwait(false);
+        return PaginaResultado<ProductoDto>.Crear(await ConDtoAsync(productos, ct).ConfigureAwait(false), total, paginacion);
+    }
+
+    public async Task<IReadOnlyList<Guid>> IdsFiltradosAsync(Guid grupoId, FiltroProductos filtro, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(filtro);
+        return await Filtrados(filtro).Select(p => p.Id).ToListAsync(ct).ConfigureAwait(false);
+    }
+
+    private IQueryable<Producto> Filtrados(FiltroProductos filtro)
+    {
         var consulta = _contexto.Productos.AsQueryable();
         if (!filtro.IncluirInactivos)
         {
@@ -374,13 +391,7 @@ internal sealed class RepositorioProductos : IRepositorioProductos, IConsultaPro
         }
 
         consulta = FiltrarPorActividad(consulta, filtro.ActividadesPermitidas);
-
-        var total = await consulta.CountAsync(ct).ConfigureAwait(false);
-        var productos = await consulta
-            .OrderBy(p => p.Nombre)
-            .Skip(paginacion.Saltar).Take(paginacion.TamanoPagina)
-            .ToListAsync(ct).ConfigureAwait(false);
-        return PaginaResultado<ProductoDto>.Crear(await ConDtoAsync(productos, ct).ConfigureAwait(false), total, paginacion);
+        return consulta;
     }
 
     public async Task<IReadOnlyList<ProductoDto>> ListarVariantesAsync(Guid padreId, CancellationToken ct = default)

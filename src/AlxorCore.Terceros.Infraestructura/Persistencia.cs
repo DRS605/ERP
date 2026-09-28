@@ -120,6 +120,23 @@ internal sealed class RepositorioClientes : IRepositorioClientes, IConsultaClien
         ArgumentNullException.ThrowIfNull(filtro);
         ArgumentNullException.ThrowIfNull(paginacion);
 
+        var consulta = Filtrados(filtro);
+        var total = await consulta.CountAsync(ct).ConfigureAwait(false);
+        var clientes = await consulta
+            .OrderBy(c => c.Nombre)
+            .Skip(paginacion.Saltar).Take(paginacion.TamanoPagina)
+            .ToListAsync(ct).ConfigureAwait(false);
+        return PaginaResultado<ClienteDto>.Crear(clientes.Select(ClienteDto.Desde).ToList(), total, paginacion);
+    }
+
+    public async Task<IReadOnlyList<Guid>> IdsFiltradosAsync(Guid grupoId, FiltroTerceros filtro, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(filtro);
+        return await Filtrados(filtro).Select(c => c.Id).ToListAsync(ct).ConfigureAwait(false);
+    }
+
+    private IQueryable<Cliente> Filtrados(FiltroTerceros filtro)
+    {
         var consulta = _contexto.Clientes.AsQueryable();
         if (!filtro.IncluirInactivos)
         {
@@ -136,13 +153,7 @@ internal sealed class RepositorioClientes : IRepositorioClientes, IConsultaClien
         }
 
         consulta = FiltrarPorActividad(consulta, filtro.ActividadesPermitidas);
-
-        var total = await consulta.CountAsync(ct).ConfigureAwait(false);
-        var clientes = await consulta
-            .OrderBy(c => c.Nombre)
-            .Skip(paginacion.Saltar).Take(paginacion.TamanoPagina)
-            .ToListAsync(ct).ConfigureAwait(false);
-        return PaginaResultado<ClienteDto>.Crear(clientes.Select(ClienteDto.Desde).ToList(), total, paginacion);
+        return consulta;
     }
 
     // Visibilidad por actividad (área Ventas): null => sin restricción; con conjunto => solo esas
@@ -235,6 +246,23 @@ internal sealed class RepositorioProveedores : IRepositorioProveedores, IConsult
         ArgumentNullException.ThrowIfNull(filtro);
         ArgumentNullException.ThrowIfNull(paginacion);
 
+        var consulta = Filtrados(filtro);
+        var total = await consulta.CountAsync(ct).ConfigureAwait(false);
+        var proveedores = await consulta
+            .OrderBy(p => p.Nombre)
+            .Skip(paginacion.Saltar).Take(paginacion.TamanoPagina)
+            .ToListAsync(ct).ConfigureAwait(false);
+        return PaginaResultado<ProveedorDto>.Crear(proveedores.Select(ProveedorDto.Desde).ToList(), total, paginacion);
+    }
+
+    public async Task<IReadOnlyList<Guid>> IdsFiltradosAsync(Guid grupoId, FiltroTerceros filtro, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(filtro);
+        return await Filtrados(filtro).Select(p => p.Id).ToListAsync(ct).ConfigureAwait(false);
+    }
+
+    private IQueryable<Proveedor> Filtrados(FiltroTerceros filtro)
+    {
         var consulta = _contexto.Proveedores.AsQueryable();
         if (!filtro.IncluirInactivos)
         {
@@ -251,13 +279,7 @@ internal sealed class RepositorioProveedores : IRepositorioProveedores, IConsult
         }
 
         consulta = FiltrarPorActividad(consulta, filtro.ActividadesPermitidas);
-
-        var total = await consulta.CountAsync(ct).ConfigureAwait(false);
-        var proveedores = await consulta
-            .OrderBy(p => p.Nombre)
-            .Skip(paginacion.Saltar).Take(paginacion.TamanoPagina)
-            .ToListAsync(ct).ConfigureAwait(false);
-        return PaginaResultado<ProveedorDto>.Crear(proveedores.Select(ProveedorDto.Desde).ToList(), total, paginacion);
+        return consulta;
     }
 
     // Visibilidad por actividad (área Compras): null => sin restricción; con conjunto => solo esas

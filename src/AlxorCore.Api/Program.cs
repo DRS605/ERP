@@ -59,6 +59,7 @@ builder.Services.AgregarModuloPersonal(builder.Configuration);
 builder.Services.AgregarModuloProyectos(builder.Configuration);
 builder.Services.AgregarModuloAnalisis(builder.Configuration);
 builder.Services.AddScoped<AlxorCore.Analisis.Aplicacion.IPermisosAnalisis, AlxorCore.Api.Endpoints.PermisosAnalisisHttp>();
+builder.Services.AddScoped<AlxorCore.Api.Comun.CifrasMaestros>();
 builder.Services.AgregarModuloTesoreria(builder.Configuration);
 builder.Services.AgregarModuloAgro(builder.Configuration);
 builder.Services.AgregarModuloMigracion(builder.Configuration);

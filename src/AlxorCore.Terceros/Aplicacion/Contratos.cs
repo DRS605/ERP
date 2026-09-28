@@ -78,6 +78,9 @@ public interface IConsultaClientes
 
     /// <summary>Búsqueda paginada y filtrada de clientes (el filtrado ocurre en la base de datos).</summary>
     Task<PaginaResultado<ClienteDto>> BuscarAsync(Guid grupoId, FiltroTerceros filtro, Paginacion paginacion, CancellationToken ct = default);
+
+    /// <summary>Identificadores de todos los clientes del filtro (sin paginar), para calcular totales en el servidor.</summary>
+    Task<IReadOnlyList<Guid>> IdsFiltradosAsync(Guid grupoId, FiltroTerceros filtro, CancellationToken ct = default);
 }
 
 /// <summary>Unidad de trabajo del módulo Terceros.</summary>

@@ -203,7 +203,7 @@ public static class EndpointsCatalogo
     }
 
     private static async Task<IResult> BuscarAsync(IContextoEmpresa contexto, ClaimsPrincipal usuario, IConsultaVisibilidad visibilidad, BuscarProductos caso,
-        string? texto, Guid? familiaId, bool? incluirInactivos, int? pagina, int? tamanoPagina, CancellationToken ct)
+        IConsultaProductos consulta, CifrasMaestros cifras, string? texto, Guid? familiaId, bool? incluirInactivos, int? pagina, int? tamanoPagina, int? ejercicio, CancellationToken ct)
     {
         if (contexto.GrupoId is null)
         {
@@ -212,7 +212,17 @@ public static class EndpointsCatalogo
 
         var permitidas = await ActividadesArticulosAsync(usuario, visibilidad, ct).ConfigureAwait(false);
         var filtro = new FiltroProductos(texto, familiaId, incluirInactivos ?? false, permitidas);
-        return Results.Ok(await caso.EjecutarAsync(contexto.GrupoId.Value, filtro, Paginacion.Normalizar(pagina, tamanoPagina), ct).ConfigureAwait(false));
+        var resultado = await caso.EjecutarAsync(contexto.GrupoId.Value, filtro, Paginacion.Normalizar(pagina, tamanoPagina), ct).ConfigureAwait(false);
+        if (!usuario.HasClaim(AlxorCore.Nucleo.Seguridad.ClaimsAlxor.Permiso, Permisos.FacturaLeer))
+        {
+            return Results.Ok(resultado);
+        }
+
+        // Stock y ventas del ejercicio de todo el filtro (no solo de la página), en la empresa activa.
+        var año = CifrasMaestros.Ejercicio(ejercicio);
+        var todos = await consulta.IdsFiltradosAsync(contexto.GrupoId.Value, filtro, ct).ConfigureAwait(false);
+        var c = await cifras.ArticulosAsync(todos, resultado.Elementos.Select(e => e.Id), año, ct).ConfigureAwait(false);
+        return Results.Ok(PaginaConCifras<ProductoDto>.Desde(resultado, año, c));
     }
 
     private static async Task<IResult> ObtenerAsync(Guid id, ObtenerProducto caso, CancellationToken ct) =>
