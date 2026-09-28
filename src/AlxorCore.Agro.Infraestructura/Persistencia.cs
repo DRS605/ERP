@@ -415,6 +415,17 @@ internal sealed class ConfiguracionCuentaEnvases : IEntityTypeConfiguration<Cuen
             l.HasIndex("cuenta_envases_id", nameof(LimiteEnvase.EnvaseProductoId)).IsUnique().HasDatabaseName("ux_limite_envase");
         });
         b.Navigation(x => x.Limites).UsePropertyAccessMode(PropertyAccessMode.Field);
+        Columnas.Enum(b.Property(x => x.Gestion), "gestion").HasDefaultValue(GestionEnvases.Retornar);
+        b.OwnsMany(x => x.EnvasesPool, l =>
+        {
+            l.ToTable("envase_pool");
+            l.WithOwner().HasForeignKey("cuenta_envases_id");
+            l.HasKey(x => x.Id);
+            l.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+            l.Property(x => x.EnvaseProductoId).HasColumnName("envase_producto_id").IsRequired();
+            l.HasIndex("cuenta_envases_id", nameof(EnvasePool.EnvaseProductoId)).IsUnique().HasDatabaseName("ux_envase_pool");
+        });
+        b.Navigation(x => x.EnvasesPool).UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }
 

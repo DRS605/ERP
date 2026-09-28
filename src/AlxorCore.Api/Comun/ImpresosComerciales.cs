@@ -27,11 +27,13 @@ public sealed class ImpresosComerciales
     private readonly IRepositorioAgro _agro;
     private readonly OrdenesCargaAgro? _ordenes;
     private readonly AlxorCore.Tesoreria.Aplicacion.LiquidacionesPagos? _liquidacionesPagos;
+    private readonly EnvasesTerceros? _envases;
 
     public ImpresosComerciales(IGeneradorPdfDocumento generador, IConsultaEmpresas empresas, IConsultaClientes clientes, IConsultaProveedores proveedores,
         ConsultarAlbaranesVenta albaranes, ObtenerPedidoVenta pedidosVenta, ObtenerPedido pedidosCompra, LiquidacionesAgro liquidaciones, IRepositorioAgro agro,
-        OrdenesCargaAgro? ordenes = null, AlxorCore.Tesoreria.Aplicacion.LiquidacionesPagos? liquidacionesPagos = null)
+        OrdenesCargaAgro? ordenes = null, AlxorCore.Tesoreria.Aplicacion.LiquidacionesPagos? liquidacionesPagos = null, EnvasesTerceros? envases = null)
     {
+        _envases = envases;
         _ordenes = ordenes;
         _liquidacionesPagos = liquidacionesPagos;
         _generador = generador;
@@ -213,6 +215,75 @@ public sealed class ImpresosComerciales
             [], datos,
             o.Observaciones, esquema, TituloCantidad: "Previstos", Valorado: false);
         return await PdfAsync(empresaId, doc, $"hoja-carga-{o.Numero}", ct).ConfigureAwait(false);
+    }
+
+    /// <summary>Justificante de un movimiento de envases: lo entregado y lo recogido, para firmar el tercero.</summary>
+    public async Task<Resultado<DocumentoPdf>> JustificanteEnvasesAsync(Guid empresaId, Guid movimientoId, CancellationToken ct = default)
+    {
+        var m = _envases is null ? null : await _envases.ObtenerMovimientoAsync(movimientoId, ct).ConfigureAwait(false);
+        if (m is null)
+        {
+            return Resultado.Fallo<DocumentoPdf>(Error.NoEncontrado("envases.movimiento", "El movimiento de envases no existe."));
+        }
+
+        var cuenta = (await _envases!.CuentasAsync(empresaId, null, ct).ConfigureAwait(false)).FirstOrDefault(c => c.Id == m.CuentaSolicitadaId)
+            ?? (await _envases.CuentasAsync(empresaId, null, ct).ConfigureAwait(false)).FirstOrDefault(c => c.Id == m.CuentaId);
+        var tercero = await TerceroEnvasesAsync(cuenta, m.Cuenta, ct).ConfigureAwait(false);
+        var lineas = m.Lineas.Select(l => new LineaImpresa(l.Envase, Math.Abs(l.Cantidad), "uds", Detalle: l.Cantidad > 0 ? "Entregado" : "Recogido")).ToList();
+        var datos = new List<(string, string)> { ("Origen", m.Origen), ("Neto", $"{m.Lineas.Sum(l => l.Cantidad):+#;-#;0}") };
+        if (m.Matricula is { } mat) datos.Add(("Matrícula", mat));
+        if (m.Anulado) datos.Add(("Estado", "Anulado"));
+        if (m.CuentaId != m.CuentaSolicitadaId) datos.Add(("Se lleva en", m.Cuenta));
+        var doc = new DocumentoImpreso("Justificante de envases", m.Numero, m.Fecha, tercero, lineas, [], datos, m.Observaciones,
+            "Entregado: envases que se lleva el tercero. Recogido: envases que devuelve. Firma del tercero:", TituloCantidad: "Envases", Valorado: false);
+        return await PdfAsync(empresaId, doc, $"envases-{m.Numero}", ct).ConfigureAwait(false);
+    }
+
+    /// <summary>Extracto de envases de una cuenta en PDF: saldo inicial, movimientos con el acumulado y saldo final por envase.</summary>
+    public async Task<Resultado<DocumentoPdf>> ExtractoEnvasesAsync(Guid empresaId, Guid cuentaId, DateOnly? desde, DateOnly? hasta, CancellationToken ct = default)
+    {
+        if (_envases is null)
+        {
+            return Resultado.Fallo<DocumentoPdf>(Error.NoEncontrado("envases.cuenta", "La cuenta de envases no existe."));
+        }
+
+        var r = await _envases.ExtractoAsync(empresaId, cuentaId, desde, hasta, ct).ConfigureAwait(false);
+        if (r.EsFallo)
+        {
+            return Resultado.Fallo<DocumentoPdf>(r.Error);
+        }
+
+        var e = r.Valor;
+        var tercero = await TerceroEnvasesAsync(e.Cuenta, e.Cuenta.Nombre, ct).ConfigureAwait(false);
+        var lineas = new List<LineaImpresa> { new("Saldo inicial", e.SaldoInicial, "uds", Detalle: string.Join(" · ", e.SaldoInicialPorEnvase.Select(s => $"{s.Envase}: {s.Saldo}"))) };
+        lineas.AddRange(e.Movimientos.Select(x => new LineaImpresa(
+            $"{x.Movimiento.Fecha:dd/MM/yyyy} · {x.Movimiento.Numero} · {x.Movimiento.Origen}{(x.Movimiento.Anulado ? " (anulado)" : "")}", x.Neto, "uds",
+            Detalle: string.Join(" · ", x.Movimiento.Lineas.Select(l => $"{l.Envase} {l.Cantidad:+#;-#;0}")) + $" · acumulado {x.Acumulado}")));
+        var datos = new List<(string, string)>
+        {
+            ("Desde", e.Desde?.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture) ?? "el inicio"),
+            ("Hasta", e.Hasta?.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture) ?? "hoy"),
+            ("Saldo final", e.SaldoFinal.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+        };
+        var doc = new DocumentoImpreso("Extracto de envases", e.Cuenta.Nombre, e.Hasta ?? DateOnly.FromDateTime(DateTime.UtcNow), tercero, lineas, [], datos,
+            null, "Saldo final por envase: " + (e.SaldoFinalPorEnvase.Count == 0 ? "sin envases." : string.Join(" · ", e.SaldoFinalPorEnvase.Select(s => $"{s.Envase}: {s.Saldo}"))),
+            TituloCantidad: "Envases", Valorado: false);
+        return await PdfAsync(empresaId, doc, $"extracto-envases-{e.Cuenta.Nombre}", ct).ConfigureAwait(false);
+    }
+
+    private async Task<TerceroImpreso> TerceroEnvasesAsync(CuentaEnvasesDto? cuenta, string nombre, CancellationToken ct)
+    {
+        switch (cuenta?.Tipo)
+        {
+            case "Cliente":
+                return await ClienteAsync(cuenta.TerceroId, nombre, ct).ConfigureAwait(false);
+            case "Proveedor" or "Pool":
+                var p = await _proveedores.ObtenerAsync(cuenta.TerceroId, ct).ConfigureAwait(false);
+                return new TerceroImpreso(cuenta.Tipo == "Pool" ? "Pool" : "Proveedor", p?.Nombre ?? nombre, p?.NifFiscal,
+                    p is null ? null : Direccion(p.Calle, p.CodigoPostal, p.Poblacion, p.Provincia));
+            default:
+                return new TerceroImpreso(cuenta?.Tipo ?? "Tercero", nombre);
+        }
     }
 
     private async Task<TerceroImpreso> ClienteAsync(Guid clienteId, string nombre, CancellationToken ct)

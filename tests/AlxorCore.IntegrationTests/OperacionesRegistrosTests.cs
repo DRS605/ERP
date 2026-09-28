@@ -36,6 +36,7 @@ public sealed class OperacionesRegistrosTests : IClassFixture<FabricaApiPruebas>
         ["/integraciones/edi/recadv"] = "solo contrasta el aviso de recepción con el albarán: no registra nada",
         ["/pagos/liquidaciones/previsualizar"] = "solo calcula: no registra nada",
         ["/pagos/liquidaciones/masiva"] = "cada liquidación del lote se anula en /pagos/liquidaciones/{id}/anular (y la remesa en la suya)",
+        ["/agro/envases/facturar"] = "cada facturación es un movimiento de envases que se anula en /agro/envases/movimientos/{id}/anular (y anula su albarán)",
         ["/pagos/entregas-cuenta/{id}/aplicar"] = "es un pago de la factura: se anula con /tesoreria/movimientos/{id}/anular",
         ["/tickets"] = "un ticket es una factura simplificada: se anula o rectifica en /facturas",
         ["/facturas/simular"] = "solo calcula: no guarda nada",

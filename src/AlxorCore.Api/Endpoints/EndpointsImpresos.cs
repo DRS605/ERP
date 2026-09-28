@@ -29,6 +29,14 @@ public static class EndpointsImpresos
                 Pdf(c, e => i.LiquidacionPagosAsync(e, id, ct)))
             .WithTags("Documentos").WithSummary("Impreso de la liquidación de pagos al proveedor o agricultor.")
             .RequierePermiso(Permisos.FacturaLeer);
+        rutas.MapGet("/agro/envases/movimientos/{id:guid}/pdf", (Guid id, IContextoEmpresa c, ImpresosComerciales i, CancellationToken ct) =>
+                Pdf(c, e => i.JustificanteEnvasesAsync(e, id, ct)))
+            .WithTags("Documentos").WithSummary("Justificante del movimiento de envases, para firmar el tercero.")
+            .RequierePermiso(Permisos.AgroLeer);
+        rutas.MapGet("/agro/envases/cuentas/{id:guid}/extracto/pdf", (Guid id, DateOnly? desde, DateOnly? hasta, IContextoEmpresa c, ImpresosComerciales i, CancellationToken ct) =>
+                Pdf(c, e => i.ExtractoEnvasesAsync(e, id, desde, hasta, ct)))
+            .WithTags("Documentos").WithSummary("Extracto de envases de la cuenta en PDF.")
+            .RequierePermiso(Permisos.AgroLeer);
         rutas.MapGet("/agro/ordenes-carga/{id:guid}/pdf", (Guid id, IContextoEmpresa c, ImpresosComerciales i, CancellationToken ct) => Pdf(c, e => i.HojaCargaAsync(e, id, ct)))
             .WithTags("Documentos").WithSummary("Hoja de carga de la orden: palés por línea con su SSCC y el esquema del camión.")
             .RequierePermiso(Permisos.AgroLeer);

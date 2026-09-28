@@ -63,6 +63,24 @@ public sealed class LimiteEnvase
     public int? Minimo { get; private set; }
 }
 
+/// <summary>Envase que pertenece a un pool (CHEP, IFCO…): sus movimientos con los clientes se le declaran.</summary>
+public sealed class EnvasePool
+{
+    private EnvasePool()
+    {
+    }
+
+    internal EnvasePool(Guid envaseProductoId)
+    {
+        Id = Guid.NewGuid();
+        EnvaseProductoId = envaseProductoId;
+    }
+
+    public Guid Id { get; private set; }
+
+    public Guid EnvaseProductoId { get; private set; }
+}
+
 /// <summary>
 /// Configuración de envases de la empresa: la fecha de cierre (<c>FechaBloqueoMovimientoArticRetor</c> de Hispatec). Hasta
 /// esa fecha, inclusive, no se registra ni se anula ningún movimiento: el periodo está cerrado.
@@ -88,6 +106,17 @@ public sealed class ConfiguracionEnvases : RaizAgregadoEmpresa<Guid>
     public bool Cerrado(DateOnly fecha) => FechaCierre is { } c && fecha <= c;
 }
 
+/// <summary>
+/// Qué se hace con los envases que tiene un cliente (Hispatec: envases a retornar o a facturar). Con <see cref="Facturar"/>
+/// se le factura todo su saldo; con <see cref="FacturarExceso"/>, solo lo que pasa de su límite por envase.
+/// </summary>
+public enum GestionEnvases
+{
+    Retornar,
+    Facturar,
+    FacturarExceso,
+}
+
 /// <summary>De dónde sale un movimiento de envases.</summary>
 public enum OrigenMovimientoEnvases
 {
@@ -97,6 +126,12 @@ public enum OrigenMovimientoEnvases
 
     /// <summary>Contramovimiento que anula otro (el libro es de solo inserción).</summary>
     Anulacion,
+
+    /// <summary>Envases llenos que trae un agricultor en una recepción (o vacíos que se le entregan): el libro del agricultor.</summary>
+    Recepcion,
+
+    /// <summary>Envases que se le venden al cliente: salen de su saldo con un albarán de venta.</summary>
+    Facturacion,
 }
 
 /// <summary>
@@ -152,7 +187,62 @@ public sealed class CuentaEnvases : RaizAgregadoEmpresa<Guid>
     /// <summary>Qué se hace al superar el límite (general o de un envase) o bajar del mínimo.</summary>
     public ControlLimiteEnvases ControlLimite { get; private set; }
 
+    /// <summary>En un cliente: si sus envases se retornan o se le facturan (todos o el exceso sobre el límite).</summary>
+    public GestionEnvases Gestion { get; private set; }
+
     private readonly List<LimiteEnvase> _limites = [];
+
+    private readonly List<EnvasePool> _envasesPool = [];
+
+    /// <summary>En un pool: los envases que son suyos (los que se le declaran).</summary>
+    public IReadOnlyList<EnvasePool> EnvasesPool => _envasesPool;
+
+    public Resultado FijarGestion(GestionEnvases gestion)
+    {
+        if (!Enum.IsDefined(gestion))
+        {
+            return Resultado.Fallo(Error.Validacion("envases.gestion", "Gestión no válida: Retornar, Facturar o FacturarExceso."));
+        }
+
+        if (gestion != GestionEnvases.Retornar && Tipo != TipoCuentaEnvases.Cliente)
+        {
+            return Resultado.Fallo(Error.Validacion("envases.gestion_cliente", "Solo se facturan envases a clientes."));
+        }
+
+        Gestion = gestion;
+        return Resultado.Ok();
+    }
+
+    /// <summary>Sustituye los envases de un pool.</summary>
+    public Resultado FijarEnvasesPool(IReadOnlyList<Guid> envases)
+    {
+        ArgumentNullException.ThrowIfNull(envases);
+        if (Tipo != TipoCuentaEnvases.Pool && envases.Count > 0)
+        {
+            return Resultado.Fallo(Error.Validacion("envases.no_pool", "Solo una cuenta de pool tiene envases propios."));
+        }
+
+        _envasesPool.Clear();
+        _envasesPool.AddRange(envases.Distinct().Select(e => new EnvasePool(e)));
+        return Resultado.Ok();
+    }
+
+    /// <summary>
+    /// Lo que se le factura a un cliente de su saldo por envase: todo lo positivo, o lo que pasa de su límite por envase
+    /// (sin límite de ese envase, nada).
+    /// </summary>
+    public IReadOnlyList<(Guid EnvaseProductoId, int Cantidad)> AFacturar(IReadOnlyDictionary<Guid, int> saldo)
+    {
+        ArgumentNullException.ThrowIfNull(saldo);
+        return Gestion switch
+        {
+            GestionEnvases.Facturar => saldo.Where(s => s.Value > 0).Select(s => (s.Key, s.Value)).ToList(),
+            GestionEnvases.FacturarExceso => saldo
+                .Select(s => (s.Key, Cantidad: _limites.FirstOrDefault(l => l.EnvaseProductoId == s.Key)?.Limite is { } max ? s.Value - max : 0))
+                .Where(x => x.Cantidad > 0).ToList(),
+            _ => [],
+        };
+    }
 
     public IReadOnlyList<LimiteEnvase> Limites => _limites;
 

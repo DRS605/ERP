@@ -53,9 +53,11 @@ public sealed class RecepcionesAgro
     private readonly IUnidadDeTrabajoAgro _unidad;
     private readonly IConsultaProductos _productos;
     private readonly IReloj _reloj;
+    private readonly EnvasesTerceros? _envases;
 
-    public RecepcionesAgro(IRepositorioAgro repo, IUnidadDeTrabajoAgro unidad, IConsultaProductos productos, IReloj reloj)
+    public RecepcionesAgro(IRepositorioAgro repo, IUnidadDeTrabajoAgro unidad, IConsultaProductos productos, IReloj reloj, EnvasesTerceros? envases = null)
     {
+        _envases = envases;
         _repo = repo;
         _unidad = unidad;
         _productos = productos;
@@ -228,6 +230,7 @@ public sealed class RecepcionesAgro
 
         var partidas = new Dictionary<Guid, Guid>();
         var codigo = $"{Recepcion.Serie}-{r.Ejercicio}-{numero:D6}";
+        var envasesRecibidos = new List<(Guid, int)>();
         foreach (var l in r.Lineas)
         {
             var kilos = r.NetoDe(l.Id);
@@ -242,6 +245,18 @@ public sealed class RecepcionesAgro
             if (envases > 0)
             {
                 _repo.Agregar(MovimientoEnvase.Crear(r.EmpresaId, r.AgricultorId, l.EnvaseProductoId!.Value, r.Fecha, -envases, r.Id, $"Recepción {codigo}", _reloj).Valor);
+                envasesRecibidos.Add((l.EnvaseProductoId!.Value, -envases));
+            }
+        }
+
+        // El mismo movimiento, en el libro de envases por tercero (la cuenta del proveedor del agricultor).
+        if (_envases is not null && agricultor is not null && envasesRecibidos.Count > 0)
+        {
+            var libro = await _envases.RegistrarAgricultorAsync(r.EmpresaId, agricultor.ProveedorId, agricultor.Nombre, envasesRecibidos, r.Fecha, r.Id,
+                $"Recepción {codigo}", ct).ConfigureAwait(false);
+            if (libro.EsFallo)
+            {
+                return Resultado.Fallo<RecepcionDto>(libro.Error);
             }
         }
 
@@ -287,6 +302,15 @@ public sealed class RecepcionesAgro
         foreach (var l in r.Lineas.Where(l => l.Envases > 0))
         {
             _repo.Agregar(MovimientoEnvase.Crear(r.EmpresaId, r.AgricultorId, l.EnvaseProductoId!.Value, hoy, l.Envases!.Value, r.Id, $"Anulación de {r.NumeroCompleto}", _reloj).Valor);
+        }
+
+        if (_envases is not null)
+        {
+            var libro = await _envases.AnularDeDocumentoAsync(r.Id, $"Anulación de {r.NumeroCompleto}", ct).ConfigureAwait(false);
+            if (libro.EsFallo)
+            {
+                return Resultado.Fallo<RecepcionDto>(libro.Error);
+            }
         }
 
         return await GuardarAsync(r, Resultado.Ok(), ct).ConfigureAwait(false);
@@ -378,6 +402,16 @@ public sealed class RecepcionesAgro
         }
 
         _repo.Agregar(m.Valor);
+        if (_envases is not null && await _repo.AgricultorAsync(agricultorId, ct).ConfigureAwait(false) is { } agricultor)
+        {
+            var libro = await _envases.RegistrarAgricultorAsync(empresaId, agricultor.ProveedorId, agricultor.Nombre, [(datos.EnvaseProductoId, datos.Cantidad)], m.Valor.Fecha,
+                m.Valor.Id, m.Valor.Concepto, ct).ConfigureAwait(false);
+            if (libro.EsFallo)
+            {
+                return Resultado.Fallo(libro.Error);
+            }
+        }
+
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return Resultado.Ok();
     }

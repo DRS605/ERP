@@ -149,6 +149,23 @@ public static class EndpointsAgro
         g.MapPut("/envases/configuracion", (ConfiguracionEnvasesDto d, IContextoEmpresa c, EnvasesTerceros v, CancellationToken ct) =>
                 ConEmpresa(c, async e => Results.Ok(await v.CerrarAsync(e, d.FechaCierre, ct).ConfigureAwait(false))))
             .WithSummary("Cierra los movimientos de envases hasta una fecha (null: reabre).").RequierePermiso(Permisos.AgroGestionar);
+        g.MapPost("/envases/cuentas/{id:guid}/facturar", (Guid id, FacturarEnvasesComando? d, IContextoEmpresa c, EnvasesTerceros v, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await v.FacturarAsync(e, id, d ?? new FacturarEnvasesComando(), ct).ConfigureAwait(false)).AOk()))
+            .WithSummary("Factura envases a un cliente: albarán de venta directo y salida de su saldo (sin líneas, según su gestión).").RequierePermiso(Permisos.AgroGestionar);
+        g.MapPost("/envases/facturar", (FacturarEnvasesComando? d, IContextoEmpresa c, EnvasesTerceros v, CancellationToken ct) =>
+                ConEmpresa(c, async e => Results.Ok(await v.FacturarMasivoAsync(e, d?.Fecha, ct).ConfigureAwait(false))))
+            .WithSummary("Factura los envases de todos los clientes con envases a facturar (todo o el exceso sobre el límite).").RequierePermiso(Permisos.AgroGestionar);
+        g.MapGet("/envases/cuentas/{id:guid}/fichero-pool", (Guid id, DateOnly desde, DateOnly hasta, IContextoEmpresa c, EnvasesTerceros v, CancellationToken ct) =>
+                ConEmpresa(c, async e =>
+                {
+                    var r = await v.FicheroPoolAsync(e, id, desde, hasta, ct).ConfigureAwait(false);
+                    return r.EsCorrecto ? Results.File(System.Text.Encoding.UTF8.GetPreamble().Concat(System.Text.Encoding.UTF8.GetBytes(r.Valor.Csv)).ToArray(), "text/csv", r.Valor.Nombre)
+                        : r.AOk();
+                }))
+            .WithSummary("Fichero CSV de declaración al pool: movimientos de sus envases con todos los terceros en el periodo.").RequierePermiso(Permisos.AgroLeer);
+        g.MapGet("/envases/stock-terceros", (DateOnly? hasta, IContextoEmpresa c, EnvasesTerceros v, CancellationToken ct) =>
+                ConEmpresa(c, async e => Results.Ok(await v.StockEnTercerosAsync(e, hasta, ct).ConfigureAwait(false))))
+            .WithSummary("Envases en poder de clientes, proveedores y agricultores, transportistas y pools.").RequierePermiso(Permisos.AgroLeer);
         g.MapGet("/envases/informe-limites", (DateOnly? sinMovimientosDesde, IContextoEmpresa c, EnvasesTerceros v, CancellationToken ct) =>
                 ConEmpresa(c, async e => Results.Ok(await v.InformeLimitesAsync(e, sinMovimientosDesde, ct).ConfigureAwait(false))))
             .WithSummary("Cuentas sobre su límite, bajo un mínimo o sin movimientos desde una fecha.").RequierePermiso(Permisos.AgroLeer);

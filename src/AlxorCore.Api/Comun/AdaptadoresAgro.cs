@@ -83,10 +83,13 @@ public sealed class DocumentosExpedicionFacturacion : IDocumentosExpedicion
     private readonly AlxorCore.Catalogo.Aplicacion.IConsultaProductos _productos;
 
     private readonly ListarPedidosVenta? _listar;
+    private readonly CrearAlbaranVenta? _crearAlbaran;
 
     public DocumentosExpedicionFacturacion(CrearCartaPorte crear, AnularCartaPorte anular, ObtenerPedidoVenta pedido, EntregarPedido entregar,
-        AnularAlbaranVenta anularAlbaran, AlxorCore.Catalogo.Aplicacion.IConsultaProductos productos, ListarPedidosVenta? listar = null)
+        AnularAlbaranVenta anularAlbaran, AlxorCore.Catalogo.Aplicacion.IConsultaProductos productos, ListarPedidosVenta? listar = null,
+        CrearAlbaranVenta? crearAlbaran = null)
     {
+        _crearAlbaran = crearAlbaran;
         _listar = listar;
         _crear = crear;
         _anular = anular;
@@ -180,6 +183,21 @@ public sealed class DocumentosExpedicionFacturacion : IDocumentosExpedicion
         }
 
         var r = await _entregar.EjecutarAsync(empresaId, albaran.PedidoVentaId, new EntregarPedidoComando(entregas, albaran.Fecha, albaran.Referencia), ct).ConfigureAwait(false);
+        return r.EsFallo ? Resultado.Fallo<(Guid, string)>(r.Error) : Resultado.Ok((r.Valor.Id, r.Valor.NumeroCompleto));
+    }
+
+    public async Task<Resultado<(Guid Id, string Numero)>> EmitirAlbaranDirectoAsync(Guid empresaId, Guid clienteId, DateOnly fecha, string? referencia,
+        IReadOnlyList<(Guid ProductoId, decimal Cantidad, decimal? Precio)> lineas, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(lineas);
+        if (_crearAlbaran is null)
+        {
+            return Resultado.Fallo<(Guid, string)>(Error.Validacion("expedicion.sin_albaran", "No se pueden emitir albaranes."));
+        }
+
+        var r = await _crearAlbaran.EjecutarAsync(empresaId, new CrearAlbaranVentaComando(clienteId,
+            lineas.Select(l => new LineaAlbaranComando(l.Cantidad, PrecioUnitario: l.Precio, ProductoId: l.ProductoId)).ToList(), fecha, referencia), ct)
+            .ConfigureAwait(false);
         return r.EsFallo ? Resultado.Fallo<(Guid, string)>(r.Error) : Resultado.Ok((r.Valor.Id, r.Valor.NumeroCompleto));
     }
 

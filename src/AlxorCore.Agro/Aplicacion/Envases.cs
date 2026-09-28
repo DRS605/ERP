@@ -9,12 +9,27 @@ namespace AlxorCore.Agro.Aplicacion;
 public sealed record SaldoEnvaseCuentaDto(Guid EnvaseProductoId, string Envase, int Saldo);
 
 public sealed record CuentaEnvasesDto(Guid Id, string Tipo, Guid TerceroId, string Nombre, Guid? AgrupadoraId, bool ImputarATransportista, string Bloqueo,
-    string? MotivoBloqueo, int? Limite, bool Activa, int SaldoTotal, IReadOnlyList<SaldoEnvaseCuentaDto> Saldos, bool SuperaLimite);
+    string? MotivoBloqueo, int? Limite, bool Activa, int SaldoTotal, IReadOnlyList<SaldoEnvaseCuentaDto> Saldos, bool SuperaLimite, string Gestion = "Retornar",
+    IReadOnlyList<Guid>? EnvasesPool = null);
 
 public sealed record CrearCuentaEnvasesComando(TipoCuentaEnvases Tipo, Guid TerceroId, string? Nombre = null);
 
 public sealed record ConfigurarCuentaEnvasesComando(Guid? AgrupadoraId = null, bool ImputarATransportista = false, BloqueoEnvases Bloqueo = BloqueoEnvases.Ninguno,
-    string? MotivoBloqueo = null, int? Limite = null, bool Activa = true);
+    string? MotivoBloqueo = null, int? Limite = null, bool Activa = true, GestionEnvases? Gestion = null, IReadOnlyList<Guid>? EnvasesPool = null);
+
+/// <summary>Línea a facturar: el envase, cuántos (sale de su saldo) y, si se indica, el precio (si no, el de la tarifa o el artículo).</summary>
+public sealed record LineaFacturarEnvasesComando(Guid EnvaseProductoId, int Cantidad, decimal? Precio = null);
+
+/// <summary>Sin líneas se factura lo que dice la gestión de la cuenta (todo su saldo o el exceso sobre el límite).</summary>
+public sealed record FacturarEnvasesComando(DateOnly? Fecha = null, IReadOnlyList<LineaFacturarEnvasesComando>? Lineas = null);
+
+public sealed record FacturacionEnvasesDto(Guid CuentaId, string Cuenta, Guid MovimientoId, string Movimiento, Guid AlbaranId, string Albaran,
+    IReadOnlyList<LineaMovimientoEnvasesDto> Lineas);
+
+public sealed record FacturacionMasivaEnvasesDto(IReadOnlyList<FacturacionEnvasesDto> Facturadas, IReadOnlyList<string> Omitidas);
+
+/// <summary>Envases en poder de terceros: lo que tienen clientes, proveedores y agricultores, transportistas y pools.</summary>
+public sealed record StockEnvaseTercerosDto(Guid EnvaseProductoId, string Envase, int Clientes, int Proveedores, int Transportistas, int Pools, int Total);
 
 /// <summary>Línea de un movimiento: + lo que se entrega al tercero, − lo que se recoge.</summary>
 public sealed record LineaEnvasesComando(Guid EnvaseProductoId, int Cantidad);
@@ -66,13 +81,15 @@ public sealed class EnvasesTerceros
     private readonly IConsultaProveedores _proveedores;
     private readonly IConsultaProductos _productos;
     private readonly IReloj _reloj;
+    private readonly IDocumentosExpedicion? _documentos;
 
     /// <summary>Último número dado en esta unidad de trabajo (una expedición puede generar varios movimientos antes de guardar).</summary>
     private readonly Dictionary<(Guid, int), int> _ultimos = [];
 
     public EnvasesTerceros(IRepositorioEnvases repo, IUnidadDeTrabajoAgro unidad, IConsultaClientes clientes, IConsultaProveedores proveedores, IConsultaProductos productos,
-        IReloj reloj)
+        IReloj reloj, IDocumentosExpedicion? documentos = null)
     {
+        _documentos = documentos;
         _repo = repo;
         _unidad = unidad;
         _clientes = clientes;
@@ -144,6 +161,16 @@ public sealed class EnvasesTerceros
         }
 
         var r = cuenta.Configurar(comando.AgrupadoraId, comando.ImputarATransportista, comando.Bloqueo, comando.MotivoBloqueo, comando.Limite, comando.Activa);
+        if (r.EsCorrecto && comando.Gestion is { } gestion)
+        {
+            r = cuenta.FijarGestion(gestion);
+        }
+
+        if (r.EsCorrecto && comando.EnvasesPool is { } pool)
+        {
+            r = cuenta.FijarEnvasesPool(pool);
+        }
+
         if (r.EsFallo)
         {
             return Resultado.Fallo<CuentaEnvasesDto>(r.Error);
@@ -293,10 +320,26 @@ public sealed class EnvasesTerceros
             return Resultado.Fallo<MovimientoEnvasesDto>(Error.NoEncontrado("envases.movimiento", "El movimiento de envases no existe."));
         }
 
+        if (m.Origen == OrigenMovimientoEnvases.Recepcion && m.DocumentoId is not null)
+        {
+            return Resultado.Fallo<MovimientoEnvasesDto>(Error.Conflicto("envases.de_recepcion", "Es de una recepción o del libro del agricultor: se anula con ella."));
+        }
+
         var contra = await AnularInternoAsync(m, motivo, ct).ConfigureAwait(false);
         if (contra.EsFallo)
         {
             return Resultado.Fallo<MovimientoEnvasesDto>(contra.Error);
+        }
+
+        // Una facturación de envases se anula con su albarán (si no está facturado); los envases vuelven al saldo del cliente.
+        if (m.Origen == OrigenMovimientoEnvases.Facturacion && m.DocumentoId is { } albaran && _documentos is not null)
+        {
+            var anulado = await _documentos.AnularAlbaranAsync(albaran, string.IsNullOrWhiteSpace(motivo) ? $"Anulación de {m.NumeroCompleto}" : motivo.Trim(), ct)
+                .ConfigureAwait(false);
+            if (anulado.EsFallo)
+            {
+                return Resultado.Fallo<MovimientoEnvasesDto>(anulado.Error);
+            }
         }
 
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
@@ -313,6 +356,11 @@ public sealed class EnvasesTerceros
 
         return lista;
     }
+
+    public async Task<MovimientoEnvasesDto?> ObtenerMovimientoAsync(Guid movimientoId, CancellationToken ct = default) =>
+        await _repo.MovimientoAsync(movimientoId, ct).ConfigureAwait(false) is { } m
+            ? await DtoAsync(m, await _repo.AnuladoAsync(m.Id, ct).ConfigureAwait(false), ct).ConfigureAwait(false)
+            : null;
 
     /// <summary>Extracto de una cuenta: saldo inicial, movimientos con el acumulado y saldo final (en total y por envase).</summary>
     public async Task<Resultado<ExtractoEnvasesDto>> ExtractoAsync(Guid empresaId, Guid cuentaId, DateOnly? desde, DateOnly? hasta, CancellationToken ct = default)
@@ -409,6 +457,241 @@ public sealed class EnvasesTerceros
         return Resultado.Ok();
     }
 
+    // ----------------------------------------------------------------------------- Facturación de envases
+    /// <summary>
+    /// Factura envases a un cliente (Hispatec: envases a facturar): un albarán de venta directo con los envases y un
+    /// movimiento que los saca de su saldo. Sin líneas, lo que dice su gestión. Se anula anulando el movimiento, que anula
+    /// el albarán (si aún no está facturado).
+    /// </summary>
+    public async Task<Resultado<FacturacionEnvasesDto>> FacturarAsync(Guid empresaId, Guid cuentaId, FacturarEnvasesComando comando, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(comando);
+        var cuenta = await _repo.CuentaAsync(cuentaId, ct).ConfigureAwait(false);
+        if (cuenta is null)
+        {
+            return Resultado.Fallo<FacturacionEnvasesDto>(NoEncontrada());
+        }
+
+        if (cuenta.Tipo != TipoCuentaEnvases.Cliente)
+        {
+            return Resultado.Fallo<FacturacionEnvasesDto>(Error.Validacion("envases.gestion_cliente", "Solo se facturan envases a clientes."));
+        }
+
+        if (cuenta.AgrupadoraId is not null)
+        {
+            return Resultado.Fallo<FacturacionEnvasesDto>(Error.Validacion("envases.facturar_agrupada",
+                "Su saldo se lleva en la cuenta agrupadora: factura los envases en esa cuenta."));
+        }
+
+        if (_documentos is null)
+        {
+            return Resultado.Fallo<FacturacionEnvasesDto>(Error.Validacion("expedicion.sin_albaran", "No se pueden emitir albaranes."));
+        }
+
+        var fecha = comando.Fecha ?? Hoy;
+        if ((await _repo.ConfiguracionAsync(empresaId, ct).ConfigureAwait(false))?.Cerrado(fecha) == true)
+        {
+            return Resultado.Fallo<FacturacionEnvasesDto>(Error.Conflicto("envases.periodo_cerrado", "Los movimientos de envases de esa fecha están cerrados."));
+        }
+
+        var saldo = (await _repo.SaldosAsync(empresaId, null, ct).ConfigureAwait(false)).Where(s => s.CuentaId == cuenta.Id)
+            .GroupBy(s => s.EnvaseProductoId).ToDictionary(g => g.Key, g => g.Sum(s => s.Saldo));
+        var lineas = comando.Lineas is { Count: > 0 } pedidas
+            ? pedidas.GroupBy(l => l.EnvaseProductoId).Select(g => (Envase: g.Key, Cantidad: g.Sum(l => l.Cantidad), Precio: g.First().Precio)).ToList()
+            : cuenta.AFacturar(saldo).Select(l => (Envase: l.EnvaseProductoId, l.Cantidad, Precio: (decimal?)null)).ToList();
+        if (lineas.Count == 0)
+        {
+            return Resultado.Fallo<FacturacionEnvasesDto>(Error.Validacion("envases.nada_que_facturar",
+                cuenta.Gestion == GestionEnvases.Retornar && comando.Lineas is not { Count: > 0 }
+                    ? "Sus envases se retornan: indica qué envases se le facturan."
+                    : $"{cuenta.Nombre} no tiene envases que facturar."));
+        }
+
+        var nombres = await NombresEnvasesAsync(lineas.Select(l => l.Envase), ct).ConfigureAwait(false);
+        foreach (var (envase, cantidad, precio) in lineas)
+        {
+            if (cantidad <= 0 || precio is < 0m)
+            {
+                return Resultado.Fallo<FacturacionEnvasesDto>(Error.Validacion("envases.cantidad", "Cantidades positivas y precios no negativos."));
+            }
+
+            if (cantidad > saldo.GetValueOrDefault(envase))
+            {
+                return Resultado.Fallo<FacturacionEnvasesDto>(Error.Validacion("envases.supera_saldo",
+                    $"{cuenta.Nombre} solo tiene {saldo.GetValueOrDefault(envase)} de {nombres.GetValueOrDefault(envase, "ese envase")}."));
+            }
+        }
+
+        var albaran = await _documentos.EmitirAlbaranDirectoAsync(empresaId, cuenta.TerceroId, fecha, "Facturación de envases",
+            lineas.Select(l => (l.Envase, (decimal)l.Cantidad, l.Precio)).ToList(), ct).ConfigureAwait(false);
+        if (albaran.EsFallo)
+        {
+            return Resultado.Fallo<FacturacionEnvasesDto>(albaran.Error);
+        }
+
+        var m = await PrepararAsync(empresaId, cuenta, OrigenMovimientoEnvases.Facturacion, lineas.Select(l => (l.Envase, -l.Cantidad)).ToList(), fecha, albaran.Valor.Id,
+            null, null, $"Facturación de envases · albarán {albaran.Valor.Numero}", ct).ConfigureAwait(false);
+        if (m.EsFallo)
+        {
+            await _documentos.AnularAlbaranAsync(albaran.Valor.Id, "No se pudo registrar el movimiento de envases", ct).ConfigureAwait(false);
+            return Resultado.Fallo<FacturacionEnvasesDto>(m.Error);
+        }
+
+        try
+        {
+            await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        }
+        catch
+        {
+            await _documentos.AnularAlbaranAsync(albaran.Valor.Id, "No se pudo registrar el movimiento de envases", CancellationToken.None).ConfigureAwait(false);
+            throw;
+        }
+
+        var dto = await DtoAsync(m.Valor.Movimiento, false, ct).ConfigureAwait(false);
+        return Resultado.Ok(new FacturacionEnvasesDto(cuenta.Id, cuenta.Nombre, dto.Id, dto.Numero, albaran.Valor.Id, albaran.Valor.Numero, dto.Lineas));
+    }
+
+    /// <summary>Factura los envases de todos los clientes que los tienen a facturar (según su gestión), a una fecha.</summary>
+    public async Task<FacturacionMasivaEnvasesDto> FacturarMasivoAsync(Guid empresaId, DateOnly? fecha, CancellationToken ct = default)
+    {
+        var hechas = new List<FacturacionEnvasesDto>();
+        var omitidas = new List<string>();
+        var saldos = await _repo.SaldosAsync(empresaId, null, ct).ConfigureAwait(false);
+        foreach (var c in (await _repo.CuentasAsync(empresaId, ct).ConfigureAwait(false))
+                     .Where(c => c.Tipo == TipoCuentaEnvases.Cliente && c.Activa && c.Gestion != GestionEnvases.Retornar && c.AgrupadoraId is null))
+        {
+            var saldo = saldos.Where(s => s.CuentaId == c.Id).GroupBy(s => s.EnvaseProductoId).ToDictionary(g => g.Key, g => g.Sum(s => s.Saldo));
+            if (c.AFacturar(saldo).Count == 0)
+            {
+                continue;
+            }
+
+            var r = await FacturarAsync(empresaId, c.Id, new FacturarEnvasesComando(fecha), ct).ConfigureAwait(false);
+            if (r.EsCorrecto)
+            {
+                hechas.Add(r.Valor);
+            }
+            else
+            {
+                omitidas.Add($"{c.Nombre}: {r.Error.Mensaje}");
+            }
+        }
+
+        return new FacturacionMasivaEnvasesDto(hechas, omitidas);
+    }
+
+    // ----------------------------------------------------------------------------- Libro del agricultor
+    /// <summary>
+    /// Lleva al libro de envases por tercero un movimiento del libro del agricultor (recepción, entrega o devolución de
+    /// vacíos), en la cuenta de su proveedor (se abre si no la tiene). Se prepara en la unidad de trabajo del llamante; un
+    /// movimiento de recepción no se para por el bloqueo ni por los límites de la cuenta (solo avisa).
+    /// </summary>
+    public async Task<Resultado<string?>> RegistrarAgricultorAsync(Guid empresaId, Guid proveedorId, string nombre, IReadOnlyList<(Guid EnvaseProductoId, int Cantidad)> lineas,
+        DateOnly fecha, Guid documentoId, string? observaciones, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(lineas);
+        if (lineas.All(l => l.Cantidad == 0))
+        {
+            return Resultado.Ok<string?>(null);
+        }
+
+        var cuenta = await _repo.CuentaDeAsync(empresaId, TipoCuentaEnvases.Proveedor, proveedorId, ct).ConfigureAwait(false);
+        if (cuenta is null)
+        {
+            var nueva = CuentaEnvases.Crear(empresaId, TipoCuentaEnvases.Proveedor, proveedorId, nombre, _reloj);
+            if (nueva.EsFallo)
+            {
+                return Resultado.Fallo<string?>(nueva.Error);
+            }
+
+            cuenta = nueva.Valor;
+            _repo.Agregar(cuenta);
+        }
+
+        var r = await PrepararAsync(empresaId, cuenta, OrigenMovimientoEnvases.Recepcion, lineas, fecha, documentoId, null, null, observaciones, ct).ConfigureAwait(false);
+        return r.EsFallo ? Resultado.Fallo<string?>(r.Error) : Resultado.Ok(r.Valor.Aviso);
+    }
+
+    // ----------------------------------------------------------------------------- Pools y stock en terceros
+    /// <summary>
+    /// Fichero de declaración a un pool (CHEP, IFCO, Euro Pool…): los movimientos de sus envases con todos los terceros en
+    /// el periodo, en CSV (separado por punto y coma, UTF-8). Entregado: salió a ese tercero; recogido: volvió.
+    /// </summary>
+    public async Task<Resultado<(string Nombre, string Csv)>> FicheroPoolAsync(Guid empresaId, Guid cuentaPoolId, DateOnly desde, DateOnly hasta, CancellationToken ct = default)
+    {
+        var pool = await _repo.CuentaAsync(cuentaPoolId, ct).ConfigureAwait(false);
+        if (pool is null)
+        {
+            return Resultado.Fallo<(string, string)>(NoEncontrada());
+        }
+
+        if (pool.Tipo != TipoCuentaEnvases.Pool || pool.EnvasesPool.Count == 0)
+        {
+            return Resultado.Fallo<(string, string)>(Error.Validacion("envases.pool_sin_envases", "Indica en la cuenta del pool cuáles son sus envases."));
+        }
+
+        var suyos = pool.EnvasesPool.Select(e => e.EnvaseProductoId).ToHashSet();
+        var cuentas = (await _repo.CuentasAsync(empresaId, ct).ConfigureAwait(false)).ToDictionary(c => c.Id);
+        var productos = new Dictionary<Guid, (string Codigo, string Nombre)>();
+        foreach (var id in suyos)
+        {
+            var p = await _productos.ObtenerAsync(id, ct).ConfigureAwait(false);
+            productos[id] = (p?.Referencia ?? string.Empty, p?.Nombre ?? "(envase)");
+        }
+
+        var nifs = new Dictionary<Guid, string?>();
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("Fecha;Movimiento;Tipo;Tercero;NIF;Codigo envase;Envase;Entregado;Recogido;Documento;Matricula");
+        static string C(string? t) => (t ?? string.Empty).Replace(';', ',').Replace('\n', ' ').Replace('\r', ' ');
+        foreach (var m in (await _repo.MovimientosAsync(empresaId, null, desde, hasta, ct).ConfigureAwait(false)).OrderBy(m => m.Fecha).ThenBy(m => m.Numero))
+        {
+            var cuenta = cuentas.GetValueOrDefault(m.CuentaId);
+            if (cuenta is null)
+            {
+                continue;
+            }
+
+            if (!nifs.TryGetValue(cuenta.Id, out var nif))
+            {
+                nif = cuenta.Tipo switch
+                {
+                    TipoCuentaEnvases.Cliente => (await _clientes.ObtenerAsync(cuenta.TerceroId, ct).ConfigureAwait(false))?.NifFiscal,
+                    TipoCuentaEnvases.Proveedor or TipoCuentaEnvases.Pool => (await _proveedores.ObtenerAsync(cuenta.TerceroId, ct).ConfigureAwait(false))?.NifFiscal,
+                    _ => null,
+                };
+                nifs[cuenta.Id] = nif;
+            }
+
+            foreach (var l in m.Lineas.Where(l => suyos.Contains(l.EnvaseProductoId)))
+            {
+                var (codigo, nombre) = productos[l.EnvaseProductoId];
+                sb.Append(System.Globalization.CultureInfo.InvariantCulture, $"{m.Fecha:yyyy-MM-dd};{m.NumeroCompleto};{cuenta.Tipo};{C(cuenta.Nombre)};{C(nif)};{C(codigo)};{C(nombre)};")
+                    .Append(System.Globalization.CultureInfo.InvariantCulture, $"{(l.Cantidad > 0 ? l.Cantidad : 0)};{(l.Cantidad < 0 ? -l.Cantidad : 0)};{C(m.Observaciones)};{C(m.Matricula)}")
+                    .AppendLine();
+            }
+        }
+
+        return Resultado.Ok(($"pool-{pool.Nombre.Replace(' ', '_')}-{desde:yyyyMMdd}-{hasta:yyyyMMdd}.csv", sb.ToString()));
+    }
+
+    /// <summary>Envases en poder de terceros a una fecha, por envase y tipo de tercero (el stock que no está en el almacén).</summary>
+    public async Task<IReadOnlyList<StockEnvaseTercerosDto>> StockEnTercerosAsync(Guid empresaId, DateOnly? hasta, CancellationToken ct = default)
+    {
+        var cuentas = (await _repo.CuentasAsync(empresaId, ct).ConfigureAwait(false)).ToDictionary(c => c.Id, c => c.Tipo);
+        var saldos = await _repo.SaldosAsync(empresaId, hasta, ct).ConfigureAwait(false);
+        var nombres = await NombresEnvasesAsync(saldos.Select(s => s.EnvaseProductoId), ct).ConfigureAwait(false);
+        return saldos.GroupBy(s => s.EnvaseProductoId).Select(g =>
+        {
+            int De(params TipoCuentaEnvases[] tipos) => g.Where(s => cuentas.TryGetValue(s.CuentaId, out var t) && tipos.Contains(t)).Sum(s => s.Saldo);
+            var cli = De(TipoCuentaEnvases.Cliente);
+            var pro = De(TipoCuentaEnvases.Proveedor);
+            var tra = De(TipoCuentaEnvases.Transportista);
+            var poo = De(TipoCuentaEnvases.Pool);
+            return new StockEnvaseTercerosDto(g.Key, nombres.GetValueOrDefault(g.Key, "?"), cli, pro, tra, poo, cli + pro + tra + poo);
+        }).Where(x => x.Clientes != 0 || x.Proveedores != 0 || x.Transportistas != 0 || x.Pools != 0)
+          .OrderBy(x => x.Envase, StringComparer.CurrentCulture).ToList();
+    }
+
     // ----------------------------------------------------------------------------- Apoyo
     private async Task<Resultado<(MovimientoEnvases Movimiento, string? Aviso)>> PrepararAsync(Guid empresaId, CuentaEnvases solicitada, OrigenMovimientoEnvases origen,
         IReadOnlyList<(Guid EnvaseProductoId, int Cantidad)> lineas, DateOnly fecha, Guid? documentoId, Guid? transportistaId, string? matricula, string? observaciones,
@@ -440,13 +723,13 @@ public sealed class EnvasesTerceros
                 return Resultado.Fallo<(MovimientoEnvases, string?)>(Error.Conflicto("envases.cuenta_inactiva", $"La cuenta de envases de {cuenta.Nombre} está dada de baja."));
             }
 
-            if (cuenta.Bloqueo == BloqueoEnvases.Bloqueo)
+            if (cuenta.Bloqueo == BloqueoEnvases.Bloqueo && origen != OrigenMovimientoEnvases.Recepcion)
             {
                 return Resultado.Fallo<(MovimientoEnvases, string?)>(Error.Conflicto("envases.cuenta_bloqueada",
                     $"La cuenta de envases de {cuenta.Nombre} está bloqueada{(cuenta.MotivoBloqueo is { } mb ? ": " + mb : ".")}"));
             }
 
-            if (cuenta.Bloqueo == BloqueoEnvases.Aviso)
+            if (cuenta.Bloqueo != BloqueoEnvases.Ninguno)
             {
                 aviso = $"Aviso en la cuenta de envases de {cuenta.Nombre}{(cuenta.MotivoBloqueo is { } mb ? ": " + mb : ".")}";
             }
@@ -556,7 +839,7 @@ public sealed class EnvasesTerceros
             .OrderBy(s => s.Envase, StringComparer.CurrentCulture).ToList();
         var total = lista.Sum(s => s.Saldo);
         return new CuentaEnvasesDto(c.Id, c.Tipo.ToString(), c.TerceroId, c.Nombre, c.AgrupadoraId, c.ImputarATransportista, c.Bloqueo.ToString(), c.MotivoBloqueo,
-            c.Limite, c.Activa, total, lista, c.Limite is { } l && total > l);
+            c.Limite, c.Activa, total, lista, c.Limite is { } l && total > l, c.Gestion.ToString(), c.EnvasesPool.Select(e => e.EnvaseProductoId).ToList());
     }
 
     private static Error NoEncontrada() => Error.NoEncontrado("envases.cuenta", "La cuenta de envases no existe.");

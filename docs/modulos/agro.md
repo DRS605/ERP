@@ -71,7 +71,7 @@ saldo, los envases de la empresa que tiene el tercero, **se calcula del libro**;
     recogido**;
   - se anula con su **contrario**: un movimiento de origen `Anulacion` que apunta al anulado. Un movimiento solo se
     anula una vez (índice único).
-- **Orígenes:** manual (entrega o recogida), regularización, expedición y anulación.
+- **Orígenes:** manual (entrega o recogida), regularización, expedición, recepción (el libro del agricultor), facturación y anulación.
 - **Al expedir palés a un cliente**, se entregan solos la **caja** y el **palé retornables** de su plantilla (campos
   nuevos de la plantilla). Se entregan tantas cajas como lleve el palé y un palé. Si el cliente no tiene cuenta, se abre
   sola. Todo se guarda en la misma transacción que la expedición.
@@ -99,13 +99,37 @@ saldo, los envases de la empresa que tiene el tercero, **se calcula del libro**;
     `envases.agrupadora`;
   - del movimiento: `envases.sin_lineas` y `envases.ya_anulado`.
 
-Pendiente:
+- **Envases a facturar** (Hispatec: envases a retornar o a facturar). La **gestión** de la cuenta de un cliente
+  (`cuenta_envases.gestion`) dice qué se hace con los envases que tiene:
+  - `Retornar` (por defecto): se devuelven. Se le pueden facturar a mano indicando qué envases;
+  - `Facturar`: se le factura todo su saldo;
+  - `FacturarExceso`: solo lo que pasa del **límite por envase** (sin límite de ese envase, nada).
+  - `POST /agro/envases/cuentas/{id}/facturar` (sin líneas, según la gestión; con líneas, envase, cantidad y precio)
+    emite un **albarán de venta directo** con los envases, a su precio de tarifa o del artículo si no se indica, y un
+    movimiento de origen `Facturacion` que los saca de su saldo. No se factura más de lo que tiene (`envases.supera_saldo`),
+    ni en una cuenta que acumula en otra (`envases.facturar_agrupada`) ni a quien no es cliente (`envases.gestion_cliente`).
+  - `POST /agro/envases/facturar` lo hace con todos los clientes a facturar (un albarán por cliente); los que fallan
+    salen en `omitidas`.
+  - **Anular** el movimiento anula el albarán (si aún no está facturado) y los envases vuelven a su saldo.
+  - El albarán se factura como cualquier otro.
+- **Libro del agricultor unido.** Las recepciones (envases llenos que trae), las entregas y devoluciones de vacíos al
+  agricultor se llevan también al libro por tercero, en la **cuenta de su proveedor** (se abre sola), con origen
+  `Recepcion`. Así el agricultor aparece en el extracto, los límites, el informe y el stock en terceros.
+  - Al anular la recepción se anula su movimiento. Un movimiento de recepción no se anula suelto (`envases.de_recepcion`).
+  - La recepción no se para por el bloqueo o los límites de la cuenta: solo avisa.
+  - La ficha del agricultor sigue mostrando su libro propio (`agro.movimiento_envase`). Los movimientos anteriores a
+    este cambio se pasaron al libro por tercero como una regularización por agricultor con su saldo.
+- **Pools.** En la cuenta de un pool se indican **sus envases** (`agro.envase_pool`). El **fichero de declaración**
+  (`GET /agro/envases/cuentas/{id}/fichero-pool?desde=&hasta=`) es un CSV (UTF-8, `;`) con los movimientos de esos
+  envases con todos los terceros en el periodo: fecha, movimiento, tipo y nombre del tercero, NIF, código y nombre del
+  envase, entregado, recogido, documento y matrícula.
+- **Stock en terceros** (`GET /agro/envases/stock-terceros?hasta=`): por envase, lo que tienen clientes, proveedores y
+  agricultores, transportistas y pools (en negativo lo que se debe, normalmente al pool). Es el stock del envase que
+  está fuera del almacén.
+- **Impresos:** justificante de un movimiento para firmar el tercero (`GET /agro/envases/movimientos/{id}/pdf`) y
+  extracto de la cuenta (`GET /agro/envases/cuentas/{id}/extracto/pdf?desde=&hasta=`).
 
-- unir el libro del agricultor a este;
-- facturar envases a los clientes «a facturar» o por lo que excede su saldo;
-- ficheros para los pools;
-- mover el stock del envase vacío en el inventario;
-- PDF del justificante y del extracto.
+Pendiente: mover el stock del envase vacío en el inventario del almacén (hoy se ve el stock en terceros).
 
 ## Reservas de palés a pedidos de venta
 

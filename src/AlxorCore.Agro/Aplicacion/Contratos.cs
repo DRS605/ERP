@@ -169,6 +169,11 @@ public interface IDocumentosExpedicion
         Task.FromResult(Resultado.Fallo<(Guid, string)>(Error.Validacion("expedicion.sin_albaran", "No se pueden emitir albaranes.")));
 
     Task<Resultado> AnularAlbaranAsync(Guid albaranId, string motivo, CancellationToken ct = default) => Task.FromResult(Resultado.Ok());
+
+    /// <summary>Albarán de venta directo (sin pedido): los envases que se le facturan a un cliente. Sin precio, el de su tarifa o el del artículo.</summary>
+    Task<Resultado<(Guid Id, string Numero)>> EmitirAlbaranDirectoAsync(Guid empresaId, Guid clienteId, DateOnly fecha, string? referencia,
+        IReadOnlyList<(Guid ProductoId, decimal Cantidad, decimal? Precio)> lineas, CancellationToken ct = default) =>
+        Task.FromResult(Resultado.Fallo<(Guid, string)>(Error.Validacion("expedicion.sin_albaran", "No se pueden emitir albaranes.")));
 }
 
 /// <summary>Pedido de venta visto desde las reservas de palés.</summary>
