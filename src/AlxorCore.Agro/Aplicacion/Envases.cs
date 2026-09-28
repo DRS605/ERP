@@ -20,7 +20,24 @@ public sealed record ConfigurarCuentaEnvasesComando(Guid? AgrupadoraId = null, b
 public sealed record LineaEnvasesComando(Guid EnvaseProductoId, int Cantidad);
 
 public sealed record MovimientoEnvasesComando(Guid CuentaId, IReadOnlyList<LineaEnvasesComando> Lineas, DateOnly? Fecha = null, bool Regularizacion = false,
-    Guid? TransportistaId = null, string? Matricula = null, string? Observaciones = null);
+    Guid? TransportistaId = null, string? Matricula = null, string? Observaciones = null, bool Forzar = false);
+
+public sealed record LimiteEnvaseDto(Guid EnvaseProductoId, string Envase, int? Limite, int? Minimo, int Saldo);
+
+public sealed record LimitesCuentaDto(Guid CuentaId, string ControlLimite, int? LimiteGeneral, IReadOnlyList<LimiteEnvaseDto> Envases);
+
+public sealed record LimiteEnvaseComando(Guid EnvaseProductoId, int? Limite, int? Minimo);
+
+public sealed record FijarLimitesEnvasesComando(ControlLimiteEnvases Control, IReadOnlyList<LimiteEnvaseComando> Envases);
+
+public sealed record ConfiguracionEnvasesDto(DateOnly? FechaCierre);
+
+/// <summary>Cuenta del informe de límites: qué incumple y cuándo se movió por última vez.</summary>
+public sealed record CuentaInformeEnvasesDto(Guid CuentaId, string Cuenta, string Tipo, int SaldoTotal, int? LimiteGeneral, DateOnly? UltimoMovimiento,
+    IReadOnlyList<string> Incidencias);
+
+public sealed record InformeLimitesEnvasesDto(DateOnly? SinMovimientosDesde, IReadOnlyList<CuentaInformeEnvasesDto> SobreLimite, IReadOnlyList<CuentaInformeEnvasesDto> BajoMinimo,
+    IReadOnlyList<CuentaInformeEnvasesDto> SinMovimientos);
 
 public sealed record LineaMovimientoEnvasesDto(Guid EnvaseProductoId, string Envase, int Cantidad);
 
@@ -136,6 +153,107 @@ public sealed class EnvasesTerceros
         return Resultado.Ok((await CuentasAsync(cuenta.EmpresaId, null, ct).ConfigureAwait(false)).Single(c => c.Id == cuenta.Id));
     }
 
+    // ----------------------------------------------------------------------------- Límites y cierre
+    public async Task<Resultado<LimitesCuentaDto>> LimitesAsync(Guid empresaId, Guid cuentaId, CancellationToken ct = default)
+    {
+        var cuenta = await _repo.CuentaAsync(cuentaId, ct).ConfigureAwait(false);
+        if (cuenta is null)
+        {
+            return Resultado.Fallo<LimitesCuentaDto>(NoEncontrada());
+        }
+
+        var saldos = (await _repo.SaldosAsync(empresaId, null, ct).ConfigureAwait(false)).Where(s => s.CuentaId == cuentaId)
+            .GroupBy(s => s.EnvaseProductoId).ToDictionary(g => g.Key, g => g.Sum(s => s.Saldo));
+        var ids = cuenta.Limites.Select(l => l.EnvaseProductoId).Union(saldos.Keys).ToList();
+        var nombres = await NombresEnvasesAsync(ids, ct).ConfigureAwait(false);
+        return Resultado.Ok(new LimitesCuentaDto(cuenta.Id, cuenta.ControlLimite.ToString(), cuenta.Limite, ids.Select(id =>
+        {
+            var l = cuenta.Limites.FirstOrDefault(x => x.EnvaseProductoId == id);
+            return new LimiteEnvaseDto(id, nombres.GetValueOrDefault(id, "?"), l?.Limite, l?.Minimo, saldos.GetValueOrDefault(id));
+        }).OrderBy(x => x.Envase, StringComparer.CurrentCulture).ToList()));
+    }
+
+    public async Task<Resultado<LimitesCuentaDto>> FijarLimitesAsync(Guid empresaId, Guid cuentaId, FijarLimitesEnvasesComando comando, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(comando);
+        var cuenta = await _repo.CuentaAsync(cuentaId, ct).ConfigureAwait(false);
+        if (cuenta is null)
+        {
+            return Resultado.Fallo<LimitesCuentaDto>(NoEncontrada());
+        }
+
+        foreach (var l in comando.Envases ?? [])
+        {
+            if (await _productos.ObtenerAsync(l.EnvaseProductoId, ct).ConfigureAwait(false) is null)
+            {
+                return Resultado.Fallo<LimitesCuentaDto>(Error.NoEncontrado("envases.envase", "Un envase no existe en el catálogo."));
+            }
+        }
+
+        var r = cuenta.FijarLimites(comando.Control, (comando.Envases ?? []).Select(l => (l.EnvaseProductoId, l.Limite, l.Minimo)).ToList());
+        if (r.EsFallo)
+        {
+            return Resultado.Fallo<LimitesCuentaDto>(r.Error);
+        }
+
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return await LimitesAsync(empresaId, cuentaId, ct).ConfigureAwait(false);
+    }
+
+    public async Task<ConfiguracionEnvasesDto> ConfiguracionAsync(Guid empresaId, CancellationToken ct = default) =>
+        new((await _repo.ConfiguracionAsync(empresaId, ct).ConfigureAwait(false))?.FechaCierre);
+
+    /// <summary>Cierra (o reabre, con null) los movimientos de envases hasta una fecha.</summary>
+    public async Task<ConfiguracionEnvasesDto> CerrarAsync(Guid empresaId, DateOnly? fecha, CancellationToken ct = default)
+    {
+        var config = await _repo.ConfiguracionAsync(empresaId, ct).ConfigureAwait(false);
+        if (config is null)
+        {
+            config = ConfiguracionEnvases.Crear(empresaId);
+            _repo.Agregar(config);
+        }
+
+        config.Cerrar(fecha);
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return new ConfiguracionEnvasesDto(config.FechaCierre);
+    }
+
+    /// <summary>
+    /// Informe de límites: cuentas que superan su límite general o el de algún envase, las que están por debajo de un
+    /// mínimo y, si se indica la fecha, las que tienen saldo y no se han movido desde entonces.
+    /// </summary>
+    public async Task<InformeLimitesEnvasesDto> InformeLimitesAsync(Guid empresaId, DateOnly? sinMovimientosDesde, CancellationToken ct = default)
+    {
+        var cuentas = await _repo.CuentasAsync(empresaId, ct).ConfigureAwait(false);
+        var saldos = await _repo.SaldosAsync(empresaId, null, ct).ConfigureAwait(false);
+        var ultimos = await _repo.UltimosMovimientosAsync(empresaId, ct).ConfigureAwait(false);
+        var nombres = await NombresEnvasesAsync(saldos.Select(s => s.EnvaseProductoId).Concat(cuentas.SelectMany(c => c.Limites.Select(l => l.EnvaseProductoId))), ct).ConfigureAwait(false);
+        var sobre = new List<CuentaInformeEnvasesDto>();
+        var bajo = new List<CuentaInformeEnvasesDto>();
+        var quietas = new List<CuentaInformeEnvasesDto>();
+        foreach (var c in cuentas.Where(c => c.Activa))
+        {
+            var porEnvase = saldos.Where(s => s.CuentaId == c.Id).GroupBy(s => s.EnvaseProductoId).ToDictionary(g => g.Key, g => g.Sum(s => s.Saldo));
+            var total = porEnvase.Values.Sum();
+            var ultimo = ultimos.TryGetValue(c.Id, out var u) ? u : (DateOnly?)null;
+            var excesos = new List<string>();
+            if (c.Limite is { } lg && total > lg) excesos.Add($"Total {total} de {lg}");
+            excesos.AddRange(c.Limites.Where(l => l.Limite is { } max && porEnvase.GetValueOrDefault(l.EnvaseProductoId) > max)
+                .Select(l => $"{nombres.GetValueOrDefault(l.EnvaseProductoId, "?")}: {porEnvase.GetValueOrDefault(l.EnvaseProductoId)} de {l.Limite}"));
+            var faltas = c.Limites.Where(l => l.Minimo is { } min && porEnvase.GetValueOrDefault(l.EnvaseProductoId) < min)
+                .Select(l => $"{nombres.GetValueOrDefault(l.EnvaseProductoId, "?")}: {porEnvase.GetValueOrDefault(l.EnvaseProductoId)} (mínimo {l.Minimo})").ToList();
+            CuentaInformeEnvasesDto Fila(IReadOnlyList<string> incidencias) => new(c.Id, c.Nombre, c.Tipo.ToString(), total, c.Limite, ultimo, incidencias);
+            if (excesos.Count > 0) sobre.Add(Fila(excesos));
+            if (faltas.Count > 0) bajo.Add(Fila(faltas));
+            if (sinMovimientosDesde is { } desde && porEnvase.Values.Any(v => v != 0) && (ultimo is null || ultimo < desde))
+            {
+                quietas.Add(Fila([ultimo is { } f ? $"Último movimiento el {f:dd/MM/yyyy}" : "Sin movimientos"]));
+            }
+        }
+
+        return new InformeLimitesEnvasesDto(sinMovimientosDesde, sobre, bajo, quietas);
+    }
+
     // ----------------------------------------------------------------------------- Movimientos
     public async Task<Resultado<MovimientoEnvasesDto>> RegistrarAsync(Guid empresaId, MovimientoEnvasesComando comando, CancellationToken ct = default)
     {
@@ -156,7 +274,7 @@ public sealed class EnvasesTerceros
 
         var r = await PrepararAsync(empresaId, cuenta, comando.Regularizacion ? OrigenMovimientoEnvases.Regularizacion : OrigenMovimientoEnvases.Manual,
             (comando.Lineas ?? []).Select(l => (l.EnvaseProductoId, l.Cantidad)).ToList(), comando.Fecha ?? Hoy, null, comando.TransportistaId, comando.Matricula,
-            comando.Observaciones, ct).ConfigureAwait(false);
+            comando.Observaciones, ct, forzar: comando.Forzar).ConfigureAwait(false);
         if (r.EsFallo)
         {
             return Resultado.Fallo<MovimientoEnvasesDto>(r.Error);
@@ -294,8 +412,14 @@ public sealed class EnvasesTerceros
     // ----------------------------------------------------------------------------- Apoyo
     private async Task<Resultado<(MovimientoEnvases Movimiento, string? Aviso)>> PrepararAsync(Guid empresaId, CuentaEnvases solicitada, OrigenMovimientoEnvases origen,
         IReadOnlyList<(Guid EnvaseProductoId, int Cantidad)> lineas, DateOnly fecha, Guid? documentoId, Guid? transportistaId, string? matricula, string? observaciones,
-        CancellationToken ct, Guid? anula = null)
+        CancellationToken ct, Guid? anula = null, bool forzar = false)
     {
+        if ((await _repo.ConfiguracionAsync(empresaId, ct).ConfigureAwait(false))?.Cerrado(fecha) == true)
+        {
+            return Resultado.Fallo<(MovimientoEnvases, string?)>(Error.Conflicto("envases.periodo_cerrado",
+                $"Los movimientos de envases están cerrados hasta el {(await _repo.ConfiguracionAsync(empresaId, ct).ConfigureAwait(false))!.FechaCierre:dd/MM/yyyy}."));
+        }
+
         // Cuenta efectiva: la del transportista (si el cliente lleva ahí los envases) y, después, la agrupadora.
         var cuenta = solicitada;
         if (origen != OrigenMovimientoEnvases.Anulacion && solicitada.ImputarATransportista && transportistaId is { } tr)
@@ -339,21 +463,44 @@ public sealed class EnvasesTerceros
             return Resultado.Fallo<(MovimientoEnvases, string?)>(m.Error);
         }
 
-        _repo.Agregar(m.Valor);
-        if (cuenta.Limite is { } limite && origen != OrigenMovimientoEnvases.Anulacion)
+        // Límites: el general y los de cada envase. En bloqueo, un movimiento manual no pasa salvo que se fuerce (queda anotado);
+        // la entrega automática al expedir solo avisa, para no parar la expedición.
+        if (origen != OrigenMovimientoEnvases.Anulacion && (cuenta.Limite is not null || cuenta.Limites.Count > 0))
         {
-            var saldo = (await _repo.SaldosAsync(empresaId, null, ct).ConfigureAwait(false)).Where(s => s.CuentaId == cuenta.Id).Sum(s => s.Saldo) + m.Valor.Lineas.Sum(l => l.Cantidad);
-            if (saldo > limite)
+            var actual = (await _repo.SaldosAsync(empresaId, null, ct).ConfigureAwait(false)).Where(s => s.CuentaId == cuenta.Id)
+                .GroupBy(s => s.EnvaseProductoId).ToDictionary(g => g.Key, g => g.Sum(s => s.Saldo));
+            var nombres = await NombresEnvasesAsync(m.Valor.Lineas.Select(l => l.EnvaseProductoId), ct).ConfigureAwait(false);
+            var incumple = cuenta.Incumplimientos(actual, m.Valor.Lineas.Select(l => (l.EnvaseProductoId, l.Cantidad)).ToList(), nombres);
+            if (incumple.Count > 0)
             {
-                aviso ??= $"{cuenta.Nombre} supera su límite de envases: {saldo} de {limite}.";
+                var texto = string.Join(" ", incumple);
+                var manual = origen is OrigenMovimientoEnvases.Manual or OrigenMovimientoEnvases.Regularizacion;
+                if (cuenta.ControlLimite == ControlLimiteEnvases.Bloqueo && manual && !forzar)
+                {
+                    return Resultado.Fallo<(MovimientoEnvases, string?)>(Error.Conflicto("envases.limite", $"{texto} Fuérzalo si debe registrarse igualmente."));
+                }
+
+                if (forzar && manual)
+                {
+                    m = MovimientoEnvases.Crear(empresaId, numero, fecha, cuenta.Id, solicitada.Id, origen, lineas, _reloj, documentoId, transportistaId, matricula,
+                        $"{(string.IsNullOrWhiteSpace(observaciones) ? "" : observaciones.Trim() + " · ")}Forzado: {texto}", anula);
+                }
+
+                aviso ??= texto;
             }
         }
 
+        _repo.Agregar(m.Valor);
         return Resultado.Ok<(MovimientoEnvases, string?)>((m.Valor, aviso));
     }
 
     private async Task<Resultado<MovimientoEnvases>> AnularInternoAsync(MovimientoEnvases m, string? motivo, CancellationToken ct)
     {
+        if ((await _repo.ConfiguracionAsync(m.EmpresaId, ct).ConfigureAwait(false))?.Cerrado(m.Fecha) == true)
+        {
+            return Resultado.Fallo<MovimientoEnvases>(Error.Conflicto("envases.periodo_cerrado", $"El movimiento {m.NumeroCompleto} es de un periodo cerrado: no se anula."));
+        }
+
         if (m.Origen == OrigenMovimientoEnvases.Anulacion)
         {
             return Resultado.Fallo<MovimientoEnvases>(Error.Conflicto("envases.anulacion", "Un movimiento de anulación no se anula."));

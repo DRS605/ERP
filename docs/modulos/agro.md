@@ -82,6 +82,13 @@ saldo, los envases de la empresa que tiene el tercero, **se calcula del libro**;
   - **Llevar al transportista:** en un cliente, lo que se le entrega va a la cuenta del transportista de la expedición.
   - **Bloqueo:** con `Aviso` se deja mover y se avisa; con `Bloqueo` no se admite ningún movimiento.
   - **Límite:** por encima, se avisa y la cuenta sale marcada.
+- **Límites por envase:**
+  - como el límite y el mínimo por cuenta y artículo de Hispatec: cada envase de la cuenta puede tener un **límite** (lo máximo que tiene el tercero) y un **mínimo** (lo que debe conservar);
+  - `PUT /agro/envases/cuentas/{id}/limites` los fija junto con el **control**: con `Aviso` el movimiento se registra y avisa; con `Bloqueo`, una entrega que deja el envase por encima del límite, o el total por encima del límite general, o una recogida que lo deja por debajo del mínimo, no se registra (`envases.limite`) salvo que se **fuerce** (`Forzar: true`). El movimiento forzado queda anotado en sus observaciones;
+  - la entrega automática al expedir palés solo avisa, para no parar la expedición;
+  - el mínimo no puede superar el límite. La tabla es `agro.limite_envase`, con RLS por su cuenta.
+- **Cierre de periodo** (`FechaBloqueoMovimientoArticRetor` de Hispatec): `PUT /agro/envases/configuracion` con `FechaCierre`. Hasta esa fecha, inclusive, no se registra ni se anula ningún movimiento (`envases.periodo_cerrado`); con `null` se reabre.
+- **Informe de límites** (`GET /agro/envases/informe-limites?sinMovimientosDesde=`): cuentas que superan su límite general o el de un envase, cuentas por debajo de un mínimo y, con la fecha, cuentas con saldo y sin movimientos desde entonces.
 - **Extracto:** saldo inicial, movimientos con el acumulado y saldo final, en total y por envase.
 - **Pantalla:** Agro → **Envases**.
 - **API:**
@@ -96,7 +103,6 @@ Pendiente:
 
 - unir el libro del agricultor a este;
 - facturar envases a los clientes «a facturar» o por lo que excede su saldo;
-- mínimos y límites por envase;
 - ficheros para los pools;
 - mover el stock del envase vacío en el inventario;
 - PDF del justificante y del extracto.

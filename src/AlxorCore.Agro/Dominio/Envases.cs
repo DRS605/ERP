@@ -27,6 +27,67 @@ public enum BloqueoEnvases
     Bloqueo,
 }
 
+/// <summary>Qué pasa si un movimiento deja la cuenta por encima de un límite o por debajo de un mínimo.</summary>
+public enum ControlLimiteEnvases
+{
+    /// <summary>Se avisa y se registra.</summary>
+    Aviso,
+
+    /// <summary>No se registra salvo que se fuerce (queda anotado en el movimiento).</summary>
+    Bloqueo,
+}
+
+/// <summary>Límite y mínimo de un envase en una cuenta (Hispatec: límite y mínimo por cuenta, empresa y artículo).</summary>
+public sealed class LimiteEnvase
+{
+    private LimiteEnvase()
+    {
+    }
+
+    internal LimiteEnvase(Guid envaseProductoId, int? limite, int? minimo)
+    {
+        Id = Guid.NewGuid();
+        EnvaseProductoId = envaseProductoId;
+        Limite = limite;
+        Minimo = minimo;
+    }
+
+    public Guid Id { get; private set; }
+
+    public Guid EnvaseProductoId { get; private set; }
+
+    /// <summary>Máximo de ese envase que puede tener el tercero.</summary>
+    public int? Limite { get; private set; }
+
+    /// <summary>Mínimo que debe conservar (una recogida no lo deja por debajo).</summary>
+    public int? Minimo { get; private set; }
+}
+
+/// <summary>
+/// Configuración de envases de la empresa: la fecha de cierre (<c>FechaBloqueoMovimientoArticRetor</c> de Hispatec). Hasta
+/// esa fecha, inclusive, no se registra ni se anula ningún movimiento: el periodo está cerrado.
+/// </summary>
+public sealed class ConfiguracionEnvases : RaizAgregadoEmpresa<Guid>
+{
+    private ConfiguracionEnvases(Guid id)
+        : base(id, Guid.Empty)
+    {
+    }
+
+    private ConfiguracionEnvases(Guid id, Guid empresaId)
+        : base(id, empresaId)
+    {
+    }
+
+    public DateOnly? FechaCierre { get; private set; }
+
+    public static ConfiguracionEnvases Crear(Guid empresaId) => new(Guid.NewGuid(), empresaId);
+
+    public void Cerrar(DateOnly? fecha) => FechaCierre = fecha;
+
+    public bool Cerrado(DateOnly fecha) => FechaCierre is { } c && fecha <= c;
+}
+
 /// <summary>De dónde sale un movimiento de envases.</summary>
 public enum OrigenMovimientoEnvases
 {
@@ -87,6 +148,79 @@ public sealed class CuentaEnvases : RaizAgregadoEmpresa<Guid>
     public bool Activa { get; private set; }
 
     public DateTimeOffset CreadaEn { get; private set; }
+
+    /// <summary>Qué se hace al superar el límite (general o de un envase) o bajar del mínimo.</summary>
+    public ControlLimiteEnvases ControlLimite { get; private set; }
+
+    private readonly List<LimiteEnvase> _limites = [];
+
+    public IReadOnlyList<LimiteEnvase> Limites => _limites;
+
+    /// <summary>Sustituye los límites y mínimos por envase y fija cómo se controlan.</summary>
+    public Resultado FijarLimites(ControlLimiteEnvases control, IReadOnlyList<(Guid EnvaseProductoId, int? Limite, int? Minimo)> limites)
+    {
+        ArgumentNullException.ThrowIfNull(limites);
+        if (!Enum.IsDefined(control))
+        {
+            return Resultado.Fallo(Error.Validacion("envases.control", "Control no válido: Aviso o Bloqueo."));
+        }
+
+        if (limites.Select(l => l.EnvaseProductoId).Distinct().Count() != limites.Count)
+        {
+            return Resultado.Fallo(Error.Validacion("envases.limite_repetido", "Cada envase aparece una sola vez."));
+        }
+
+        foreach (var (_, limite, minimo) in limites)
+        {
+            if (limite is < 0 || minimo is < 0 || (limite is { } l && minimo is { } m && m > l))
+            {
+                return Resultado.Fallo(Error.Validacion("envases.limite", "Límite y mínimo no pueden ser negativos, y el mínimo no puede superar el límite."));
+            }
+        }
+
+        ControlLimite = control;
+        _limites.Clear();
+        _limites.AddRange(limites.Where(l => l.Limite is not null || l.Minimo is not null).Select(l => new LimiteEnvase(l.EnvaseProductoId, l.Limite, l.Minimo)));
+        return Resultado.Ok();
+    }
+
+    /// <summary>
+    /// Incumplimientos que causaría un movimiento: el total por encima del límite general, un envase por encima de su
+    /// límite (si el movimiento lo entrega) o por debajo de su mínimo (si lo recoge).
+    /// </summary>
+    public IReadOnlyList<string> Incumplimientos(IReadOnlyDictionary<Guid, int> saldoActual, IReadOnlyList<(Guid EnvaseProductoId, int Cantidad)> movimiento,
+        IReadOnlyDictionary<Guid, string> nombres)
+    {
+        ArgumentNullException.ThrowIfNull(saldoActual);
+        ArgumentNullException.ThrowIfNull(movimiento);
+        ArgumentNullException.ThrowIfNull(nombres);
+        var avisos = new List<string>();
+        var neto = movimiento.Sum(l => l.Cantidad);
+        var total = saldoActual.Values.Sum() + neto;
+        if (Limite is { } general && neto > 0 && total > general)
+        {
+            avisos.Add($"{Nombre} supera su límite de envases: {total} de {general}.");
+        }
+
+        foreach (var g in movimiento.GroupBy(l => l.EnvaseProductoId))
+        {
+            var cantidad = g.Sum(l => l.Cantidad);
+            var saldo = saldoActual.GetValueOrDefault(g.Key) + cantidad;
+            var limite = _limites.FirstOrDefault(l => l.EnvaseProductoId == g.Key);
+            var nombre = nombres.GetValueOrDefault(g.Key, "envase");
+            if (limite?.Limite is { } max && cantidad > 0 && saldo > max)
+            {
+                avisos.Add($"{Nombre} supera el límite de {nombre}: {saldo} de {max}.");
+            }
+
+            if (limite?.Minimo is { } min && cantidad < 0 && saldo < min)
+            {
+                avisos.Add($"{Nombre} queda por debajo del mínimo de {nombre}: {saldo} (mínimo {min}).");
+            }
+        }
+
+        return avisos;
+    }
 
     public static Resultado<CuentaEnvases> Crear(Guid empresaId, TipoCuentaEnvases tipo, Guid terceroId, string? nombre, IReloj reloj)
     {

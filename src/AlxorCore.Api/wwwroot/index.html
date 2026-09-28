@@ -3997,18 +3997,44 @@
     const ENV_TIPO={Cliente:"Cliente",Proveedor:"Proveedor",Transportista:"Transportista",Pool:"Pool (CHEP, IFCO…)"};
     async function vAgroEnvases(){
       view('<div class="muted">Cargando…</div>');
-      const [cuentas,productos,clientes,proveedores,transportistas]=await Promise.all([api("/agro/envases/cuentas"),api("/productos"),api("/clientes"),api("/proveedores"),api("/transporte/transportistas").catch(()=>[])]);
+      const [cuentas,productos,clientes,proveedores,transportistas,cierre]=await Promise.all([api("/agro/envases/cuentas"),api("/productos"),api("/clientes"),api("/proveedores"),api("/transporte/transportistas").catch(()=>[]),api("/agro/envases/configuracion").catch(()=>({}))]);
       window._env={cuentas,productos:productos.filter(p=>!["kg","kilo"].includes((p.unidad||"").toLowerCase())),clientes,proveedores,transportistas};
       const nombre=id=>(cuentas.find(c=>c.id===id)||{}).nombre||"—";
       const filas=cuentas.map(c=>`<tr><td>${agEsc(c.nombre)}${c.activa?"":' <span class="pill wait">Baja</span>'}</td><td class="muted">${ENV_TIPO[c.tipo]||c.tipo}</td>
         <td>${c.saldos.map(s=>`<span class="pill">${agEsc(s.envase)}: ${s.saldo}</span>`).join(" ")||'<span class="muted">—</span>'}</td>
         <td class="num"><strong>${c.saldoTotal}</strong>${c.limite!=null?` <span class="muted">/ ${c.limite}</span>`:""}${c.superaLimite?' <span class="pill neg">Supera el límite</span>':""}</td>
         <td class="muted">${c.agrupadoraId?"→ "+agEsc(nombre(c.agrupadoraId)):""}${c.imputarATransportista?" → transportista":""}${c.bloqueo!=="Ninguno"?` <span class="pill ${c.bloqueo==="Bloqueo"?"neg":"wait"}">${c.bloqueo}</span>`:""}</td>
-        <td class="right" style="white-space:nowrap"><button class="btn small" onclick="modalMovimientoEnvases('${c.id}')" title="Entregar o recoger envases">Mover</button> <button class="btn small secondary" onclick="modalExtractoEnvases('${c.id}')">Extracto</button> <button class="btn small ghost" onclick="modalCuentaEnvases('${c.id}')" title="Agrupadora, transportista, bloqueo y límite">⚙</button></td></tr>`).join("");
+        <td class="right" style="white-space:nowrap"><button class="btn small" onclick="modalMovimientoEnvases('${c.id}')" title="Entregar o recoger envases">Mover</button> <button class="btn small secondary" onclick="modalExtractoEnvases('${c.id}')">Extracto</button> <button class="btn small secondary" onclick="modalLimitesEnvases('${c.id}')" title="Límite y mínimo por envase; aviso o bloqueo">Límites</button> <button class="btn small ghost" onclick="modalCuentaEnvases('${c.id}')" title="Agrupadora, transportista, bloqueo y límite">⚙</button></td></tr>`).join("");
       view(panel("Envases por tercero",`<p class="muted" style="margin:0 0 12px">Envases de la empresa que tiene cada tercero (+ entregados, − recogidos). Al expedir palés se entregan solos al cliente —o a su transportista— la caja y el palé retornables de la plantilla; al anular la expedición vuelven. Cada movimiento se numera y no se borra: se anula con su contrario.</p>`
         +(cuentas.length?`<table data-seleccion="no"><thead><tr><th>Cuenta</th><th>Tipo</th><th>Saldo por envase</th><th class="num">Total</th><th>Agrupación · bloqueo</th><th></th></tr></thead><tbody>${filas}</tbody></table>`
         :'<p class="muted" style="margin:0">Aún no hay cuentas de envases. Se abren solas al expedir a un cliente, o créalas aquí.</p>'),
-        `<button class="btn small" onclick="modalNuevaCuentaEnvases()">+ Cuenta de envases</button>`));
+        `<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn small secondary" onclick="modalInformeLimitesEnvases()">Informe de límites</button><button class="btn small secondary" onclick="modalCierreEnvases()">Cierre${cierre.fechaCierre?" · "+fdate(cierre.fechaCierre):""}</button><button class="btn small" onclick="modalNuevaCuentaEnvases()">+ Cuenta de envases</button></div>`));
+    }
+    async function modalLimitesEnvases(id){
+      const e=window._env, c=e.cuentas.find(x=>x.id===id); const l=await api(`/agro/envases/cuentas/${id}/limites`);
+      const conLimite=new Map(l.envases.map(x=>[x.envaseProductoId,x]));
+      const filas=e.productos.filter(p=>conLimite.has(p.id)||!["kg","kilo"].includes((p.unidad||"").toLowerCase())).map(p=>{ const x=conLimite.get(p.id)||{};
+        return `<tr><td>${agEsc(p.nombre)}</td><td class="num">${x.saldo??0}</td><td><input class="le_l" data-id="${p.id}" type="number" min="0" step="1" value="${x.limite??""}" style="width:90px"/></td><td><input class="le_m" data-id="${p.id}" type="number" min="0" step="1" value="${x.minimo??""}" style="width:90px"/></td></tr>`; }).join("");
+      abrir(`Límites de envases · ${agEsc(c.nombre)}`,`<p class="muted" style="margin:0 0 10px">Por envase, cuánto puede tener el tercero como máximo y cuánto debe conservar como mínimo. Vacío: sin límite.${l.limiteGeneral!=null?` Límite general de la cuenta: ${l.limiteGeneral}.`:""}</p>
+        <label>Al superarlo</label><select id="le_ctl"><option value="Aviso"${l.controlLimite==="Aviso"?" selected":""}>Avisar y registrar</option><option value="Bloqueo"${l.controlLimite==="Bloqueo"?" selected":""}>Bloquear (se puede forzar)</option></select>
+        <table style="margin-top:10px"><thead><tr><th>Envase</th><th class="num">Saldo</th><th>Límite</th><th>Mínimo</th></tr></thead><tbody>${filas}</tbody></table>
+        <p class="muted" style="font-size:12px;margin:8px 0 0">La entrega automática al expedir palés solo avisa, para no parar la expedición.</p>`,
+        async()=>{ const num=v=>v===""?null:Math.trunc(Number(v)); const minimos=Object.fromEntries([...document.querySelectorAll(".le_m")].map(i=>[i.dataset.id,num(i.value)]));
+          const envases=[...document.querySelectorAll(".le_l")].map(i=>({envaseProductoId:i.dataset.id,limite:num(i.value),minimo:minimos[i.dataset.id]})).filter(x=>x.limite!=null||x.minimo!=null);
+          await api(`/agro/envases/cuentas/${id}/limites`,{method:"PUT",body:JSON.stringify({control:val("le_ctl"),envases})}); toast("Límites guardados.","ok"); vAgroEnvases(); });
+    }
+    async function modalCierreEnvases(){
+      const c=await api("/agro/envases/configuracion");
+      abrir("Cierre de envases",`<p class="muted" style="margin:0 0 10px">Hasta esta fecha (incluida) no se registra ni se anula ningún movimiento de envases. Déjala vacía para reabrir.</p>
+        <label>Cerrado hasta</label><input id="cie_f" type="date" value="${c.fechaCierre||""}"/>`,
+        async()=>{ await api("/agro/envases/configuracion",{method:"PUT",body:JSON.stringify({fechaCierre:val("cie_f")||null})}); toast("Cierre guardado.","ok"); vAgroEnvases(); });
+    }
+    async function modalInformeLimitesEnvases(desde){
+      const q=desde?`?sinMovimientosDesde=${desde}`:""; const inf=await api("/agro/envases/informe-limites"+q);
+      const tabla=(t,l)=>`<h4 style="margin:12px 0 6px">${t}</h4>`+(l.length?`<table><thead><tr><th>Cuenta</th><th class="num">Saldo</th><th>Detalle</th><th>Último movimiento</th></tr></thead><tbody>${l.map(f=>`<tr><td>${agEsc(f.cuenta)}</td><td class="num">${f.saldoTotal}</td><td>${f.incidencias.map(agEsc).join("<br>")}</td><td class="muted">${f.ultimoMovimiento?fdate(f.ultimoMovimiento):"—"}</td></tr>`).join("")}</tbody></table>`:'<p class="muted" style="margin:0">Ninguna.</p>');
+      abrir("Informe de límites de envases",`<div class="grid2" style="align-items:end"><div><label>Sin movimientos desde</label><input id="il_f" type="date" value="${desde||""}"/></div><div><button class="btn small secondary" onclick="modalInformeLimitesEnvases(val('il_f'))">Actualizar</button></div></div>
+        ${tabla("Superan su límite",inf.sobreLimite)}${tabla("Por debajo del mínimo",inf.bajoMinimo)}${desde?tabla("Con saldo y sin movimientos desde "+fdate(desde),inf.sinMovimientos):""}`,()=>{});
+      document.getElementById("modalOk").style.display="none";
     }
     function modalNuevaCuentaEnvases(){
       const e=window._env; const opc=l=>l.map(x=>`<option value="${x.id}">${agEsc(x.nombre)}</option>`).join("");
@@ -4038,7 +4064,10 @@
         <label>Envases</label><div id="me_ls">${fila()}</div><button class="btn small ghost" onclick="document.getElementById('me_ls').insertAdjacentHTML('beforeend',window._envFila())">+ Envase</button>
         <div class="grid2"><div><label>Matrícula</label><input id="me_mat"/></div><div><label>Observaciones</label><input id="me_obs"/></div></div>`,
         async()=>{ const op=Number(val("me_op")); const lineas=[...document.querySelectorAll("#me_ls .me-l")].map(r=>({envaseProductoId:r.querySelector(".me-p").value,cantidad:Math.trunc(Number(r.querySelector(".me-c").value||0))*(op===0?1:op)})).filter(l=>l.cantidad);
-          const m=await api("/agro/envases/movimientos",{method:"POST",body:JSON.stringify({cuentaId:id,fecha:val("me_f"),lineas,regularizacion:op===0,matricula:val("me_mat")||null,observaciones:val("me_obs")||null})});
+          const cuerpo={cuentaId:id,fecha:val("me_f"),lineas,regularizacion:op===0,matricula:val("me_mat")||null,observaciones:val("me_obs")||null};
+          let m; try{ m=await api("/agro/envases/movimientos",{method:"POST",body:JSON.stringify(cuerpo)}); }
+          catch(err){ if(err.codigo!=="envases.limite"||!confirm(err.message+"\n\n¿Registrarlo igualmente? Quedará anotado como forzado.")) throw err;
+            m=await api("/agro/envases/movimientos",{method:"POST",body:JSON.stringify({...cuerpo,forzar:true})}); }
           toast(`Movimiento ${m.numero} registrado.`+(m.aviso?" "+m.aviso:""),m.aviso?"warn":"ok"); vAgroEnvases(); });
     }
     async function modalExtractoEnvases(id){

@@ -402,6 +402,29 @@ internal sealed class ConfiguracionCuentaEnvases : IEntityTypeConfiguration<Cuen
         b.Property(x => x.Activa).HasColumnName("activa").IsRequired();
         b.Property(x => x.CreadaEn).HasColumnName("creada_en").IsRequired();
         b.HasIndex(x => new { x.EmpresaId, x.Tipo, x.TerceroId }).IsUnique().HasDatabaseName("ux_cuenta_envases_tercero");
+        Columnas.Enum(b.Property(x => x.ControlLimite), "control_limite").HasDefaultValue(ControlLimiteEnvases.Aviso);
+        b.OwnsMany(x => x.Limites, l =>
+        {
+            l.ToTable("limite_envase");
+            l.WithOwner().HasForeignKey("cuenta_envases_id");
+            l.HasKey(x => x.Id);
+            l.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+            l.Property(x => x.EnvaseProductoId).HasColumnName("envase_producto_id").IsRequired();
+            l.Property(x => x.Limite).HasColumnName("limite");
+            l.Property(x => x.Minimo).HasColumnName("minimo");
+            l.HasIndex("cuenta_envases_id", nameof(LimiteEnvase.EnvaseProductoId)).IsUnique().HasDatabaseName("ux_limite_envase");
+        });
+        b.Navigation(x => x.Limites).UsePropertyAccessMode(PropertyAccessMode.Field);
+    }
+}
+
+internal sealed class ConfiguracionConfiguracionEnvases : IEntityTypeConfiguration<ConfiguracionEnvases>
+{
+    public void Configure(EntityTypeBuilder<ConfiguracionEnvases> b)
+    {
+        Columnas.Base(b, "configuracion_envases");
+        b.Property(x => x.FechaCierre).HasColumnName("fecha_cierre");
+        b.HasIndex(x => x.EmpresaId).IsUnique().HasDatabaseName("ux_configuracion_envases_empresa");
     }
 }
 
@@ -546,6 +569,13 @@ internal sealed class RepositorioEnvases : IRepositorioEnvases
 
     public Task<bool> AnuladoAsync(Guid movimientoId, CancellationToken ct = default) =>
         _ctx.Set<MovimientoEnvases>().AnyAsync(m => m.AnulaMovimientoId == movimientoId, ct);
+
+    public Task<ConfiguracionEnvases?> ConfiguracionAsync(Guid empresaId, CancellationToken ct = default) =>
+        _ctx.Set<ConfiguracionEnvases>().FirstOrDefaultAsync(c => c.EmpresaId == empresaId, ct);
+
+    public async Task<IReadOnlyDictionary<Guid, DateOnly>> UltimosMovimientosAsync(Guid empresaId, CancellationToken ct = default) =>
+        await _ctx.Set<MovimientoEnvases>().AsNoTracking().Where(m => m.EmpresaId == empresaId).GroupBy(m => m.CuentaId)
+            .Select(g => new { g.Key, Fecha = g.Max(m => m.Fecha) }).ToDictionaryAsync(x => x.Key, x => x.Fecha, ct).ConfigureAwait(false);
 
     public async Task<int> SiguienteNumeroAsync(Guid empresaId, int ejercicio, CancellationToken ct = default) =>
         ((await _ctx.Set<MovimientoEnvases>().Where(m => m.EmpresaId == empresaId && m.Ejercicio == ejercicio).Select(m => (int?)m.Numero).MaxAsync(ct).ConfigureAwait(false)) ?? 0) + 1;

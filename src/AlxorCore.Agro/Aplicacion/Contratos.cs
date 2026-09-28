@@ -38,6 +38,10 @@ public interface IRepositorioEnvases
     Task<IReadOnlyList<MovimientoEnvases>> DeDocumentoAsync(Guid documentoId, CancellationToken ct = default);
     Task<bool> AnuladoAsync(Guid movimientoId, CancellationToken ct = default);
     Task<int> SiguienteNumeroAsync(Guid empresaId, int ejercicio, CancellationToken ct = default);
+    Task<ConfiguracionEnvases?> ConfiguracionAsync(Guid empresaId, CancellationToken ct = default);
+
+    /// <summary>Fecha del último movimiento de cada cuenta (la que cuenta el saldo).</summary>
+    Task<IReadOnlyDictionary<Guid, DateOnly>> UltimosMovimientosAsync(Guid empresaId, CancellationToken ct = default);
 }
 
 /// <summary>Persistencia del módulo agro.</summary>

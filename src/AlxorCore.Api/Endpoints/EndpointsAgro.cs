@@ -137,6 +137,21 @@ public static class EndpointsAgro
         g.MapPost("/envases/movimientos/{id:guid}/anular", async (Guid id, AnularPeticionEnvases? p, EnvasesTerceros v, CancellationToken ct) =>
                 (await v.AnularAsync(id, p?.Motivo, ct).ConfigureAwait(false)).AOk())
             .WithSummary("Anula un movimiento con su contrario (el libro es de solo inserción).").RequierePermiso(Permisos.AgroGestionar);
+        g.MapGet("/envases/cuentas/{id:guid}/limites", (Guid id, IContextoEmpresa c, EnvasesTerceros v, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await v.LimitesAsync(e, id, ct).ConfigureAwait(false)).AOk()))
+            .WithSummary("Límite y mínimo de cada envase de la cuenta, con su saldo.").RequierePermiso(Permisos.AgroLeer);
+        g.MapPut("/envases/cuentas/{id:guid}/limites", (Guid id, FijarLimitesEnvasesComando d, IContextoEmpresa c, EnvasesTerceros v, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await v.FijarLimitesAsync(e, id, d, ct).ConfigureAwait(false)).AOk()))
+            .WithSummary("Fija los límites y mínimos por envase y si se avisa o se bloquea al superarlos.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapGet("/envases/configuracion", (IContextoEmpresa c, EnvasesTerceros v, CancellationToken ct) =>
+                ConEmpresa(c, async e => Results.Ok(await v.ConfiguracionAsync(e, ct).ConfigureAwait(false))))
+            .WithSummary("Fecha de cierre de los movimientos de envases.").RequierePermiso(Permisos.AgroLeer);
+        g.MapPut("/envases/configuracion", (ConfiguracionEnvasesDto d, IContextoEmpresa c, EnvasesTerceros v, CancellationToken ct) =>
+                ConEmpresa(c, async e => Results.Ok(await v.CerrarAsync(e, d.FechaCierre, ct).ConfigureAwait(false))))
+            .WithSummary("Cierra los movimientos de envases hasta una fecha (null: reabre).").RequierePermiso(Permisos.AgroGestionar);
+        g.MapGet("/envases/informe-limites", (DateOnly? sinMovimientosDesde, IContextoEmpresa c, EnvasesTerceros v, CancellationToken ct) =>
+                ConEmpresa(c, async e => Results.Ok(await v.InformeLimitesAsync(e, sinMovimientosDesde, ct).ConfigureAwait(false))))
+            .WithSummary("Cuentas sobre su límite, bajo un mínimo o sin movimientos desde una fecha.").RequierePermiso(Permisos.AgroLeer);
 
         g.MapPost("/agricultores/{id:guid}/parcelas", (Guid id, DatosParcela d, IContextoEmpresa c, MaestrosAgro m, CancellationToken ct) =>
                 ConEmpresa(c, async e => Creado(await m.CrearParcelaAsync(e, id, d, ct).ConfigureAwait(false), "parcelas")))
