@@ -2041,9 +2041,9 @@
     async function borrarPlantillaAsiento(id){ if(!confirm("¿Borrar la plantilla? Los asientos ya hechos no cambian; los nuevos saldrán como siempre.")) return;
       try{ await api("/contabilidad/plantillas/"+id,{method:"DELETE"}); toast("Plantilla borrada.","ok"); cargarPlantillasAsiento(); }catch(e){ toast(e.message,"err"); } }
     // ---- Tesorería: entregas a cuenta a proveedores y liquidaciones de pagos (como Hispatec) ----
-    const LP_TIPO={EntregaCuenta:"Entrega a cuenta",Compensacion:"Compensado (lo debe como cliente)",CobroCompensado:"Cobro compensado",Pago:"Pago"};
+    const LP_TIPO={EntregaCuenta:"Entrega a cuenta",Compensacion:"Compensado (lo debe como cliente)",CobroCompensado:"Cobro compensado",Pago:"Pago",Intereses:"Intereses de entregas a cuenta",Retencion:"Retención (IRPF)",Pagare:"Pagaré"};
     const lpMenos=v=>v?"−"+eur(v):eur(0);
-    const LP_FORMA={Pendiente:"Queda pendiente",Directo:"Pago directo",Remesa:"Remesa de transferencias"};
+    const LP_FORMA={Pendiente:"Queda pendiente",Directo:"Pago directo",Remesa:"Remesa de transferencias",Pagare:"Pagaré"};
     async function vLiquidacionesPagos(){
       view('<div class="muted">Cargando…</div>');
       const hoy=new Date().toISOString().slice(0,10);
@@ -2066,7 +2066,7 @@
       const panelP=panel("Proveedores con pagos pendientes",filtro+(pend.length?`<table data-seleccion="no"><thead><tr><th>Proveedor</th><th class="num">Facturas</th><th class="num">Pendiente</th><th class="num">Entregas a cuenta</th><th>Debe como cliente (mismo NIF)</th><th class="num">Líquido</th><th></th></tr></thead><tbody>${filasP}</tbody></table>`
         :'<p class="muted" style="margin:0">No hay facturas de proveedores pendientes de pago hasta esa fecha.</p>'),
         pend.length?`<button class="btn small" onclick="modalLiquidacionMasiva()">Liquidación masiva…</button>`:"");
-      const filasE=entregas.map(e=>`<tr><td class="muted">${fdate(e.fecha)}</td><td>${agEsc(nom(e.proveedorId))}</td><td>${agEsc(e.concepto)}</td><td class="num">${eur(e.importe)}</td><td class="num">${eur(e.cancelado)}</td><td class="num"><strong>${eur(e.pendiente)}</strong></td>
+      const filasE=entregas.map(e=>`<tr><td class="muted">${fdate(e.fecha)}</td><td>${agEsc(nom(e.proveedorId))}</td><td>${agEsc(e.concepto)}${e.porcentajeInteres?` <span class="pill">${e.porcentajeInteres}% interés</span>`:""}</td><td class="num">${eur(e.importe)}</td><td class="num">${eur(e.cancelado)}</td><td class="num"><strong>${eur(e.pendiente)}</strong></td>
         <td class="right"><span class="pill ${e.estado==="Cancelada"?"ok":e.estado==="Anulada"?"neg":e.estado==="Parcial"?"part":"wait"}">${e.estado}</span></td>
         <td class="right">${e.estado==="Pendiente"?`<button class="btn small ghost" onclick="anularEntregaCuenta('${e.id}')">Anular</button>`:""}</td></tr>`).join("");
       const panelE=panel("Entregas a cuenta",`<p class="muted" style="margin:0 0 12px">Dinero adelantado sin IVA a un proveedor o agricultor (407 a banco). Se cancela en su liquidación contra sus facturas (400 a 407).</p>`
@@ -2084,10 +2084,12 @@
       return `<div class="grid2"><div><label>Pago del líquido</label><select id="${pref}_forma">${Object.entries(LP_FORMA).map(([k,v])=>`<option value="${k}"${k===defecto?" selected":""}>${v}</option>`).join("")}</select></div>
         <div><label>Banco</label><select id="${pref}_banco"><option value="">— Predeterminado —</option>${b.map(x=>`<option value="${x.id}">${agEsc(x.nombre)}</option>`).join("")}</select></div></div>
         <div class="grid2"><label style="display:flex;gap:8px;align-items:center;font-weight:500"><input id="${pref}_ent" type="checkbox" style="width:auto;margin:0" checked/> Cancelar entregas a cuenta</label>
-        <label style="display:flex;gap:8px;align-items:center;font-weight:500"><input id="${pref}_comp" type="checkbox" style="width:auto;margin:0" checked/> Compensar lo que debe como cliente</label></div>`;
+        <label style="display:flex;gap:8px;align-items:center;font-weight:500"><input id="${pref}_comp" type="checkbox" style="width:auto;margin:0" checked/> Compensar lo que debe como cliente</label></div>
+        <div class="grid2" style="grid-template-columns:repeat(3,1fr)"><div><label>% retención (IRPF)</label><input id="${pref}_ret" type="number" step="0.01" min="0" max="50" placeholder="0"/></div>
+        <div><label>Vencimiento del pagaré</label><input id="${pref}_pvto" type="date"/></div><div><label>Nº de pagaré</label><input id="${pref}_pnum" placeholder="Solo con pagaré"/></div></div>`;
     }
     function lpAncho(){ const caja=document.querySelector("#modalBg .modal"); if(caja){ caja.style.maxWidth="760px"; setTimeout(()=>{ const o=new MutationObserver(()=>{ if(document.getElementById("modalBg").style.display==="none"){ caja.style.maxWidth=""; o.disconnect(); } }); o.observe(document.getElementById("modalBg"),{attributes:true}); }); } }
-    const lpDatos=pref=>({formaPago:val(pref+"_forma"),cuentaBancariaId:val(pref+"_banco")||null,cancelarEntregas:document.getElementById(pref+"_ent").checked,compensar:document.getElementById(pref+"_comp").checked});
+    const lpDatos=pref=>({formaPago:val(pref+"_forma"),cuentaBancariaId:val(pref+"_banco")||null,cancelarEntregas:document.getElementById(pref+"_ent").checked,compensar:document.getElementById(pref+"_comp").checked,porcentajeRetencion:Number(val(pref+"_ret")||0),vencimientoPagare:(document.getElementById(pref+"_pvto")||{}).value||null,numeroPagare:(document.getElementById(pref+"_pnum")||{}).value||null});
     function lpLineasHtml(lineas){
       return lineas.length?`<table data-rejilla="no"><thead><tr><th>Concepto</th><th>Documento</th><th class="num">Importe</th></tr></thead><tbody>${lineas.map(x=>`<tr><td>${LP_TIPO[x.tipo]||x.tipo}</td><td class="mono">${agEsc(x.documento)}</td><td class="num">${eur(x.importe)}</td></tr>`).join("")}</tbody></table>`:'<p class="muted">Nada que cancelar ni compensar.</p>';
     }
@@ -2117,9 +2119,9 @@
       const e=window._lp;
       abrir("Nueva entrega a cuenta",`<label>Proveedor o agricultor</label><select id="ec_pro">${e.proveedores.map(p=>`<option value="${p.id}">${agEsc(p.nombre)}</option>`).join("")}</select>
         <div class="grid2"><div><label>Importe</label><input id="ec_imp" type="number" step="0.01" min="0"/></div><div><label>Fecha</label><input id="ec_fecha" type="date" value="${new Date().toISOString().slice(0,10)}"/></div></div>
-        <label>Concepto</label><input id="ec_con" placeholder="Entrega a cuenta de la campaña"/>
+        <div class="grid2"><div><label>Concepto</label><input id="ec_con" placeholder="Entrega a cuenta de la campaña"/></div><div><label>% interés anual</label><input id="ec_int" type="number" step="0.01" min="0" max="100" placeholder="0"/></div></div>
         <label>Banco o caja</label><select id="ec_banco"><option value="">— Predeterminado —</option>${e.bancos.map(x=>`<option value="${x.id}">${agEsc(x.nombre)}</option>`).join("")}</select>`,
-        async()=>{ await api("/pagos/entregas-cuenta",{method:"POST",body:JSON.stringify({proveedorId:val("ec_pro"),importe:Number(val("ec_imp")),fecha:val("ec_fecha"),concepto:val("ec_con")||null,cuentaBancariaId:val("ec_banco")||null})});
+        async()=>{ await api("/pagos/entregas-cuenta",{method:"POST",body:JSON.stringify({proveedorId:val("ec_pro"),importe:Number(val("ec_imp")),fecha:val("ec_fecha"),concepto:val("ec_con")||null,cuentaBancariaId:val("ec_banco")||null,porcentajeInteres:Number(val("ec_int")||0)})});
           toast("Entrega a cuenta registrada.","ok"); vLiquidacionesPagos(); });
     }
     async function anularEntregaCuenta(id){
@@ -2130,7 +2132,9 @@
       const l=await api(`/pagos/liquidaciones/${id}`);
       abrir(`Liquidación ${l.numero} · ${agEsc(l.proveedor||"")}`,`<p class="muted" style="margin:0 0 10px">${fdate(l.fecha)} · facturas hasta ${fdate(l.hasta)} · ${LP_FORMA[l.formaPago]||l.formaPago}${l.estado==="Anulada"?` · <strong>Anulada</strong>${l.motivoAnulacion?": "+agEsc(l.motivoAnulacion):""}`:""}</p>
         <div class="kpis" style="grid-template-columns:repeat(4,1fr)"><div class="kpi"><div class="lbl">A pagar</div><div class="val">${eur(l.aPagar)}</div></div><div class="kpi"><div class="lbl">Entregas</div><div class="val">${lpMenos(l.entregasCanceladas)}</div></div>
-        <div class="kpi"><div class="lbl">Compensado</div><div class="val">${lpMenos(l.compensado)}</div></div><div class="kpi"><div class="lbl">Líquido</div><div class="val">${eur(l.liquido)}</div></div></div>${lpLineasHtml(l.lineas)}`,null);
+        <div class="kpi"><div class="lbl">Compensado</div><div class="val">${lpMenos(l.compensado)}</div></div><div class="kpi"><div class="lbl">Líquido</div><div class="val">${eur(l.liquido)}</div></div></div>
+        ${(l.intereses||l.retencion)?`<p class="muted" style="margin:0 0 10px">Intereses de entregas: ${lpMenos(l.intereses||0)} · Retención ${l.porcentajeRetencion||0}%: ${lpMenos(l.retencion||0)}</p>`:""}${lpLineasHtml(l.lineas)}
+        <div style="margin-top:10px"><button class="btn small secondary" onclick="abrirPdfRuta('/pagos/liquidaciones/${l.id}/pdf')">Imprimir liquidación (PDF)</button></div>`,null);
       document.getElementById("modalOk").style.display="none"; lpAncho();
     }
     async function anularLiquidacionPagos(id){

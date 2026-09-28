@@ -98,6 +98,13 @@ public sealed class EntregaCuentaProveedor : RaizAgregadoEmpresa<Guid>
 
     public string? MotivoAnulacion { get; private set; }
 
+    /// <summary>Interés anual que devenga la entrega hasta que se cancela (<c>ConIntereses</c>; 0, sin intereses).</summary>
+    public decimal PorcentajeInteres { get; private set; }
+
+    /// <summary>Intereses de <paramref name="importe"/> desde la entrega hasta <paramref name="hasta"/> (año de 365 días).</summary>
+    public decimal Intereses(decimal importe, DateOnly hasta) =>
+        PorcentajeInteres <= 0m ? 0m : Redondeo.Dos(importe * PorcentajeInteres / 100m * Math.Max(hasta.DayNumber - Fecha.DayNumber, 0) / 365m);
+
     public IReadOnlyList<CancelacionEntregaCuenta> Cancelaciones => _cancelaciones;
 
     public decimal Cancelado => Redondeo.Dos(_cancelaciones.Sum(c => c.Importe));
@@ -108,9 +115,14 @@ public sealed class EntregaCuentaProveedor : RaizAgregadoEmpresa<Guid>
         : Cancelado == 0 ? EstadoEntregaCuenta.Pendiente : Pendiente == 0 ? EstadoEntregaCuenta.Cancelada : EstadoEntregaCuenta.Parcial;
 
     public static Resultado<EntregaCuentaProveedor> Registrar(Guid empresaId, Guid proveedorId, decimal importe, DateOnly fecha, string? concepto, string? metodo,
-        Guid? cuentaBancariaId, IReloj reloj)
+        Guid? cuentaBancariaId, IReloj reloj, decimal porcentajeInteres = 0m)
     {
         ArgumentNullException.ThrowIfNull(reloj);
+        if (porcentajeInteres is < 0m or > 100m)
+        {
+            return Resultado.Fallo<EntregaCuentaProveedor>(Error.Validacion("entregacuenta.interes", "El interés anual va de 0 a 100 %."));
+        }
+
         var importeRedondeado = Redondeo.Dos(importe);
         if (importeRedondeado <= 0)
         {
@@ -120,7 +132,7 @@ public sealed class EntregaCuentaProveedor : RaizAgregadoEmpresa<Guid>
         var texto = string.IsNullOrWhiteSpace(concepto) ? "Entrega a cuenta" : concepto.Trim();
         var metodoLimpio = string.IsNullOrWhiteSpace(metodo) ? null : metodo.Trim()[..Math.Min(metodo.Trim().Length, 60)];
         return Resultado.Ok(new EntregaCuentaProveedor(Guid.NewGuid(), empresaId, proveedorId, importeRedondeado, fecha, texto[..Math.Min(texto.Length, LongitudConcepto)],
-            metodoLimpio, cuentaBancariaId, reloj.AhoraUtc));
+            metodoLimpio, cuentaBancariaId, reloj.AhoraUtc) { PorcentajeInteres = Redondeo.Dos(porcentajeInteres) });
     }
 
     /// <summary>Comprueba que se pueden cancelar <paramref name="importe"/> euros (sin anotar nada).</summary>
@@ -193,6 +205,15 @@ public enum TipoLineaLiquidacionPagos
     /// <summary>Parte de una factura del mismo NIF como cliente cobrada por compensación (555 a 430).</summary>
     CobroCompensado = 3,
 
+    /// <summary>Intereses de las entregas a cuenta canceladas, que se descuentan al proveedor (400 a 769).</summary>
+    Intereses = 5,
+
+    /// <summary>Retención practicada en el pago (400 a 4751).</summary>
+    Retencion = 6,
+
+    /// <summary>Parte de una factura pagada con el pagaré del líquido (400 a 401).</summary>
+    Pagare = 7,
+
     /// <summary>Pago del líquido de una factura por banco o caja.</summary>
     Pago = 4,
 }
@@ -208,6 +229,9 @@ public enum FormaPagoLiquidacion
 
     /// <summary>Se incluye en una remesa SEPA de transferencias (pain.001); el pago se registra al liquidar la remesa.</summary>
     Remesa = 3,
+
+    /// <summary>El líquido se documenta en un pagaré a fecha (efecto a pagar en 401), que se paga a su vencimiento.</summary>
+    Pagare = 4,
 }
 
 public enum EstadoLiquidacionPagos
@@ -308,7 +332,19 @@ public sealed class LiquidacionPagos : RaizAgregadoEmpresa<Guid>
 
     public decimal Compensado { get; private set; }
 
-    /// <summary>Lo que se le paga: a pagar − entregas − compensado.</summary>
+    /// <summary>Intereses de las entregas a cuenta que se le descuentan.</summary>
+    public decimal Intereses { get; private set; }
+
+    /// <summary>Retención practicada en el pago.</summary>
+    public decimal Retencion { get; private set; }
+
+    /// <summary>Porcentaje de la retención en el pago (sobre lo que se liquida).</summary>
+    public decimal PorcentajeRetencion { get; private set; }
+
+    /// <summary>Pagaré (efecto a pagar) con que se documenta el líquido.</summary>
+    public Guid? PagareId { get; private set; }
+
+    /// <summary>Lo que se le paga: a pagar − entregas − compensado − intereses − retención.</summary>
     public decimal Liquido { get; private set; }
 
     public FormaPagoLiquidacion FormaPago { get; private set; }
@@ -346,8 +382,14 @@ public sealed class LiquidacionPagos : RaizAgregadoEmpresa<Guid>
         _lineas.Add(new LineaLiquidacionPagos(tipo, documentoId, documento, Redondeo.Dos(importe), movimientoId, entregaId));
         EntregasCanceladas = Redondeo.Dos(_lineas.Where(l => l.Tipo == TipoLineaLiquidacionPagos.EntregaCuenta).Sum(l => l.Importe));
         Compensado = Redondeo.Dos(_lineas.Where(l => l.Tipo == TipoLineaLiquidacionPagos.Compensacion).Sum(l => l.Importe));
-        Liquido = Redondeo.Dos(APagar - EntregasCanceladas - Compensado);
+        Intereses = Redondeo.Dos(_lineas.Where(l => l.Tipo == TipoLineaLiquidacionPagos.Intereses).Sum(l => l.Importe));
+        Retencion = Redondeo.Dos(_lineas.Where(l => l.Tipo == TipoLineaLiquidacionPagos.Retencion).Sum(l => l.Importe));
+        Liquido = Redondeo.Dos(APagar - EntregasCanceladas - Compensado - Intereses - Retencion);
     }
+
+    public void FijarRetencion(decimal porcentaje) => PorcentajeRetencion = Redondeo.Dos(porcentaje);
+
+    public void AsignarPagare(Guid efectoId) => PagareId = efectoId;
 
     /// <summary>El líquido va en esta remesa de transferencias (el pago se registra al liquidarla).</summary>
     public void IncluirEnRemesa(Guid remesaId)

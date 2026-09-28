@@ -155,6 +155,11 @@ public sealed class GestionCartera
             return Resultado.Fallo<EfectoCarteraDto>(Error.Conflicto("cartera.de_renovacion", "El efecto sale de una renovación: anula la renovación."));
         }
 
+        if (efecto.Origen == "Liquidacion")
+        {
+            return Resultado.Fallo<EfectoCarteraDto>(Error.Conflicto("cartera.de_liquidacion", "Es el pagaré de una liquidación de pagos: anula la liquidación."));
+        }
+
         var liquidado = await _movimientos.SumaAsync(TipoDocumentoTesoreria.Cartera, efectoId, ct).ConfigureAwait(false);
         if (liquidado != 0m)
         {

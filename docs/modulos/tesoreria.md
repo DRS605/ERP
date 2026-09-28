@@ -171,6 +171,21 @@ Como en Hispatec (`EntregasCuentaProveedor` y `Liquidaciones`), para pagar a pro
      (400 a 555) y un cobro de la del cliente (555 a 430), así que 555 queda a cero;
   4. paga el **líquido**: lo deja pendiente, lo paga ya por el banco elegido o lo mete en una **remesa de
      transferencias** SEPA (el pago se registra al liquidar la remesa).
+- **Intereses de las entregas** (`entrega_cuenta_proveedor.porcentaje_interes`). Una entrega puede llevar un % de
+  interés anual. Al cancelarla en la liquidación se descuenta del líquido el interés de lo cancelado:
+  importe × % × días desde la entrega hasta la fecha de la liquidación / 365. Va a 769 (400 a 769).
+- **Retención en el pago** (`porcentaje_retencion`, de 0 a 50 %). Se aplica sobre lo que se paga de cada factura y va a
+  4751 (400 a 4751). Sirve para el IRPF de los agricultores en módulos.
+- **Pagaré.** Con la forma de pago *Pagaré*, el líquido no sale por banco:
+  - se crea un **efecto a pagar** en cartera (origen `Liquidacion`, cuenta 401) con el vencimiento y el número que se
+    indiquen;
+  - las facturas quedan pagadas contra 401 (400 a 401);
+  - el pagaré se paga desde la cartera al vencer;
+  - al anular la liquidación se anula el pagaré, salvo que esté pagado (`liquidacionpagos.pagare_pagado`);
+  - el efecto no se anula por su cuenta (`cartera.de_liquidacion`).
+- **Líquido** = a pagar − entregas − compensado − intereses − retención.
+- **Impreso** de la liquidación en PDF (`GET /pagos/liquidaciones/{id}/pdf`): facturas, entregas, compensaciones,
+  intereses, retención y la forma de pago del líquido.
 - **Nunca sale negativa.** Si el proveedor debe más de lo que se le debe, solo se compensa hasta cubrirlo; el resto
   sigue pendiente en sus facturas de cliente.
 - **Previsualizar** calcula lo mismo sin registrar nada.

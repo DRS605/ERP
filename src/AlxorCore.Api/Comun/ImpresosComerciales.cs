@@ -26,12 +26,14 @@ public sealed class ImpresosComerciales
     private readonly LiquidacionesAgro _liquidaciones;
     private readonly IRepositorioAgro _agro;
     private readonly OrdenesCargaAgro? _ordenes;
+    private readonly AlxorCore.Tesoreria.Aplicacion.LiquidacionesPagos? _liquidacionesPagos;
 
     public ImpresosComerciales(IGeneradorPdfDocumento generador, IConsultaEmpresas empresas, IConsultaClientes clientes, IConsultaProveedores proveedores,
         ConsultarAlbaranesVenta albaranes, ObtenerPedidoVenta pedidosVenta, ObtenerPedido pedidosCompra, LiquidacionesAgro liquidaciones, IRepositorioAgro agro,
-        OrdenesCargaAgro? ordenes = null)
+        OrdenesCargaAgro? ordenes = null, AlxorCore.Tesoreria.Aplicacion.LiquidacionesPagos? liquidacionesPagos = null)
     {
         _ordenes = ordenes;
+        _liquidacionesPagos = liquidacionesPagos;
         _generador = generador;
         _empresas = empresas;
         _clientes = clientes;
@@ -126,6 +128,53 @@ public sealed class ImpresosComerciales
                 : "Autofactura emitida por el destinatario por cuenta del proveedor (art. 5 del Reglamento de facturación).",
             TituloCantidad: "Kilos");
         return await PdfAsync(empresaId, doc, $"liquidacion-{l.Numero ?? "borrador"}", ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Liquidación de pagos al proveedor o agricultor (el impreso de <c>LiquidacionImprimir</c> de Hispatec): facturas
+    /// liquidadas, entregas a cuenta canceladas, cobros compensados, intereses, retención y el líquido con su forma de pago.
+    /// </summary>
+    public async Task<Resultado<DocumentoPdf>> LiquidacionPagosAsync(Guid empresaId, Guid id, CancellationToken ct = default)
+    {
+        var r = _liquidacionesPagos is null ? null : await _liquidacionesPagos.ObtenerAsync(id, ct).ConfigureAwait(false);
+        if (r is null || r.EsFallo)
+        {
+            return Resultado.Fallo<DocumentoPdf>(Error.NoEncontrado("liquidacionpagos.no_encontrada", "La liquidación de pagos no existe."));
+        }
+
+        var l = r.Valor;
+        var proveedor = await _proveedores.ObtenerAsync(l.ProveedorId, ct).ConfigureAwait(false);
+        var tercero = new TerceroImpreso("Proveedor", proveedor?.Nombre ?? l.Proveedor ?? "—", proveedor?.NifFiscal,
+            proveedor is null ? null : Direccion(proveedor.Calle, proveedor.CodigoPostal, proveedor.Poblacion, proveedor.Provincia));
+        static string Tipo(string t) => t switch
+        {
+            "EntregaCuenta" => "Entrega a cuenta cancelada",
+            "Compensacion" => "Compensado con sus facturas de cliente",
+            "CobroCompensado" => "Cobro compensado",
+            "Intereses" => "Intereses de entregas a cuenta",
+            "Retencion" => "Retención en el pago",
+            "Pagare" => "Pagado con pagaré",
+            _ => "Pagado",
+        };
+        var lineas = l.Lineas.Select(x => new LineaImpresa($"{x.Documento} · {Tipo(x.Tipo)}", 1m, null, null, null, x.Tipo == "CobroCompensado" ? x.Importe : -x.Importe))
+            .Prepend(new LineaImpresa("Facturas pendientes liquidadas", 1m, null, null, null, l.APagar)).ToList();
+        var totales = new List<TotalImpreso> { new("Facturas liquidadas", l.APagar) };
+        if (l.EntregasCanceladas != 0) totales.Add(new TotalImpreso("Entregas a cuenta", -l.EntregasCanceladas));
+        if (l.Compensado != 0) totales.Add(new TotalImpreso("Compensado", -l.Compensado));
+        if (l.Intereses != 0) totales.Add(new TotalImpreso("Intereses de entregas", -l.Intereses));
+        if (l.Retencion != 0) totales.Add(new TotalImpreso($"Retención ({Redondeo.Formatear(l.PorcentajeRetencion)} %)", -l.Retencion));
+        totales.Add(new TotalImpreso("Líquido", l.Liquido, Destacado: true));
+        var forma = l.FormaPago switch
+        {
+            "Directo" => "Pagado por banco",
+            "Remesa" => "Por transferencia (remesa)",
+            "Pagare" => "Pagaré a fecha",
+            _ => "Pendiente de pago",
+        };
+        var doc = new DocumentoImpreso("Liquidación de pagos", l.Numero, l.Fecha, tercero, lineas, totales,
+            [("Facturas hasta", l.Hasta.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture)), ("Forma de pago", forma), ("Estado", l.Estado)],
+            Leyenda: $"Líquido a percibir: {Redondeo.Formatear(l.Liquido)} €.", TituloCantidad: " ");
+        return await PdfAsync(empresaId, doc, $"liquidacion-pagos-{l.Numero}", ct).ConfigureAwait(false);
     }
 
     /// <summary>Hoja de carga: palés por línea de pedido con su SSCC y posición, y el esquema del camión si se indicaron filas y columnas.</summary>

@@ -57,35 +57,39 @@ public interface IRepositorioLiquidacionesPagos
     Task BloquearAsync(string clave, CancellationToken ct = default);
 }
 
-public sealed record DatosEntregaCuenta(Guid ProveedorId, decimal Importe, DateOnly? Fecha = null, string? Concepto = null, string? Metodo = null, Guid? CuentaBancariaId = null);
+public sealed record DatosEntregaCuenta(Guid ProveedorId, decimal Importe, DateOnly? Fecha = null, string? Concepto = null, string? Metodo = null, Guid? CuentaBancariaId = null,
+    decimal PorcentajeInteres = 0m);
 
 public sealed record AplicarEntregaComando(Guid GastoId, decimal? Importe = null, DateOnly? Fecha = null);
 
 public sealed record CancelacionEntregaDto(Guid GastoId, decimal Importe, DateOnly Fecha, Guid MovimientoId, Guid? LiquidacionId);
 
 public sealed record EntregaCuentaDto(Guid Id, Guid ProveedorId, string? Proveedor, decimal Importe, DateOnly Fecha, string Concepto, string? Metodo, Guid? CuentaBancariaId,
-    decimal Cancelado, decimal Pendiente, string Estado, string? MotivoAnulacion, IReadOnlyList<CancelacionEntregaDto> Cancelaciones);
+    decimal Cancelado, decimal Pendiente, string Estado, string? MotivoAnulacion, IReadOnlyList<CancelacionEntregaDto> Cancelaciones, decimal PorcentajeInteres = 0m);
 
 /// <summary>
 /// Liquidación de pagos a un proveedor. <paramref name="Hasta"/>: fecha de corte de las facturas (por defecto, la de la
 /// liquidación). <paramref name="FormaPago"/>: dejar el líquido pendiente, pagarlo ya por el banco o incluirlo en una remesa.
 /// </summary>
 public sealed record DatosLiquidacionPagos(Guid ProveedorId, DateOnly? Hasta = null, DateOnly? Fecha = null, bool CancelarEntregas = true, bool Compensar = true,
-    FormaPagoLiquidacion FormaPago = FormaPagoLiquidacion.Pendiente, Guid? CuentaBancariaId = null, string? Metodo = null);
+    FormaPagoLiquidacion FormaPago = FormaPagoLiquidacion.Pendiente, Guid? CuentaBancariaId = null, string? Metodo = null, decimal PorcentajeRetencion = 0m,
+    DateOnly? VencimientoPagare = null, string? NumeroPagare = null);
 
 /// <summary>Liquidación de todos los proveedores (o solo agricultores, o los indicados) con facturas pendientes hasta la fecha.</summary>
 public sealed record DatosLiquidacionMasiva(DateOnly? Hasta = null, DateOnly? Fecha = null, bool SoloAgricultores = false, IReadOnlyList<Guid>? ProveedorIds = null,
-    bool CancelarEntregas = true, bool Compensar = true, FormaPagoLiquidacion FormaPago = FormaPagoLiquidacion.Remesa, Guid? CuentaBancariaId = null, string? Metodo = null);
+    bool CancelarEntregas = true, bool Compensar = true, FormaPagoLiquidacion FormaPago = FormaPagoLiquidacion.Remesa, Guid? CuentaBancariaId = null, string? Metodo = null,
+    decimal PorcentajeRetencion = 0m);
 
 public sealed record LineaLiquidacionPagosDto(string Tipo, Guid DocumentoId, string Documento, decimal Importe, Guid? MovimientoId, Guid? EntregaId);
 
 public sealed record LiquidacionPagosDto(Guid Id, string Numero, DateOnly Fecha, DateOnly Hasta, Guid ProveedorId, string? Proveedor, Guid? ClienteId,
     decimal APagar, decimal EntregasCanceladas, decimal Compensado, decimal Liquido, string FormaPago, Guid? CuentaBancariaId, Guid? RemesaId, Guid? LoteId,
-    string Estado, string? MotivoAnulacion, IReadOnlyList<LineaLiquidacionPagosDto> Lineas, IReadOnlyList<string> Avisos);
+    string Estado, string? MotivoAnulacion, IReadOnlyList<LineaLiquidacionPagosDto> Lineas, IReadOnlyList<string> Avisos, decimal Intereses = 0m, decimal Retencion = 0m,
+    decimal PorcentajeRetencion = 0m, Guid? PagareId = null);
 
 public sealed record PropuestaLiquidacionPagosDto(Guid ProveedorId, string? Proveedor, Guid? ClienteId, DateOnly Hasta, IReadOnlyList<DocumentoPendienteDto> Gastos,
     IReadOnlyList<DocumentoPendienteDto> Facturas, IReadOnlyList<EntregaCuentaDto> Entregas, decimal APagar, decimal EntregasCanceladas, decimal Compensado,
-    decimal Liquido, IReadOnlyList<LineaLiquidacionPagosDto> Lineas);
+    decimal Liquido, IReadOnlyList<LineaLiquidacionPagosDto> Lineas, decimal Intereses = 0m, decimal Retencion = 0m);
 
 public sealed record ResultadoLiquidacionMasivaDto(Guid LoteId, int Liquidaciones, decimal APagar, decimal EntregasCanceladas, decimal Compensado, decimal Liquido,
     Guid? RemesaId, string? Remesa, IReadOnlyList<LiquidacionPagosDto> Detalle, IReadOnlyList<string> Omitidos);
@@ -116,12 +120,14 @@ public sealed class LiquidacionesPagos
     private readonly ResolutorCuentaTesoreria? _resolutor;
     private readonly GestionRemesas? _remesas;
     private readonly IRepositorioRemesas? _repoRemesas;
+    private readonly IRepositorioCartera? _cartera;
     private readonly Dictionary<int, int> _ultimos = [];
 
     public LiquidacionesPagos(IRepositorioLiquidacionesPagos repo, IPendientesLiquidacionPagos pendientes, IRepositorioMovimientos movimientos, IConsultaGastos gastos,
         IConsultaFacturas facturas, IConsultaProveedores proveedores, IUnidadDeTrabajoTesoreria unidad, IReloj reloj, ContabilizacionTesoreria? contabilizacion = null,
-        ResolutorCuentaTesoreria? resolutor = null, GestionRemesas? remesas = null, IRepositorioRemesas? repoRemesas = null)
+        ResolutorCuentaTesoreria? resolutor = null, GestionRemesas? remesas = null, IRepositorioRemesas? repoRemesas = null, IRepositorioCartera? cartera = null)
     {
+        _cartera = cartera;
         _repo = repo;
         _pendientes = pendientes;
         _movimientos = movimientos;
@@ -164,7 +170,8 @@ public sealed class LiquidacionesPagos
             return Resultado.Fallo<EntregaCuentaDto>(cuenta.Error);
         }
 
-        var e = EntregaCuentaProveedor.Registrar(empresaId, datos.ProveedorId, datos.Importe, datos.Fecha ?? Hoy, datos.Concepto, datos.Metodo, cuenta.Valor, _reloj);
+        var e = EntregaCuentaProveedor.Registrar(empresaId, datos.ProveedorId, datos.Importe, datos.Fecha ?? Hoy, datos.Concepto, datos.Metodo, cuenta.Valor, _reloj,
+            datos.PorcentajeInteres);
         if (e.EsFallo)
         {
             return Resultado.Fallo<EntregaCuentaDto>(e.Error);
@@ -274,7 +281,7 @@ public sealed class LiquidacionesPagos
         var p = plan.Valor;
         return Resultado.Ok(new PropuestaLiquidacionPagosDto(datos.ProveedorId, p.Proveedor, p.ClienteId, p.Hasta, p.Gastos, p.Facturas,
             p.Entregas.Select(e => Dto(e, p.Proveedor)).ToList(), p.APagar, p.EntregasCanceladas, p.Compensado, p.Liquido,
-            p.Lineas.Select(x => new LineaLiquidacionPagosDto(x.Tipo.ToString(), x.DocumentoId, x.Documento, x.Importe, null, x.Entrega?.Id)).ToList()));
+            p.Lineas.Select(x => new LineaLiquidacionPagosDto(x.Tipo.ToString(), x.DocumentoId, x.Documento, x.Importe, null, x.Entrega?.Id)).ToList(), p.Intereses, p.Retencion));
     }
 
     public async Task<Resultado<LiquidacionPagosDto>> EmitirAsync(Guid empresaId, DatosLiquidacionPagos datos, CancellationToken ct = default)
@@ -319,7 +326,7 @@ public sealed class LiquidacionesPagos
         foreach (var c in candidatos)
         {
             var r = await EmitirInternoAsync(empresaId, new DatosLiquidacionPagos(c.ProveedorId, hasta, fecha, datos.CancelarEntregas, datos.Compensar, forma,
-                datos.CuentaBancariaId, datos.Metodo), lote, ct).ConfigureAwait(false);
+                datos.CuentaBancariaId, datos.Metodo, datos.PorcentajeRetencion), lote, ct).ConfigureAwait(false);
             if (r.EsFallo)
             {
                 omitidos.Add($"{c.Nombre}: {r.Error.Mensaje}");
@@ -365,6 +372,19 @@ public sealed class LiquidacionesPagos
         {
             return Resultado.Fallo<LiquidacionPagosDto>(Error.Conflicto("liquidacionpagos.en_remesa",
                 $"El líquido va en la remesa {remesa.Codigo}: anula antes la remesa (o sus pagos) y después la liquidación."));
+        }
+
+        // El pagaré se anula con la liquidación si aún no se ha pagado.
+        if (l.PagareId is { } pagareId && _cartera is not null && await _cartera.ObtenerAsync(pagareId, ct).ConfigureAwait(false) is { } pagare
+            && !(await _cartera.AnuladosAsync([pagareId], ct).ConfigureAwait(false)).Contains(pagareId))
+        {
+            if (await _movimientos.SumaAsync(TipoDocumentoTesoreria.Cartera, pagareId, ct).ConfigureAwait(false) != 0m)
+            {
+                return Resultado.Fallo<LiquidacionPagosDto>(Error.Conflicto("liquidacionpagos.pagare_pagado",
+                    $"El pagaré {pagare.Documento} ya está pagado: anula antes su pago."));
+            }
+
+            _cartera.Agregar(AnulacionEfecto.Crear(pagare, $"Anulación de la liquidación {l.NumeroCompleto}", _reloj).Valor);
         }
 
         var hoy = Hoy;
@@ -419,7 +439,11 @@ public sealed class LiquidacionesPagos
 
         public decimal Compensado => Redondeo.Dos(Lineas.Where(l => l.Tipo == TipoLineaLiquidacionPagos.Compensacion).Sum(l => l.Importe));
 
-        public decimal Liquido => Redondeo.Dos(APagar - EntregasCanceladas - Compensado);
+        public decimal Intereses => Redondeo.Dos(Lineas.Where(l => l.Tipo == TipoLineaLiquidacionPagos.Intereses).Sum(l => l.Importe));
+
+        public decimal Retencion => Redondeo.Dos(Lineas.Where(l => l.Tipo == TipoLineaLiquidacionPagos.Retencion).Sum(l => l.Importe));
+
+        public decimal Liquido => Redondeo.Dos(APagar - EntregasCanceladas - Compensado - Intereses - Retencion);
     }
 
     private async Task<Resultado<Plan>> PlanificarAsync(DatosLiquidacionPagos datos, CancellationToken ct)
@@ -432,7 +456,17 @@ public sealed class LiquidacionesPagos
 
         if (!Enum.IsDefined(datos.FormaPago))
         {
-            return Resultado.Fallo<Plan>(Error.Validacion("liquidacionpagos.forma_pago", "Forma de pago no válida: Pendiente, Directo o Remesa."));
+            return Resultado.Fallo<Plan>(Error.Validacion("liquidacionpagos.forma_pago", "Forma de pago no válida: Pendiente, Directo, Remesa o Pagare."));
+        }
+
+        if (datos.PorcentajeRetencion is < 0m or > 50m)
+        {
+            return Resultado.Fallo<Plan>(Error.Validacion("liquidacionpagos.retencion", "La retención en el pago va de 0 a 50 %."));
+        }
+
+        if (datos.FormaPago == FormaPagoLiquidacion.Pagare && (datos.VencimientoPagare is not { } vp || vp < (datos.Fecha ?? Hoy)))
+        {
+            return Resultado.Fallo<Plan>(Error.Validacion("liquidacionpagos.pagare", "Indica el vencimiento del pagaré (no anterior a la liquidación)."));
         }
 
         var hasta = datos.Hasta ?? datos.Fecha ?? Hoy;
@@ -504,10 +538,35 @@ public sealed class LiquidacionesPagos
             }
         }
 
-        // 3. El líquido, por banco o caja si se paga ya.
-        if (datos.FormaPago == FormaPagoLiquidacion.Directo)
+        // 3. Intereses de las entregas canceladas (de la entrega hasta la liquidación) y retención en el pago: se descuentan
+        //    de lo que queda por pagar, factura a factura.
+        var fechaLiquidacion = datos.Fecha ?? Hoy;
+        var intereses = Redondeo.Dos(lineas.Where(x => x.Tipo == TipoLineaLiquidacionPagos.EntregaCuenta && x.Entrega is not null)
+            .Sum(x => x.Entrega!.Intereses(x.Importe, fechaLiquidacion)));
+        var aPagar = Redondeo.Dos(gastos.Sum(g => g.Pendiente));
+        var retencion = Redondeo.Dos(aPagar * datos.PorcentajeRetencion / 100m);
+        foreach (var (tipo, importe) in new[] { (TipoLineaLiquidacionPagos.Intereses, intereses), (TipoLineaLiquidacionPagos.Retencion, retencion) })
         {
-            lineas.AddRange(gastos.Where(g => restante[g.Id] > 0).Select(g => new LineaPlan(TipoLineaLiquidacionPagos.Pago, g.Id, g.Documento, restante[g.Id], null)));
+            var queda = importe;
+            foreach (var g in gastos)
+            {
+                var toma = Math.Min(queda, restante[g.Id]);
+                if (toma <= 0)
+                {
+                    continue;
+                }
+
+                lineas.Add(new LineaPlan(tipo, g.Id, g.Documento, toma, null));
+                restante[g.Id] = Redondeo.Dos(restante[g.Id] - toma);
+                queda = Redondeo.Dos(queda - toma);
+            }
+        }
+
+        // 4. El líquido, por banco o caja si se paga ya, o con el pagaré.
+        if (datos.FormaPago is FormaPagoLiquidacion.Directo or FormaPagoLiquidacion.Pagare)
+        {
+            var tipo = datos.FormaPago == FormaPagoLiquidacion.Directo ? TipoLineaLiquidacionPagos.Pago : TipoLineaLiquidacionPagos.Pagare;
+            lineas.AddRange(gastos.Where(g => restante[g.Id] > 0).Select(g => new LineaPlan(tipo, g.Id, g.Documento, restante[g.Id], null)));
         }
 
         return Resultado.Ok(new Plan(proveedor.Nombre, clienteId, hasta, gastos, facturas, entregas, lineas, restante));
@@ -563,6 +622,23 @@ public sealed class LiquidacionesPagos
         var numero = await SiguienteNumeroAsync(fecha.Year, ct).ConfigureAwait(false);
         var l = LiquidacionPagos.Crear(empresaId, numero, fecha, p.Hasta, datos.ProveedorId, p.ClienteId, datos.FormaPago, cuentaBancaria ?? datos.CuentaBancariaId,
             p.APagar, _reloj, loteId);
+        l.FijarRetencion(datos.PorcentajeRetencion);
+        var liquidoPagare = Redondeo.Dos(p.Lineas.Where(x => x.Tipo == TipoLineaLiquidacionPagos.Pagare).Sum(x => x.Importe));
+        if (liquidoPagare > 0m && _cartera is not null)
+        {
+            // El pagaré: un efecto a pagar al proveedor por el líquido, en 401, que se paga a su vencimiento.
+            var efecto = EfectoCartera.Crear(empresaId, SentidoCartera.Pago, datos.ProveedorId, p.Proveedor ?? "Proveedor",
+                string.IsNullOrWhiteSpace(datos.NumeroPagare) ? $"Pagaré {l.NumeroCompleto}" : $"Pagaré {datos.NumeroPagare.Trim()}", fecha, datos.VencimientoPagare!.Value,
+                liquidoPagare, "Liquidacion", l.Id.ToString("N"), _reloj, CuentasPuente.Pagares);
+            if (efecto.EsFallo)
+            {
+                return Resultado.Fallo<(LiquidacionPagos, string?, IReadOnlyList<Guid>)>(efecto.Error);
+            }
+
+            _cartera.Agregar(efecto.Valor);
+            l.AsignarPagare(efecto.Valor.Id);
+        }
+
         foreach (var x in p.Lineas)
         {
             var (tipoDoc, sentido, metodo, puente) = x.Tipo switch
@@ -570,6 +646,9 @@ public sealed class LiquidacionesPagos
                 TipoLineaLiquidacionPagos.EntregaCuenta => (TipoDocumentoTesoreria.Gasto, SentidoMovimiento.Pago, $"Entrega a cuenta {l.NumeroCompleto}", CuentasPuente.Entregas),
                 TipoLineaLiquidacionPagos.Compensacion => (TipoDocumentoTesoreria.Gasto, SentidoMovimiento.Pago, $"Compensación {l.NumeroCompleto}", CuentasPuente.Compensaciones),
                 TipoLineaLiquidacionPagos.CobroCompensado => (TipoDocumentoTesoreria.Factura, SentidoMovimiento.Cobro, $"Compensación {l.NumeroCompleto}", CuentasPuente.Compensaciones),
+                TipoLineaLiquidacionPagos.Intereses => (TipoDocumentoTesoreria.Gasto, SentidoMovimiento.Pago, $"Intereses de entregas {l.NumeroCompleto}", CuentasPuente.InteresesEntregas),
+                TipoLineaLiquidacionPagos.Retencion => (TipoDocumentoTesoreria.Gasto, SentidoMovimiento.Pago, $"Retención {l.NumeroCompleto}", CuentasPuente.Retenciones),
+                TipoLineaLiquidacionPagos.Pagare => (TipoDocumentoTesoreria.Gasto, SentidoMovimiento.Pago, $"Pagaré {l.NumeroCompleto}", CuentasPuente.Pagares),
                 _ => (TipoDocumentoTesoreria.Gasto, SentidoMovimiento.Pago, string.IsNullOrWhiteSpace(datos.Metodo) ? $"Transferencia {l.NumeroCompleto}" : datos.Metodo, (string?)null),
             };
             var m = Movimiento.Crear(empresaId, tipoDoc, x.DocumentoId, sentido, x.Importe, fecha, metodo, _reloj, puente is null ? cuentaBancaria : null, puente);
@@ -600,7 +679,8 @@ public sealed class LiquidacionesPagos
 
         _repo.Agregar(l);
         await GuardarYDespacharAsync(ct).ConfigureAwait(false);
-        IReadOnlyList<Guid> pendientes = datos.FormaPago == FormaPagoLiquidacion.Directo ? [] : p.Restante.Where(kv => kv.Value > 0).Select(kv => kv.Key).ToList();
+        IReadOnlyList<Guid> pendientes = (datos.FormaPago is FormaPagoLiquidacion.Directo or FormaPagoLiquidacion.Pagare) ? []
+            : p.Restante.Where(kv => kv.Value > 0).Select(kv => kv.Key).ToList();
         return Resultado.Ok<(LiquidacionPagos, string?, IReadOnlyList<Guid>)>((l, p.Proveedor, pendientes));
     }
 
@@ -710,13 +790,13 @@ public sealed class LiquidacionesPagos
 
     private static EntregaCuentaDto Dto(EntregaCuentaProveedor e, string? proveedor) => new(e.Id, e.ProveedorId, proveedor, e.Importe, e.Fecha, e.Concepto, e.Metodo,
         e.CuentaBancariaId, e.Cancelado, e.Pendiente, e.Estado.ToString(), e.MotivoAnulacion,
-        e.Cancelaciones.Select(c => new CancelacionEntregaDto(c.GastoId, c.Importe, c.Fecha, c.MovimientoId, c.LiquidacionId)).ToList());
+        e.Cancelaciones.Select(c => new CancelacionEntregaDto(c.GastoId, c.Importe, c.Fecha, c.MovimientoId, c.LiquidacionId)).ToList(), e.PorcentajeInteres);
 
     private static LiquidacionPagosDto Dto(LiquidacionPagos l, string? proveedor, IReadOnlyList<string> avisos) => new(l.Id, l.NumeroCompleto, l.Fecha, l.Hasta,
         l.ProveedorId, proveedor, l.ClienteId, l.APagar, l.EntregasCanceladas, l.Compensado, l.Liquido, l.FormaPago.ToString(), l.CuentaBancariaId, l.RemesaId, l.LoteId,
         l.Estado.ToString(), l.MotivoAnulacion,
         l.Lineas.Where(x => x.Importe != 0).Select(x => new LineaLiquidacionPagosDto(x.Tipo.ToString(), x.DocumentoId, x.Documento, x.Importe, x.MovimientoId, x.EntregaId)).ToList(),
-        avisos);
+        avisos, l.Intereses, l.Retencion, l.PorcentajeRetencion, l.PagareId);
 }
 
 /// <summary>Cuentas puente de los movimientos que no mueven dinero.</summary>
@@ -733,4 +813,13 @@ public static class CuentasPuente
 
     /// <summary>Deudas por efectos descontados: el riesgo con el banco hasta el vencimiento.</summary>
     public const string Deudas = "5208";
+
+    /// <summary>Otros ingresos financieros: intereses de las entregas a cuenta que se descuentan al proveedor.</summary>
+    public const string InteresesEntregas = "769";
+
+    /// <summary>H.P. acreedora por retenciones practicadas: la retención en el pago.</summary>
+    public const string Retenciones = "4751";
+
+    /// <summary>Proveedores, efectos comerciales a pagar: el pagaré del líquido.</summary>
+    public const string Pagares = "401";
 }

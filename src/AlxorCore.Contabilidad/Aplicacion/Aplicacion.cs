@@ -157,6 +157,7 @@ public static class PlanBasico
         ("5208", "Deudas por efectos descontados"),
         ("665", "Intereses por descuento de efectos"),
         ("400", "Proveedores"),
+        ("401", "Proveedores, efectos comerciales a pagar"),
         ("410", "Acreedores por prestaciones de servicios"),
         ("472", "H.P. IVA soportado"),
         ("473", "H.P. retenciones y pagos a cuenta"),

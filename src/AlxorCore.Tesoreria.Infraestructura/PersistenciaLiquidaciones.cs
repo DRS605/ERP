@@ -22,6 +22,7 @@ internal sealed class ConfiguracionEntregaCuenta : IEntityTypeConfiguration<Entr
         builder.Property(e => e.CreadaEn).HasColumnName("creada_en").IsRequired();
         builder.Property(e => e.AnuladaEn).HasColumnName("anulada_en");
         builder.Property(e => e.MotivoAnulacion).HasColumnName("motivo_anulacion").HasMaxLength(200);
+        builder.Property(e => e.PorcentajeInteres).HasColumnName("porcentaje_interes").HasColumnType("numeric(5,2)").HasDefaultValue(0m).IsRequired();
         builder.OwnsMany(e => e.Cancelaciones, c =>
         {
             c.ToTable("cancelacion_entrega_cuenta");
@@ -62,6 +63,10 @@ internal sealed class ConfiguracionLiquidacionPagos : IEntityTypeConfiguration<L
         builder.Property(l => l.APagar).HasColumnName("a_pagar").HasColumnType("numeric(14,2)").IsRequired();
         builder.Property(l => l.EntregasCanceladas).HasColumnName("entregas_canceladas").HasColumnType("numeric(14,2)").IsRequired();
         builder.Property(l => l.Compensado).HasColumnName("compensado").HasColumnType("numeric(14,2)").IsRequired();
+        builder.Property(l => l.Intereses).HasColumnName("intereses").HasColumnType("numeric(14,2)").HasDefaultValue(0m).IsRequired();
+        builder.Property(l => l.Retencion).HasColumnName("retencion").HasColumnType("numeric(14,2)").HasDefaultValue(0m).IsRequired();
+        builder.Property(l => l.PorcentajeRetencion).HasColumnName("porcentaje_retencion").HasColumnType("numeric(5,2)").HasDefaultValue(0m).IsRequired();
+        builder.Property(l => l.PagareId).HasColumnName("pagare_id");
         builder.Property(l => l.Liquido).HasColumnName("liquido").HasColumnType("numeric(14,2)").IsRequired();
         builder.Property(l => l.FormaPago).HasColumnName("forma_pago").HasMaxLength(20).HasConversion<string>().IsRequired();
         builder.Property(l => l.CuentaBancariaId).HasColumnName("cuenta_bancaria_id");
