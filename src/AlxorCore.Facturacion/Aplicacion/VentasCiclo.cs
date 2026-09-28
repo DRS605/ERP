@@ -22,14 +22,21 @@ public sealed record PedidoVentaDto(Guid Id, string Estado, int Ejercicio, int N
             l.CodigoIva, l.Base, l.CantidadServida, l.CantidadFacturada, l.PendienteServir, l.Conceptos, l.ImporteConceptos, l.CosteConceptos)).ToList());
 }
 
-public sealed record LineaAlbaranVentaDto(Guid LineaPedidoId, Guid? ProductoId, string Descripcion, decimal Cantidad);
+public sealed record LineaAlbaranVentaDto(Guid? LineaPedidoId, Guid? ProductoId, string Descripcion, decimal Cantidad,
+    int Orden = 0, decimal PrecioUnitario = 0m, decimal PorcentajeDescuento = 0m, string CodigoIva = "IVA21", bool PrecioFijado = true, decimal Base = 0m);
 
-public sealed record AlbaranVentaDto(Guid Id, Guid PedidoId, int Numero, string NumeroCompleto, DateOnly Fecha, string? Referencia, IReadOnlyList<LineaAlbaranVentaDto> Lineas,
-    bool Anulado = false, string? MotivoAnulacion = null)
+public sealed record AlbaranVentaDto(Guid Id, Guid? PedidoId, int Numero, string NumeroCompleto, DateOnly Fecha, string? Referencia, IReadOnlyList<LineaAlbaranVentaDto> Lineas,
+    bool Anulado = false, string? MotivoAnulacion = null, Guid ClienteId = default, string ClienteNombre = "", string Estado = "PendienteFacturar",
+    decimal Base = 0m, Guid? FacturaId = null, string? Observaciones = null)
 {
     public static AlbaranVentaDto Desde(AlbaranVenta a) => new(a.Id, a.PedidoId, a.Numero, a.NumeroCompleto, a.Fecha, a.Referencia,
-        a.Lineas.Select(l => new LineaAlbaranVentaDto(l.LineaPedidoId, l.ProductoId, l.Descripcion, l.Cantidad)).ToList(), a.AnuladoEn is not null, a.MotivoAnulacion);
+        a.Lineas.Select(l => new LineaAlbaranVentaDto(l.LineaPedidoId, l.ProductoId, l.Descripcion, l.Cantidad, l.Orden, l.PrecioUnitario, l.PorcentajeDescuento,
+            l.CodigoIva, l.PrecioFijado, l.Base)).ToList(),
+        a.AnuladoEn is not null, a.MotivoAnulacion, a.ClienteId, a.ClienteNombre, a.Estado.ToString(), a.Base, a.FacturaId, a.Observaciones);
 }
+
+/// <summary>Filtro del listado de albaranes de venta.</summary>
+public sealed record FiltroAlbaranesVenta(Guid? ClienteId = null, EstadoAlbaranVenta? Estado = null, DateOnly? Desde = null, DateOnly? Hasta = null, Guid? FacturaId = null);
 
 // ----------------------------------------------------------------------------- Puertos
 public interface IRepositorioPedidosVenta
@@ -47,6 +54,22 @@ public interface IRepositorioAlbaranesVenta
     Task<AlbaranVenta?> ObtenerPorIdAsync(Guid id, CancellationToken ct = default) => Task.FromResult<AlbaranVenta?>(null);
     Task<IReadOnlyList<AlbaranVentaDto>> ListarPorPedidoAsync(Guid empresaId, Guid pedidoId, CancellationToken ct = default);
     Task<int> SiguienteNumeroAsync(Guid empresaId, int ejercicio, CancellationToken ct = default);
+
+    /// <summary>Albaranes de la empresa según el filtro (sin seguimiento), del más reciente al más antiguo.</summary>
+    Task<IReadOnlyList<AlbaranVentaDto>> ListarAsync(Guid empresaId, FiltroAlbaranesVenta filtro, CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<AlbaranVentaDto>>([]);
+
+    /// <summary>Albaranes (con seguimiento, para modificarlos) por sus identificadores.</summary>
+    Task<IReadOnlyList<AlbaranVenta>> ObtenerVariosAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<AlbaranVenta>>([]);
+
+    /// <summary>Albaranes (con seguimiento) que recoge una factura.</summary>
+    Task<IReadOnlyList<AlbaranVenta>> DeFacturaAsync(Guid facturaId, CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<AlbaranVenta>>([]);
+
+    /// <summary>Albaranes (con seguimiento) de un pedido.</summary>
+    Task<IReadOnlyList<AlbaranVenta>> DePedidoAsync(Guid pedidoId, CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<AlbaranVenta>>([]);
 }
 
 // ----------------------------------------------------------------------------- Comandos
@@ -255,8 +278,12 @@ public sealed class EntregarPedido
     private readonly IUnidadDeTrabajoFacturacion _unidad;
     private readonly IReloj _reloj;
 
-    public EntregarPedido(IRepositorioPedidosVenta pedidos, IRepositorioAlbaranesVenta albaranes, IResolverSerie resolverSerie, IUnidadDeTrabajoFacturacion unidad, IReloj reloj)
+    private readonly IStockVentas? _stock;
+
+    public EntregarPedido(IRepositorioPedidosVenta pedidos, IRepositorioAlbaranesVenta albaranes, IResolverSerie resolverSerie, IUnidadDeTrabajoFacturacion unidad, IReloj reloj,
+        IStockVentas? stock = null)
     {
+        _stock = stock;
         _pedidos = pedidos;
         _albaranes = albaranes;
         _resolverSerie = resolverSerie;
@@ -292,7 +319,7 @@ public sealed class EntregarPedido
         var lineasAlbaran = entregas.Select(e =>
         {
             var lp = pedido.Lineas.Single(l => l.Id == e.LineaPedidoId);
-            return (e.LineaPedidoId, lp.ProductoId, lp.Descripcion, e.Cantidad);
+            return new NuevaLineaAlbaran(e.LineaPedidoId, lp.ProductoId, lp.Descripcion, e.Cantidad, lp.PrecioUnitario, lp.PorcentajeDescuento, lp.CodigoIva);
         }).ToList();
 
         var albaran = AlbaranVenta.Crear(empresaId, pedidoId, pedido.ClienteId, pedido.ClienteNombre, numero, fecha, comando.Referencia, lineasAlbaran, _reloj, serie);
@@ -303,6 +330,7 @@ public sealed class EntregarPedido
 
         _albaranes.Agregar(albaran.Valor);
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        await AlbaranesVentaStock.SacarAsync(_stock, empresaId, albaran.Valor, ct).ConfigureAwait(false);
         return Resultado.Ok(AlbaranVentaDto.Desde(albaran.Valor));
     }
 }
@@ -318,8 +346,12 @@ public sealed class AnularAlbaranVenta
     private readonly IUnidadDeTrabajoFacturacion _unidad;
     private readonly IReloj _reloj;
 
-    public AnularAlbaranVenta(IRepositorioPedidosVenta pedidos, IRepositorioAlbaranesVenta albaranes, IUnidadDeTrabajoFacturacion unidad, IReloj reloj)
+    private readonly IStockVentas? _stock;
+
+    public AnularAlbaranVenta(IRepositorioPedidosVenta pedidos, IRepositorioAlbaranesVenta albaranes, IUnidadDeTrabajoFacturacion unidad, IReloj reloj,
+        IStockVentas? stock = null)
     {
+        _stock = stock;
         _pedidos = pedidos;
         _albaranes = albaranes;
         _unidad = unidad;
@@ -334,10 +366,14 @@ public sealed class AnularAlbaranVenta
             return Resultado.Fallo<AlbaranVentaDto>(Error.NoEncontrado("albaranventa.no_encontrado", "El albarán no existe en ese pedido."));
         }
 
-        var pedido = await _pedidos.ObtenerPorIdAsync(albaran.PedidoId, ct).ConfigureAwait(false);
-        if (pedido is null)
+        PedidoVenta? pedido = null;
+        if (albaran.PedidoId is { } pedidoAlbaran)
         {
-            return Resultado.Fallo<AlbaranVentaDto>(Error.NoEncontrado("pedidoventa.no_encontrado", "No se encontró el pedido."));
+            pedido = await _pedidos.ObtenerPorIdAsync(pedidoAlbaran, ct).ConfigureAwait(false);
+            if (pedido is null)
+            {
+                return Resultado.Fallo<AlbaranVentaDto>(Error.NoEncontrado("pedidoventa.no_encontrado", "No se encontró el pedido."));
+            }
         }
 
         var anulado = albaran.Anular(motivo, _reloj);
@@ -346,13 +382,17 @@ public sealed class AnularAlbaranVenta
             return Resultado.Fallo<AlbaranVentaDto>(anulado.Error);
         }
 
-        var deshecho = pedido.DeshacerEntrega(albaran.Lineas.Select(l => (l.LineaPedidoId, l.Cantidad)).ToList());
-        if (deshecho.EsFallo)
+        if (pedido is not null)
         {
-            return Resultado.Fallo<AlbaranVentaDto>(deshecho.Error);
+            var deshecho = pedido.DeshacerEntrega(albaran.Lineas.Where(l => l.LineaPedidoId is not null).Select(l => (l.LineaPedidoId!.Value, l.Cantidad)).ToList());
+            if (deshecho.EsFallo)
+            {
+                return Resultado.Fallo<AlbaranVentaDto>(deshecho.Error);
+            }
         }
 
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        await AlbaranesVentaStock.DevolverAsync(_stock, albaran, ct).ConfigureAwait(false);
         return Resultado.Ok(AlbaranVentaDto.Desde(albaran));
     }
 }
@@ -376,8 +416,11 @@ public sealed class FacturarPedidoVenta
     private readonly EmitirFactura _emitir;
     private readonly IUnidadDeTrabajoFacturacion _unidad;
 
-    public FacturarPedidoVenta(IRepositorioPedidosVenta pedidos, EmitirFactura emitir, IUnidadDeTrabajoFacturacion unidad)
+    private readonly IRepositorioAlbaranesVenta? _albaranes;
+
+    public FacturarPedidoVenta(IRepositorioPedidosVenta pedidos, EmitirFactura emitir, IUnidadDeTrabajoFacturacion unidad, IRepositorioAlbaranesVenta? albaranes = null)
     {
+        _albaranes = albaranes;
         _pedidos = pedidos;
         _emitir = emitir;
         _unidad = unidad;
@@ -407,8 +450,33 @@ public sealed class FacturarPedidoVenta
             return Resultado.Fallo<FacturaDto>(Error.Conflicto("pedidoventa.cancelado", "El pedido está cancelado."));
         }
 
-        var lineas = pedido.Lineas.Select(l => new LineaComando(
-            l.Cantidad, l.Descripcion, l.PrecioUnitario, l.CodigoIva, l.PorcentajeDescuento, l.ProductoId, ConceptosCopiados: l.Conceptos)).ToList();
+        // Con albaranes, la factura recoge los pendientes (su mercancía ya salió) y lo que quede sin servir; sin albaranes, el pedido entero.
+        var albaranes = _albaranes is null ? [] : (await _albaranes.DePedidoAsync(pedido.Id, ct).ConfigureAwait(false)).Where(a => a.AnuladoEn is null).ToList();
+        var pendientes = albaranes.Where(a => a.FacturaId is null).OrderBy(a => a.Fecha).ThenBy(a => a.Numero).ToList();
+        foreach (var a in pendientes)
+        {
+            if (a.PuedeFacturarse() is { EsFallo: true } no)
+            {
+                return Resultado.Fallo<FacturaDto>(no.Error);
+            }
+        }
+
+        List<LineaComando> lineas;
+        if (albaranes.Count == 0)
+        {
+            lineas = pedido.Lineas.Select(l => new LineaComando(
+                l.Cantidad, l.Descripcion, l.PrecioUnitario, l.CodigoIva, l.PorcentajeDescuento, l.ProductoId, ConceptosCopiados: l.Conceptos)).ToList();
+        }
+        else
+        {
+            lineas = [.. pendientes.SelectMany(AlbaranesVentaStock.LineasFactura),
+                .. pedido.Lineas.Where(l => l.Cantidad - l.CantidadServida > 0m).Select(l => new LineaComando(
+                    l.Cantidad - l.CantidadServida, l.Descripcion, l.PrecioUnitario, l.CodigoIva, l.PorcentajeDescuento, l.ProductoId))];
+            if (lineas.Count == 0)
+            {
+                return Resultado.Fallo<FacturaDto>(Error.Conflicto("pedidoventa.albaranes_facturados", "Los albaranes del pedido ya están facturados."));
+            }
+        }
 
         var comandoFactura = new EmitirFacturaComando(
             pedido.ClienteId, lineas, comando.FechaEmision, null, null, null, comando.DiasVencimiento, false, comando.FormaPagoId);
@@ -423,6 +491,11 @@ public sealed class FacturarPedidoVenta
         if (marcado.EsFallo)
         {
             return Resultado.Fallo<FacturaDto>(marcado.Error);
+        }
+
+        foreach (var a in pendientes)
+        {
+            a.Facturar(factura.Valor.Id);
         }
 
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);

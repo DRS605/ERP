@@ -21,6 +21,46 @@ public enum TipoLibroSii
     Recibidas = 2,
 }
 
+/// <summary>Un documento (factura emitida o gasto) del libro, con la huella de sus datos tal como se enviarían.</summary>
+public sealed record DocumentoSii(Guid Id, string Numero, DateOnly FechaExpedicion, string Huella);
+
+/// <summary>Documentos de un libro y mes, y la forma de escribir el XML de alta, modificación o baja de un subconjunto.</summary>
+public sealed class LoteSii
+{
+    private readonly Func<IReadOnlyCollection<Guid>, string, string> _alta;
+    private readonly Func<IReadOnlyCollection<Guid>, string> _baja;
+
+    internal LoteSii(TipoLibroSii libro, int ejercicio, int periodo, IReadOnlyList<DocumentoSii> documentos, IReadOnlyList<DocumentoSii> anulados,
+        Func<IReadOnlyCollection<Guid>, string, string> alta, Func<IReadOnlyCollection<Guid>, string> baja)
+    {
+        Libro = libro;
+        Ejercicio = ejercicio;
+        Periodo = periodo;
+        Documentos = documentos;
+        Anulados = anulados;
+        _alta = alta;
+        _baja = baja;
+    }
+
+    public TipoLibroSii Libro { get; }
+
+    public int Ejercicio { get; }
+
+    public int Periodo { get; }
+
+    /// <summary>Documentos vivos del mes (se envían como alta A0 o modificación A1).</summary>
+    public IReadOnlyList<DocumentoSii> Documentos { get; }
+
+    /// <summary>Documentos anulados del mes (si se enviaron, se dan de baja).</summary>
+    public IReadOnlyList<DocumentoSii> Anulados { get; }
+
+    /// <summary>XML de alta (A0) o modificación (A1) de los documentos indicados.</summary>
+    public string Alta(IReadOnlyCollection<Guid> ids, string tipoComunicacion) => _alta(ids, tipoComunicacion);
+
+    /// <summary>XML de baja de los documentos anulados indicados.</summary>
+    public string Baja(IReadOnlyCollection<Guid> ids) => _baja(ids);
+}
+
 /// <summary>
 /// Genera el XML del <b>Suministro Inmediato de Información (SII)</b> de un periodo: el libro registro
 /// de facturas expedidas o recibidas que se remitiría al servicio web de la AEAT (obligatorio para
@@ -52,34 +92,40 @@ public sealed class GenerarSii
 
     public async Task<Resultado<string>> EjecutarAsync(Guid empresaId, TipoLibroSii tipo, int ejercicio, int periodo, CancellationToken ct = default)
     {
+        var lote = await PrepararAsync(empresaId, tipo, ejercicio, periodo, ct).ConfigureAwait(false);
+        return lote.EsFallo ? Resultado.Fallo<string>(lote.Error) : Resultado.Ok(lote.Valor.Alta(lote.Valor.Documentos.Select(d => d.Id).ToList(), "A0"));
+    }
+
+    /// <summary>
+    /// Reúne los documentos del libro y del mes (los vivos, para alta o modificación, y los anulados, para una posible
+    /// baja) con la huella de lo que se enviaría de cada uno, y permite escribir el XML de cualquier subconjunto.
+    /// </summary>
+    public async Task<Resultado<LoteSii>> PrepararAsync(Guid empresaId, TipoLibroSii tipo, int ejercicio, int periodo, CancellationToken ct = default)
+    {
         if (periodo is < 1 or > 12)
         {
-            return Resultado.Fallo<string>(Error.Validacion("sii.periodo", "El periodo (mes) debe estar entre 1 y 12."));
+            return Resultado.Fallo<LoteSii>(Error.Validacion("sii.periodo", "El periodo (mes) debe estar entre 1 y 12."));
         }
 
         var empresa = await _empresas.ObtenerAsync(empresaId, ct).ConfigureAwait(false);
         if (empresa is null)
         {
-            return Resultado.Fallo<string>(Error.NoEncontrado("empresa.no_encontrada", "Empresa no encontrada."));
+            return Resultado.Fallo<LoteSii>(Error.NoEncontrado("empresa.no_encontrada", "Empresa no encontrada."));
         }
 
         var desde = new DateOnly(ejercicio, periodo, 1);
         var hasta = desde.AddMonths(1).AddDays(-1);
         var periodoTexto = periodo.ToString("D2", Inv);
 
-        var sb = new StringBuilder();
-        using var w = XmlWriter.Create(sb, new XmlWriterSettings { Indent = true, Encoding = Encoding.UTF8, OmitXmlDeclaration = false });
-        w.WriteStartDocument();
-
         if (tipo == TipoLibroSii.Emitidas)
         {
-            var facturas = (await _facturas.ListarAsync(empresaId, ct).ConfigureAwait(false))
+            var todas = (await _facturas.ListarAsync(empresaId, ct).ConfigureAwait(false))
                 .Where(f => f.FechaEmision >= desde && f.FechaEmision <= hasta)
-                .OrderBy(f => f.FechaEmision).ThenBy(f => f.NumeroCompleto).ToList();
+                .OrderBy(f => f.FechaEmision).ThenBy(f => f.NumeroCompleto, StringComparer.Ordinal).ToList();
 
             // Desglose por tipo impositivo de cada factura (un DetalleIVA por tipo, no un tipo medio).
             var desgloses = new Dictionary<Guid, IReadOnlyList<DetalleTipo>>();
-            foreach (var f in facturas)
+            foreach (var f in todas)
             {
                 var detalle = await _facturas.ObtenerAsync(f.Id, ct).ConfigureAwait(false);
                 desgloses[f.Id] = detalle is { Lineas.Count: > 0 }
@@ -89,33 +135,93 @@ public sealed class GenerarSii
                     : [new DetalleTipo(TipoMedio(f.BaseImponible, f.CuotaIva), f.BaseImponible, f.CuotaIva, 0m, 0m)];
             }
 
-            EscribirEmitidas(w, empresa, ejercicio, periodoTexto, facturas, desgloses);
+            // Una factura anulada (VeriFactu) no se da de alta; si se envió antes, se da de baja.
+            var vivas = todas.Where(f => f.Estado != "Anulada").ToList();
+            var anuladas = todas.Where(f => f.Estado == "Anulada").ToList();
+            string Alta(IReadOnlyCollection<Guid> ids, string tipoComunicacion) => Documento(w =>
+                EscribirEmitidas(w, empresa, ejercicio, periodoTexto, vivas.Where(f => ids.Contains(f.Id)).ToList(), desgloses, tipoComunicacion));
+            string Baja(IReadOnlyCollection<Guid> ids) => Documento(w =>
+                EscribirBajas(w, empresa, ejercicio, periodoTexto, "BajaLRFacturasEmitidas", "RegistroLRBajaExpedidas",
+                    anuladas.Where(f => ids.Contains(f.Id)).Select(f => (Nif: (string?)empresa.Nif, Nombre: empresa.RazonSocial, f.NumeroCompleto, f.FechaEmision)).ToList()));
+
+            return Resultado.Ok(new LoteSii(tipo, ejercicio, periodo,
+                vivas.Select(f => new DocumentoSii(f.Id, f.NumeroCompleto, f.FechaEmision, Huella(Alta([f.Id], "A0")))).ToList(),
+                anuladas.Select(f => new DocumentoSii(f.Id, f.NumeroCompleto, f.FechaEmision, string.Empty)).ToList(),
+                Alta, Baja));
         }
-        else
+
+        var gastos = (await _gastos.ListarAsync(empresaId, ct).ConfigureAwait(false))
+            .Where(g => g.Fecha >= desde && g.Fecha <= hasta).OrderBy(g => g.Fecha).ThenBy(g => g.Id).ToList();
+        var proveedores = new Dictionary<Guid, ProveedorDto>();
+        foreach (var id in gastos.Where(g => g.ProveedorId is not null).Select(g => g.ProveedorId!.Value).Distinct())
         {
-            // Los gastos anulados no se registran en el libro de recibidas.
-            var gastos = (await _gastos.ListarAsync(empresaId, ct).ConfigureAwait(false))
-                .Where(g => g.Fecha >= desde && g.Fecha <= hasta && !string.Equals(g.Estado, "Anulado", StringComparison.OrdinalIgnoreCase))
-                .OrderBy(g => g.Fecha).ToList();
-
-            var proveedores = new Dictionary<Guid, ProveedorDto>();
-            foreach (var id in gastos.Where(g => g.ProveedorId is not null).Select(g => g.ProveedorId!.Value).Distinct())
+            if (await _proveedores.ObtenerAsync(id, ct).ConfigureAwait(false) is { } p)
             {
-                if (await _proveedores.ObtenerAsync(id, ct).ConfigureAwait(false) is { } p)
-                {
-                    proveedores[id] = p;
-                }
+                proveedores[id] = p;
             }
-
-            EscribirRecibidas(w, empresa, ejercicio, periodoTexto, gastos, proveedores);
         }
 
-        w.WriteEndDocument();
-        w.Flush();
-        return Resultado.Ok(sb.ToString());
+        // Los gastos anulados no se registran en el libro de recibidas (y se dan de baja si se habían enviado).
+        var vivos = gastos.Where(g => !string.Equals(g.Estado, "Anulado", StringComparison.OrdinalIgnoreCase)).ToList();
+        var anulados = gastos.Where(g => string.Equals(g.Estado, "Anulado", StringComparison.OrdinalIgnoreCase)).ToList();
+        string AltaR(IReadOnlyCollection<Guid> ids, string tipoComunicacion) => Documento(w =>
+            EscribirRecibidas(w, empresa, ejercicio, periodoTexto, vivos.Where(g => ids.Contains(g.Id)).ToList(), proveedores, tipoComunicacion));
+        string BajaR(IReadOnlyCollection<Guid> ids) => Documento(w =>
+            EscribirBajas(w, empresa, ejercicio, periodoTexto, "BajaLRFacturasRecibidas", "RegistroLRBajaRecibidas",
+                anulados.Where(g => ids.Contains(g.Id)).Select(g =>
+                {
+                    var p = g.ProveedorId is { } pid ? proveedores.GetValueOrDefault(pid) : null;
+                    return (Nif: p?.NifFiscal, Nombre: p?.Nombre ?? g.ProveedorTexto ?? "Proveedor", NumeroRecibida(g, ejercicio), g.FechaFactura ?? g.Fecha);
+                }).ToList()));
+
+        return Resultado.Ok(new LoteSii(tipo, ejercicio, periodo,
+            vivos.Select(g => new DocumentoSii(g.Id, NumeroRecibida(g, ejercicio), g.FechaFactura ?? g.Fecha, Huella(AltaR([g.Id], "A0")))).ToList(),
+            anulados.Select(g => new DocumentoSii(g.Id, NumeroRecibida(g, ejercicio), g.FechaFactura ?? g.Fecha, string.Empty)).ToList(),
+            AltaR, BajaR));
     }
 
-    private static void EscribirCabecera(XmlWriter w, EmpresaDto empresa)
+    /// <summary>Número de la factura recibida; sin el del proveedor, uno estable a partir del gasto (a completar antes de enviar).</summary>
+    private static string NumeroRecibida(GastoDto g, int ejercicio) => g.NumeroFactura ?? $"G{ejercicio}-{g.Id.ToString("N", Inv)[..8].ToUpperInvariant()}";
+
+    private static string Documento(Action<XmlWriter> escribir)
+    {
+        var sb = new StringBuilder();
+        using (var w = XmlWriter.Create(sb, new XmlWriterSettings { Indent = true, Encoding = Encoding.UTF8, OmitXmlDeclaration = false }))
+        {
+            w.WriteStartDocument();
+            escribir(w);
+            w.WriteEndDocument();
+        }
+
+        return sb.ToString();
+    }
+
+    private static string Huella(string xml) =>
+        Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(xml)));
+
+    private static void EscribirBajas(XmlWriter w, EmpresaDto empresa, int ejercicio, string periodo, string raiz, string registro,
+        IReadOnlyList<(string? Nif, string Nombre, string Numero, DateOnly Fecha)> documentos)
+    {
+        w.WriteStartElement("siiLR", raiz, NsLr);
+        EscribirCabecera(w, empresa, null);
+        foreach (var d in documentos)
+        {
+            w.WriteStartElement(registro, NsLr);
+            EscribirPeriodo(w, ejercicio, periodo);
+            w.WriteStartElement("IDFactura", NsLr);
+            w.WriteStartElement("IDEmisorFactura", NsLr);
+            EscribirIdentificacion(w, d.Nif, d.Nombre);
+            w.WriteEndElement();
+            w.WriteElementString("NumSerieFacturaEmisor", NsLr, d.Numero);
+            w.WriteElementString("FechaExpedicionFacturaEmisor", NsLr, d.Fecha.ToString("dd-MM-yyyy", Inv));
+            w.WriteEndElement();
+            w.WriteEndElement();
+        }
+
+        w.WriteEndElement();
+    }
+
+    private static void EscribirCabecera(XmlWriter w, EmpresaDto empresa, string? tipoComunicacion)
     {
         w.WriteStartElement("sii", "Cabecera", NsSuministro);
         w.WriteStartElement("IDVersionSii", NsSuministro);
@@ -125,15 +231,20 @@ public sealed class GenerarSii
         w.WriteElementString("NombreRazon", NsSuministro, empresa.RazonSocial);
         w.WriteElementString("NIF", NsSuministro, empresa.Nif);
         w.WriteEndElement();
-        w.WriteElementString("TipoComunicacion", NsSuministro, "A0"); // A0 = alta de registros
+        // A0 = alta, A1 = modificación; las bajas no llevan tipo de comunicación.
+        if (tipoComunicacion is not null)
+        {
+            w.WriteElementString("TipoComunicacion", NsSuministro, tipoComunicacion);
+        }
+
         w.WriteEndElement();
     }
 
     private static void EscribirEmitidas(XmlWriter w, EmpresaDto empresa, int ejercicio, string periodo, IReadOnlyList<FacturaResumen> facturas,
-        IReadOnlyDictionary<Guid, IReadOnlyList<DetalleTipo>> desgloses)
+        IReadOnlyDictionary<Guid, IReadOnlyList<DetalleTipo>> desgloses, string tipoComunicacion)
     {
         w.WriteStartElement("siiLR", "SuministroLRFacturasEmitidas", NsLr);
-        EscribirCabecera(w, empresa);
+        EscribirCabecera(w, empresa, tipoComunicacion);
 
         foreach (var f in facturas)
         {
@@ -173,15 +284,13 @@ public sealed class GenerarSii
     }
 
     private static void EscribirRecibidas(XmlWriter w, EmpresaDto empresa, int ejercicio, string periodo, IReadOnlyList<GastoDto> gastos,
-        IReadOnlyDictionary<Guid, ProveedorDto> proveedores)
+        IReadOnlyDictionary<Guid, ProveedorDto> proveedores, string tipoComunicacion)
     {
         w.WriteStartElement("siiLR", "SuministroLRFacturasRecibidas", NsLr);
-        EscribirCabecera(w, empresa);
+        EscribirCabecera(w, empresa, tipoComunicacion);
 
-        var n = 0;
         foreach (var g in gastos)
         {
-            n++;
             var proveedor = g.ProveedorId is { } pid ? proveedores.GetValueOrDefault(pid) : null;
             var nombre = proveedor?.Nombre ?? g.ProveedorTexto ?? "Proveedor";
             var nif = proveedor?.NifFiscal;
@@ -199,7 +308,7 @@ public sealed class GenerarSii
                 w.WriteComment(" Gasto sin número de factura del proveedor: completar antes de enviar ");
             }
 
-            w.WriteElementString("NumSerieFacturaEmisor", NsLr, g.NumeroFactura ?? $"G{ejercicio}-{n:D4}");
+            w.WriteElementString("NumSerieFacturaEmisor", NsLr, NumeroRecibida(g, ejercicio));
             w.WriteElementString("FechaExpedicionFacturaEmisor", NsLr, (g.FechaFactura ?? g.Fecha).ToString("dd-MM-yyyy", Inv));
             w.WriteEndElement();
 
@@ -220,7 +329,9 @@ public sealed class GenerarSii
                 }
             }
 
-            w.WriteElementString("ClaveRegimenEspecialOTrascendencia", NsLr, "01");
+            // Clave 02: compensaciones del régimen especial de la agricultura (autofacturas o recibos REAGP a agricultores).
+            var reagp = g.DesgloseIva.Any(d => d.CodigoIva.StartsWith("REAGP", StringComparison.OrdinalIgnoreCase));
+            w.WriteElementString("ClaveRegimenEspecialOTrascendencia", NsLr, reagp ? "02" : "01");
             w.WriteElementString("ImporteTotal", NsLr, Importe(g.Total));
             w.WriteElementString("DescripcionOperacion", NsLr, string.IsNullOrWhiteSpace(g.Concepto) ? "Gasto" : g.Concepto);
 
@@ -244,7 +355,22 @@ public sealed class GenerarSii
                 w.WriteEndElement();
             }
 
-            if (desglose.Any(d => !d.Autoliquidada))
+            if (reagp)
+            {
+                // La compensación REAGP no es IVA: se declara con su porcentaje e importe de compensación.
+                w.WriteStartElement("DesgloseIVA", NsLr);
+                foreach (var d in desglose.Where(d => !d.Autoliquidada))
+                {
+                    w.WriteStartElement("DetalleIVA", NsLr);
+                    w.WriteElementString("BaseImponible", NsLr, Importe(d.Base));
+                    w.WriteElementString("PorcentCompensacionREAGYP", NsLr, d.PorcentajeIva.ToString("0.##", Inv));
+                    w.WriteElementString("ImporteCompensacionREAGYP", NsLr, Importe(d.Cuota));
+                    w.WriteEndElement();
+                }
+
+                w.WriteEndElement();
+            }
+            else if (desglose.Any(d => !d.Autoliquidada))
             {
                 EscribirDetallesIva(w, "CuotaSoportada", desglose.Where(d => !d.Autoliquidada).Select(Detalle).ToList());
             }

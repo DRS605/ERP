@@ -16,7 +16,8 @@ public sealed record PerceptorRetencionDto(
     string? Nif,
     string? Provincia,
     decimal BasePercepciones,
-    decimal Retenciones);
+    decimal Retenciones,
+    string Subclave = "01");
 
 /// <summary>
 /// Resumen del <b>modelo 111</b> (retenciones e ingresos a cuenta del IRPF, autoliquidación
@@ -59,6 +60,25 @@ public sealed class GenerarRetencionesIrpf
     /// es la que corresponde a las retenciones que un autónomo/pyme practica a otros profesionales.
     /// </summary>
     public const string ClaveActividadesProfesionales = "G";
+
+    /// <summary>
+    /// Clave H: actividades económicas en estimación objetiva. Las retenciones del 2 % a agricultores y ganaderos
+    /// (autofacturas de las liquidaciones agro, art. 95.6.2º RIRPF) van con la subclave 02; las del 1 % (actividades
+    /// empresariales en módulos), con la 01.
+    /// </summary>
+    public const string ClaveEstimacionObjetiva = "H";
+
+    /// <summary>Clave y subclave del 190 según el tipo de retención del gasto: 1 % o 2 %, clave H; el resto, profesionales (G 01).</summary>
+    public static (string Clave, string Subclave) ClaveDe(decimal baseImponible, decimal retencion)
+    {
+        var tipo = baseImponible == 0m ? 0m : Math.Round(retencion / baseImponible * 100m, 1, MidpointRounding.AwayFromZero);
+        return tipo switch
+        {
+            > 0m and <= 1.5m => (ClaveEstimacionObjetiva, "01"),
+            > 1.5m and <= 2.5m => (ClaveEstimacionObjetiva, "02"),
+            _ => (ClaveActividadesProfesionales, "01"),
+        };
+    }
 
     private readonly IConsultaGastos _gastos;
     private readonly IConsultaProveedores _proveedores;
@@ -128,8 +148,9 @@ public sealed class GenerarRetencionesIrpf
             .Where(g => g.Estado != "Anulado" && g.RetencionIrpf > 0m && g.Fecha >= desde && g.Fecha <= hasta)
             .ToList();
 
+        // Un perceptor por proveedor y clave: un mismo proveedor puede cobrar como profesional y como agricultor.
         var lineas = conRetencion
-            .GroupBy(g => g.ProveedorId is { } id ? "id:" + id : "txt:" + (g.ProveedorTexto ?? "Sin proveedor"))
+            .GroupBy(g => (Perceptor: g.ProveedorId is { } id ? "id:" + id : "txt:" + (g.ProveedorTexto ?? "Sin proveedor"), Clave: ClaveDe(g.BaseImponible, g.RetencionIrpf)))
             .Select(grupo =>
             {
                 var primero = grupo.First();
@@ -149,13 +170,14 @@ public sealed class GenerarRetencionesIrpf
                 }
 
                 return new PerceptorRetencionDto(
-                    ClaveActividadesProfesionales,
+                    grupo.Key.Clave.Clave,
                     primero.ProveedorId,
                     nombre,
                     nif,
                     provincia,
                     Redondeo.Dos(grupo.Sum(x => x.BaseImponible)),
-                    Redondeo.Dos(grupo.Sum(x => x.RetencionIrpf)));
+                    Redondeo.Dos(grupo.Sum(x => x.RetencionIrpf)),
+                    grupo.Key.Clave.Subclave);
             })
             .OrderByDescending(p => p.Retenciones)
             .ToList();

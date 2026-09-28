@@ -183,6 +183,9 @@ public sealed record LineaVenta(Guid ProductoId, decimal Cantidad);
 public interface IStockVentas
 {
     Task DescontarVentaAsync(Guid empresaId, IReadOnlyList<LineaVenta> lineas, CancellationToken ct = default);
+
+    /// <summary>Vuelve a meter en el almacén lo que salió por una venta que se deshace (un albarán anulado).</summary>
+    Task DevolverVentaAsync(Guid empresaId, IReadOnlyList<LineaVenta> lineas, string motivo, CancellationToken ct = default) => Task.CompletedTask;
 }
 
 /// <summary>

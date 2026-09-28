@@ -60,10 +60,11 @@ public sealed record NuevaLinea(
     decimal PorcentajeRecargo = 0m,
     IReadOnlyList<ConceptoAplicado>? Conceptos = null,
     string? CuentaContable = null,
-    Guid? AnticipoId = null);
+    Guid? AnticipoId = null,
+    Guid? AlbaranVentaId = null);
 
 /// <summary>Se ha emitido un albarán de venta (entrega de mercancía).</summary>
-public sealed record AlbaranVentaEmitido(Guid AlbaranId, Guid EmpresaId, Guid PedidoId, Guid ClienteId, DateTimeOffset OcurridoEn) : IEventoDominio;
+public sealed record AlbaranVentaEmitido(Guid AlbaranId, Guid EmpresaId, Guid? PedidoId, Guid ClienteId, DateTimeOffset OcurridoEn) : IEventoDominio;
 
 /// <summary>Se ha anulado un albarán de venta.</summary>
 public sealed record AlbaranVentaAnulado(Guid AlbaranId, Guid EmpresaId, string NumeroCompleto, string? Motivo, DateTimeOffset OcurridoEn) : IEventoDominio;

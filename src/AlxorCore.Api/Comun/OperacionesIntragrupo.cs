@@ -202,13 +202,14 @@ public sealed class OperacionesIntragrupo
             }
 
             var vinculada = await EmpresaDelClienteAsync(origen, empresaOrigenId, albaran.ClienteId, ct).ConfigureAwait(false);
-            if (vinculada is null || albaran.AnuladoEn is not null)
+            // El traspaso sigue al pedido de venta (su espejo es el pedido de compra): un albarán directo no se traspasa.
+            if (vinculada is null || albaran.AnuladoEn is not null || albaran.PedidoId is null)
             {
                 return Resultado.Ok<Guid?>(null);
             }
 
             destino = vinculada.Value.Destino;
-            var pedido = await Servicio<ObtenerPedidoVenta>(origen).EjecutarAsync(albaran.PedidoId, ct).ConfigureAwait(false);
+            var pedido = await Servicio<ObtenerPedidoVenta>(origen).EjecutarAsync(albaran.PedidoId.Value, ct).ConfigureAwait(false);
             if (pedido is null)
             {
                 return Resultado.Fallo<Guid?>(Error.NoEncontrado("pedidoventa.no_encontrado", "El pedido de venta del albarán no existe."));
@@ -217,7 +218,7 @@ public sealed class OperacionesIntragrupo
             datos = new DatosTraspasoParcial(vinculada.Value.Origen.RazonSocial, pedido.Id, albaran.NumeroCompleto, albaran.Fecha,
                 pedido.Lineas.Select(l => new LineaTraspaso(l.Id, l.ProductoId, l.Descripcion, l.Cantidad,
                     Redondeo.Dos(l.PrecioUnitario * (1m - (l.PorcentajeDescuento / 100m))))).ToList(),
-                albaran.Lineas.Select(l => new EntregaTraspaso(l.LineaPedidoId, l.Cantidad)).ToList());
+                albaran.Lineas.Where(l => l.LineaPedidoId is not null).Select(l => new EntregaTraspaso(l.LineaPedidoId!.Value, l.Cantidad)).ToList());
         }
 
         await using var receptora = await AmbitoAsync(destino.Id, ct).ConfigureAwait(false);

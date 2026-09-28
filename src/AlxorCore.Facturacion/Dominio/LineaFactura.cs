@@ -41,6 +41,7 @@ public sealed class LineaFactura : EntidadBase<Guid>
         CuotaRecargo = Redondeo.Dos(Base * PorcentajeRecargo / 100m);
         CuentaContable = string.IsNullOrWhiteSpace(datos.CuentaContable) ? null : datos.CuentaContable.Trim();
         AnticipoId = datos.AnticipoId;
+        AlbaranVentaId = datos.AlbaranVentaId;
     }
 
     /// <summary>
@@ -51,6 +52,9 @@ public sealed class LineaFactura : EntidadBase<Guid>
 
     /// <summary>Anticipo facturado que descuenta esta línea (base e impuesto en negativo) en la factura final.</summary>
     public Guid? AnticipoId { get; private set; }
+
+    /// <summary>Albarán de venta que factura esta línea (la salida de existencias la hizo el albarán).</summary>
+    public Guid? AlbaranVentaId { get; private set; }
 
     /// <summary>Número de la línea en la factura (1, 2, 3…): el orden en que se emitió, en pantalla, PDF y registros.</summary>
     public int Orden { get; internal set; }

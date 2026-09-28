@@ -14,7 +14,7 @@ public sealed record LineaFacturaDto(
     string Descripcion, decimal Cantidad, decimal PrecioUnitario, decimal PorcentajeDescuento,
     string CodigoIva, decimal PorcentajeIva, decimal Base, decimal CuotaIva,
     decimal CosteUnitario, decimal Margen, decimal PorcentajeRecargo, decimal CuotaRecargo, Guid? ProductoId = null, IReadOnlyList<ConceptoAplicado>? Conceptos = null, decimal ImporteConceptos = 0m, decimal CosteConceptos = 0m,
-    string? CuentaContable = null, Guid? AnticipoId = null);
+    string? CuentaContable = null, Guid? AnticipoId = null, Guid? AlbaranVentaId = null);
 
 /// <summary>Datos de una línea de venta para el cálculo de márgenes (informe de beneficio).</summary>
 public sealed record LineaMargenDto(Guid? ProductoId, string Descripcion, decimal Cantidad, decimal Ingreso, decimal Coste);
@@ -66,7 +66,7 @@ public sealed record FacturaDto(
         f.Lineas.Select(l => new LineaFacturaDto(
             l.Descripcion, l.Cantidad, l.PrecioUnitario, l.PorcentajeDescuento, l.CodigoIva, l.PorcentajeIva, l.Base, l.CuotaIva,
             l.CosteUnitario, l.Margen, l.PorcentajeRecargo, l.CuotaRecargo, l.ProductoId, l.Conceptos, l.ImporteConceptos, l.CosteConceptos,
-            l.CuentaContable, l.AnticipoId)).ToList(),
+            l.CuentaContable, l.AnticipoId, l.AlbaranVentaId)).ToList(),
         MencionFiscal: f.MencionFiscal,
         Impuesto: f.Impuesto);
 }

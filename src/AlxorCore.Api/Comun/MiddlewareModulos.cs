@@ -20,6 +20,7 @@ public static class RutasModulos
             ("/contabilidad/presupuestos", CatalogoModulos.Analitica),
             ("/contabilidad", CatalogoModulos.Contabilidad),
             ("/pedidos-venta", CatalogoModulos.Ventas),
+            ("/albaranes-venta", CatalogoModulos.Ventas),
             ("/presupuestos", CatalogoModulos.Ventas),
             ("/cartas-porte", CatalogoModulos.Ventas),
             ("/transporte", CatalogoModulos.Ventas),

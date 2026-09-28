@@ -63,6 +63,31 @@ public sealed class RetencionesIrpfEndpointsTests : IClassFixture<FabricaApiPrue
         lineas[1].Length.Should().Be(500);
         lineas[0][..4].Should().Be("1190"); // registro declarante del modelo 190
         lineas[1][..4].Should().Be("2190"); // registro perceptor
+        lineas[1][77..80].Should().Be("G01", "profesional al 15 %: clave G, subclave 01");
+    }
+
+    [Fact]
+    public async Task La_retencion_del_2_por_ciento_a_un_agricultor_va_con_la_clave_H()
+    {
+        var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+        var agricultor = (await (await cliente.PostAsJsonAsync("/proveedores",
+            new { Nombre = "José Agricultor", NifFiscal = "22222222J", Provincia = "Almería" })).Content.ReadFromJsonAsync<IdResp>())!;
+
+        // Autofactura de fruta: base 10.000 con retención del 2 % (art. 95.6.2º RIRPF).
+        (await cliente.PostAsJsonAsync("/gastos", new
+        {
+            Concepto = "Liquidación de tomate",
+            BaseImponible = 10000m,
+            CodigoIva = "IVA0",
+            ProveedorId = agricultor.Id,
+            PorcentajeIrpf = 2m,
+            Fecha = "2026-03-10",
+        })).EnsureSuccessStatusCode();
+
+        var m190 = await cliente.GetFromJsonAsync<Modelo190Resp>("/informes/modelo-190?anio=2026");
+        m190!.Perceptores.Should().ContainSingle().Which.Should().Match<PerceptorResp>(p => p.Clave == "H" && p.Retenciones == 200m);
+        var texto = await (await cliente.GetAsync("/informes/modelo-190/fichero?anio=2026")).Content.ReadAsStringAsync();
+        texto.Split("\r\n")[1][77..80].Should().Be("H02", "actividades agrícolas en estimación objetiva");
     }
 
     [Fact]

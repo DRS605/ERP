@@ -210,7 +210,8 @@ public sealed class RegistrarGasto
             }
 
             var autoliquidada = iva.Clase is AlxorCore.Catalogo.Dominio.ClaseIva.InversionSujetoPasivo or AlxorCore.Catalogo.Dominio.ClaseIva.Intracomunitario;
-            var sinCuota = !autoliquidada && iva.Clase != AlxorCore.Catalogo.Dominio.ClaseIva.Ordinario;
+            // La compensación REAGP a un agricultor sí lleva cuota (el % de compensación), igual que el IVA ordinario.
+            var sinCuota = !autoliquidada && iva.Clase is not (AlxorCore.Catalogo.Dominio.ClaseIva.Ordinario or AlxorCore.Catalogo.Dominio.ClaseIva.AgriculturaCompensacion);
             var porcentaje = autoliquidada
                 ? l.PorcentajeIva ?? (iva.Porcentaje > 0m ? iva.Porcentaje : (iva.Impuesto == TipoImpuesto.Igic ? Impuesto.IgicGeneral : Impuesto.IvaGeneral).Porcentaje)
                 : iva.Porcentaje;

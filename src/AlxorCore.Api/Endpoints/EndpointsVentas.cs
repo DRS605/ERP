@@ -61,7 +61,93 @@ public static class EndpointsVentas
             .WithSummary("Factura el pedido: genera la factura real y la enlaza.")
             .RequierePermiso(Permisos.FacturaEmitir);
 
+        MapearAlbaranes(rutas);
         return rutas;
+    }
+
+    /// <summary>
+    /// Albaranes de venta como documento central: directos o de pedido, con salida de stock al emitirse, valoración a
+    /// posteriori y facturación de varios albaranes en una factura o masiva por cliente.
+    /// </summary>
+    private static void MapearAlbaranes(IEndpointRouteBuilder rutas)
+    {
+        var albaranes = rutas.MapGroup("/albaranes-venta").WithTags("Ventas");
+
+        albaranes.MapGet("", async (Guid? clienteId, string? estado, DateOnly? desde, DateOnly? hasta, IContextoEmpresa contexto, ConsultarAlbaranesVenta caso, CancellationToken ct) =>
+            {
+                if (contexto.EmpresaId is null)
+                {
+                    return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+                }
+
+                AlxorCore.Facturacion.Dominio.EstadoAlbaranVenta? filtroEstado = null;
+                if (!string.IsNullOrWhiteSpace(estado))
+                {
+                    if (!Enum.TryParse<AlxorCore.Facturacion.Dominio.EstadoAlbaranVenta>(estado, true, out var e))
+                    {
+                        return ResultadosHttp.AProblema(Error.Validacion("albaranventa.estado", "Estado no válido: PendienteValorar, PendienteFacturar, Facturado o Anulado."));
+                    }
+
+                    filtroEstado = e;
+                }
+
+                return Results.Ok(await caso.ListarAsync(contexto.EmpresaId.Value, new FiltroAlbaranesVenta(clienteId, filtroEstado, desde, hasta), ct).ConfigureAwait(false));
+            })
+            .WithSummary("Albaranes de venta (filtro por cliente, estado y fechas).")
+            .RequierePermiso(Permisos.FacturaLeer);
+
+        albaranes.MapGet("/{id:guid}", async (Guid id, ConsultarAlbaranesVenta caso, CancellationToken ct) =>
+                await caso.ObtenerAsync(id, ct).ConfigureAwait(false) is { } a ? Results.Ok(a) : Results.NotFound())
+            .WithSummary("Albarán de venta con sus líneas.")
+            .RequierePermiso(Permisos.FacturaLeer);
+
+        albaranes.MapPost("", async (CrearAlbaranVentaComando comando, IContextoEmpresa contexto, CrearAlbaranVenta caso, CancellationToken ct) =>
+            {
+                if (contexto.EmpresaId is null)
+                {
+                    return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+                }
+
+                var r = await caso.EjecutarAsync(contexto.EmpresaId.Value, comando, ct).ConfigureAwait(false);
+                return r.EsCorrecto ? r.ACreado($"/albaranes-venta/{r.Valor.Id}") : ResultadosHttp.AProblema(r.Error);
+            })
+            .WithSummary("Albarán directo (sin pedido): saca la mercancía del almacén.")
+            .RequierePermiso(Permisos.FacturaEmitir);
+
+        albaranes.MapPut("/{id:guid}/valorar", async (Guid id, ValorarAlbaranVentaComando comando, ValorarAlbaranVenta caso, CancellationToken ct) =>
+                (await caso.EjecutarAsync(id, comando, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Fija los precios de un albarán entregado a precio por fijar.")
+            .RequierePermiso(Permisos.FacturaEmitir);
+
+        albaranes.MapPost("/{id:guid}/anular", async (Guid id, AnularAlbaranPeticion? peticion, AnularAlbaranVenta caso, CancellationToken ct) =>
+                (await caso.EjecutarAsync(null, id, peticion?.Motivo, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Anula un albarán sin facturar: la mercancía vuelve al almacén.")
+            .RequierePermiso(Permisos.FacturaEmitir);
+
+        albaranes.MapPost("/facturar", async (FacturarAlbaranesComando comando, IContextoEmpresa contexto, FacturarAlbaranesVenta caso, CancellationToken ct) =>
+            {
+                if (contexto.EmpresaId is null)
+                {
+                    return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+                }
+
+                var r = await caso.EjecutarAsync(contexto.EmpresaId.Value, comando, ct).ConfigureAwait(false);
+                return r.EsCorrecto ? r.ACreado($"/facturas/{r.Valor.Id}") : ResultadosHttp.AProblema(r.Error);
+            })
+            .WithSummary("Factura uno o varios albaranes del mismo cliente en una factura.")
+            .RequierePermiso(Permisos.FacturaEmitir);
+
+        albaranes.MapPost("/facturacion-masiva", async (FacturacionMasivaAlbaranesComando comando, IContextoEmpresa contexto, FacturarAlbaranesVenta caso, CancellationToken ct) =>
+            {
+                if (contexto.EmpresaId is null)
+                {
+                    return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+                }
+
+                return Results.Ok(await caso.MasivaAsync(contexto.EmpresaId.Value, comando, ct).ConfigureAwait(false));
+            })
+            .WithSummary("Factura los albaranes valorados pendientes hasta una fecha: una factura por cliente (o por albarán).")
+            .RequierePermiso(Permisos.FacturaEmitir);
     }
 
     private static async Task<IResult> ListarAsync(IContextoEmpresa contexto, ListarPedidosVenta caso, CancellationToken ct)

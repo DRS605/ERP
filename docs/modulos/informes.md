@@ -64,17 +64,50 @@ y espacios de nombres del SII de la AEAT (`SuministroInformacion.xsd` / `Suminis
 `IDVersionSii` 1.1, comunicación `A0` de alta). Pensado para grandes empresas obligadas al SII
 (&gt;6 M€ de facturación) que deben remitir sus libros en un plazo de 4 días.
 
-Es una generación **mejor esfuerzo, a validar** con el esquema oficial: reutiliza los datos de las
-facturas/gastos y el NIF de la empresa (titular). El **envío en vivo** (SOAP + certificado
-electrónico) es el paso posterior —igual que en VeriFactu— y solo requiere conectar el certificado
-sin rehacer esta generación. Descarga el fichero `application/xml`; requiere el permiso
-`datos.exportar`.
+La descarga sirve para revisar el libro. **El envío a la AEAT** se hace desde ALXOR (ver «Envío del SII»
+más abajo). Descarga el fichero `application/xml`; requiere el permiso `datos.exportar`.
 
 Cada factura emitida lleva **un `DetalleIVA` por tipo impositivo** (con su recargo de equivalencia si lo
 hay), no un tipo medio. En recibidas, el `IDEmisorFactura` y la `Contraparte` se identifican por el **NIF del
 proveedor** de la ficha (si falta, un `IDOtro` tipo 07 con el nombre y un comentario «completar antes de
-enviar»), el tipo es el del gasto y los **gastos anulados no se declaran**. El número de factura del proveedor
-aún no se guarda en el gasto: se genera uno correlativo (`G{ejercicio}-nnnn`) a revisar.
+enviar»), el tipo es el del gasto y los **gastos anulados no se declaran**. Sin número de factura del proveedor en el
+gasto, se genera uno estable (`G{ejercicio}-` y 8 caracteres del gasto) a completar antes de enviar. Las facturas
+emitidas **anuladas** no se dan de alta. Las autofacturas y recibos **REAGP** (tipo `REAGP12` o `REAGP105`) van con
+la clave de régimen **02** y su `PorcentCompensacionREAGYP` e `ImporteCompensacionREAGYP`.
+
+### Envío del SII
+
+Como en Hispatec, se lleva un **registro por factura** (esquema `fiscal`: `certificado`, `envio_sii` y
+`registro_sii`, con RLS por empresa):
+
+- **Certificado**: `PUT /informes/sii/certificado` recibe el `.pfx` o `.p12` en base64 y su contraseña. Comprueba que
+  se abre, que tiene clave privada y que no ha caducado, y lo guarda **cifrado** con la protección de datos de
+  ASP.NET Core. Las claves de cifrado se guardan en `ProteccionDatos:Ruta`, que en producción debe ser un volumen
+  persistente. La API nunca devuelve el certificado; solo el titular, el NIF, la caducidad y el entorno. El entorno
+  empieza en **Pruebas** (`prewww1.aeat.es`) y se pasa a **Produccion** con `PUT /informes/sii/certificado/entorno`.
+- **Envío**: `POST /informes/sii/enviar` (libro, ejercicio, mes) compara cada documento con lo que consta enviado,
+  mediante la huella SHA-256 de su registro:
+  - los nuevos o rechazados van como alta **A0**;
+  - los aceptados que han cambiado, o que se aceptaron con errores, van como modificación **A1**;
+  - los anulados que se habían aceptado se dan de **baja**.
+
+  Cada envío se hace por SOAP con autenticación TLS de cliente, en bloques de hasta 10.000 facturas. Lo aceptado sin
+  cambios no se reenvía (`sii.nada_que_enviar`).
+- **Respuesta**: se guarda la petición, la respuesta, el CSV y el estado global (`Correcto`, `ParcialmenteCorrecto`,
+  `Incorrecto` o `ErrorComunicacion`). Cada factura queda `Correcto`, `AceptadoConErrores`, `Incorrecto` (con el
+  código y la descripción de la AEAT) o `DadoDeBaja`. El código 3000 (factura ya registrada) se trata como aceptada y
+  se corrige con A1.
+- **Consultas**:
+  - `GET /informes/sii/situacion` da la situación de cada factura del mes: pendiente, enviada, rechazada, modificada,
+    pendiente de baja o dada de baja.
+  - `GET /informes/sii/envios` da el histórico.
+  - `GET /informes/sii/envios/{id}/xml?parte=peticion|respuesta` descarga la petición o la respuesta de un envío.
+- **Interfaz**: en Informes, el panel SII muestra el certificado, la situación del mes, el botón «Enviar a la AEAT» y
+  el histórico.
+
+Pendiente: los certificados de sello (servidores `www10`), la consulta de lo registrado en la AEAT
+(`ConsultaLRFacturas…`), otros libros (bienes de inversión, cobros en metálico) y las claves de régimen distintas de
+01 y 02 en emitidas (exportación, criterio de caja…).
 
 En la interfaz clásica, Informes tiene selector de **ejercicio** y trimestre; el libro de IVA muestra
 repercutido o **soportado** (con NIF) por año o trimestre y su CSV respeta esa selección, y el panel SII
@@ -139,6 +172,12 @@ botón *Cierre de caja* del TPV.
 | `GET` | `/informes/resumen-trimestral` | permiso `informe.leer` | Resúmenes 303 (IVA) y 130 (IRPF) del trimestre. |
 | `GET` | `/informes/declaracion-anual` | permiso `informe.leer` | Declaraciones anuales 390 (IVA) y 347 (terceros). |
 | `GET` | `/informes/sii` | permiso `datos.exportar` | XML del SII (libro de facturas emitidas o recibidas de un mes). |
+| `GET`/`PUT`/`DELETE` | `/informes/sii/certificado` | `informe.leer` / `empresa.ajustes` | Certificado de la empresa (se guarda cifrado). |
+| `PUT` | `/informes/sii/certificado/entorno` | `empresa.ajustes` | Entorno Pruebas o Produccion. |
+| `GET` | `/informes/sii/situacion` | `informe.leer` | Situación de cada factura del mes en el SII. |
+| `POST` | `/informes/sii/enviar` | `contabilidad.gestionar` | Envía altas (A0), modificaciones (A1) y bajas del mes. |
+| `GET` | `/informes/sii/envios` | `informe.leer` | Histórico de envíos (estado, CSV, recuento). |
+| `GET` | `/informes/sii/envios/{id}/xml` | `datos.exportar` | Petición o respuesta de un envío. |
 | `GET` | `/informes/ventas-cliente` | permiso `informe.leer` | Ventas por cliente del periodo. |
 | `GET` | `/informes/ventas-articulo` | permiso `informe.leer` | Ventas por artículo (con margen). |
 | `GET` | `/informes/compras-proveedor` | permiso `informe.leer` | Compras/gastos por proveedor. |

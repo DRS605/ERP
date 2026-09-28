@@ -76,6 +76,11 @@ public static class RegistroServicios
         servicios.AddScoped<ObtenerPedidoVenta>();
         servicios.AddScoped<EntregarPedido>();
         servicios.AddScoped<AnularAlbaranVenta>();
+        servicios.AddScoped<CrearAlbaranVenta>();
+        servicios.AddScoped<ValorarAlbaranVenta>();
+        servicios.AddScoped<FacturarAlbaranesVenta>();
+        servicios.AddScoped<ConsultarAlbaranesVenta>();
+        servicios.AddScoped<LiberarAlbaranesFactura>();
         servicios.AddScoped<ListarAlbaranesVenta>();
         servicios.AddScoped<FacturarPedidoVenta>();
 

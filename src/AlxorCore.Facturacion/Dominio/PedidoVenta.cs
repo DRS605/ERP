@@ -85,6 +85,10 @@ public sealed class LineaPedidoVenta
     internal void DeshacerServido(decimal cantidad) => CantidadServida = Math.Max(0m, Math.Round(CantidadServida - cantidad, 3, MidpointRounding.AwayFromZero));
 
     internal void Facturar() => CantidadFacturada = Cantidad;
+
+    internal void FacturarCantidad(decimal cantidad) => CantidadFacturada = Math.Round(Math.Min(Cantidad, CantidadFacturada + cantidad), 3, MidpointRounding.AwayFromZero);
+
+    internal void DeshacerFacturado(decimal cantidad) => CantidadFacturada = Math.Round(Math.Max(0m, CantidadFacturada - cantidad), 3, MidpointRounding.AwayFromZero);
 }
 
 /// <summary>
@@ -362,6 +366,44 @@ public sealed class PedidoVenta : RaizAgregadoEmpresa<Guid>
         Estado = EstadoPedidoVenta.Facturado;
         FacturaId = facturaId;
         return Resultado.Ok();
+    }
+
+    /// <summary>
+    /// Se ha facturado un albarán del pedido: suma lo facturado de sus líneas; cuando todo el pedido está facturado, pasa a
+    /// <c>Facturado</c> con esa factura.
+    /// </summary>
+    public void FacturarEntrega(Guid facturaId, IReadOnlyList<(Guid LineaId, decimal Cantidad)> entregas)
+    {
+        ArgumentNullException.ThrowIfNull(entregas);
+        foreach (var (lineaId, cantidad) in entregas)
+        {
+            _lineas.SingleOrDefault(l => l.Id == lineaId)?.FacturarCantidad(cantidad);
+        }
+
+        if (Estado is not EstadoPedidoVenta.Cancelado && _lineas.All(l => l.CantidadFacturada >= l.Cantidad))
+        {
+            Estado = EstadoPedidoVenta.Facturado;
+            FacturaId = facturaId;
+        }
+    }
+
+    /// <summary>Se anuló la factura de un albarán del pedido: lo facturado vuelve atrás y el pedido, a servido.</summary>
+    public void DeshacerFacturacion(Guid facturaId, IReadOnlyList<(Guid LineaId, decimal Cantidad)> entregas)
+    {
+        ArgumentNullException.ThrowIfNull(entregas);
+        foreach (var (lineaId, cantidad) in entregas)
+        {
+            _lineas.SingleOrDefault(l => l.Id == lineaId)?.DeshacerFacturado(cantidad);
+        }
+
+        if (Estado is EstadoPedidoVenta.Facturado && _lineas.Any(l => l.CantidadFacturada < l.Cantidad))
+        {
+            Estado = _lineas.Any(l => l.CantidadServida > 0m) ? EstadoPedidoVenta.Servido : EstadoPedidoVenta.Confirmado;
+            if (FacturaId == facturaId)
+            {
+                FacturaId = null;
+            }
+        }
     }
 
     public Resultado Cancelar()

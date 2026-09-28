@@ -23,7 +23,9 @@ public sealed record LineaComando(
     IReadOnlyList<ConceptoSolicitado>? Conceptos = null,
     IReadOnlyList<ConceptoAplicado>? ConceptosCopiados = null,
     string? CuentaContable = null,
-    Guid? AnticipoId = null);
+    Guid? AnticipoId = null,
+    Guid? AlbaranVentaId = null,
+    bool SinSalidaStock = false);
 
 /// <summary>Datos para emitir una factura. <c>DiasVencimiento</c> es el plazo de pago (0 = contado).</summary>
 public sealed record EmitirFacturaComando(
@@ -315,9 +317,10 @@ public sealed class EmitirFactura
         await _despacharSalida.EjecutarAsync(ct: ct).ConfigureAwait(false);
 
         // Descuento de existencias de los artículos con control de stock (mejor esfuerzo; la factura ya
-        // está emitida y es la verdad fiscal).
+        // está emitida y es la verdad fiscal). Las líneas de albaranes que ya sacaron la mercancía no la mueven otra vez.
+        var yaSalieron = comando.Lineas.Where(l => l.SinSalidaStock && l.AlbaranVentaId is not null).Select(l => l.AlbaranVentaId!.Value).ToHashSet();
         var lineasVenta = f.Lineas
-            .Where(l => l.ProductoId is not null)
+            .Where(l => l.ProductoId is not null && !(l.AlbaranVentaId is { } alb && yaSalieron.Contains(alb)))
             .Select(l => new LineaVenta(l.ProductoId!.Value, l.Cantidad))
             .ToList();
         if (lineasVenta.Count > 0)
@@ -457,7 +460,7 @@ internal static class ResolucionLineasFactura
 
             resueltas.Add(new NuevaLinea(
                 descripcion, linea.Cantidad, precio.Value, codigoResuelto, porcentaje, descuento, linea.ProductoId, coste ?? 0m, porcentajeRecargo,
-                CuentaContable: linea.CuentaContable, AnticipoId: linea.AnticipoId));
+                CuentaContable: linea.CuentaContable, AnticipoId: linea.AnticipoId, AlbaranVentaId: linea.AlbaranVentaId));
         }
 
         return Resultado.Ok(resueltas);

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.DataProtection;
 using System.IdentityModel.Tokens.Jwt;
 using System.Text.Json.Serialization;
 using AlxorCore.Api.Comun;
@@ -68,6 +69,15 @@ builder.Services.AgregarModuloAgro(builder.Configuration);
 builder.Services.AgregarModuloMigracion(builder.Configuration);
 builder.Services.AgregarModuloDocumentos();
 builder.Services.AgregarModuloInformes();
+builder.Services.AgregarFiscalSii(builder.Configuration);
+// Protección de datos (cifrado del certificado del SII): las claves, en la ruta configurada o en el perfil del proceso.
+var protecciones = builder.Services.AddDataProtection().SetApplicationName("AlxorCore");
+if (builder.Configuration["ProteccionDatos:Ruta"] is { Length: > 0 } rutaClaves)
+{
+    protecciones.PersistKeysToFileSystem(new DirectoryInfo(rutaClaves));
+}
+
+builder.Services.AddSingleton<AlxorCore.Informes.Aplicacion.IProtectorSecretos, ProtectorSecretos>();
 
 // Eliminar maestros: solo si no se han usado en ninguna empresa del grupo (mapa de referencias entre módulos).
 builder.Services.AddScoped<AlxorCore.Nucleo.Aplicacion.IComprobadorUso, AlxorCore.Api.Comun.ComprobadorUso>();
@@ -208,6 +218,7 @@ if (app.Environment.IsDevelopment())
     await ambito.ServiceProvider.GetRequiredService<PersonalDbContext>().Database.MigrateAsync().ConfigureAwait(false);
     await ambito.ServiceProvider.GetRequiredService<ProyectosDbContext>().Database.MigrateAsync().ConfigureAwait(false);
     await ambito.ServiceProvider.GetRequiredService<AnalisisDbContext>().Database.MigrateAsync().ConfigureAwait(false);
+    await ambito.ServiceProvider.GetRequiredService<FiscalDbContext>().Database.MigrateAsync().ConfigureAwait(false);
     await ambito.ServiceProvider.GetRequiredService<AlxorCore.Tesoreria.Infraestructura.TesoreriaDbContext>().Database.MigrateAsync().ConfigureAwait(false);
     await ambito.ServiceProvider.GetRequiredService<AgroDbContext>().Database.MigrateAsync().ConfigureAwait(false);
     await ambito.ServiceProvider.GetRequiredService<MigracionDbContext>().Database.MigrateAsync().ConfigureAwait(false);
@@ -293,6 +304,7 @@ app.MapearAnalitica();
 app.MapearPresupuestosContables();
 app.MapearDocumentos();
 app.MapearInformes();
+app.MapearSii();
 app.MapearAuditoria();
 app.MapearDivisas();
 app.MapearAprobaciones();

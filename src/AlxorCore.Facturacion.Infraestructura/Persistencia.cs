@@ -141,6 +141,8 @@ internal sealed class ConfiguracionFactura : IEntityTypeConfiguration<Factura>
             linea.Property(l => l.Orden).HasColumnName("orden").HasDefaultValue(0).IsRequired();
             linea.Property(l => l.AnticipoId).HasColumnName("anticipo_id");
             linea.HasIndex(l => l.AnticipoId).HasDatabaseName("ix_linea_factura_anticipo");
+            linea.Property(l => l.AlbaranVentaId).HasColumnName("albaran_venta_id");
+            linea.HasIndex(l => l.AlbaranVentaId).HasDatabaseName("ix_linea_factura_albaran_venta");
             linea.Ignore(l => l.CosteTotal);
             linea.Ignore(l => l.Margen);
         });

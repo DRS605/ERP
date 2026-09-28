@@ -13,9 +13,14 @@ la empresa quien retiene ese importe y lo ingresa en Hacienda vía el 111/190.
 - El **perceptor** se resuelve por su ficha de proveedor (`ProveedorId`), de donde se obtienen
   **NIF** y **provincia**. Los gastos cuyo proveedor está solo como **texto libre** (sin ficha) no
   tienen NIF y **no pueden entrar en el fichero oficial del 190**: se listan aparte como aviso.
-- Clave del 190: **G** (rendimientos de actividades económicas — actividades profesionales), que es
-  la habitual para las retenciones que un autónomo/pyme practica a otros profesionales. Las
-  retenciones de rendimientos del trabajo (nóminas) quedan fuera al no gestionarse aquí.
+- Clave del 190 según el tipo de retención de cada gasto:
+  - **G 01** (actividades profesionales) para el 15 %, el 7 % y el resto;
+  - **H 02** (actividades agrícolas y ganaderas en estimación objetiva) para el **2 %** de las autofacturas y
+    liquidaciones a agricultores (art. 95.6.2º RIRPF);
+  - **H 01** para el **1 %** (actividades empresariales en módulos).
+
+  Un proveedor con retenciones de las dos clases sale como dos perceptores. Las retenciones de
+  rendimientos del trabajo (nóminas) quedan fuera al no gestionarse aquí.
 
 ## Modelo 111 (trimestral)
 

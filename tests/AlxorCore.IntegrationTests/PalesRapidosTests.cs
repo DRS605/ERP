@@ -260,7 +260,7 @@ public sealed class PalesRapidosTests : IClassFixture<FabricaApiPruebas>
             new { Lineas = new[] { new { LineaPedidoId = pedido.Lineas[0].Id, Cantidad = 100m } } }));
         (await e.Api.PostAsJsonAsync($"/pedidos-venta/{pedido.Id}/facturar", new { })).IsSuccessStatusCode.Should().BeTrue();
         (await CodigoAsync(await e.Api.PostAsJsonAsync($"/pedidos-venta/{pedido.Id}/albaranes/{albaran.Id}/anular", new { Motivo = "Error" }), HttpStatusCode.Conflict))
-            .Should().Be("pedidoventa.facturado");
+            .Should().BeOneOf("albaranventa.facturado", "pedidoventa.facturado");
     }
 
     /// <summary>Anchuras de referencia generadas con otro codificador (bwip-js, «gs1-128»).</summary>

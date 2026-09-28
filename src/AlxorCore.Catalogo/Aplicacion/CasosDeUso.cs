@@ -590,6 +590,33 @@ public sealed class StockVentas : IStockVentas
         }
     }
 
+    public async Task DevolverVentaAsync(Guid empresaId, IReadOnlyList<LineaVenta> lineas, string motivo, CancellationToken ct = default)
+    {
+        var afectados = false;
+        foreach (var (productoId, (cantidad, _)) in await SalidasAsync(lineas, ct).ConfigureAwait(false))
+        {
+            var existencia = await _existencias.ObtenerPorProductoAsync(productoId, ct).ConfigureAwait(false);
+            var nueva = existencia is null;
+            existencia ??= ExistenciaSimple.Crear(empresaId, productoId, _reloj);
+            var movimiento = existencia.Aplicar(TipoMovimientoStock.Entrada, cantidad, motivo, _reloj);
+            if (movimiento.EsCorrecto)
+            {
+                if (nueva)
+                {
+                    _existencias.Agregar(existencia);
+                }
+
+                _movimientos.Agregar(movimiento.Valor);
+                afectados = true;
+            }
+        }
+
+        if (afectados)
+        {
+            await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        }
+    }
+
     /// <summary>
     /// Lo que sale del almacén por unas líneas de venta: los artículos con control de existencias y, de un kit, sus
     /// componentes (en todos los niveles), agrupado por artículo.

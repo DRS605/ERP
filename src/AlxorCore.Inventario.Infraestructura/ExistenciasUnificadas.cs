@@ -86,6 +86,22 @@ internal sealed class StockVentasPorAlmacen : IStockVentas
             await _movimientos.SalidaVentaAsync(empresaId, productoId, cantidad, motivo, null, hoy, ct).ConfigureAwait(false);
         }
     }
+
+    public async Task DevolverVentaAsync(Guid empresaId, IReadOnlyList<LineaVenta> lineas, string motivo, CancellationToken ct = default)
+    {
+        var almacenes = await _movimientos.AlmacenesActivosAsync(empresaId, ct).ConfigureAwait(false);
+        if (almacenes.Count == 0)
+        {
+            await _catalogo.DevolverVentaAsync(empresaId, lineas, motivo, ct).ConfigureAwait(false);
+            return;
+        }
+
+        var hoy = DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
+        foreach (var (productoId, (cantidad, _)) in await _catalogo.SalidasAsync(lineas, ct).ConfigureAwait(false))
+        {
+            await _movimientos.EntradaAsync(empresaId, new MovimientoComando(productoId, almacenes[0].Id, cantidad, Motivo: motivo, Fecha: hoy), ct).ConfigureAwait(false);
+        }
+    }
 }
 
 /// <summary>Movimientos hechos desde la ficha del artículo cuando la empresa trabaja con almacenes: van al almacén principal.</summary>

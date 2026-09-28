@@ -1,4 +1,7 @@
 using AlxorCore.Informes.Aplicacion;
+using AlxorCore.Persistencia;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace AlxorCore.Informes.Infraestructura;
@@ -30,6 +33,28 @@ public static class RegistroServicios
         servicios.AddScoped<GenerarExtractoTercero>();
         servicios.AddScoped<GenerarAgingCartera>();
 
+        return servicios;
+    }
+
+    /// <summary>
+    /// Parte fiscal con estado propio (esquema <c>fiscal</c>): certificado de la empresa y envío del SII a la AEAT. El
+    /// cifrado del certificado (<see cref="IProtectorSecretos"/>) lo aporta el anfitrión.
+    /// </summary>
+    public static IServiceCollection AgregarFiscalSii(this IServiceCollection servicios, IConfiguration configuracion)
+    {
+        ArgumentNullException.ThrowIfNull(servicios);
+        ArgumentNullException.ThrowIfNull(configuracion);
+        var conexion = configuracion.GetConnectionString("AlxorCore")
+            ?? throw new InvalidOperationException("Falta la cadena de conexión «AlxorCore».");
+
+        servicios.AddScoped<InterceptorEmpresa>();
+        servicios.AddDbContext<FiscalDbContext>((sp, opciones) =>
+            opciones.UseNpgsql(conexion, npgsql => npgsql.MigrationsHistoryTable("__historial_migraciones", FiscalDbContext.Esquema))
+                .AddInterceptors(sp.GetRequiredService<InterceptorEmpresa>()));
+        servicios.AddScoped<IRepositorioSii, RepositorioSii>();
+        servicios.AddSingleton<ITransporteSii, TransporteSiiHttp>();
+        servicios.AddScoped<GestionCertificadoSii>();
+        servicios.AddScoped<EnviarSii>();
         return servicios;
     }
 }

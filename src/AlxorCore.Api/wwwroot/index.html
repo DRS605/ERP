@@ -472,7 +472,7 @@
     // Menú agrupado en carpetas: Ventas, Compras y Artículos.
     const NAV = [
       { t:"item", k:"inicio", l:"Inicio" },
-      { t:"grupo", k:"ventas", l:"Ventas", items:[["clientes","Clientes"],["presupuestos","Presupuestos"],["pedidosventa","Pedidos de venta"],["facturas","Facturas"],["tpv","TPV · Tickets"],["recurrentes","Facturación periódica"],["anticipos","Anticipos"]] },
+      { t:"grupo", k:"ventas", l:"Ventas", items:[["clientes","Clientes"],["presupuestos","Presupuestos"],["pedidosventa","Pedidos de venta"],["albaranesventa","Albaranes"],["facturas","Facturas"],["tpv","TPV · Tickets"],["recurrentes","Facturación periódica"],["anticipos","Anticipos"]] },
       { t:"grupo", k:"compras", l:"Compras", items:[["proveedores","Proveedores"],["solicitudes","Solicitudes"],["pedidos","Pedidos de compra"],["recepcion","Buzón de facturas"],["gastos","Facturas de proveedor"]] },
       { t:"grupo", k:"articulos", l:"Artículos y almacén", items:[["productos","Artículos"],["familias","Familias"],["tarifas","Tarifas de precios"],["conceptoslinea","Conceptos de línea"],["inventario","Inventario / Almacenes"],["produccion","Producción"]] },
       { t:"grupo", k:"logistica", l:"Expedición y aduanas", items:[["cartasporte","Cartas de porte · CMR"],["aduanas","Aduanas · Intrastat"]] },
@@ -484,11 +484,11 @@
       { t:"item", k:"proyectos", l:"Proyectos" },
       { t:"grupo", k:"ajustes", l:"Configuración", items:[["ajustes","Ajustes"],["aprobaciones","Aprobaciones"],["integraciones","API y webhooks"]] },
     ];
-    const TITULOS = { analisis:"Análisis de datos", bancos:"Bancos y cajas", cartera:"Efectos de cartera", agrorecepciones:"Agro · recepciones de fruta", agropartidas:"Agro · partidas y palés", agroconfeccion:"Agro · confección", agroliquidaciones:"Agro · liquidaciones al agricultor", agrotrazabilidad:"Agro · trazabilidad", agroinforme:"Agro · informe de campaña", agromaestros:"Agro · campañas, agricultores y precios", analitica:"Analítica · resultados", analiticapend:"Analítica · pendientes de imputar", analiticamaestros:"Analítica · centros, partidas y reglas", presupuestoscont:"Presupuestos contables", impagados:"Impagados y reclamaciones", anticipos:"Anticipos de clientes", cartasporte:"Cartas de porte · CMR", aduanas:"Aduanas e Intrastat", intragrupo:"Operaciones entre empresas del grupo", actividades:"Actividades de negocio", inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Facturas de proveedor y gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos",tarifas:"Tarifas de precios", conceptoslinea:"Conceptos de línea", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", gestion:"Análisis de gestión", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", divisas:"Divisas y tipos de cambio", aprobaciones:"Aprobaciones y control de firmas", integraciones:"API pública y webhooks", ajustes:"Ajustes" };
+    const TITULOS = { albaranesventa:"Albaranes de venta", analisis:"Análisis de datos", bancos:"Bancos y cajas", cartera:"Efectos de cartera", agrorecepciones:"Agro · recepciones de fruta", agropartidas:"Agro · partidas y palés", agroconfeccion:"Agro · confección", agroliquidaciones:"Agro · liquidaciones al agricultor", agrotrazabilidad:"Agro · trazabilidad", agroinforme:"Agro · informe de campaña", agromaestros:"Agro · campañas, agricultores y precios", analitica:"Analítica · resultados", analiticapend:"Analítica · pendientes de imputar", analiticamaestros:"Analítica · centros, partidas y reglas", presupuestoscont:"Presupuestos contables", impagados:"Impagados y reclamaciones", anticipos:"Anticipos de clientes", cartasporte:"Cartas de porte · CMR", aduanas:"Aduanas e Intrastat", intragrupo:"Operaciones entre empresas del grupo", actividades:"Actividades de negocio", inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Facturas de proveedor y gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos",tarifas:"Tarifas de precios", conceptoslinea:"Conceptos de línea", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", gestion:"Análisis de gestión", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", divisas:"Divisas y tipos de cambio", aprobaciones:"Aprobaciones y control de firmas", integraciones:"API pública y webhooks", ajustes:"Ajustes" };
     // Plan contratado de la empresa activa (lo devuelve /empresas/{id}/seleccionar).
     let plan = null;
     // Vista → módulo contratable que necesita. Las vistas que no están aquí son de la base.
-    const MODULO_VISTA = { tarifas:"ventas", presupuestos:"ventas", pedidosventa:"ventas", remesas:"tesoreria_avanzada",
+    const MODULO_VISTA = { albaranesventa:"ventas", tarifas:"ventas", presupuestos:"ventas", pedidosventa:"ventas", remesas:"tesoreria_avanzada",
       solicitudes:"compras", pedidos:"compras", conciliacion:"tesoreria_avanzada", inventario:"inventario",
       produccion:"produccion", personal:"personal", proyectos:"proyectos", prevision:"tesoreria_avanzada",
       contabilidad:"contabilidad", inmovilizado:"inmovilizado", divisas:"divisas", aprobaciones:"aprobaciones",
@@ -605,7 +605,7 @@
       document.getElementById("viewTitle").textContent=TITULOS[k]||k;
       if(!contratado(k)){ const m=NOMBRE_MODULO[MODULO_VISTA[k]]||MODULO_VISTA[k];
         view(panel("No incluido en tu plan",`<p class="muted" style="margin:0 0 14px">Esta pantalla forma parte del módulo <strong>${m}</strong>, que tu plan no incluye.</p><button class="btn small" onclick="ir('ajustes')">Ver planes en Ajustes →</button>`)); return; }
-      ({cartera:vCartera,analisis:()=>irAnalisis(),bancos:vBancos,agrorecepciones:vAgroRecepciones,agropartidas:vAgroPartidas,agroconfeccion:vAgroConfeccion,agroliquidaciones:vAgroLiquidaciones,agrotrazabilidad:vAgroTrazabilidad,agroinforme:()=>vAgroInforme(),agromaestros:()=>vAgroMaestros(),analitica:vAnalitica,analiticapend:vAnaliticaPend,analiticamaestros:vAnaliticaMaestros,presupuestoscont:vPresupuestosCont,impagados:vImpagados,anticipos:vAnticipos,cartasporte:vCartasPorte,aduanas:vAduanas,intragrupo:vIntragrupo,actividades:vActividades,inicio:vInicio,presupuestos:()=>irDocumento("presupuesto"),facturas:()=>irDocumento("factura"),tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:()=>irDocumento("pedido"),clientes:vClientes,productos:vProductos,familias:vFamilias,tarifas:vTarifas,conceptoslinea:vConceptosLinea,gastos:()=>irDocumento("gasto"),solicitudes:vSolicitudes,pedidos:()=>irDocumento("compra"),inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,gestion:vGestion,contabilidad:vContabilidad,inmovilizado:vInmovilizado,divisas:vDivisas,aprobaciones:vAprobaciones,integraciones:vIntegraciones,ajustes:vAjustes}[k])();
+      ({cartera:vCartera,albaranesventa:vAlbaranesVenta,analisis:()=>irAnalisis(),bancos:vBancos,agrorecepciones:vAgroRecepciones,agropartidas:vAgroPartidas,agroconfeccion:vAgroConfeccion,agroliquidaciones:vAgroLiquidaciones,agrotrazabilidad:vAgroTrazabilidad,agroinforme:()=>vAgroInforme(),agromaestros:()=>vAgroMaestros(),analitica:vAnalitica,analiticapend:vAnaliticaPend,analiticamaestros:vAnaliticaMaestros,presupuestoscont:vPresupuestosCont,impagados:vImpagados,anticipos:vAnticipos,cartasporte:vCartasPorte,aduanas:vAduanas,intragrupo:vIntragrupo,actividades:vActividades,inicio:vInicio,presupuestos:()=>irDocumento("presupuesto"),facturas:()=>irDocumento("factura"),tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:()=>irDocumento("pedido"),clientes:vClientes,productos:vProductos,familias:vFamilias,tarifas:vTarifas,conceptoslinea:vConceptosLinea,gastos:()=>irDocumento("gasto"),solicitudes:vSolicitudes,pedidos:()=>irDocumento("compra"),inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,gestion:vGestion,contabilidad:vContabilidad,inmovilizado:vInmovilizado,divisas:vDivisas,aprobaciones:vAprobaciones,integraciones:vIntegraciones,ajustes:vAjustes}[k])();
     }
     const view = h => { desmontarDocs(); document.getElementById("view").innerHTML=h; try{ mejorarTablas(); }catch(e){} };
 
@@ -3588,6 +3588,88 @@
         }
         toast("Visibilidad guardada.","ok"); });
     }
+    /* Albaranes de venta: el documento central de la venta (como en Hispatec). Sacan la mercancía al emitirse, se pueden
+       entregar a precio por fijar y valorar después, y se facturan varios en una factura o de forma masiva por cliente. */
+    let albFiltro={estado:"",clienteId:"",desde:"",hasta:""};
+    const ESTADO_ALB={PendienteValorar:'<span class="pill part">Por valorar</span>',PendienteFacturar:'<span class="pill wait">Pendiente de facturar</span>',Facturado:'<span class="pill ok">Facturado</span>',Anulado:'<span class="pill neg">Anulado</span>'};
+    async function vAlbaranesVenta(){
+      view('<div class="muted">Cargando…</div>');
+      const q=new URLSearchParams(Object.entries(albFiltro).filter(([,v])=>v)).toString();
+      const [lista,clientes]=await Promise.all([api("/albaranes-venta"+(q?"?"+q:"")),api("/clientes")]);
+      const optCli=`<option value="">Todos los clientes</option>`+clientes.map(c=>`<option value="${c.id}"${c.id===albFiltro.clienteId?" selected":""}>${c.nombre}</option>`).join("");
+      const optEst=[["","Todos los estados"],["PendienteValorar","Por valorar"],["PendienteFacturar","Pendientes de facturar"],["Facturado","Facturados"],["Anulado","Anulados"]]
+        .map(([v,l])=>`<option value="${v}"${v===albFiltro.estado?" selected":""}>${l}</option>`).join("");
+      const filtros=`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-bottom:12px">
+        <div><label>Cliente</label><select id="alb_f_cli" onchange="filtrarAlbaranes()">${optCli}</select></div>
+        <div><label>Estado</label><select id="alb_f_est" onchange="filtrarAlbaranes()">${optEst}</select></div>
+        <div><label>Desde</label><input id="alb_f_des" type="date" value="${albFiltro.desde}" onchange="filtrarAlbaranes()"/></div>
+        <div><label>Hasta</label><input id="alb_f_has" type="date" value="${albFiltro.hasta}" onchange="filtrarAlbaranes()"/></div></div>`;
+      const filas=lista.map(a=>{
+        const sel=a.estado==="PendienteFacturar"?`<input type="checkbox" class="alb_sel" value="${a.id}" data-cli="${a.clienteId}" style="width:auto;margin:0"/>`:"";
+        const fra=a.facturaId?`<button class="btn small ghost" onclick="irDocumento('factura',{pantalla:'vista',id:'${a.facturaId}'})">Ver factura</button>`:"";
+        const acc=[a.estado==="PendienteValorar"||a.estado==="PendienteFacturar"?`<button class="btn small secondary" onclick="modalValorarAlbaran('${a.id}')">${a.estado==="PendienteValorar"?"Valorar":"Precios"}</button>`:"",
+          a.estado==="PendienteFacturar"?`<button class="btn small" onclick="facturarAlbaranes(['${a.id}'])">Facturar</button>`:"",
+          a.estado!=="Anulado"&&a.estado!=="Facturado"?`<button class="btn small ghost" onclick="anularAlbaranDirecto('${a.id}')">Anular</button>`:"",fra].filter(Boolean).join(" ");
+        return `<tr><td>${sel}</td><td class="mono">${a.numeroCompleto}</td><td class="muted">${fdate(a.fecha)}</td><td>${a.clienteNombre}</td><td>${a.pedidoId?'<span class="muted">de pedido</span>':"directo"}</td><td class="num">${a.lineas.length}</td><td class="num">${eur(a.base)}</td><td>${ESTADO_ALB[a.estado]||a.estado}</td><td class="right" style="white-space:nowrap">${acc}</td></tr>`;}).join("");
+      const cuerpo=lista.length?`<table data-seleccion="no"><thead><tr><th></th><th>Número</th><th>Fecha</th><th>Cliente</th><th>Origen</th><th class="num">Líneas</th><th class="num">Base</th><th>Estado</th><th></th></tr></thead><tbody>${filas}</tbody></table>`
+        :'<p class="muted" style="margin:0">No hay albaranes con este filtro.</p>';
+      view(panel("Albaranes de venta",`<p class="muted" style="margin:0 0 12px">La mercancía sale del almacén con el albarán. Un albarán a precio por fijar se valora antes de facturar; marca varios del mismo cliente para sacarlos en una sola factura, o usa la facturación masiva.</p>`+filtros+cuerpo,
+        `<button class="btn small secondary" onclick="facturarSeleccionados()">Facturar marcados</button> <button class="btn small secondary" onclick="modalFacturacionMasiva()">Facturación masiva</button> <button class="btn small" onclick="modalAlbaranVenta()">+ Nuevo albarán</button>`));
+    }
+    function filtrarAlbaranes(){ albFiltro={clienteId:val("alb_f_cli"),estado:val("alb_f_est"),desde:val("alb_f_des"),hasta:val("alb_f_has")}; vAlbaranesVenta(); }
+    function facturarSeleccionados(){
+      const marcados=[...document.querySelectorAll(".alb_sel:checked")];
+      if(!marcados.length){ toast("Marca los albaranes pendientes que quieres facturar.","warn"); return; }
+      if(new Set(marcados.map(m=>m.dataset.cli)).size>1){ toast("Solo se facturan juntos albaranes del mismo cliente.","warn"); return; }
+      facturarAlbaranes(marcados.map(m=>m.value));
+    }
+    async function facturarAlbaranes(ids){
+      try{ const f=await api("/albaranes-venta/facturar",{method:"POST",body:JSON.stringify({albaranIds:ids})});
+        toast(`Factura ${f.numeroCompleto} emitida (${eur(f.total)}).`,"ok"); vAlbaranesVenta(); } catch(e){ toast(e.message,"err"); }
+    }
+    async function anularAlbaranDirecto(id){
+      const motivo=prompt("Motivo de la anulación (la mercancía vuelve al almacén):"); if(motivo===null) return;
+      try{ await api(`/albaranes-venta/${id}/anular`,{method:"POST",body:JSON.stringify({motivo})}); toast("Albarán anulado.","ok"); vAlbaranesVenta(); } catch(e){ toast(e.message,"err"); }
+    }
+    async function modalValorarAlbaran(id){
+      const a=await api(`/albaranes-venta/${id}`);
+      const filas=a.lineas.map(l=>`<tr><td>${l.descripcion}</td><td class="num">${l.cantidad}</td><td><input class="alb_val" data-orden="${l.orden}" type="number" step="0.0001" value="${l.precioUnitario}" style="width:110px"/></td><td>${l.precioFijado?'<span class="pill ok">Fijado</span>':'<span class="pill part">Estimado</span>'}</td></tr>`).join("");
+      abrir(`Valorar albarán ${a.numeroCompleto}`,`<p class="muted" style="margin:0 0 10px">Fija el precio definitivo de cada línea. Con todos fijados, el albarán pasa a pendiente de facturar.</p>
+        <table><thead><tr><th>Línea</th><th class="num">Cantidad</th><th>Precio (€)</th><th></th></tr></thead><tbody>${filas}</tbody></table>`,
+        async()=>{ const lineas=[...document.querySelectorAll(".alb_val")].map(i=>({orden:Number(i.dataset.orden),precioUnitario:Number(i.value)}));
+          await api(`/albaranes-venta/${id}/valorar`,{method:"PUT",body:JSON.stringify({lineas})}); toast("Albarán valorado.","ok"); vAlbaranesVenta(); });
+    }
+    async function modalFacturacionMasiva(){
+      const clientes=await api("/clientes"); const hoy=new Date().toISOString().slice(0,10);
+      abrir("Facturación masiva de albaranes",`<p class="muted" style="margin:0 0 10px">Factura los albaranes valorados y pendientes hasta la fecha indicada. Los que tengan precios por fijar se quedan fuera (se listan al terminar).</p>
+        <div class="grid2"><div><label>Albaranes hasta</label><input id="fm_has" type="date" value="${hoy}"/></div><div><label>Fecha de las facturas</label><input id="fm_fec" type="date" value="${hoy}"/></div></div>
+        <label>Cliente</label><select id="fm_cli"><option value="">Todos</option>${clientes.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join("")}</select>
+        <label style="display:flex;gap:8px;align-items:center;margin-top:12px;font-weight:500;cursor:pointer"><input id="fm_uno" type="checkbox" style="width:auto;margin:0"/> Una factura por albarán (si no, una por cliente)</label>`,
+        async()=>{ const r=await api("/albaranes-venta/facturacion-masiva",{method:"POST",body:JSON.stringify({hasta:val("fm_has"),fechaEmision:val("fm_fec"),clienteId:val("fm_cli")||null,unaFacturaPorAlbaran:document.getElementById("fm_uno").checked})});
+          const total=r.facturas.reduce((s,f)=>s+f.total,0);
+          toast(`${r.facturas.length} factura(s) emitidas por ${eur(total)}`+(r.errores.length?` · ${r.errores.length} con error: ${r.errores.map(e=>e.clienteNombre+": "+e.mensaje).join("; ")}`:"")+(r.sinValorar.length?` · ${r.sinValorar.length} albarán(es) sin valorar`:""),r.errores.length?"warn":"ok");
+          vAlbaranesVenta(); });
+    }
+    let albLineas=1;
+    function filaAlbaran(i,productos){ return `<div class="grid2" style="grid-template-columns:2fr 1fr 1fr auto;gap:8px;align-items:end" id="alb_l${i}">
+        <div><label>Artículo o concepto</label><select id="alb_p${i}"><option value="">— Texto libre —</option>${productos.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join("")}</select><input id="alb_d${i}" placeholder="Descripción (si es texto libre)" style="margin-top:4px"/></div>
+        <div><label>Cantidad</label><input id="alb_c${i}" type="number" step="0.001" value="1"/></div>
+        <div><label>Precio (vacío: tarifa)</label><input id="alb_pr${i}" type="number" step="0.0001"/></div>
+        <label style="display:flex;gap:6px;align-items:center;font-weight:500;cursor:pointer;white-space:nowrap"><input id="alb_f${i}" type="checkbox" style="width:auto;margin:0"/> Por fijar</label></div>`; }
+    async function modalAlbaranVenta(){
+      const [clientes,productos]=await Promise.all([api("/clientes"),api("/productos")]); const hoy=new Date().toISOString().slice(0,10); albLineas=1;
+      window._albProductos=productos;
+      abrir("Nuevo albarán de venta",`<div class="grid2"><div><label>Cliente</label><select id="alb_cli">${clientes.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join("")}</select></div><div><label>Fecha</label><input id="alb_fec" type="date" value="${hoy}"/></div></div>
+        <label>Referencia (opcional)</label><input id="alb_ref" placeholder="Nº de pedido del cliente, matrícula…"/>
+        <div id="alb_lineas" style="margin-top:10px">${filaAlbaran(0,productos)}</div>
+        <button class="btn small ghost" style="margin-top:8px" onclick="masLineaAlbaran()">+ Línea</button>
+        <p class="muted" style="font-size:12px;margin:8px 0 0">«Por fijar»: se entrega con un precio estimado (o el de tarifa) y se valora después, antes de facturar.</p>`,
+        async()=>{ const lineas=[]; for(let i=0;i<albLineas;i++){ if(!document.getElementById("alb_c"+i)) continue; const pr=val("alb_pr"+i);
+            lineas.push({productoId:val("alb_p"+i)||null,descripcion:val("alb_d"+i)||null,cantidad:Number(val("alb_c"+i)),precioUnitario:pr===""?null:Number(pr),precioPorFijar:document.getElementById("alb_f"+i).checked}); }
+          const a=await api("/albaranes-venta",{method:"POST",body:JSON.stringify({clienteId:val("alb_cli"),fecha:val("alb_fec"),referencia:val("alb_ref")||null,lineas})});
+          toast(`Albarán ${a.numeroCompleto} emitido.`,"ok"); vAlbaranesVenta(); });
+    }
+    function masLineaAlbaran(){ document.getElementById("alb_lineas").insertAdjacentHTML("beforeend",filaAlbaran(albLineas++,window._albProductos||[])); }
     async function vAnticipos() {
       view('<div class="muted">Cargando…</div>');
       const [lista, clientes]=await Promise.all([api("/anticipos"), api("/clientes")]);
@@ -3671,13 +3753,18 @@
       const panelLibro=panel(`Libro de IVA ${rep?"repercutido":"soportado"} · ${infLibroPer?infLibroPer+"T ":""}${anio}`,cuerpo,`${pestanas} ${perSel} <button class="btn small ghost" onclick="descargarCsv()">↓ Exportar CSV (gestoría)</button>`);
       const mesSii=anio===new Date().getFullYear()?Math.max(1,new Date().getMonth()):12;
       const panelSii=panel(`SII · suministro inmediato de información · ${anio}`,
-        `<p class="muted" style="margin:0 0 10px">Genera el XML del libro registro del mes (facturas expedidas o recibidas) con la estructura del SII. <strong>No se envía a la AEAT</strong>: el envío con certificado aún no está conectado; revisa el fichero (y valídalo con el esquema oficial o tu asesor) antes de presentarlo por otra vía.</p>
-         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end"><div><label>Mes</label><select id="sii_mes" style="width:auto">${[1,2,3,4,5,6,7,8,9,10,11,12].map(m=>`<option value="${m}"${m===mesSii?" selected":""}>${String(m).padStart(2,"0")}</option>`).join("")}</select></div>
-         <div><label>Libro</label><select id="sii_tipo" style="width:auto"><option value="Emitidas">Facturas emitidas</option><option value="Recibidas">Facturas recibidas</option></select></div>
-         <button class="btn small ghost" onclick="descargarSii()">↓ Descargar XML SII</button></div>`);
+        `<p class="muted" style="margin:0 0 10px">Envía a la AEAT el libro del mes con el certificado de la empresa: las facturas nuevas van como alta (A0), las aceptadas que han cambiado como modificación (A1) y las anuladas ya enviadas se dan de baja. Lo aceptado sin cambios no se reenvía.</p>
+         <div id="sii_cert" class="muted" style="margin:0 0 10px">Comprobando el certificado…</div>
+         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end"><div><label>Mes</label><select id="sii_mes" style="width:auto" onchange="verSituacionSii()">${[1,2,3,4,5,6,7,8,9,10,11,12].map(m=>`<option value="${m}"${m===mesSii?" selected":""}>${String(m).padStart(2,"0")}</option>`).join("")}</select></div>
+         <div><label>Libro</label><select id="sii_tipo" style="width:auto" onchange="verSituacionSii()"><option value="Emitidas">Facturas emitidas</option><option value="Recibidas">Facturas recibidas</option></select></div>
+         <button class="btn small" onclick="enviarSii()">Enviar a la AEAT</button>
+         <button class="btn small ghost" onclick="descargarSii()">↓ Descargar XML SII</button>
+         <button class="btn small ghost" onclick="modalEnviosSii()">Histórico de envíos</button></div>
+         <div id="sii_situacion" style="margin-top:12px"></div>`);
       const barra=`<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:16px">${selectorEjercicio("inf",anio)}<span class="muted">Trimestre</span> ${selTrim(anio)}</div>`;
       const m420=IMP.siglas==="IGIC"?await api(`/impuestos/modelo-420?anio=${anio}&trimestre=${trimSel}`).catch(()=>null):null;
       view(barra+panelGraficos+(benef?panelBeneficio(benef,anio):"")+(benef&&benef.porProducto.length?panelRanking(benef,anio):"")+(m420?panel420(m420,anio):"")+(resumen?panelResumen(resumen,anio):"")+((m111||m190)?panelRetenciones(m111,m190,anio):"")+(m349?panelIntracomunitarias(m349,anio):"")+(anual?panelAnual(anual,anio):"")+panelLibro+panelSii);
+      pintarCertificadoSii();
     }
 
     /* ---------- Analítica: centros × partidas, reglas, repartos y presupuestos ---------- */
@@ -4655,13 +4742,51 @@
         const b=await r.blob(); const u=URL.createObjectURL(b); const a=document.createElement("a"); a.href=u;
         a.download=`libro-iva-${infLibro.toLowerCase()}-${infAnio}${infLibroPer?("-"+infLibroPer+"T"):""}.csv`; a.click(); URL.revokeObjectURL(u);
       }catch(e){ toast(e.message,"err"); } }
-    // XML del SII de un mes: solo se descarga, no se envía a la AEAT.
+    // SII: certificado de la empresa, situación de cada factura del mes, envío a la AEAT e histórico.
+    async function pintarCertificadoSii(){ const el=document.getElementById("sii_cert"); if(!el) return;
+      let c=null; try{ c=await api("/informes/sii/certificado"); }catch{}
+      el.innerHTML=c?`Certificado: <strong>${c.titular}</strong>${c.nif?" · "+c.nif:""} · caduca el ${fdate(c.caducaEn.slice(0,10))} · entorno <strong>${c.entorno==="Produccion"?"real":"de pruebas"}</strong>${c.caducado?' <span class="pill neg">Caducado</span>':""} <button class="btn small ghost" onclick="modalCertificadoSii()">Cambiar</button> <button class="btn small ghost" onclick="cambiarEntornoSii('${c.entorno==="Produccion"?"Pruebas":"Produccion"}')">Pasar a ${c.entorno==="Produccion"?"pruebas":"real"}</button>`
+        :`Sin certificado electrónico: súbelo para poder enviar. <button class="btn small secondary" onclick="modalCertificadoSii()">Subir certificado</button>`;
+      verSituacionSii(); }
+    async function verSituacionSii(){ const el=document.getElementById("sii_situacion"); if(!el) return;
+      try{ const lista=await api(`/informes/sii/situacion?libro=${val("sii_tipo")}&ejercicio=${infAnio}&periodo=${val("sii_mes")}`);
+        if(!lista.length){ el.innerHTML='<p class="muted" style="margin:0">No hay facturas en ese mes.</p>'; return; }
+        const pill=s=>s==="Enviada"||s==="Dada de baja"?`<span class="pill ok">${s}</span>`:s.startsWith("Rechazada")||s.includes("pendiente de baja")?`<span class="pill neg">${s}</span>`:`<span class="pill wait">${s}</span>`;
+        el.innerHTML=`<table data-seleccion="no" data-agrupar="no"><thead><tr><th>Factura</th><th>Fecha</th><th>Situación</th><th>Error de la AEAT</th><th>CSV</th></tr></thead><tbody>${lista.map(x=>`<tr><td class="mono">${x.numero}</td><td class="muted">${fdate(x.fechaExpedicion)}</td><td>${pill(x.situacion)}</td><td>${x.codigoError?`<span class="mono">${x.codigoError}</span> ${x.descripcionError||""}`:""}</td><td class="mono muted">${x.csv||""}</td></tr>`).join("")}</tbody></table>`;
+      }catch(e){ el.innerHTML=`<p class="muted" style="margin:0">${e.message}</p>`; } }
+    async function enviarSii(){
+      if(!confirm(`¿Enviar a la AEAT el libro de facturas ${val("sii_tipo").toLowerCase()} de ${String(val("sii_mes")).padStart(2,"0")}/${infAnio}?`)) return;
+      try{ const r=await api("/informes/sii/enviar",{method:"POST",body:JSON.stringify({libro:val("sii_tipo"),ejercicio:infAnio,periodo:Number(val("sii_mes"))})});
+        const txt=r.envios.map(e=>`${e.tipoComunicacion}: ${e.correctos} correctas${e.conErrores?`, ${e.conErrores} con errores`:""}${e.incorrectos?`, ${e.incorrectos} rechazadas`:""}${e.estado==="ErrorComunicacion"?" (sin respuesta de la AEAT)":""}`).join(" · ");
+        toast("SII enviado · "+txt,r.envios.some(e=>e.incorrectos||e.estado==="ErrorComunicacion")?"warn":"ok"); verSituacionSii();
+      }catch(e){ toast(e.message,e.codigo==="sii.nada_que_enviar"?"warn":"err"); } }
+    function modalCertificadoSii(){
+      abrir("Certificado electrónico para el SII",`<p class="muted" style="margin:0 0 10px">Fichero .pfx o .p12 del certificado de la empresa (o de su representante), con su contraseña. Se guarda cifrado y nunca se muestra.</p>
+        <label>Fichero</label><input id="sii_pfx" type="file" accept=".pfx,.p12"/>
+        <label>Contraseña</label><input id="sii_clave" type="password" autocomplete="off"/>
+        <label>Entorno</label><select id="sii_ent"><option value="Pruebas">Pruebas (sin efectos tributarios)</option><option value="Produccion">Real</option></select>`,
+        async()=>{ const f=document.getElementById("sii_pfx").files[0]; if(!f) throw new Error("Elige el fichero del certificado.");
+          const b64=await new Promise((ok,ko)=>{ const r=new FileReader(); r.onload=()=>ok(String(r.result).split(",")[1]); r.onerror=ko; r.readAsDataURL(f); });
+          await api("/informes/sii/certificado",{method:"PUT",body:JSON.stringify({pfxBase64:b64,clave:val("sii_clave"),entorno:val("sii_ent")})});
+          toast("Certificado guardado.","ok"); pintarCertificadoSii(); }); }
+    async function cambiarEntornoSii(entorno){
+      if(entorno==="Produccion" && !confirm("¿Pasar al entorno real? Los envíos tendrán efectos ante la AEAT.")) return;
+      try{ await api("/informes/sii/certificado/entorno",{method:"PUT",body:JSON.stringify({entorno})}); pintarCertificadoSii(); }catch(e){ toast(e.message,"err"); } }
+    async function modalEnviosSii(){
+      const envios=await api("/informes/sii/envios");
+      const filas=envios.map(e=>`<tr><td class="muted">${new Date(e.enviadoEn).toLocaleString("es-ES")}</td><td>${e.libro} ${String(e.periodo).padStart(2,"0")}/${e.ejercicio}</td><td class="mono">${e.tipoComunicacion}</td><td>${e.entorno==="Produccion"?"Real":"Pruebas"}</td><td class="num">${e.correctos}/${e.registros}</td><td>${e.estado}${e.error?` <span class="muted">${e.error}</span>`:""}</td><td class="mono muted">${e.csv||""}</td><td style="white-space:nowrap"><button class="btn small ghost" onclick="descargarXmlSii('${e.id}','peticion')">Petición</button> <button class="btn small ghost" onclick="descargarXmlSii('${e.id}','respuesta')">Respuesta</button></td></tr>`).join("");
+      abrir("Histórico de envíos al SII",envios.length?`<table data-seleccion="no"><thead><tr><th>Fecha</th><th>Libro</th><th>Tipo</th><th>Entorno</th><th class="num">Correctas</th><th>Estado</th><th>CSV</th><th></th></tr></thead><tbody>${filas}</tbody></table>`:'<p class="muted" style="margin:0">Aún no se ha enviado nada.</p>',null); document.getElementById("modalOk").style.display="none"; }
+    async function descargarXmlSii(id,parte){
+      const r=await fetch(`/informes/sii/envios/${id}/xml?parte=${parte}`,{headers:{Authorization:"Bearer "+token}});
+      if(!r.ok){ toast("No se pudo descargar.","err"); return; }
+      const u=URL.createObjectURL(await r.blob()); const a=document.createElement("a"); a.href=u; a.download=`sii-${parte}-${id}.xml`; a.click(); URL.revokeObjectURL(u); }
+    // XML del SII de un mes: solo se descarga (para revisarlo); el envío es «Enviar a la AEAT».
     async function descargarSii(){ const mes=Number(val("sii_mes")), tipo=val("sii_tipo");
       try{ const r=await fetch(`/informes/sii?tipo=${tipo}&ejercicio=${infAnio}&periodo=${mes}`,{headers:{Authorization:"Bearer "+token}});
         if(!r.ok){ let m="No se pudo generar el XML del SII."; try{ const e=await r.json(); m=e.title||m; }catch{} toast(m,"err"); return; }
         const b=await r.blob(); const u=URL.createObjectURL(b); const a=document.createElement("a"); a.href=u;
         a.download=`sii-${tipo.toLowerCase()}-${infAnio}-${String(mes).padStart(2,"0")}.xml`; a.click(); URL.revokeObjectURL(u);
-        toast("XML del SII descargado. Recuerda: no se ha enviado a la AEAT.","ok");
+        toast("XML del SII descargado (solo para revisarlo: no se ha enviado).","ok");
       }catch(e){ toast(e.message,"err"); } }
 
     /* ============================== Agro (hortofrutícola) ============================== */

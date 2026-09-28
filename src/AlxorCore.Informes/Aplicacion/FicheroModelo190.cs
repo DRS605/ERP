@@ -84,7 +84,7 @@ public static class FicheroModelo190
             .Alfa(NombrePerceptorDesde, NombrePerceptorHasta, p.Nombre)
             .Alfa(ProvinciaDesde, ProvinciaHasta, ProvinciasAeat.Codigo(p.Provincia))
             .Alfa(PosClave, PosClave, p.Clave)
-            .Alfa(SubclaveDesde, SubclaveHasta, SubclaveGeneral)
+            .Alfa(SubclaveDesde, SubclaveHasta, string.IsNullOrWhiteSpace(p.Subclave) ? SubclaveGeneral : p.Subclave)
             .Importe(SignoPercepcionIntegra, PercepcionIntegraDesde, PercepcionIntegraHasta, p.BasePercepciones)
             .Num(RetencionesDesde, RetencionesHasta, (long)Math.Round(p.Retenciones * 100m, MidpointRounding.AwayFromZero));
     }

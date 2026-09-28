@@ -63,7 +63,12 @@ internal sealed class ConfiguracionAlbaranVenta : IEntityTypeConfiguration<Albar
         builder.HasKey(a => a.Id);
         builder.Property(a => a.Id).HasColumnName("id").ValueGeneratedNever();
         builder.Property(a => a.EmpresaId).HasColumnName("empresa_id").IsRequired();
-        builder.Property(a => a.PedidoId).HasColumnName("pedido_id").IsRequired();
+        builder.Property(a => a.PedidoId).HasColumnName("pedido_id");
+        builder.Property(a => a.FacturaId).HasColumnName("factura_id");
+        builder.Property(a => a.Observaciones).HasColumnName("observaciones").HasMaxLength(500);
+        builder.Property(a => a.StockDescontado).HasColumnName("stock_descontado").HasDefaultValue(false).IsRequired();
+        builder.Ignore(a => a.Estado);
+        builder.Ignore(a => a.Base);
         builder.Property(a => a.ClienteId).HasColumnName("cliente_id").IsRequired();
         builder.Property(a => a.ClienteNombre).HasColumnName("cliente_nombre").HasMaxLength(200).IsRequired();
         builder.Property(a => a.Numero).HasColumnName("numero").IsRequired();
@@ -81,14 +86,21 @@ internal sealed class ConfiguracionAlbaranVenta : IEntityTypeConfiguration<Albar
             linea.WithOwner().HasForeignKey("albaran_venta_id");
             linea.HasKey(l => l.Id);
             linea.Property(l => l.Id).HasColumnName("id").ValueGeneratedNever();
-            linea.Property(l => l.LineaPedidoId).HasColumnName("linea_pedido_id").IsRequired();
+            linea.Property(l => l.LineaPedidoId).HasColumnName("linea_pedido_id");
             linea.Property(l => l.ProductoId).HasColumnName("producto_id");
             linea.Property(l => l.Descripcion).HasColumnName("descripcion").HasMaxLength(300).IsRequired();
             linea.Property(l => l.Cantidad).HasColumnName("cantidad").HasColumnType("numeric(14,3)").IsRequired();
+            linea.Property(l => l.PrecioUnitario).HasColumnName("precio_unitario").HasColumnType("numeric(14,4)").HasDefaultValue(0m).IsRequired();
+            linea.Property(l => l.PorcentajeDescuento).HasColumnName("porcentaje_descuento").HasColumnType("numeric(5,2)").HasDefaultValue(0m).IsRequired();
+            linea.Property(l => l.CodigoIva).HasColumnName("codigo_iva").HasMaxLength(20).HasDefaultValue("IVA21").IsRequired();
+            linea.Property(l => l.PrecioFijado).HasColumnName("precio_fijado").HasDefaultValue(true).IsRequired();
+            linea.Ignore(l => l.Base);
         });
         builder.Navigation(a => a.Lineas).UsePropertyAccessMode(PropertyAccessMode.Field);
 
         builder.HasIndex(a => new { a.EmpresaId, a.PedidoId }).HasDatabaseName("ix_albaran_venta_empresa_pedido");
+        builder.HasIndex(a => a.FacturaId).HasDatabaseName("ix_albaran_venta_factura");
+        builder.HasIndex(a => new { a.EmpresaId, a.ClienteId, a.Fecha }).HasDatabaseName("ix_albaran_venta_cliente_fecha");
         builder.Ignore(a => a.EventosDominio);
     }
 }
@@ -143,6 +155,51 @@ internal sealed class RepositorioAlbaranesVenta : IRepositorioAlbaranesVenta
             .OrderBy(a => a.Numero).ToListAsync(ct).ConfigureAwait(false);
         return albaranes.Select(AlbaranVentaDto.Desde).ToList();
     }
+
+    public async Task<IReadOnlyList<AlbaranVentaDto>> ListarAsync(Guid empresaId, FiltroAlbaranesVenta filtro, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(filtro);
+        var q = _contexto.AlbaranesVenta.AsNoTracking().Where(a => a.EmpresaId == empresaId);
+        if (filtro.ClienteId is { } cliente)
+        {
+            q = q.Where(a => a.ClienteId == cliente);
+        }
+
+        if (filtro.Desde is { } desde)
+        {
+            q = q.Where(a => a.Fecha >= desde);
+        }
+
+        if (filtro.Hasta is { } hasta)
+        {
+            q = q.Where(a => a.Fecha <= hasta);
+        }
+
+        if (filtro.FacturaId is { } factura)
+        {
+            q = q.Where(a => a.FacturaId == factura);
+        }
+
+        q = filtro.Estado switch
+        {
+            EstadoAlbaranVenta.Anulado => q.Where(a => a.AnuladoEn != null),
+            EstadoAlbaranVenta.Facturado => q.Where(a => a.AnuladoEn == null && a.FacturaId != null),
+            EstadoAlbaranVenta.PendienteFacturar => q.Where(a => a.AnuladoEn == null && a.FacturaId == null && a.Lineas.All(l => l.PrecioFijado)),
+            EstadoAlbaranVenta.PendienteValorar => q.Where(a => a.AnuladoEn == null && a.FacturaId == null && a.Lineas.Any(l => !l.PrecioFijado)),
+            _ => q,
+        };
+        var albaranes = await q.OrderByDescending(a => a.Fecha).ThenByDescending(a => a.Numero).Take(5000).ToListAsync(ct).ConfigureAwait(false);
+        return albaranes.Select(AlbaranVentaDto.Desde).ToList();
+    }
+
+    public async Task<IReadOnlyList<AlbaranVenta>> ObtenerVariosAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default) =>
+        await _contexto.AlbaranesVenta.Where(a => ids.Contains(a.Id)).ToListAsync(ct).ConfigureAwait(false);
+
+    public async Task<IReadOnlyList<AlbaranVenta>> DeFacturaAsync(Guid facturaId, CancellationToken ct = default) =>
+        await _contexto.AlbaranesVenta.Where(a => a.FacturaId == facturaId).ToListAsync(ct).ConfigureAwait(false);
+
+    public async Task<IReadOnlyList<AlbaranVenta>> DePedidoAsync(Guid pedidoId, CancellationToken ct = default) =>
+        await _contexto.AlbaranesVenta.Where(a => a.PedidoId == pedidoId).ToListAsync(ct).ConfigureAwait(false);
 
     public async Task<int> SiguienteNumeroAsync(Guid empresaId, int ejercicio, CancellationToken ct = default)
     {
@@ -451,7 +508,7 @@ internal sealed class RepositorioCartasPorte : IRepositorioCartasPorte, IConsult
 
     public async Task<IReadOnlyList<CartaPorteDto>> DeFacturaAsync(Guid facturaId, CancellationToken ct = default)
     {
-        var albaranes = _contexto.AlbaranesVenta.Where(a => _contexto.PedidosVenta.Any(p => p.Id == a.PedidoId && p.FacturaId == facturaId)).Select(a => a.Id);
+        var albaranes = _contexto.AlbaranesVenta.Where(a => a.FacturaId == facturaId || _contexto.PedidosVenta.Any(p => p.Id == a.PedidoId && p.FacturaId == facturaId)).Select(a => a.Id);
         var cartas = await _contexto.CartasPorte.AsNoTracking().Include(c => c.Lineas)
             .Where(c => c.AlbaranId != null && albaranes.Contains(c.AlbaranId.Value)).OrderBy(c => c.FechaExpedicion).ToListAsync(ct).ConfigureAwait(false);
         return await ConCertificadosAsync(cartas.Select(CartaPorteDto.Desde).ToList(), ct).ConfigureAwait(false);

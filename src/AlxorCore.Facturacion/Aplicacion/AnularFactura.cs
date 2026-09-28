@@ -19,9 +19,12 @@ public sealed class AnularFactura
     private readonly IUnidadDeTrabajoFacturacion _unidadDeTrabajo;
     private readonly IReloj _reloj;
     private readonly IAnticiposFactura? _anticipos;
+    private readonly LiberarAlbaranesFactura? _albaranes;
 
-    public AnularFactura(IRepositorioFacturas facturas, IConsultaEmpresas empresas, IUnidadDeTrabajoFacturacion unidadDeTrabajo, IReloj reloj, IAnticiposFactura? anticipos = null)
+    public AnularFactura(IRepositorioFacturas facturas, IConsultaEmpresas empresas, IUnidadDeTrabajoFacturacion unidadDeTrabajo, IReloj reloj, IAnticiposFactura? anticipos = null,
+        LiberarAlbaranesFactura? albaranes = null)
     {
+        _albaranes = albaranes;
         _anticipos = anticipos;
         _facturas = facturas;
         _empresas = empresas;
@@ -51,6 +54,12 @@ public sealed class AnularFactura
         if (r.EsFallo)
         {
             return Resultado.Fallo<FacturaDto>(r.Error);
+        }
+
+        // Los albaranes que recogía vuelven a estar pendientes de facturar (en la misma transacción).
+        if (_albaranes is not null)
+        {
+            await _albaranes.EjecutarAsync(factura.Id, ct).ConfigureAwait(false);
         }
 
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);

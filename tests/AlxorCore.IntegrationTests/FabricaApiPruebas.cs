@@ -76,6 +76,7 @@ public class FabricaApiPruebas : WebApplicationFactory<Program>, IAsyncLifetime
         builder.ConfigureTestServices(servicios =>
         {
             servicios.AddSingleton<AlxorCore.Integraciones.Aplicacion.IClienteHttpWebhook, ClienteHttpWebhookFalso>();
+            servicios.AddSingleton<AlxorCore.Informes.Aplicacion.ITransporteSii, TransporteSiiFalso>();
         });
     }
 
@@ -119,6 +120,7 @@ public class FabricaApiPruebas : WebApplicationFactory<Program>, IAsyncLifetime
         await personal.Database.MigrateAsync().ConfigureAwait(false);
         await proyectos.Database.MigrateAsync().ConfigureAwait(false);
         await ambito.ServiceProvider.GetRequiredService<AlxorCore.Analisis.Infraestructura.AnalisisDbContext>().Database.MigrateAsync().ConfigureAwait(false);
+        await ambito.ServiceProvider.GetRequiredService<AlxorCore.Informes.Infraestructura.FiscalDbContext>().Database.MigrateAsync().ConfigureAwait(false);
         await tesoreria.Database.MigrateAsync().ConfigureAwait(false);
         await agro.Database.MigrateAsync().ConfigureAwait(false);
         await migracion.Database.MigrateAsync().ConfigureAwait(false);
