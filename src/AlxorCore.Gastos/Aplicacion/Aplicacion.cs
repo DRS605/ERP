@@ -64,6 +64,8 @@ public interface IRepositorioGastos
 /// <summary>
 /// Filtros de búsqueda de gastos en servidor (todos opcionales). <paramref name="Texto"/> busca en el
 /// concepto y en el texto libre del proveedor; <paramref name="Ids"/> restringe a esos gastos (filtro por estado de pago).
+/// <paramref name="Orden"/> ordena la página: <c>fecha</c> (por defecto), <c>numero</c>, <c>proveedor</c>, <c>base</c>,
+/// <c>impuestos</c> o <c>total</c>, con <paramref name="Descendente"/>.
 /// </summary>
 public sealed record FiltroGastos(
     string? Texto = null,
@@ -73,7 +75,9 @@ public sealed record FiltroGastos(
     decimal? ImporteMin = null,
     decimal? ImporteMax = null,
     Guid? ProveedorId = null,
-    IReadOnlyCollection<Guid>? Ids = null);
+    IReadOnlyCollection<Guid>? Ids = null,
+    string? Orden = null,
+    bool Descendente = true);
 
 /// <summary>Datos mínimos de cada gasto de un listado filtrado (todas las páginas), para totales y saldos. El vencimiento es el primero de sus plazos (o la fecha).</summary>
 public sealed record GastoFiltrado(Guid Id, string Estado, DateOnly Vencimiento, decimal BaseImponible, decimal CuotaIva, decimal RetencionIrpf, decimal Total);

@@ -373,8 +373,17 @@ internal sealed class RepositorioFacturas : IRepositorioFacturas, IConsultaFactu
         var consulta = Filtrar(empresaId, filtro);
 
         var total = await consulta.CountAsync(ct).ConfigureAwait(false);
-        var facturas = await consulta
-            .OrderByDescending(f => f.FechaEmision).ThenByDescending(f => f.Numero)
+        var d = filtro.Descendente;
+        IOrderedQueryable<Factura> ordenada = (filtro.Orden ?? "fecha").Trim().ToUpperInvariant() switch
+        {
+            "NUMERO" => d ? consulta.OrderByDescending(f => f.Prefijo).ThenByDescending(f => f.Ejercicio).ThenByDescending(f => f.Numero) : consulta.OrderBy(f => f.Prefijo).ThenBy(f => f.Ejercicio).ThenBy(f => f.Numero),
+            "CLIENTE" => d ? consulta.OrderByDescending(f => f.ClienteNombre) : consulta.OrderBy(f => f.ClienteNombre),
+            "BASE" => d ? consulta.OrderByDescending(f => f.BaseImponible) : consulta.OrderBy(f => f.BaseImponible),
+            "IMPUESTOS" => d ? consulta.OrderByDescending(f => f.CuotaIva) : consulta.OrderBy(f => f.CuotaIva),
+            "TOTAL" => d ? consulta.OrderByDescending(f => f.Total) : consulta.OrderBy(f => f.Total),
+            _ => d ? consulta.OrderByDescending(f => f.FechaEmision) : consulta.OrderBy(f => f.FechaEmision),
+        };
+        var facturas = await (d ? ordenada.ThenByDescending(f => f.FechaEmision).ThenByDescending(f => f.Numero) : ordenada.ThenBy(f => f.FechaEmision).ThenBy(f => f.Numero))
             .Skip(paginacion.Saltar).Take(paginacion.TamanoPagina)
             .ToListAsync(ct).ConfigureAwait(false);
 
@@ -546,7 +555,7 @@ internal sealed class RepositorioPresupuestos : IRepositorioPresupuestos, IConsu
             .OrderByDescending(p => p.Fecha).ThenByDescending(p => p.NumeroCompleto)
             .ToListAsync(ct).ConfigureAwait(false);
         return presupuestos
-            .Select(p => new PresupuestoResumen(p.Id, p.NumeroCompleto, p.Fecha, p.Validez, p.ClienteNombre, p.Total, p.Estado.ToString(), p.FacturaId))
+            .Select(p => new PresupuestoResumen(p.Id, p.NumeroCompleto, p.Fecha, p.Validez, p.ClienteNombre, p.Total, p.Estado.ToString(), p.FacturaId, p.BaseImponible, p.CuotaIva, p.ClienteId))
             .ToList();
     }
 }

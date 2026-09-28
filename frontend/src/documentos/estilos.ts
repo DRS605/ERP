@@ -49,6 +49,15 @@ export const ESTILOS = `
 .dx-aplicados { font-size:11.5px; color:var(--muted); margin-top:2px; }
 .dx-filtros { display:grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap:8px; margin-bottom:12px; }
 .dx-lista-docs tbody tr { cursor:pointer; }
+.dx-filtros2 { display:flex; flex-wrap:wrap; gap:8px; }
+.dx-filtros2 > select, .dx-filtros2 > input { flex:1 1 150px; width:auto; min-width:0; }
+.dx-filtros2 > select:first-child { flex:2 1 220px; }
+.dx-filtros2 > button { flex:none; }
+.dx-ordenable { cursor:pointer; user-select:none; white-space:nowrap; }
+.dx-ordenable:hover, .dx-ordenable.activo { color:var(--accent); }
+.dx-flecha { display:inline-block; min-width:12px; margin-left:4px; font-size:9px; }
+.dx-lista-docs tfoot td { border-top:2px solid var(--line); background:var(--bg,#f4f6f9); padding-top:11px; padding-bottom:11px; white-space:nowrap; }
+.dx-lista-docs tr.dx-anulado td { opacity:.55; }
 .dx-lista-docs tbody tr:hover, .dx-lista-docs tbody tr:focus { background:var(--accent-soft); outline:none; }
 .dx-paginas { display:flex; gap:10px; align-items:center; justify-content:flex-end; margin-top:10px; }
 .dx-fondo { position:fixed; inset:0; background:rgba(15,23,42,.45); display:grid; place-items:center; z-index:1000; padding:16px; }

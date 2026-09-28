@@ -26,7 +26,8 @@ public sealed record PresupuestoDto(
 
 /// <summary>Resumen de presupuesto para listados.</summary>
 public sealed record PresupuestoResumen(
-    Guid Id, string NumeroCompleto, DateOnly Fecha, DateOnly Validez, string ClienteNombre, decimal Total, string Estado, Guid? FacturaId);
+    Guid Id, string NumeroCompleto, DateOnly Fecha, DateOnly Validez, string ClienteNombre, decimal Total, string Estado, Guid? FacturaId,
+    decimal BaseImponible = 0m, decimal CuotaIva = 0m, Guid? ClienteId = null);
 
 /// <summary>Repositorio de presupuestos (escritura).</summary>
 public interface IRepositorioPresupuestos

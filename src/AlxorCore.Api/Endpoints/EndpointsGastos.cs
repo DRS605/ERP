@@ -23,7 +23,7 @@ public static class EndpointsGastos
             .RequierePermiso(Permisos.GastoLeer);
 
         gastos.MapGet("/buscar", BuscarAsync)
-            .WithSummary("Busca gastos con filtros (texto, estado, fechas, importe, proveedor) y paginación.")
+            .WithSummary("Busca gastos con filtros (texto, estado, fechas, importe, proveedor, estado de pago), orden y paginación; incluye los totales de todo el resultado filtrado y el pendiente de cada gasto de la página.")
             .RequierePermiso(Permisos.GastoLeer);
 
         gastos.MapPost("/{id:guid}/anular", AnularGastoAsync)
@@ -72,7 +72,7 @@ public static class EndpointsGastos
     private static async Task<IResult> BuscarAsync(IContextoEmpresa contexto, BuscarGastos caso, IConsultaGastos consulta,
         AlxorCore.Tesoreria.Aplicacion.IConsultaTesoreria tesoreria, AlxorCore.Nucleo.Tiempo.IReloj reloj,
         string? texto, string? estado, DateOnly? desde, DateOnly? hasta, decimal? importeMin, decimal? importeMax, Guid? proveedorId,
-        string? cobro, int? pagina, int? tamanoPagina, CancellationToken ct)
+        string? cobro, string? orden, bool? desc, int? pagina, int? tamanoPagina, CancellationToken ct)
     {
         if (contexto.EmpresaId is not { } empresaId)
         {
@@ -85,7 +85,7 @@ public static class EndpointsGastos
         }
 
         // Totales y estado de pago sobre todo el resultado filtrado (no solo sobre la página).
-        var filtro = new FiltroGastos(texto, estado, desde, hasta, importeMin, importeMax, proveedorId);
+        var filtro = new FiltroGastos(texto, estado, desde, hasta, importeMin, importeMax, proveedorId, Orden: orden, Descendente: desc ?? true);
         var hoy = DateOnly.FromDateTime(reloj.AhoraUtc.UtcDateTime);
         var documentos = (await consulta.FiltradosAsync(empresaId, filtro, ct).ConfigureAwait(false))
             .Select(g => new DocumentoListado(g.Id, g.Estado, g.Vencimiento, g.BaseImponible, g.CuotaIva, g.RetencionIrpf, g.Total)).ToList();

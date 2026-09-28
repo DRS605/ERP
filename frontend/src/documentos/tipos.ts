@@ -159,6 +159,7 @@ export interface FacturaResumen {
   total: number;
   estado: string;
   tipo: string;
+  clienteId?: string | null;
 }
 
 export interface Pagina<T> {
@@ -166,6 +167,25 @@ export interface Pagina<T> {
   total: number;
   pagina: number;
   tamanoPagina: number;
+}
+
+/** Totales de todo el resultado filtrado de un listado paginado (sin anulados; pendiente de los documentos vivos). */
+export interface TotalesListado {
+  documentos: number;
+  baseImponible: number;
+  impuestos: number;
+  retenciones: number;
+  total: number;
+  pendiente: number;
+  vencido: number;
+  documentosVencidos: number;
+}
+
+/** Página de /facturas/buscar o /gastos/buscar con los totales del filtro y el pendiente de cada documento. */
+export interface PaginaConTotales<T> extends Pagina<T> {
+  totalPaginas: number;
+  totales?: TotalesListado;
+  pendientes?: Record<string, number>;
 }
 
 export interface LineaPresupuesto {
@@ -205,6 +225,9 @@ export interface PresupuestoResumen {
   total: number;
   estado: string;
   facturaId?: string | null;
+  baseImponible?: number;
+  cuotaIva?: number;
+  clienteId?: string | null;
 }
 
 export interface LineaPedidoVenta {

@@ -79,6 +79,8 @@ public sealed record FacturaResumen(
 /// Filtros de búsqueda de facturas en servidor. Todos son opcionales (null = no filtra por ese
 /// criterio). <paramref name="Texto"/> busca en número, nombre y NIF del cliente; <paramref name="Serie"/> es el
 /// prefijo de la serie; <paramref name="Ids"/> restringe a esos documentos (lo usa el filtro por estado de cobro).
+/// <paramref name="Orden"/> ordena la página: <c>fecha</c> (por defecto), <c>numero</c>, <c>cliente</c>, <c>base</c>,
+/// <c>impuestos</c> o <c>total</c>, con <paramref name="Descendente"/> (por defecto, los más recientes primero).
 /// </summary>
 public sealed record FiltroFacturas(
     string? Texto = null,
@@ -89,7 +91,9 @@ public sealed record FiltroFacturas(
     decimal? ImporteMax = null,
     Guid? ClienteId = null,
     string? Serie = null,
-    IReadOnlyCollection<Guid>? Ids = null);
+    IReadOnlyCollection<Guid>? Ids = null,
+    string? Orden = null,
+    bool Descendente = true);
 
 /// <summary>Datos mínimos de cada factura de un listado filtrado (todas las páginas), para calcular totales y saldos.</summary>
 public sealed record FacturaFiltrada(Guid Id, string Estado, DateOnly FechaVencimiento, decimal BaseImponible, decimal CuotaIva, decimal RetencionIrpf, decimal Total);

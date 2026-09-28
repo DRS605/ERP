@@ -33,7 +33,7 @@ public static class EndpointsFacturacion
             .RequierePermiso(Permisos.FacturaLeer);
 
         facturas.MapGet("/buscar", BuscarAsync)
-            .WithSummary("Busca facturas con filtros (texto, estado, fechas, importe, cliente) y paginación.")
+            .WithSummary("Busca facturas con filtros (texto, estado, fechas, importe, cliente, serie, estado de cobro), orden y paginación; incluye los totales de todo el resultado filtrado y el pendiente de cada factura de la página.")
             .RequierePermiso(Permisos.FacturaLeer);
 
         facturas.MapGet("/{id:guid}", ObtenerAsync)
@@ -283,7 +283,7 @@ public static class EndpointsFacturacion
     private static async Task<IResult> BuscarAsync(IContextoEmpresa contexto, BuscarFacturas caso, IConsultaFacturas consulta,
         AlxorCore.Tesoreria.Aplicacion.IConsultaTesoreria tesoreria, AlxorCore.Nucleo.Tiempo.IReloj reloj,
         string? texto, string? estado, DateOnly? desde, DateOnly? hasta, decimal? importeMin, decimal? importeMax, Guid? clienteId,
-        string? serie, string? cobro, int? pagina, int? tamanoPagina, CancellationToken ct)
+        string? serie, string? cobro, string? orden, bool? desc, int? pagina, int? tamanoPagina, CancellationToken ct)
     {
         if (contexto.EmpresaId is not { } empresaId)
         {
@@ -296,7 +296,7 @@ public static class EndpointsFacturacion
         }
 
         // Totales y estado de cobro sobre todo el resultado filtrado (no solo sobre la página).
-        var filtro = new FiltroFacturas(texto, estado, desde, hasta, importeMin, importeMax, clienteId, serie);
+        var filtro = new FiltroFacturas(texto, estado, desde, hasta, importeMin, importeMax, clienteId, serie, Orden: orden, Descendente: desc ?? true);
         var hoy = DateOnly.FromDateTime(reloj.AhoraUtc.UtcDateTime);
         var documentos = (await consulta.FiltradasAsync(empresaId, filtro, ct).ConfigureAwait(false))
             .Select(f => new DocumentoListado(f.Id, f.Estado, f.FechaVencimiento, f.BaseImponible, f.CuotaIva, f.RetencionIrpf, f.Total)).ToList();

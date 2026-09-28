@@ -200,8 +200,17 @@ internal sealed class RepositorioGastos : IRepositorioGastos, IConsultaGastos
         var consulta = Filtrar(empresaId, filtro);
 
         var total = await consulta.CountAsync(ct).ConfigureAwait(false);
-        var gastos = await consulta
-            .OrderByDescending(g => g.Fecha)
+        var d = filtro.Descendente;
+        IOrderedQueryable<Gasto> ordenada = (filtro.Orden ?? "fecha").Trim().ToUpperInvariant() switch
+        {
+            "NUMERO" => d ? consulta.OrderByDescending(g => g.NumeroFactura) : consulta.OrderBy(g => g.NumeroFactura),
+            "PROVEEDOR" => d ? consulta.OrderByDescending(g => g.ProveedorTexto) : consulta.OrderBy(g => g.ProveedorTexto),
+            "BASE" => d ? consulta.OrderByDescending(g => g.BaseImponible) : consulta.OrderBy(g => g.BaseImponible),
+            "IMPUESTOS" => d ? consulta.OrderByDescending(g => g.CuotaIva) : consulta.OrderBy(g => g.CuotaIva),
+            "TOTAL" => d ? consulta.OrderByDescending(g => g.Total) : consulta.OrderBy(g => g.Total),
+            _ => d ? consulta.OrderByDescending(g => g.Fecha) : consulta.OrderBy(g => g.Fecha),
+        };
+        var gastos = await (d ? ordenada.ThenByDescending(g => g.Fecha).ThenByDescending(g => g.Id) : ordenada.ThenBy(g => g.Fecha).ThenBy(g => g.Id))
             .Skip(paginacion.Saltar).Take(paginacion.TamanoPagina)
             .ToListAsync(ct).ConfigureAwait(false);
         return PaginaResultado<GastoDto>.Crear(gastos.Select(GastoDto.Desde).ToList(), total, paginacion);
