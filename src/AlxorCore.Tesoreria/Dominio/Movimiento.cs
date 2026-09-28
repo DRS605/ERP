@@ -86,6 +86,15 @@ public sealed class Movimiento : RaizAgregadoEmpresa<Guid>
     /// </summary>
     public Guid? CuentaBancariaId { get; private set; }
 
+    /// <summary>
+    /// Cuenta contable que sustituye a la tesorería cuando el movimiento no mueve dinero: 407 al cancelar una entrega a
+    /// cuenta a un proveedor contra su factura, 555 al compensar lo que se le debe con lo que debe él. Null en los cobros
+    /// y pagos por banco o caja. Estos movimientos no se concilian con el extracto.
+    /// </summary>
+    public string? CuentaPuente { get; private set; }
+
+    public const int LongitudCuentaPuente = 12;
+
     public const string MetodoAnulacion = "Anulación";
 
     /// <summary>Anulación de un cobro o pago: mismo documento y sentido, importe en negativo.</summary>
@@ -108,13 +117,14 @@ public sealed class Movimiento : RaizAgregadoEmpresa<Guid>
         {
             AnulaMovimientoId = original.Id,
             CuentaBancariaId = original.CuentaBancariaId,
+            CuentaPuente = original.CuentaPuente,
         };
         return Resultado.Ok(anulacion);
     }
 
     public static Resultado<Movimiento> Crear(
         Guid empresaId, TipoDocumentoTesoreria tipoDocumento, Guid documentoId, SentidoMovimiento sentido, decimal importe, DateOnly fecha, string? metodo, IReloj reloj,
-        Guid? cuentaBancariaId = null)
+        Guid? cuentaBancariaId = null, string? cuentaPuente = null)
     {
         ArgumentNullException.ThrowIfNull(reloj);
 
@@ -127,7 +137,8 @@ public sealed class Movimiento : RaizAgregadoEmpresa<Guid>
             Guid.NewGuid(), empresaId, tipoDocumento, documentoId, sentido, Redondeo.Dos(importe), fecha,
             string.IsNullOrWhiteSpace(metodo) ? null : Recortar(metodo.Trim()), reloj.AhoraUtc)
         {
-            CuentaBancariaId = cuentaBancariaId,
+            CuentaBancariaId = cuentaPuente is null ? cuentaBancariaId : null,
+            CuentaPuente = string.IsNullOrWhiteSpace(cuentaPuente) ? null : cuentaPuente.Trim()[..Math.Min(cuentaPuente.Trim().Length, LongitudCuentaPuente)],
         };
         movimiento.RegistrarEvento(new MovimientoRegistrado(movimiento.Id, empresaId, movimiento.Importe, reloj.AhoraUtc));
         return Resultado.Ok(movimiento);

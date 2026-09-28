@@ -30,6 +30,7 @@ public sealed class ContabilizacionTesoreria
 {
     public const string OrigenMovimiento = "Movimiento";
     public const string OrigenAnticipo = "Anticipo";
+    public const string OrigenEntregaCuenta = "EntregaCuenta";
 
     private readonly IRepositorioSalidaTesoreria _salida;
     private readonly IConsultaFacturas _facturas;
@@ -84,7 +85,7 @@ public sealed class ContabilizacionTesoreria
         var sentido = datos.Sentido == SentidoMovimiento.Cobro ? SentidoContable.Cobro : SentidoContable.Pago;
         var tipo = sentido == SentidoContable.Cobro ? "Cobro" : "Pago";
         var referencia = Recortar((original is null ? "" : (prefijo ?? "Anulación") + ": ") + $"{tipo} {documento}".Trim());
-        var tesoreria = aplicacionAnticipo ? "438" : await CuentaTesoreriaAsync(datos.CuentaBancariaId, datos.Metodo, ct).ConfigureAwait(false);
+        var tesoreria = datos.CuentaPuente ?? (aplicacionAnticipo ? "438" : null) ?? await CuentaTesoreriaAsync(datos.CuentaBancariaId, datos.Metodo, ct).ConfigureAwait(false);
         _salida.Agregar(MensajeSalida.Crear(movimiento.EmpresaId, MensajeSalida.TipoContabilizacion, SalidaJson.Serializar(new DocumentoContabilizable(
             sentido, OrigenMovimiento, movimiento.Id, referencia, terceroId, tercero, movimiento.Fecha,
             0m, string.Empty, 0m, 0m, 0m, Math.Abs(movimiento.Importe), Anulacion: original is not null, CuentaTesoreria: tesoreria)), _reloj.AhoraUtc));
@@ -171,7 +172,7 @@ public sealed class ContabilizacionTesoreria
     private static string Recortar(string texto) => texto.Length > 80 ? texto[..80] : texto;
 
     /// <summary>Identificador estable para la anulación de un anticipo (la cola es idempotente por origen).</summary>
-    private static Guid DeterministaAnulacion(Guid id)
+    internal static Guid DeterministaAnulacion(Guid id)
     {
         var b = id.ToByteArray();
         b[0] ^= 0xA5;

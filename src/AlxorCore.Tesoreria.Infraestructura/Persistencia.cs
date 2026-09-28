@@ -46,6 +46,10 @@ public sealed class TesoreriaDbContext : DbContextEmpresaBase, IUnidadDeTrabajoT
 
     public DbSet<ApunteBancario> Apuntes => Set<ApunteBancario>();
 
+    public DbSet<EntregaCuentaProveedor> EntregasCuenta => Set<EntregaCuentaProveedor>();
+
+    public DbSet<LiquidacionPagos> LiquidacionesPagos => Set<LiquidacionPagos>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Esquema);
@@ -72,6 +76,7 @@ internal sealed class ConfiguracionMovimiento : IEntityTypeConfiguration<Movimie
 
         builder.Property(m => m.AnulaMovimientoId).HasColumnName("anula_movimiento_id");
         builder.Property(m => m.CuentaBancariaId).HasColumnName("cuenta_bancaria_id");
+        builder.Property(m => m.CuentaPuente).HasColumnName("cuenta_puente").HasMaxLength(Movimiento.LongitudCuentaPuente);
         builder.HasOne<CuentaBancaria>().WithMany().HasForeignKey(m => m.CuentaBancariaId).OnDelete(DeleteBehavior.Restrict);
         builder.HasIndex(m => m.CuentaBancariaId).HasDatabaseName("ix_movimiento_cuenta_bancaria");
 

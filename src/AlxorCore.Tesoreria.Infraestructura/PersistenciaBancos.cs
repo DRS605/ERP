@@ -337,7 +337,7 @@ internal sealed class RepositorioConciliacion : IRepositorioConciliacion
     public async Task<IReadOnlyList<Movimiento>> MovimientosLibresAsync(Guid cuentaBancariaId, bool incluirSinCuenta, DateOnly desde, DateOnly hasta, CancellationToken ct = default) =>
         await _ctx.Movimientos.AsNoTracking()
             .Where(m => (m.CuentaBancariaId == cuentaBancariaId || (incluirSinCuenta && m.CuentaBancariaId == null))
-                        && m.AnulaMovimientoId == null && m.Fecha >= desde && m.Fecha <= hasta
+                        && m.AnulaMovimientoId == null && m.CuentaPuente == null && m.Fecha >= desde && m.Fecha <= hasta
                         && !_ctx.Movimientos.Any(a => a.AnulaMovimientoId == m.Id)
                         && !_ctx.Apuntes.Any(ap => ap.Casaciones.Any(c => c.MovimientoId == m.Id)))
             .OrderBy(m => m.Fecha).ToListAsync(ct).ConfigureAwait(false);

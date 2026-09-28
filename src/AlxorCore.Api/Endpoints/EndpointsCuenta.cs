@@ -111,6 +111,8 @@ public static class EndpointsCuenta
         await gastos.Gastos.Where(g => g.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
         await BorradoEmpresa.EjecutarAsync(tesoreria, id, async () =>
         {
+            await tesoreria.LiquidacionesPagos.Where(l => l.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+            await tesoreria.EntregasCuenta.Where(e => e.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
             await tesoreria.Movimientos.Where(m => m.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
             await tesoreria.MensajesSalida.Where(m => m.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
             await tesoreria.AnulacionesCartera.Where(e => e.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);

@@ -31,6 +31,7 @@ public sealed record LiquidacionAcreedorDto(Guid GastoId, string NumeroFactura, 
 /// </summary>
 public sealed class CargosAcreedores
 {
+    // Además de la RLS, se limita a la empresa activa (la conexión de análisis puede tener un rol que no la aplique).
     private const string Sql = """
         WITH cargos AS (
             SELECT 'FacturaVenta' AS origen, f.id AS documento_id, f.numero_completo AS numero, f.fecha_emision AS fecha, f.cliente_nombre AS tercero,
@@ -38,7 +39,7 @@ public sealed class CargosAcreedores
             FROM facturacion.factura f
             JOIN facturacion.linea_factura l ON l.factura_id = f.id
             CROSS JOIN LATERAL jsonb_array_elements(l.conceptos) e
-            WHERE f.estado <> 'Anulada' AND l.albaran_venta_id IS NULL
+            WHERE f.empresa_id = NULLIF(current_setting('app.empresa_actual', true), '')::uuid AND f.estado <> 'Anulada' AND l.albaran_venta_id IS NULL
             UNION ALL
             SELECT 'AlbaranVenta', a.id,
                    CASE WHEN a.serie IS NOT NULL THEN a.serie || extract(year FROM a.fecha)::int || '/' || lpad(a.numero::text, 5, '0') ELSE a.numero::text END,
@@ -46,7 +47,7 @@ public sealed class CargosAcreedores
             FROM facturacion.albaran_venta a
             JOIN facturacion.linea_albaran_venta l ON l.albaran_venta_id = a.id
             CROSS JOIN LATERAL jsonb_array_elements(l.conceptos) e
-            WHERE a.anulado_en IS NULL
+            WHERE a.empresa_id = NULLIF(current_setting('app.empresa_actual', true), '')::uuid AND a.anulado_en IS NULL
             UNION ALL
             SELECT 'PedidoCompra', p.id,
                    CASE WHEN p.serie IS NOT NULL THEN p.serie || p.ejercicio || '/' || lpad(p.numero::text, 5, '0') ELSE p.numero::text END,
@@ -54,7 +55,7 @@ public sealed class CargosAcreedores
             FROM compras.pedido_compra p
             JOIN compras.linea_pedido l ON l.pedido_id = p.id
             CROSS JOIN LATERAL jsonb_array_elements(l.conceptos) e
-            WHERE p.estado <> 'Cancelado')
+            WHERE p.empresa_id = NULLIF(current_setting('app.empresa_actual', true), '')::uuid AND p.estado <> 'Cancelado')
         SELECT c.origen, c.documento_id::text, c.numero, c.fecha, c.tercero, c.orden, c.linea,
                c.e ->> 'conceptoId', c.e ->> 'codigo', c.e ->> 'nombre', c.e ->> 'efecto', (c.e ->> 'importe')::numeric, c.e ->> 'acreedorId'
         FROM cargos c
@@ -63,7 +64,7 @@ public sealed class CargosAcreedores
           AND c.fecha BETWEEN @desde AND @hasta
           AND (@todos OR NOT EXISTS (
                 SELECT 1 FROM gastos.cargo_acreedor_liquidado x JOIN gastos.gasto g ON g.id = x.gasto_id
-                WHERE g.estado <> 'Anulado' AND x.origen = c.origen AND x.documento_id = c.documento_id
+                WHERE g.empresa_id = NULLIF(current_setting('app.empresa_actual', true), '')::uuid AND g.estado <> 'Anulado' AND x.origen = c.origen AND x.documento_id = c.documento_id
                   AND x.linea_orden = c.orden AND x.concepto_id::text = c.e ->> 'conceptoId'))
         ORDER BY c.fecha, c.numero, c.orden
         """;

@@ -137,7 +137,7 @@ public sealed class RegistrarCobro
         Guid empresaId, TipoDocumentoTesoreria tipo, Guid documentoId, SentidoMovimiento sentido, decimal importe, decimal totalDocumento,
         DateOnly? fecha, string? metodo, IRepositorioMovimientos movimientos, IUnidadDeTrabajo unidadDeTrabajo, IReloj reloj, CancellationToken ct,
         Action<Movimiento>? antesDeGuardar = null, ContabilizacionTesoreria? contabilizacion = null, bool aplicacionAnticipo = false,
-        Guid? cuentaBancariaId = null)
+        Guid? cuentaBancariaId = null, string? cuentaPuente = null)
     {
         var importeRedondeado = Redondeo.Dos(importe);
         if (importeRedondeado <= 0)
@@ -152,7 +152,7 @@ public sealed class RegistrarCobro
         }
 
         var fechaMovimiento = fecha ?? DateOnly.FromDateTime(reloj.AhoraUtc.UtcDateTime);
-        var movimiento = Movimiento.Crear(empresaId, tipo, documentoId, sentido, importeRedondeado, fechaMovimiento, metodo, reloj, cuentaBancariaId);
+        var movimiento = Movimiento.Crear(empresaId, tipo, documentoId, sentido, importeRedondeado, fechaMovimiento, metodo, reloj, cuentaBancariaId, cuentaPuente);
         if (movimiento.EsFallo)
         {
             return Resultado.Fallo<SaldoDto>(movimiento.Error);
@@ -333,8 +333,12 @@ public sealed class AnularMovimiento
     private readonly IReloj _reloj;
     private readonly ContabilizacionTesoreria? _contabilizacion;
 
-    public AnularMovimiento(IRepositorioMovimientos movimientos, IUnidadDeTrabajoTesoreria unidad, IReloj reloj, ContabilizacionTesoreria? contabilizacion = null)
+    private readonly IRepositorioLiquidacionesPagos? _liquidaciones;
+
+    public AnularMovimiento(IRepositorioMovimientos movimientos, IUnidadDeTrabajoTesoreria unidad, IReloj reloj, ContabilizacionTesoreria? contabilizacion = null,
+        IRepositorioLiquidacionesPagos? liquidaciones = null)
     {
+        _liquidaciones = liquidaciones;
         _movimientos = movimientos;
         _unidad = unidad;
         _reloj = reloj;
@@ -354,6 +358,18 @@ public sealed class AnularMovimiento
             return Resultado.Fallo<MovimientoDto>(Error.Conflicto("movimiento.ya_anulado", "Este cobro o pago ya está anulado."));
         }
 
+        EntregaCuentaProveedor? entrega = null;
+        if (original.CuentaPuente is not null && _liquidaciones is not null)
+        {
+            if (await _liquidaciones.LiquidacionDeMovimientoAsync(movimientoId, ct).ConfigureAwait(false) is { } liquidacion)
+            {
+                return Resultado.Fallo<MovimientoDto>(Error.Conflicto("movimiento.de_liquidacion",
+                    $"Este movimiento es de la liquidación de pagos {liquidacion.NumeroCompleto}: anula la liquidación."));
+            }
+
+            entrega = await _liquidaciones.EntregaDeMovimientoAsync(movimientoId, ct).ConfigureAwait(false);
+        }
+
         var anulacion = Movimiento.CrearAnulacion(original, fecha ?? DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime), _reloj);
         if (anulacion.EsFallo)
         {
@@ -361,6 +377,7 @@ public sealed class AnularMovimiento
         }
 
         _movimientos.Agregar(anulacion.Valor);
+        entrega?.RevertirCancelacion(movimientoId, anulacion.Valor.Id, anulacion.Valor.Fecha);
         var anticipo = await _movimientos.AnticipoDeMovimientoAsync(movimientoId, ct).ConfigureAwait(false);
         if (anticipo is not null)
         {

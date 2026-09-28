@@ -68,6 +68,8 @@ public static class RegistroServicios
         servicios.AddScoped<ConciliacionBancaria>();
         servicios.AddScoped<GenerarCuaderno19>();
         servicios.AddScoped<GenerarConfirming>();
+        servicios.AddScoped<IRepositorioLiquidacionesPagos, RepositorioLiquidacionesPagos>();
+        servicios.AddScoped<LiquidacionesPagos>();
 
         return servicios;
     }

@@ -118,6 +118,63 @@ contabilizados directamente, desde la fecha del saldo inicial). Incluye una fila
 (570/572 genéricas) cuando no es cero. La pantalla de previsión **parte de ese total** y acumula los vencimientos
 reales y las previsiones manuales (`PrevisionTesoreria`: `{ sentido, concepto, importe, fecha }`).
 
+## Entregas a cuenta y liquidación de pagos
+
+Como en Hispatec (`EntregasCuentaProveedor` y `Liquidaciones`), para pagar a proveedores y agricultores.
+
+- **Entrega a cuenta** (`tesoreria.entrega_cuenta_proveedor`): dinero adelantado **sin IVA** a un proveedor o
+  agricultor, antes de su factura o liquidación.
+  - Asiento: 407 (anticipos a proveedores) a banco o caja.
+  - Se cancela contra sus facturas con un **pago de cuenta puente 407** (400 a 407). Se hace en la liquidación o a
+    mano (`POST …/{id}/aplicar`).
+  - Las cancelaciones (`cancelacion_entrega_cuenta`) son de solo inserción: se deshacen con otra en negativo.
+  - Solo se anula si no tiene nada cancelado.
+- **Cuenta puente del movimiento** (`movimiento.cuenta_puente`, 407 o 555): la usan los pagos y cobros que no
+  mueven dinero. Sustituye a la tesorería en el asiento, no lleva banco y no se concilia con el extracto.
+- **Liquidación de pagos** (`liquidacion_pagos`, numerada `LP-aaaa-nnnnnn`). Para un proveedor y una fecha de corte:
+  1. reúne sus **facturas pendientes** hasta esa fecha, sin las que ya van en una remesa viva;
+  2. **cancela sus entregas a cuenta**, de la más antigua a la más reciente, contra las facturas más antiguas;
+  3. **compensa** lo que el proveedor debe como **cliente con el mismo NIF**. Es la única ficha de cliente del grupo
+     con ese NIF, comparado sin espacios, guiones ni puntos. Se hace con un pago de la factura del proveedor
+     (400 a 555) y un cobro de la del cliente (555 a 430), así que 555 queda a cero;
+  4. paga el **líquido**: lo deja pendiente, lo paga ya por el banco elegido o lo mete en una **remesa de
+     transferencias** SEPA (el pago se registra al liquidar la remesa).
+- **Nunca sale negativa.** Si el proveedor debe más de lo que se le debe, solo se compensa hasta cubrirlo; el resto
+  sigue pendiente en sus facturas de cliente.
+- **Previsualizar** calcula lo mismo sin registrar nada.
+- **Transacción y bloqueo.** Todo (movimientos, cancelaciones, asientos en la bandeja) se guarda en una
+  transacción, con un bloqueo consultivo por empresa. Si el pendiente cambió mientras se calculaba, falla con
+  `liquidacionpagos.desactualizada`.
+- **Liquidación masiva.** Crea una liquidación por proveedor, o solo por agricultor, con facturas pendientes hasta la
+  fecha. Todas comparten un `lote_id` y **una sola remesa** recoge todos los líquidos. Los proveedores que no se
+  pueden liquidar salen en `omitidos`, con el motivo.
+- **Anular** una liquidación deshace sus pagos, compensaciones y cancelaciones, con sus contraasientos:
+  - si su líquido va en una remesa, hay que anular antes la remesa;
+  - un movimiento suelto de la liquidación no se anula por su cuenta (`movimiento.de_liquidacion`).
+- **Aislamiento.** Lo pendiente se lee por la conexión de solo lectura del análisis. Además de la RLS, se filtra por
+  `app.empresa_actual` y `app.grupo_actual`.
+- **Pantalla:** Tesorería → **Liquidaciones y entregas a cuenta**. Muestra:
+  - los proveedores pendientes: facturas, entregas, lo que deben como clientes y el líquido;
+  - la liquidación individual con su cálculo y la masiva;
+  - las entregas a cuenta y las liquidaciones emitidas.
+- **API:**
+  - `GET/POST /pagos/entregas-cuenta`, `POST /pagos/entregas-cuenta/{id}/aplicar`, `POST /pagos/entregas-cuenta/{id}/anular`;
+  - `GET/POST /pagos/liquidaciones`, `GET /pagos/liquidaciones/pendientes?hasta=&agricultores=`,
+    `GET /pagos/liquidaciones/{id}`, `POST /pagos/liquidaciones/previsualizar`, `POST /pagos/liquidaciones/masiva`,
+    `POST /pagos/liquidaciones/{id}/anular`.
+  - Estas rutas son de la base, como `/pagos`.
+- **Errores:**
+  - `entregacuenta.importe`, `entregacuenta.anulada`, `entregacuenta.supera_pendiente`, `entregacuenta.cancelada`
+    y `entregacuenta.otro_proveedor`;
+  - `liquidacionpagos.sin_facturas`, `liquidacionpagos.nada`, `liquidacionpagos.desactualizada`,
+    `liquidacionpagos.en_remesa`, `liquidacionpagos.anulada` y `liquidacionpagos.forma_pago`.
+- **Pendiente:**
+  - intereses de las entregas a cuenta;
+  - retención en el pago (hoy va en la factura);
+  - documento de pago de renovación (pagaré o cheque);
+  - cargos y abonos propios de la liquidación;
+  - el impreso para el agricultor.
+
 ## API
 
 | Método | Ruta | Permiso | Descripción |
