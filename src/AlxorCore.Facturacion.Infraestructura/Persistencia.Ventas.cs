@@ -94,6 +94,7 @@ internal sealed class ConfiguracionAlbaranVenta : IEntityTypeConfiguration<Albar
             linea.Property(l => l.PorcentajeDescuento).HasColumnName("porcentaje_descuento").HasColumnType("numeric(5,2)").HasDefaultValue(0m).IsRequired();
             linea.Property(l => l.CodigoIva).HasColumnName("codigo_iva").HasMaxLength(20).HasDefaultValue("IVA21").IsRequired();
             linea.Property(l => l.PrecioFijado).HasColumnName("precio_fijado").HasDefaultValue(true).IsRequired();
+            linea.Property(l => l.CosteUnitario).HasColumnName("coste_unitario").HasColumnType("numeric(18,6)");
             linea.Property(l => l.Conceptos).ComoConceptos();
             linea.Property(l => l.ImporteConceptos).HasColumnName("importe_conceptos").HasColumnType("numeric(14,2)").HasDefaultValue(0m).IsRequired();
             linea.Property(l => l.CosteConceptos).HasColumnName("coste_conceptos").HasColumnType("numeric(14,2)").HasDefaultValue(0m).IsRequired();

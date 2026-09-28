@@ -65,6 +65,8 @@ public interface IRepositorioAgro
     Task<ConceptoLiquidacion?> ConceptoAsync(Guid id, CancellationToken ct = default);
     Task<IReadOnlyList<TarifaCoste>> TarifasAsync(Guid empresaId, CancellationToken ct = default);
     Task<TarifaCoste?> TarifaAsync(Guid id, CancellationToken ct = default);
+    Task<IReadOnlyList<RendimientoConfeccion>> RendimientosAsync(Guid empresaId, CancellationToken ct = default);
+    Task<RendimientoConfeccion?> RendimientoAsync(Guid id, CancellationToken ct = default);
     Task<ConfiguracionAgro?> ConfiguracionAsync(Guid empresaId, CancellationToken ct = default);
 
     // Recepciones y partidas
@@ -167,7 +169,9 @@ public sealed record PedidoParaReservas(Guid Id, string Numero, Guid ClienteId, 
 public sealed record LineaPedidoParaReservas(Guid Id, Guid? ProductoId, string Descripcion, decimal Cantidad, decimal Servida);
 
 /// <summary>Albarán de venta de una expedición: pedido y, por producto, los kilos y las cajas expedidos.</summary>
-public sealed record AlbaranExpedicion(Guid PedidoVentaId, DateOnly Fecha, string? Referencia, IReadOnlyList<(Guid ProductoId, decimal Kilos, int Cajas)> Lineas);
+/// <summary>Albarán de lo expedido. <paramref name="CosteKg"/>: coste por kilo de cada producto según sus palés (el de las partidas cargadas).</summary>
+public sealed record AlbaranExpedicion(Guid PedidoVentaId, DateOnly Fecha, string? Referencia, IReadOnlyList<(Guid ProductoId, decimal Kilos, int Cajas)> Lineas,
+    IReadOnlyDictionary<Guid, decimal>? CosteKg = null);
 
 /// <summary>Gastos e ingresos imputados en analítica a unos centros (con sus descendientes) en unas fechas.</summary>
 public interface ICosteAnalitico

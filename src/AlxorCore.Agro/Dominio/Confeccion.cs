@@ -25,6 +25,12 @@ public enum RepartoCoste
 
     /// <summary>En proporción a kilos × factor (por ejemplo, la 1ª vale más que la 2ª y el destrío, factor 0).</summary>
     PorFactor = 2,
+
+    /// <summary>
+    /// Como Hispatec: la mano de obra <b>de confección</b> se reparte por el tiempo teórico de cada salida
+    /// (cajas × 3600 / rendimiento en cajas por hora); todo lo demás (fruta, materiales, apoyo, maquinaria, indirectos), por kilos.
+    /// </summary>
+    PorTiempoTeorico = 3,
 }
 
 /// <summary>
@@ -134,7 +140,7 @@ public sealed class ParteConfeccion : RaizAgregadoEmpresa<Guid>
 
         if (datos.Consumos.Any(c => c.Kilos <= 0m || decimal.Round(c.Kilos, 3) != c.Kilos) ||
             datos.Salidas.Any(s => s.Kilos <= 0m || decimal.Round(s.Kilos, 3) != s.Kilos || s.Factor < 0m) ||
-            datos.ManoObra.Any(m => m.Horas < 0m || m.Piezas < 0m) || datos.Maquinas.Any(m => m.Horas <= 0m) ||
+            datos.ManoObra.Any(m => m.Horas < 0m || m.Piezas < 0m) || datos.Maquinas.Any(m => m.Horas <= 0m) || datos.Salidas.Any(s => s.Cajas < 0) ||
             datos.Materiales.Any(m => m.Cantidad <= 0m))
         {
             return Resultado.Fallo(Error.Validacion("parte.cantidades", "Las cantidades deben ser positivas (los kilos, hasta 3 decimales) y los factores no negativos."));
@@ -150,13 +156,13 @@ public sealed class ParteConfeccion : RaizAgregadoEmpresa<Guid>
         _consumos.Clear();
         _consumos.AddRange(datos.Consumos.Select(c => new ConsumoParte(Guid.NewGuid(), c.PartidaId, c.PaleId, c.Kilos)));
         _manoObra.Clear();
-        _manoObra.AddRange(datos.ManoObra.Select(m => new ManoObraParte(Guid.NewGuid(), m.Descripcion, m.Categoria.Trim().ToUpperInvariant(), m.TipoHora, m.Horas, m.Piezas)));
+        _manoObra.AddRange(datos.ManoObra.Select(m => new ManoObraParte(Guid.NewGuid(), m.Descripcion, m.Categoria.Trim().ToUpperInvariant(), m.TipoHora, m.Horas, m.Piezas, m.Confeccion)));
         _maquinas.Clear();
         _maquinas.AddRange(datos.Maquinas.Select(m => new MaquinaParte(Guid.NewGuid(), m.Descripcion, m.Categoria.Trim().ToUpperInvariant(), m.Horas)));
         _materiales.Clear();
         _materiales.AddRange(datos.Materiales.Select(m => new MaterialParte(Guid.NewGuid(), m.ProductoId, m.Nombre, m.Cantidad)));
         _salidas.Clear();
-        _salidas.AddRange(datos.Salidas.Select((s, i) => new SalidaParte(Guid.NewGuid(), i + 1, s.ProductoId, s.Nombre, s.Kilos, s.Factor, s.Calibre, s.CategoriaId, s.PaleId)));
+        _salidas.AddRange(datos.Salidas.Select((s, i) => new SalidaParte(Guid.NewGuid(), i + 1, s.ProductoId, s.Nombre, s.Kilos, s.Factor, s.Calibre, s.CategoriaId, s.PaleId, s.Cajas, s.EnvaseProductoId)));
         return Resultado.Ok();
     }
 
@@ -164,7 +170,8 @@ public sealed class ParteConfeccion : RaizAgregadoEmpresa<Guid>
     /// Valora el parte y devuelve todos los errores a la vez. <paramref name="costeKgPartida"/> da el
     /// coste por kilo de cada partida consumida (null si no se conoce).
     /// </summary>
-    public IReadOnlyList<Error> Valorar(IReadOnlyList<TarifaCoste> tarifas, Func<Guid, decimal?> costeKgPartida, Func<Guid, decimal?> costeMaterial)
+    public IReadOnlyList<Error> Valorar(IReadOnlyList<TarifaCoste> tarifas, Func<Guid, decimal?> costeKgPartida, Func<Guid, decimal?> costeMaterial,
+        Func<Guid, Guid?, decimal?>? rendimiento = null)
     {
         ArgumentNullException.ThrowIfNull(tarifas);
         ArgumentNullException.ThrowIfNull(costeKgPartida);
@@ -265,11 +272,53 @@ public sealed class ParteConfeccion : RaizAgregadoEmpresa<Guid>
         CosteIndirectos = Redondeo.Dos((CosteManoObra + CosteMaquinaria) * PorcentajeIndirectos / 100m);
         CosteTotal = CosteFruta + CosteMateriales + CosteManoObra + CosteMaquinaria + CosteIndirectos;
 
+        if (Reparto == RepartoCoste.PorTiempoTeorico)
+        {
+            return RepartirPorTiempo(rendimiento);
+        }
+
         var pesos = _salidas.Select(s => Reparto == RepartoCoste.PorFactor ? s.Kilos * s.Factor : s.Kilos).ToList();
         var partes = ReglasAgro.Repartir(CosteTotal, pesos, 2);
         for (var i = 0; i < _salidas.Count; i++)
         {
             _salidas[i].Valorar(partes[i]);
+        }
+
+        return errores;
+    }
+
+    /// <summary>
+    /// Reparto por tiempo teórico: la mano de obra de confección, por cajas × 3600 / rendimiento de cada salida; lo demás,
+    /// por kilos. Una salida con kilos que no tiene cajas o rendimiento es un error, nunca un cero (si hay confección que repartir).
+    /// </summary>
+    private List<Error> RepartirPorTiempo(Func<Guid, Guid?, decimal?>? rendimiento)
+    {
+        var errores = new List<Error>();
+        var confeccion = _manoObra.Where(m => m.Confeccion).Sum(m => m.Coste);
+        var segundos = new List<decimal>();
+        foreach (var s in _salidas)
+        {
+            var r = rendimiento?.Invoke(s.ProductoId, s.EnvaseProductoId);
+            if (confeccion > 0m && (s.Cajas is not > 0 || r is not > 0m))
+            {
+                errores.Add(Error.Validacion("parte.sin_rendimiento", s.Cajas is not > 0
+                    ? $"{s.Nombre}: indica las cajas confeccionadas para repartir la mano de obra por tiempo."
+                    : $"{s.Nombre}: no hay rendimiento de confección (cajas por hora) para su producto y envase."));
+            }
+
+            segundos.Add(s.Cajas is > 0 && r is > 0m ? decimal.Round(s.Cajas.Value * 3600m / r.Value, 2) : 0m);
+        }
+
+        if (errores.Count > 0)
+        {
+            return errores;
+        }
+
+        var porKilos = ReglasAgro.Repartir(CosteTotal - confeccion, _salidas.Select(s => s.Kilos).ToList(), 2);
+        IReadOnlyList<decimal> porTiempo = confeccion > 0m ? ReglasAgro.Repartir(confeccion, segundos, 2) : _salidas.Select(_ => 0m).ToList();
+        for (var i = 0; i < _salidas.Count; i++)
+        {
+            _salidas[i].Valorar(porKilos[i] + porTiempo[i], porTiempo[i], segundos[i] > 0m ? segundos[i] : null);
         }
 
         return errores;
@@ -314,13 +363,14 @@ public sealed record DatosParte(
 
 public sealed record DatosConsumo(Guid PartidaId, decimal Kilos, Guid? PaleId = null);
 
-public sealed record DatosManoObra(string Descripcion, string Categoria, TipoHora TipoHora, decimal Horas, decimal? Piezas = null);
+public sealed record DatosManoObra(string Descripcion, string Categoria, TipoHora TipoHora, decimal Horas, decimal? Piezas = null, bool Confeccion = true);
 
 public sealed record DatosMaquina(string Descripcion, string Categoria, decimal Horas);
 
 public sealed record DatosMaterial(Guid ProductoId, string Nombre, decimal Cantidad);
 
-public sealed record DatosSalida(Guid ProductoId, string Nombre, decimal Kilos, decimal Factor = 1m, string? Calibre = null, Guid? CategoriaId = null, Guid? PaleId = null);
+public sealed record DatosSalida(Guid ProductoId, string Nombre, decimal Kilos, decimal Factor = 1m, string? Calibre = null, Guid? CategoriaId = null, Guid? PaleId = null,
+    int? Cajas = null, Guid? EnvaseProductoId = null);
 
 public sealed class ConsumoParte : EntidadBase<Guid>
 {
@@ -364,9 +414,10 @@ public sealed class ManoObraParte : EntidadBase<Guid>
         Categoria = null!;
     }
 
-    internal ManoObraParte(Guid id, string descripcion, string categoria, TipoHora tipoHora, decimal horas, decimal? piezas)
+    internal ManoObraParte(Guid id, string descripcion, string categoria, TipoHora tipoHora, decimal horas, decimal? piezas, bool confeccion = true)
         : base(id)
     {
+        Confeccion = confeccion;
         Descripcion = string.IsNullOrWhiteSpace(descripcion) ? categoria : descripcion.Trim();
         Categoria = categoria;
         TipoHora = tipoHora;
@@ -385,6 +436,9 @@ public sealed class ManoObraParte : EntidadBase<Guid>
     public decimal Horas { get; private set; }
 
     public decimal? Piezas { get; private set; }
+
+    /// <summary>Confecciona (se reparte por tiempo teórico) o es de apoyo (por kilos), como el <c>IntervieneTiempoConfeccion</c> de Hispatec.</summary>
+    public bool Confeccion { get; private set; } = true;
 
     public Guid? TarifaId { get; private set; }
 
@@ -478,9 +532,12 @@ public sealed class SalidaParte : EntidadBase<Guid>
         Nombre = null!;
     }
 
-    internal SalidaParte(Guid id, int numeroLinea, Guid productoId, string nombre, decimal kilos, decimal factor, string? calibre, Guid? categoriaId, Guid? paleId)
+    internal SalidaParte(Guid id, int numeroLinea, Guid productoId, string nombre, decimal kilos, decimal factor, string? calibre, Guid? categoriaId, Guid? paleId,
+        int? cajas = null, Guid? envaseProductoId = null)
         : base(id)
     {
+        Cajas = cajas;
+        EnvaseProductoId = envaseProductoId;
         NumeroLinea = numeroLinea;
         ProductoId = productoId;
         Nombre = nombre;
@@ -513,9 +570,26 @@ public sealed class SalidaParte : EntidadBase<Guid>
 
     public decimal Coste { get; private set; }
 
+    /// <summary>Cajas confeccionadas (para el tiempo teórico).</summary>
+    public int? Cajas { get; private set; }
+
+    /// <summary>Envase de la confección (el rendimiento es por producto y envase).</summary>
+    public Guid? EnvaseProductoId { get; private set; }
+
+    /// <summary>Segundos teóricos de confección (cajas × 3600 / rendimiento), si se repartió por tiempo.</summary>
+    public decimal? SegundosTeoricos { get; private set; }
+
+    /// <summary>Parte del coste que es mano de obra de confección (por tiempo teórico).</summary>
+    public decimal CosteConfeccion { get; private set; }
+
     public decimal CosteKg => Kilos == 0m ? 0m : decimal.Round(Coste / Kilos, 6);
 
-    internal void Valorar(decimal coste) => Coste = coste;
+    internal void Valorar(decimal coste, decimal costeConfeccion = 0m, decimal? segundos = null)
+    {
+        Coste = coste;
+        CosteConfeccion = costeConfeccion;
+        SegundosTeoricos = segundos;
+    }
 
     internal void AsignarPartida(Guid partidaId) => PartidaId = partidaId;
 }

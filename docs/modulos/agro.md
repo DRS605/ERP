@@ -276,6 +276,28 @@ su palé. También registra la **genealogía** y numera el parte (`PC-2026-00000
 
 **Anular.** Solo si las salidas no se han movido. Los kilos vuelven a su origen.
 
+**Reparto por tiempo teórico** (como Hispatec):
+
+- **Rendimientos** (`agro.rendimiento_confeccion`): cajas por hora de cada producto confeccionado y envase, o de
+  cualquier envase si no se indica.
+- **Datos del parte:** cada salida puede llevar sus **cajas** y su **envase**. Cada línea de mano de obra es de
+  **confección** o de **apoyo**.
+- **Reparto:** con `Reparto = PorTiempoTeorico`, la mano de obra de confección se reparte entre las salidas por
+  cajas × 3600 / rendimiento. Todo lo demás (fruta, materiales, apoyo, maquinaria e indirectos) va por kilos. Cada
+  parte se reparte al céntimo.
+- **Errores:** si hay confección que repartir, una salida sin cajas o sin rendimiento es un error
+  (`parte.sin_rendimiento`), nunca un cero.
+- **Qué se guarda por salida:** los segundos teóricos y la parte de confección de su coste.
+- **API:** `GET/PUT /agro/rendimientos` y `DELETE /agro/rendimientos/{id}`.
+
+**Coste del palé en la venta:**
+
+- **Al expedir con pedido:** el coste por kilo de cada producto es la media de sus partidas cargadas (confeccionadas o
+  liquidadas), si todas lo tienen. Pasa a la línea del albarán (`linea_albaran_venta.coste_unitario`), por kilo o por
+  caja según la unidad de venta.
+- **Al facturar:** la factura usa ese coste, no el precio de compra del artículo. Así el margen de la factura es el
+  real.
+
 ## 7. Trazabilidad
 
 Cumple el Reglamento (CE) 178/2002 («un paso atrás, un paso adelante») y lo supera: recorre la genealogía

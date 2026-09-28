@@ -145,10 +145,14 @@ public sealed class DocumentosExpedicionFacturacion : IDocumentosExpedicion
             var producto = await _productos.ObtenerAsync(productoId, ct).ConfigureAwait(false);
             var porKilos = cajas == 0 || (producto?.Unidad ?? string.Empty).Trim().ToLowerInvariant() is "kg" or "kilo" or "kilos" or "kilogramo" or "kilogramos";
             var restante = porKilos ? kilos : cajas;
+            // Coste unitario de la línea: el del kilo de los palés, o el de la caja si se vende por cajas.
+            decimal? coste = albaran.CosteKg is { } costes && costes.TryGetValue(productoId, out var kg)
+                ? porKilos ? kg : decimal.Round(kg * kilos / cajas, 6)
+                : null;
             foreach (var linea in pedido.Lineas.Where(l => l.ProductoId == productoId && l.PendienteServir > 0m))
             {
                 var toma = Math.Min(restante, linea.PendienteServir);
-                entregas.Add(new EntregaLineaComando(linea.Id, toma));
+                entregas.Add(new EntregaLineaComando(linea.Id, toma, coste));
                 restante -= toma;
                 if (restante <= 0m)
                 {

@@ -71,6 +71,13 @@ public static class EndpointsAgro
         g.MapPost("/campanas/{id:guid}/precios", (Guid id, DatosPrecio d, IContextoEmpresa c, MaestrosAgro m, CancellationToken ct) =>
                 ConEmpresa(c, async e => Creado(await m.CrearPrecioAsync(e, id, d, ct).ConfigureAwait(false), "precios")))
             .WithSummary("Añade un precio (€/kg) por artículo, categoría y periodo, sin solapes.").RequierePermiso(Permisos.AgroLiquidar);
+        g.MapGet("/rendimientos", (IContextoEmpresa c, MaestrosAgro m, CancellationToken ct) => ConEmpresa(c, async e => Results.Ok(await m.RendimientosAsync(e, ct).ConfigureAwait(false))))
+            .WithSummary("Rendimientos teóricos de confección (cajas por hora por producto y envase).").RequierePermiso(Permisos.AgroLeer);
+        g.MapPut("/rendimientos", (DatosRendimiento d, IContextoEmpresa c, MaestrosAgro m, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await m.GuardarRendimientoAsync(e, d, ct).ConfigureAwait(false)).AOk()))
+            .WithSummary("Da de alta o cambia el rendimiento de un producto y envase.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapDelete("/rendimientos/{id:guid}", async (Guid id, MaestrosAgro m, CancellationToken ct) => (await m.EliminarRendimientoAsync(id, ct).ConfigureAwait(false)).ASinContenido())
+            .WithSummary("Elimina un rendimiento (los partes ya validados no cambian).").RequierePermiso(Permisos.AgroGestionar);
         g.MapPost("/campanas/{id:guid}/precios/masivo", (Guid id, DatosPreciosMasivos d, IContextoEmpresa c, MaestrosAgro m, CancellationToken ct) =>
                 ConEmpresa(c, async e => (await m.FijarPreciosAsync(e, id, d, ct).ConfigureAwait(false)).AOk()))
             .WithSummary("Fijación masiva: da de alta o actualiza muchos precios de la campaña (día, periodo o general; por envase).").RequierePermiso(Permisos.AgroGestionar);

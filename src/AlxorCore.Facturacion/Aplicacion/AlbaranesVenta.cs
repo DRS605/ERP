@@ -72,7 +72,7 @@ internal static class AlbaranesVentaStock
     /// <summary>Líneas de la factura que recoge el albarán: su precio, sus conceptos y la referencia al albarán en la descripción.</summary>
     public static IEnumerable<LineaComando> LineasFactura(AlbaranVenta a) => a.Lineas.Select(l => new LineaComando(
         l.Cantidad, $"Alb. {a.NumeroCompleto} · {l.Descripcion}", l.PrecioUnitario, l.CodigoIva, l.PorcentajeDescuento, l.ProductoId,
-        ConceptosCopiados: l.Conceptos, AlbaranVentaId: a.Id, SinSalidaStock: a.StockDescontado));
+        ConceptosCopiados: l.Conceptos, AlbaranVentaId: a.Id, SinSalidaStock: a.StockDescontado, CosteUnitario: l.CosteUnitario));
 
     /// <summary>
     /// Conceptos de una línea de pedido para la parte entregada: los porcentajes sobre la nueva base (en su orden, con la

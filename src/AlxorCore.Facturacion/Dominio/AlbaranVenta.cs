@@ -30,8 +30,12 @@ public sealed class LineaAlbaranVenta
         PorcentajeDescuento = Redondeo.Dos(datos.PorcentajeDescuento);
         CodigoIva = string.IsNullOrWhiteSpace(datos.CodigoIva) ? "IVA21" : datos.CodigoIva.Trim();
         PrecioFijado = datos.PrecioUnitario is not null && !datos.PrecioEstimado;
+        CosteUnitario = datos.CosteUnitario is { } coste ? Math.Round(coste, 6, MidpointRounding.AwayFromZero) : null;
         PonerConceptos(datos.Conceptos ?? []);
     }
+
+    /// <summary>Coste unitario real de lo entregado (p. ej. el de los palés expedidos); null: el del artículo al facturar.</summary>
+    public decimal? CosteUnitario { get; private set; }
 
     /// <summary>Conceptos de línea (cargos y abonos) aplicados: copia de su definición, valor, importe y acreedor.</summary>
     public IReadOnlyList<ConceptoAplicado> Conceptos { get; private set; } = [];
@@ -91,7 +95,7 @@ public sealed class LineaAlbaranVenta
 /// <summary>Datos de una línea al crear un albarán. Sin precio (o con <c>PrecioEstimado</c>), la línea queda por valorar.</summary>
 public sealed record NuevaLineaAlbaran(Guid? LineaPedidoId, Guid? ProductoId, string Descripcion, decimal Cantidad,
     decimal? PrecioUnitario = null, decimal PorcentajeDescuento = 0m, string? CodigoIva = null, bool PrecioEstimado = false,
-    IReadOnlyList<ConceptoAplicado>? Conceptos = null);
+    IReadOnlyList<ConceptoAplicado>? Conceptos = null, decimal? CosteUnitario = null);
 
 /// <summary>Estado de un albarán de venta.</summary>
 public enum EstadoAlbaranVenta

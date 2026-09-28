@@ -186,6 +186,18 @@ internal sealed class ConfiguracionConcepto : IEntityTypeConfiguration<ConceptoL
     }
 }
 
+internal sealed class ConfiguracionRendimiento : IEntityTypeConfiguration<RendimientoConfeccion>
+{
+    public void Configure(EntityTypeBuilder<RendimientoConfeccion> b)
+    {
+        Columnas.Base(b, "rendimiento_confeccion");
+        b.Property(x => x.ProductoId).HasColumnName("producto_id").IsRequired();
+        b.Property(x => x.EnvaseProductoId).HasColumnName("envase_producto_id");
+        b.Property(x => x.CajasHora).HasColumnName("cajas_hora").HasColumnType("numeric(10,2)").IsRequired();
+        b.HasIndex(x => new { x.EmpresaId, x.ProductoId, x.EnvaseProductoId }).IsUnique().AreNullsDistinct(false).HasDatabaseName("ux_rendimiento_confeccion");
+    }
+}
+
 internal sealed class ConfiguracionTarifa : IEntityTypeConfiguration<TarifaCoste>
 {
     public void Configure(EntityTypeBuilder<TarifaCoste> b)
@@ -726,6 +738,7 @@ internal sealed class ConfiguracionParte : IEntityTypeConfiguration<ParteConfecc
             m.Property(x => x.TarifaId).HasColumnName("tarifa_id");
             m.Property(x => x.CosteUnitario).HasColumnName("coste_unitario").HasColumnType(Columnas.Unitario).IsRequired();
             m.Property(x => x.Coste).HasColumnName("coste").HasColumnType(Columnas.Importe).IsRequired();
+            m.Property(x => x.Confeccion).HasColumnName("confeccion").IsRequired().HasDefaultValue(true);
             m.HasIndex("parte_id").HasDatabaseName("ix_mano_obra_parte_parte");
             m.HasIndex(x => x.TarifaId).HasDatabaseName("ix_mano_obra_parte_tarifa");
         });
@@ -776,6 +789,10 @@ internal sealed class ConfiguracionParte : IEntityTypeConfiguration<ParteConfecc
             s.Property(x => x.PaleId).HasColumnName("pale_id");
             s.Property(x => x.PartidaId).HasColumnName("partida_id");
             s.Property(x => x.Coste).HasColumnName("coste").HasColumnType(Columnas.Importe).IsRequired();
+            s.Property(x => x.Cajas).HasColumnName("cajas");
+            s.Property(x => x.EnvaseProductoId).HasColumnName("envase_producto_id");
+            s.Property(x => x.SegundosTeoricos).HasColumnName("segundos_teoricos").HasColumnType("numeric(14,2)");
+            s.Property(x => x.CosteConfeccion).HasColumnName("coste_confeccion").HasColumnType(Columnas.Importe).IsRequired().HasDefaultValue(0m);
             s.Ignore(x => x.CosteKg);
             s.HasIndex("parte_id", nameof(SalidaParte.NumeroLinea)).IsUnique().HasDatabaseName("ux_salida_parte_numero");
             s.HasIndex(x => x.CategoriaId).HasDatabaseName("ix_salida_parte_categoria");
@@ -858,6 +875,12 @@ internal sealed class RepositorioAgro : IRepositorioAgro
         await _ctx.Set<TarifaCoste>().Where(x => x.EmpresaId == empresaId).ToListAsync(ct).ConfigureAwait(false);
 
     public Task<TarifaCoste?> TarifaAsync(Guid id, CancellationToken ct = default) => _ctx.Set<TarifaCoste>().SingleOrDefaultAsync(x => x.Id == id, ct);
+
+    public async Task<IReadOnlyList<RendimientoConfeccion>> RendimientosAsync(Guid empresaId, CancellationToken ct = default) =>
+        await _ctx.Set<RendimientoConfeccion>().Where(x => x.EmpresaId == empresaId).ToListAsync(ct).ConfigureAwait(false);
+
+    public Task<RendimientoConfeccion?> RendimientoAsync(Guid id, CancellationToken ct = default) =>
+        _ctx.Set<RendimientoConfeccion>().SingleOrDefaultAsync(x => x.Id == id, ct);
 
     public Task<ConfiguracionAgro?> ConfiguracionAsync(Guid empresaId, CancellationToken ct = default) =>
         _ctx.Set<ConfiguracionAgro>().SingleOrDefaultAsync(x => x.EmpresaId == empresaId, ct);

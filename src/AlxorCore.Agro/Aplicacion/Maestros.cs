@@ -78,6 +78,13 @@ public sealed record DatosPropuestaVentas(DateOnly Desde, DateOnly Hasta, decima
 public sealed record PropuestaPrecioVentaDto(Guid ProductoId, string? Producto, string Metodo, decimal KilosVendidos, decimal ImporteVentas, decimal? PrecioMedioVenta,
     decimal? PrecioPropuesto, string? Aviso);
 
+public sealed record DatosRendimiento(Guid ProductoId, Guid? EnvaseProductoId, decimal CajasHora);
+
+public sealed record RendimientoDto(Guid Id, Guid ProductoId, Guid? EnvaseProductoId, decimal CajasHora, decimal SegundosCaja)
+{
+    public static RendimientoDto De(RendimientoConfeccion r) => new(r.Id, r.ProductoId, r.EnvaseProductoId, r.CajasHora, decimal.Round(3600m / r.CajasHora, 2));
+}
+
 public sealed record DatosConcepto(string? Codigo, string? Nombre, TipoConceptoLiquidacion Tipo, decimal Valor, bool Activo = true);
 
 public sealed record DatosTarifa(RecursoCoste Recurso, string? Categoria, TipoHora TipoHora, DateOnly Desde, DateOnly? Hasta, decimal CosteUnitario);
@@ -611,6 +618,52 @@ public sealed class MaestrosAgro
         }
 
         return Resultado.Ok<IReadOnlyList<PropuestaPrecioVentaDto>>(lista);
+    }
+
+    // ------------------------------------------------------------------ Rendimientos de confección
+    public async Task<IReadOnlyList<RendimientoDto>> RendimientosAsync(Guid empresaId, CancellationToken ct = default) =>
+        (await _repo.RendimientosAsync(empresaId, ct).ConfigureAwait(false)).Select(RendimientoDto.De).ToList();
+
+    /// <summary>Da de alta (o cambia, si ya existe para ese producto y envase) el rendimiento en cajas por hora.</summary>
+    public async Task<Resultado<RendimientoDto>> GuardarRendimientoAsync(Guid empresaId, DatosRendimiento datos, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(datos);
+        var existente = (await _repo.RendimientosAsync(empresaId, ct).ConfigureAwait(false))
+            .FirstOrDefault(r => r.ProductoId == datos.ProductoId && r.EnvaseProductoId == datos.EnvaseProductoId);
+        if (existente is not null)
+        {
+            var c = existente.Cambiar(datos.CajasHora);
+            if (c.EsFallo)
+            {
+                return Resultado.Fallo<RendimientoDto>(c.Error);
+            }
+
+            await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+            return Resultado.Ok(RendimientoDto.De(existente));
+        }
+
+        var r = RendimientoConfeccion.Crear(empresaId, datos.ProductoId, datos.EnvaseProductoId, datos.CajasHora);
+        if (r.EsFallo)
+        {
+            return Resultado.Fallo<RendimientoDto>(r.Error);
+        }
+
+        _repo.Agregar(r.Valor);
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(RendimientoDto.De(r.Valor));
+    }
+
+    public async Task<Resultado> EliminarRendimientoAsync(Guid id, CancellationToken ct = default)
+    {
+        var r = await _repo.RendimientoAsync(id, ct).ConfigureAwait(false);
+        if (r is null)
+        {
+            return Resultado.Fallo(Error.NoEncontrado("rendimiento.no_encontrado", "El rendimiento no existe."));
+        }
+
+        _repo.Eliminar(r);
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok();
     }
 
     /// <summary>Elimina un precio que no use ninguna liquidación (en borrador o emitida).</summary>

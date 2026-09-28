@@ -10,13 +10,15 @@ namespace AlxorCore.Agro.Aplicacion;
 
 public sealed record EntradaConsumo(Guid PartidaId, decimal Kilos, Guid? PaleId = null);
 
-public sealed record EntradaManoObra(string? Descripcion, string Categoria, TipoHora TipoHora = TipoHora.Normal, decimal Horas = 0m, decimal? Piezas = null);
+public sealed record EntradaManoObra(string? Descripcion, string Categoria, TipoHora TipoHora = TipoHora.Normal, decimal Horas = 0m, decimal? Piezas = null,
+    bool Confeccion = true);
 
 public sealed record EntradaMaquina(string? Descripcion, string Categoria, decimal Horas);
 
 public sealed record EntradaMaterial(Guid ProductoId, decimal Cantidad);
 
-public sealed record EntradaSalida(Guid ProductoId, decimal Kilos, decimal Factor = 1m, string? Calibre = null, Guid? CategoriaId = null, Guid? PaleId = null);
+public sealed record EntradaSalida(Guid ProductoId, decimal Kilos, decimal Factor = 1m, string? Calibre = null, Guid? CategoriaId = null, Guid? PaleId = null,
+    int? Cajas = null, Guid? EnvaseProductoId = null);
 
 public sealed record DatosParteConfeccion(
     DateOnly Fecha, Guid? CampanaId = null, string? Descripcion = null, Guid? CentroAnaliticoId = null, decimal PorcentajeIndirectos = 0m,
@@ -25,13 +27,15 @@ public sealed record DatosParteConfeccion(
 
 public sealed record ConsumoDto(Guid PartidaId, string? Partida, Guid? PaleId, decimal Kilos, decimal CosteKg, decimal Coste);
 
-public sealed record ManoObraDto(string Descripcion, string Categoria, string TipoHora, decimal Horas, decimal? Piezas, Guid? TarifaId, decimal CosteUnitario, decimal Coste);
+public sealed record ManoObraDto(string Descripcion, string Categoria, string TipoHora, decimal Horas, decimal? Piezas, Guid? TarifaId, decimal CosteUnitario, decimal Coste,
+    bool Confeccion = true);
 
 public sealed record MaquinaDto(string Descripcion, string Categoria, decimal Horas, Guid? TarifaId, decimal CosteUnitario, decimal Coste);
 
 public sealed record MaterialDto(Guid ProductoId, string Nombre, decimal Cantidad, decimal CosteUnitario, decimal Coste);
 
-public sealed record SalidaDto(int NumeroLinea, Guid ProductoId, string Nombre, decimal Kilos, decimal Factor, string? Calibre, Guid? CategoriaId, Guid? PaleId, Guid? PartidaId, decimal Coste, decimal CosteKg);
+public sealed record SalidaDto(int NumeroLinea, Guid ProductoId, string Nombre, decimal Kilos, decimal Factor, string? Calibre, Guid? CategoriaId, Guid? PaleId, Guid? PartidaId, decimal Coste, decimal CosteKg,
+    int? Cajas = null, Guid? EnvaseProductoId = null, decimal? SegundosTeoricos = null, decimal CosteConfeccion = 0m);
 
 public sealed record ParteDto(
     Guid Id, string? Numero, DateOnly Fecha, Guid? CampanaId, string? Descripcion, Guid? CentroAnaliticoId, decimal PorcentajeIndirectos, string Reparto,
@@ -296,7 +300,7 @@ public sealed class ConfeccionAgro
                 return Resultado.Fallo(Error.Validacion("parte.unidad", $"{p.Nombre} se mide en «{p.Unidad}»: las salidas de confección van en kilos."));
             }
 
-            salidas.Add(new DatosSalida(p.Id, p.Nombre, s.Kilos, s.Factor, s.Calibre, s.CategoriaId, s.PaleId));
+            salidas.Add(new DatosSalida(p.Id, p.Nombre, s.Kilos, s.Factor, s.Calibre, s.CategoriaId, s.PaleId, s.Cajas, s.EnvaseProductoId));
         }
 
         if ((datos.ManoObra ?? []).Any(m => string.IsNullOrWhiteSpace(m.Categoria)) || (datos.Maquinas ?? []).Any(m => string.IsNullOrWhiteSpace(m.Categoria)))
@@ -306,7 +310,7 @@ public sealed class ConfeccionAgro
 
         return parte.Fijar(new DatosParte(datos.Fecha, datos.CampanaId, datos.Descripcion, datos.CentroAnaliticoId, datos.PorcentajeIndirectos, datos.Reparto,
             (datos.Consumos ?? []).Select(c => new DatosConsumo(c.PartidaId, c.Kilos, c.PaleId)).ToList(),
-            (datos.ManoObra ?? []).Select(m => new DatosManoObra(m.Descripcion ?? string.Empty, m.Categoria, m.TipoHora, m.Horas, m.Piezas)).ToList(),
+            (datos.ManoObra ?? []).Select(m => new DatosManoObra(m.Descripcion ?? string.Empty, m.Categoria, m.TipoHora, m.Horas, m.Piezas, m.Confeccion)).ToList(),
             (datos.Maquinas ?? []).Select(m => new DatosMaquina(m.Descripcion ?? string.Empty, m.Categoria, m.Horas)).ToList(),
             materiales, salidas));
     }
@@ -359,7 +363,12 @@ public sealed class ConfeccionAgro
         }
 
         var tarifas = await _repo.TarifasAsync(parte.EmpresaId, ct).ConfigureAwait(false);
-        errores.AddRange(parte.Valorar(tarifas, CosteKg, m => costesMaterial.GetValueOrDefault(m)));
+        // Rendimiento de confección: el del producto y el envase de la salida o, si no hay, el del producto sin envase.
+        var rendimientos = await _repo.RendimientosAsync(parte.EmpresaId, ct).ConfigureAwait(false);
+        decimal? Rendimiento(Guid producto, Guid? envase) =>
+            (rendimientos.FirstOrDefault(r => r.ProductoId == producto && envase is not null && r.EnvaseProductoId == envase)
+             ?? rendimientos.FirstOrDefault(r => r.ProductoId == producto && r.EnvaseProductoId is null))?.CajasHora;
+        errores.AddRange(parte.Valorar(tarifas, CosteKg, m => costesMaterial.GetValueOrDefault(m), Rendimiento));
         return errores;
     }
 
@@ -369,11 +378,11 @@ public sealed class ConfeccionAgro
         return new ParteDto(p.Id, p.NumeroCompleto, p.Fecha, p.CampanaId, p.Descripcion, p.CentroAnaliticoId, p.PorcentajeIndirectos, p.Reparto.ToString(), p.Estado.ToString(),
             p.KilosConsumidos, p.KilosObtenidos, p.Merma, p.CosteFruta, p.CosteMateriales, p.CosteManoObra, p.CosteMaquinaria, p.CosteIndirectos, p.CosteTotal,
             p.Consumos.Select(c => new ConsumoDto(c.PartidaId, codigos.GetValueOrDefault(c.PartidaId), c.PaleId, c.Kilos, c.CosteKg, c.Coste)).ToList(),
-            p.ManoObra.Select(m => new ManoObraDto(m.Descripcion, m.Categoria, m.TipoHora.ToString(), m.Horas, m.Piezas, m.TarifaId, m.CosteUnitario, m.Coste)).ToList(),
+            p.ManoObra.Select(m => new ManoObraDto(m.Descripcion, m.Categoria, m.TipoHora.ToString(), m.Horas, m.Piezas, m.TarifaId, m.CosteUnitario, m.Coste, m.Confeccion)).ToList(),
             p.Maquinas.Select(m => new MaquinaDto(m.Descripcion, m.Categoria, m.Horas, m.TarifaId, m.CosteUnitario, m.Coste)).ToList(),
             p.Materiales.Select(m => new MaterialDto(m.ProductoId, m.Nombre, m.Cantidad, m.CosteUnitario, m.Coste)).ToList(),
             p.Salidas.OrderBy(s => s.NumeroLinea).Select(s => new SalidaDto(s.NumeroLinea, s.ProductoId, s.Nombre, s.Kilos, s.Factor, s.Calibre, s.CategoriaId, s.PaleId,
-                s.PartidaId, s.Coste, s.CosteKg)).ToList(),
+                s.PartidaId, s.Coste, s.CosteKg, s.Cajas, s.EnvaseProductoId, s.SegundosTeoricos, s.CosteConfeccion)).ToList(),
             errores.Select(e => new ErrorDto(e.Codigo, e.Mensaje)).ToList());
     }
 
@@ -905,7 +914,11 @@ public sealed class PalesAgro
             var partidasCargadas = (await _repo.PartidasAsync(cargado.Select(c => c.Contenido.PartidaId).Distinct().ToList(), ct).ConfigureAwait(false)).ToDictionary(p => p.Id);
             var lineas = cargado.GroupBy(c => partidasCargadas.GetValueOrDefault(c.Contenido.PartidaId)?.ProductoId ?? Guid.Empty)
                 .Select(g => (g.Key, g.Sum(c => c.Contenido.Kilos), g.Sum(c => Math.Max(c.Contenido.Cajas, 0)))).ToList();
-            var albaran = await _documentos!.EmitirAlbaranAsync(empresaId, new AlbaranExpedicion(pedido, fecha, datos.Referencia, lineas), ct).ConfigureAwait(false);
+            // Coste por kilo de cada producto expedido: el de sus partidas (confeccionadas o liquidadas), si todas lo tienen.
+            var costeKg = cargado.GroupBy(c => partidasCargadas.GetValueOrDefault(c.Contenido.PartidaId)?.ProductoId ?? Guid.Empty)
+                .Where(g => g.All(c => partidasCargadas.GetValueOrDefault(c.Contenido.PartidaId)?.CosteKg is not null) && g.Sum(c => c.Contenido.Kilos) > 0m)
+                .ToDictionary(g => g.Key, g => decimal.Round(g.Sum(c => c.Contenido.Kilos * partidasCargadas[c.Contenido.PartidaId].CosteKg!.Value) / g.Sum(c => c.Contenido.Kilos), 6));
+            var albaran = await _documentos!.EmitirAlbaranAsync(empresaId, new AlbaranExpedicion(pedido, fecha, datos.Referencia, lineas, costeKg), ct).ConfigureAwait(false);
             if (albaran.EsFallo)
             {
                 return Resultado.Fallo<IReadOnlyList<PaleDto>>(albaran.Error);

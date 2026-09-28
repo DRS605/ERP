@@ -82,7 +82,7 @@ public sealed record CrearPedidoVentaComando(Guid ClienteId, IReadOnlyList<Linea
 
 public sealed record CrearPedidoDesdePresupuestoComando(Guid PresupuestoId, DateOnly? Fecha = null);
 
-public sealed record EntregaLineaComando(Guid LineaPedidoId, decimal Cantidad);
+public sealed record EntregaLineaComando(Guid LineaPedidoId, decimal Cantidad, decimal? CosteUnitario = null);
 
 public sealed record EntregarPedidoComando(IReadOnlyList<EntregaLineaComando> Lineas, DateOnly? Fecha = null, string? Referencia = null);
 
@@ -318,12 +318,13 @@ public sealed class EntregarPedido
         var numero = await _albaranes.SiguienteNumeroAsync(empresaId, fecha.Year, ct).ConfigureAwait(false);
         var serie = await _resolverSerie.ResolverPrefijoAsync(empresaId, TipoDocumento.AlbaranVenta, pedido.ClienteId, ct).ConfigureAwait(false);
 
-        var lineasAlbaran = entregas.Select(e =>
+        var costes = (comando.Lineas ?? []).Select(l => l.CosteUnitario).ToList();
+        var lineasAlbaran = entregas.Select((e, i) =>
         {
             var lp = pedido.Lineas.Single(l => l.Id == e.LineaPedidoId);
             var bruta = Redondeo.Dos(e.Cantidad * lp.PrecioUnitario * (1m - lp.PorcentajeDescuento / 100m));
             return new NuevaLineaAlbaran(e.LineaPedidoId, lp.ProductoId, lp.Descripcion, e.Cantidad, lp.PrecioUnitario, lp.PorcentajeDescuento, lp.CodigoIva,
-                Conceptos: AlbaranesVentaStock.ConceptosParciales(lp.Conceptos, lp.Cantidad, e.Cantidad, bruta));
+                Conceptos: AlbaranesVentaStock.ConceptosParciales(lp.Conceptos, lp.Cantidad, e.Cantidad, bruta), CosteUnitario: costes[i]);
         }).ToList();
 
         var albaran = AlbaranVenta.Crear(empresaId, pedidoId, pedido.ClienteId, pedido.ClienteNombre, numero, fecha, comando.Referencia, lineasAlbaran, _reloj, serie);

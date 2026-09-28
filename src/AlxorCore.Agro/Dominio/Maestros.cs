@@ -688,3 +688,48 @@ public sealed class TarifaCoste : RaizAgregadoEmpresa<Guid>
             : Resultado.Ok(new TarifaCoste(Guid.NewGuid(), empresaId, recurso, cat, tipoHora, desde, hasta, coste));
     }
 }
+
+/// <summary>
+/// Rendimiento teórico de confección, como el de Hispatec: cajas por hora de un producto en un envase (sin envase: el de
+/// cualquier envase). Da el tiempo teórico de cada salida del parte: cajas × 3600 / rendimiento.
+/// </summary>
+public sealed class RendimientoConfeccion : RaizAgregadoEmpresa<Guid>
+{
+    private RendimientoConfeccion(Guid id)
+        : base(id, Guid.Empty)
+    {
+    }
+
+    private RendimientoConfeccion(Guid id, Guid empresaId, Guid productoId, Guid? envaseProductoId, decimal cajasHora)
+        : base(id, empresaId)
+    {
+        ProductoId = productoId;
+        EnvaseProductoId = envaseProductoId;
+        CajasHora = cajasHora;
+    }
+
+    public Guid ProductoId { get; private set; }
+
+    public Guid? EnvaseProductoId { get; private set; }
+
+    public decimal CajasHora { get; private set; }
+
+    public static Resultado<RendimientoConfeccion> Crear(Guid empresaId, Guid productoId, Guid? envaseProductoId, decimal cajasHora) =>
+        Validar(cajasHora) is { } e ? Resultado.Fallo<RendimientoConfeccion>(e)
+            : Resultado.Ok(new RendimientoConfeccion(Guid.NewGuid(), empresaId, productoId, envaseProductoId, cajasHora));
+
+    public Resultado Cambiar(decimal cajasHora)
+    {
+        if (Validar(cajasHora) is { } e)
+        {
+            return Resultado.Fallo(e);
+        }
+
+        CajasHora = cajasHora;
+        return Resultado.Ok();
+    }
+
+    private static Error? Validar(decimal cajasHora) => cajasHora <= 0m || decimal.Round(cajasHora, 2) != cajasHora
+        ? Error.Validacion("rendimiento.cajas_hora", "El rendimiento debe ser mayor que cero (cajas por hora, hasta 2 decimales).")
+        : null;
+}
