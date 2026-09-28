@@ -29,6 +29,7 @@ public static class RegistroServicios
         servicios.AddScoped<IRepositorioClavesApi, RepositorioClavesApi>();
         servicios.AddScoped<IRepositorioSuscripciones, RepositorioSuscripciones>();
         servicios.AddScoped<IRepositorioEntregas, RepositorioEntregas>();
+        servicios.AddScoped<IRepositorioEdi, RepositorioEdi>();
 
         servicios.AddScoped<CrearClaveApi>();
         servicios.AddScoped<ListarClavesApi>();

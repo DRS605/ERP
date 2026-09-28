@@ -26,6 +26,12 @@ public sealed class IntegracionesDbContext : DbContextEmpresaBase, IUnidadDeTrab
 
     public DbSet<EntregaWebhook> Entregas => Set<EntregaWebhook>();
 
+    public DbSet<ConfiguracionEdi> ConfiguracionesEdi => Set<ConfiguracionEdi>();
+
+    public DbSet<SocioEdi> SociosEdi => Set<SocioEdi>();
+
+    public DbSet<PedidoEdi> PedidosEdi => Set<PedidoEdi>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Esquema);
@@ -163,6 +169,93 @@ internal sealed class RepositorioEntregas : IRepositorioEntregas
             .Where(e => e.Estado == EstadoEntrega.Pendiente && e.ProximoIntento <= ahora)
             .Select(e => e.EmpresaId).Distinct()
             .ToListAsync(ct).ConfigureAwait(false);
+}
+
+internal sealed class ConfiguracionConfiguracionEdi : IEntityTypeConfiguration<ConfiguracionEdi>
+{
+    public void Configure(EntityTypeBuilder<ConfiguracionEdi> b)
+    {
+        b.ToTable("configuracion_edi");
+        b.HasKey(c => c.Id);
+        b.Property(c => c.Id).HasColumnName("id").ValueGeneratedNever();
+        b.Property(c => c.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        b.Property(c => c.GlnEmpresa).HasColumnName("gln_empresa").HasMaxLength(13).IsRequired();
+        b.HasIndex(c => c.EmpresaId).IsUnique().HasDatabaseName("ux_configuracion_edi_empresa");
+        b.Ignore(c => c.EventosDominio);
+    }
+}
+
+internal sealed class ConfiguracionSocioEdi : IEntityTypeConfiguration<SocioEdi>
+{
+    public void Configure(EntityTypeBuilder<SocioEdi> b)
+    {
+        b.ToTable("socio_edi");
+        b.HasKey(s => s.Id);
+        b.Property(s => s.Id).HasColumnName("id").ValueGeneratedNever();
+        b.Property(s => s.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        b.Property(s => s.ClienteId).HasColumnName("cliente_id").IsRequired();
+        b.Property(s => s.GlnComprador).HasColumnName("gln_comprador").HasMaxLength(13).IsRequired();
+        b.Property(s => s.GlnFacturacion).HasColumnName("gln_facturacion").HasMaxLength(13);
+        b.Property(s => s.GlnEntrega).HasColumnName("gln_entrega").HasMaxLength(13);
+        b.HasIndex(s => new { s.EmpresaId, s.ClienteId }).IsUnique().HasDatabaseName("ux_socio_edi_cliente");
+        b.HasIndex(s => new { s.EmpresaId, s.GlnComprador }).IsUnique().HasDatabaseName("ux_socio_edi_gln");
+        b.Ignore(s => s.EventosDominio);
+    }
+}
+
+internal sealed class ConfiguracionPedidoEdi : IEntityTypeConfiguration<PedidoEdi>
+{
+    public void Configure(EntityTypeBuilder<PedidoEdi> b)
+    {
+        b.ToTable("pedido_edi");
+        b.HasKey(p => p.Id);
+        b.Property(p => p.Id).HasColumnName("id").ValueGeneratedNever();
+        b.Property(p => p.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        b.Property(p => p.NumeroCliente).HasColumnName("numero_cliente").HasMaxLength(35).IsRequired();
+        b.Property(p => p.GlnComprador).HasColumnName("gln_comprador").HasMaxLength(13).IsRequired();
+        b.Property(p => p.PedidoVentaId).HasColumnName("pedido_venta_id").IsRequired();
+        b.Property(p => p.RecibidoEn).HasColumnName("recibido_en").IsRequired();
+        b.HasIndex(p => new { p.EmpresaId, p.GlnComprador, p.NumeroCliente }).IsUnique().HasDatabaseName("ux_pedido_edi_numero");
+        b.HasIndex(p => p.PedidoVentaId).HasDatabaseName("ix_pedido_edi_venta");
+        b.Ignore(p => p.EventosDominio);
+    }
+}
+
+internal sealed class RepositorioEdi : IRepositorioEdi
+{
+    private readonly IntegracionesDbContext _ctx;
+
+    public RepositorioEdi(IntegracionesDbContext ctx) => _ctx = ctx;
+
+    public Task<ConfiguracionEdi?> ConfiguracionAsync(CancellationToken ct = default) => _ctx.ConfiguracionesEdi.SingleOrDefaultAsync(ct);
+
+    public void Agregar(ConfiguracionEdi configuracion) => _ctx.ConfiguracionesEdi.Add(configuracion);
+
+    public async Task<IReadOnlyList<SocioEdi>> SociosAsync(CancellationToken ct = default) =>
+        await _ctx.SociosEdi.OrderBy(s => s.GlnComprador).ToListAsync(ct).ConfigureAwait(false);
+
+    public Task<SocioEdi?> SocioAsync(Guid id, CancellationToken ct = default) => _ctx.SociosEdi.SingleOrDefaultAsync(s => s.Id == id, ct);
+
+    public Task<SocioEdi?> SocioPorClienteAsync(Guid clienteId, CancellationToken ct = default) =>
+        _ctx.SociosEdi.SingleOrDefaultAsync(s => s.ClienteId == clienteId, ct);
+
+    public Task<SocioEdi?> SocioPorGlnAsync(string gln, CancellationToken ct = default) =>
+        _ctx.SociosEdi.FirstOrDefaultAsync(s => s.GlnComprador == gln || s.GlnFacturacion == gln || s.GlnEntrega == gln, ct);
+
+    public void Agregar(SocioEdi socio) => _ctx.SociosEdi.Add(socio);
+
+    public void Quitar(SocioEdi socio) => _ctx.SociosEdi.Remove(socio);
+
+    public Task<PedidoEdi?> PedidoAsync(string numeroCliente, string glnComprador, CancellationToken ct = default) =>
+        _ctx.PedidosEdi.SingleOrDefaultAsync(p => p.NumeroCliente == numeroCliente && p.GlnComprador == glnComprador, ct);
+
+    public Task<PedidoEdi?> PedidoPorVentaAsync(Guid pedidoVentaId, CancellationToken ct = default) =>
+        _ctx.PedidosEdi.FirstOrDefaultAsync(p => p.PedidoVentaId == pedidoVentaId, ct);
+
+    public async Task<IReadOnlyList<PedidoEdi>> PedidosAsync(CancellationToken ct = default) =>
+        await _ctx.PedidosEdi.OrderByDescending(p => p.RecibidoEn).Take(200).ToListAsync(ct).ConfigureAwait(false);
+
+    public void Agregar(PedidoEdi pedido) => _ctx.PedidosEdi.Add(pedido);
 }
 
 /// <summary>Factoría en tiempo de diseño para migraciones.</summary>

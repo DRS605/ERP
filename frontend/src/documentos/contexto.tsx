@@ -51,3 +51,17 @@ export async function abrirFichero(anfitrion: Anfitrion, ruta: string) {
   window.open(url, "_blank");
   setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
+
+/** Descarga un fichero (EDI, XML…) con el nombre que da el servidor; si falla, el mensaje del problema. */
+export async function descargarFichero(anfitrion: Anfitrion, ruta: string) {
+  const token = anfitrion.token();
+  const r = await fetch(ruta, { headers: token ? { Authorization: "Bearer " + token } : {} });
+  if (!r.ok) throw new Error(((await r.json().catch(() => ({}))) as { title?: string }).title || "No se pudo generar el fichero");
+  const nombre = /filename="?([^";]+)"?/.exec(r.headers.get("Content-Disposition") ?? "")?.[1] ?? "fichero";
+  const url = URL.createObjectURL(await r.blob());
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = nombre;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}

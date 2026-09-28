@@ -482,9 +482,9 @@
       { t:"grupo", k:"informes", l:"Informes", items:[["analisis","Análisis de datos"],["informes","Informes y modelos"],["gestion","Análisis de gestión"]] },
       { t:"grupo", k:"intragrupo", l:"Grupo de empresas", items:[["intragrupo","Operaciones entre empresas"],["actividades","Actividades de negocio"]] },
       { t:"item", k:"proyectos", l:"Proyectos" },
-      { t:"grupo", k:"ajustes", l:"Configuración", items:[["ajustes","Ajustes"],["aprobaciones","Aprobaciones"],["integraciones","API y webhooks"]] },
+      { t:"grupo", k:"ajustes", l:"Configuración", items:[["ajustes","Ajustes"],["aprobaciones","Aprobaciones"],["integraciones","API, webhooks y EDI"]] },
     ];
-    const TITULOS = { liquidacionespagos:"Liquidaciones de pagos y entregas a cuenta", agroenvases:"Agro · envases por tercero", cargosacreedor:"Cargos de acreedores (portes, comisiones)", albaranesventa:"Albaranes de venta", analisis:"Análisis de datos", bancos:"Bancos y cajas", cartera:"Efectos de cartera", agrorecepciones:"Agro · recepciones de fruta", agropartidas:"Agro · partidas y palés", agroconfeccion:"Agro · confección", agroliquidaciones:"Agro · liquidaciones al agricultor", agrotrazabilidad:"Agro · trazabilidad", agroinforme:"Agro · informe de campaña", agromaestros:"Agro · campañas, agricultores y precios", analitica:"Analítica · resultados", analiticapend:"Analítica · pendientes de imputar", analiticamaestros:"Analítica · centros, partidas y reglas", presupuestoscont:"Presupuestos contables", impagados:"Impagados y reclamaciones", anticipos:"Anticipos de clientes", cartasporte:"Cartas de porte · CMR", aduanas:"Aduanas e Intrastat", intragrupo:"Operaciones entre empresas del grupo", actividades:"Actividades de negocio", inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Facturas de proveedor y gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos",tarifas:"Tarifas de precios", conceptoslinea:"Conceptos de línea", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", gestion:"Análisis de gestión", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", divisas:"Divisas y tipos de cambio", aprobaciones:"Aprobaciones y control de firmas", integraciones:"API pública y webhooks", ajustes:"Ajustes" };
+    const TITULOS = { liquidacionespagos:"Liquidaciones de pagos y entregas a cuenta", agroenvases:"Agro · envases por tercero", cargosacreedor:"Cargos de acreedores (portes, comisiones)", albaranesventa:"Albaranes de venta", analisis:"Análisis de datos", bancos:"Bancos y cajas", cartera:"Efectos de cartera", agrorecepciones:"Agro · recepciones de fruta", agropartidas:"Agro · partidas y palés", agroconfeccion:"Agro · confección", agroliquidaciones:"Agro · liquidaciones al agricultor", agrotrazabilidad:"Agro · trazabilidad", agroinforme:"Agro · informe de campaña", agromaestros:"Agro · campañas, agricultores y precios", analitica:"Analítica · resultados", analiticapend:"Analítica · pendientes de imputar", analiticamaestros:"Analítica · centros, partidas y reglas", presupuestoscont:"Presupuestos contables", impagados:"Impagados y reclamaciones", anticipos:"Anticipos de clientes", cartasporte:"Cartas de porte · CMR", aduanas:"Aduanas e Intrastat", intragrupo:"Operaciones entre empresas del grupo", actividades:"Actividades de negocio", inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Facturas de proveedor y gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos",tarifas:"Tarifas de precios", conceptoslinea:"Conceptos de línea", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", gestion:"Análisis de gestión", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", divisas:"Divisas y tipos de cambio", aprobaciones:"Aprobaciones y control de firmas", integraciones:"API pública, webhooks y EDI", ajustes:"Ajustes" };
     // Plan contratado de la empresa activa (lo devuelve /empresas/{id}/seleccionar).
     let plan = null;
     // Vista → módulo contratable que necesita. Las vistas que no están aquí son de la base.
@@ -1669,6 +1669,18 @@
     async function abrirFacturae(id){ try{
         const r=await fetch(`/facturas/${id}/facturae.xml`,{headers:{Authorization:"Bearer "+token}});
         if(!r.ok){ let m="No se pudo generar la Facturae"; try{m=(await r.json()).title||m}catch{}; throw new Error(m); }
+        const u=URL.createObjectURL(await r.blob()); window.open(u,"_blank"); setTimeout(()=>URL.revokeObjectURL(u),60000);
+      }catch(e){ toast(e.message,"err"); } }
+    // PDF de cualquier ruta (con el token): albaranes, pedidos, liquidaciones…
+    async function descargarRuta(ruta){ try{
+        const r=await fetch(ruta,{headers:{Authorization:"Bearer "+token}});
+        if(!r.ok) throw new Error((await r.json().catch(()=>({}))).title||"No se pudo generar el fichero");
+        const nombre=(/filename="?([^";]+)"?/.exec(r.headers.get("Content-Disposition")||"")||[])[1]||"fichero";
+        const u=URL.createObjectURL(await r.blob()); const a=document.createElement("a"); a.href=u; a.download=nombre; a.click(); setTimeout(()=>URL.revokeObjectURL(u),60000);
+      }catch(e){ toast(e.message,"err"); } }
+    async function abrirPdfRuta(ruta){ try{
+        const r=await fetch(ruta,{headers:{Authorization:"Bearer "+token}});
+        if(!r.ok) throw new Error((await r.json().catch(()=>({}))).title||"No se pudo generar el PDF");
         const u=URL.createObjectURL(await r.blob()); window.open(u,"_blank"); setTimeout(()=>URL.revokeObjectURL(u),60000);
       }catch(e){ toast(e.message,"err"); } }
     async function abrirPdf(id, imprimir){ try{
@@ -3777,7 +3789,9 @@
         const fra=a.facturaId?`<button class="btn small ghost" onclick="irDocumento('factura',{pantalla:'vista',id:'${a.facturaId}'})">Ver factura</button>`:"";
         const acc=[a.estado==="PendienteValorar"||a.estado==="PendienteFacturar"?`<button class="btn small secondary" onclick="modalValorarAlbaran('${a.id}')">${a.estado==="PendienteValorar"?"Valorar":"Precios"}</button>`:"",
           a.estado==="PendienteFacturar"?`<button class="btn small" onclick="facturarAlbaranes(['${a.id}'])">Facturar</button>`:"",
-          a.estado!=="Anulado"&&a.estado!=="Facturado"?`<button class="btn small ghost" onclick="anularAlbaranDirecto('${a.id}')">Anular</button>`:"",fra].filter(Boolean).join(" ");
+          a.estado!=="Anulado"&&a.estado!=="Facturado"?`<button class="btn small ghost" onclick="anularAlbaranDirecto('${a.id}')">Anular</button>`:"",fra,
+          `<button class="btn small ghost" onclick="abrirPdfRuta('/albaranes-venta/${a.id}/pdf${a.estado==="PendienteValorar"?"?valorado=false":""}')" title="PDF (con precios si está valorado)">PDF</button>`,
+          a.estado!=="Anulado"?`<button class="btn small ghost" onclick="descargarRuta('/integraciones/edi/albaranes/${a.id}/desadv')" title="Aviso de expedición EDIFACT DESADV con los SSCC de los palés">DESADV</button>`:""].filter(Boolean).join(" ");
         return `<tr><td>${sel}</td><td class="mono">${a.numeroCompleto}</td><td class="muted">${fdate(a.fecha)}</td><td>${a.clienteNombre}</td><td>${a.pedidoId?'<span class="muted">de pedido</span>':"directo"}</td><td class="num">${a.lineas.length}</td><td class="num">${eur(a.base)}</td><td>${ESTADO_ALB[a.estado]||a.estado}</td><td class="right" style="white-space:nowrap">${acc}</td></tr>`;}).join("");
       const cuerpo=lista.length?`<table data-seleccion="no"><thead><tr><th></th><th>Número</th><th>Fecha</th><th>Cliente</th><th>Origen</th><th class="num">Líneas</th><th class="num">Base</th><th>Estado</th><th></th></tr></thead><tbody>${filas}</tbody></table>`
         :'<p class="muted" style="margin:0">No hay albaranes con este filtro.</p>';
@@ -4358,7 +4372,44 @@
         `<table><thead><tr><th>Evento</th><th>Estado</th><th class="num">Intentos</th><th>Respuesta</th><th>Fecha</th></tr></thead><tbody>${filasE}</tbody></table>`,
         `<button class="btn small secondary" onclick="procesarWebhooks()">Enviar pendientes ahora</button>`);
 
-      view(panelC+panelW+panelE);
+      view(panelC+panelW+panelE+await panelEdi());
+    }
+    async function panelEdi(){
+      const [cfg,socios,pedidos]=await Promise.all([api("/integraciones/edi/configuracion").catch(()=>({})),api("/integraciones/edi/socios").catch(()=>[]),api("/integraciones/edi/pedidos").catch(()=>[])]);
+      const filasS=socios.length?socios.map(s=>`<tr><td><strong>${s.cliente||"—"}</strong></td><td class="mono">${s.glnComprador}</td><td class="mono muted">${s.glnFacturacion||"—"}</td><td class="mono muted">${s.glnEntrega||"—"}</td><td class="right" style="white-space:nowrap"><button class="btn small ghost" onclick='modalSocioEdi(${JSON.stringify(s)})'>Editar</button> <button class="btn small ghost" onclick="eliminarSocioEdi('${s.id}')">Quitar</button></td></tr>`).join("")
+        :`<tr><td colspan="5" class="muted">Sin socios EDI. Da de alta los clientes de la gran distribución con su GLN.</td></tr>`;
+      const filasP=pedidos.length?pedidos.slice(0,20).map(p=>`<tr><td class="mono">${p.numeroCliente}</td><td class="mono muted">${p.glnComprador}</td><td class="muted">${fdate(p.recibidoEn)}</td><td class="right"><button class="btn small ghost" onclick="irDocumento('pedido',{pantalla:'vista',id:'${p.pedidoVentaId}'})">Ver pedido</button></td></tr>`).join("")
+        :`<tr><td colspan="4" class="muted">Aún no se ha recibido ningún ORDERS.</td></tr>`;
+      return panel("EDI con la distribución (EANCOM)",
+        `<p class="muted" style="margin:0 0 12px">Intercambio EDIFACT EANCOM D96A: el <strong>ORDERS</strong> del cliente entra como pedido de venta; el albarán sale como <strong>DESADV</strong> (con los SSCC de los palés) y la factura como <strong>INVOIC</strong>; el <strong>RECADV</strong> se contrasta con lo expedido. Los artículos se identifican por su <strong>referencia</strong> (el GTIN/EAN) y los clientes por su <strong>GLN</strong>.</p>
+         <div class="row" style="align-items:end;gap:10px;margin-bottom:14px"><div style="width:220px"><label>GLN de la empresa</label><input id="edi_gln" class="mono" maxlength="13" value="${cfg.glnEmpresa||""}" placeholder="13 dígitos"/></div><button class="btn small" onclick="guardarGlnEdi()">Guardar</button></div>
+         <table><thead><tr><th>Cliente</th><th>GLN comprador</th><th>GLN facturación</th><th>GLN entrega</th><th></th></tr></thead><tbody>${filasS}</tbody></table>
+         <h4 style="margin:16px 0 6px">Pedidos recibidos</h4>
+         <table><thead><tr><th>Pedido del cliente</th><th>GLN</th><th>Recibido</th><th></th></tr></thead><tbody>${filasP}</tbody></table>`,
+        `<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn small secondary" onclick="modalMensajeEdi('orders')">Importar ORDERS</button><button class="btn small secondary" onclick="modalMensajeEdi('recadv')">Contrastar RECADV</button><button class="btn small" onclick="modalSocioEdi()">+ Socio EDI</button></div>`);
+    }
+    async function guardarGlnEdi(){ try{ await api("/integraciones/edi/configuracion",{method:"PUT",body:JSON.stringify({glnEmpresa:val("edi_gln")})}); toast("GLN guardado.","ok"); }catch(e){ toast(e.message,"err"); } }
+    async function modalSocioEdi(s){
+      const clientes=await api("/clientes").then(r=>r.elementos||r).catch(()=>[]);
+      abrir(s?"Socio EDI":"Nuevo socio EDI",`<label>Cliente</label><select id="se_cli" ${s?"disabled":""}>${clientes.map(c=>`<option value="${c.id}" ${s&&s.clienteId===c.id?"selected":""}>${c.nombre}</option>`).join("")}</select>
+        <label>GLN del comprador (obligatorio)</label><input id="se_by" class="mono" maxlength="13" value="${s?.glnComprador||""}"/>
+        <label>GLN de facturación</label><input id="se_iv" class="mono" maxlength="13" value="${s?.glnFacturacion||""}" placeholder="Si es distinto del comprador"/>
+        <label>GLN del punto de entrega</label><input id="se_dp" class="mono" maxlength="13" value="${s?.glnEntrega||""}" placeholder="Plataforma o tienda"/>`,
+        async()=>{ const cuerpo=JSON.stringify({clienteId:val("se_cli"),glnComprador:val("se_by"),glnFacturacion:val("se_iv")||null,glnEntrega:val("se_dp")||null});
+          await api(s?`/integraciones/edi/socios/${s.id}`:"/integraciones/edi/socios",{method:s?"PUT":"POST",body:cuerpo}); toast("Socio EDI guardado.","ok"); vIntegraciones(); });
+    }
+    async function eliminarSocioEdi(id){ if(!confirm("¿Quitar este socio EDI?")) return;
+      try{ await api(`/integraciones/edi/socios/${id}`,{method:"DELETE"}); toast("Socio quitado.","ok"); vIntegraciones(); }catch(e){ toast(e.message,"err"); } }
+    function modalMensajeEdi(tipo){
+      const num=v=>Number(v).toLocaleString("es-ES",{maximumFractionDigits:3});
+      abrir(tipo==="orders"?"Importar ORDERS":"Contrastar RECADV",`<label>Fichero EDIFACT</label><input type="file" id="edi_fich" accept=".edi,.txt,.edifact,*/*" onchange="this.files[0]&&this.files[0].text().then(t=>document.getElementById('edi_txt').value=t)"/>
+        <label>o pega el mensaje</label><textarea id="edi_txt" class="mono" rows="8" placeholder="UNA:+.? 'UNB+UNOC:3+…"></textarea>`,
+        async()=>{ const r=await api(`/integraciones/edi/${tipo}`,{method:"POST",body:JSON.stringify({contenido:document.getElementById("edi_txt").value})});
+          if(tipo==="orders"){ toast(`Pedido ${r.numeroPedido} creado desde el ${r.numeroCliente} de ${r.cliente} (${r.lineas} línea(s)).`,"ok"); vIntegraciones(); return; }
+          cerrarModal();
+          abrir(`RECADV ${r.numero} · albarán ${r.albaran}`,`<p>${r.conforme?'<span class="pill ok">Conforme</span>':'<span class="pill warn">Con diferencias</span>'}</p>
+            <table><thead><tr><th>GTIN</th><th>Artículo</th><th class="num">Expedido</th><th class="num">Recibido</th><th class="num">Aceptado</th><th class="num">Diferencia</th></tr></thead><tbody>${r.lineas.map(l=>`<tr><td class="mono">${l.gtin||"—"}</td><td>${l.descripcion}</td><td class="num">${num(l.expedido)}</td><td class="num">${num(l.recibido)}</td><td class="num">${l.aceptado==null?"—":num(l.aceptado)}</td><td class="num ${l.diferencia<0?"neg":""}">${num(l.diferencia)}</td></tr>`).join("")}</tbody></table>`,()=>{});
+          document.getElementById("modalOk").style.display="none"; });
     }
     function modalClaveApi(){
       abrir("Nueva clave de API",`<label>Nombre (para identificarla)</label><input id="ak_nombre" placeholder="Ej. Integración con Tuday"/>`,
@@ -5343,7 +5394,7 @@
       const totales=`<table style="max-width:420px;margin-left:auto"><tbody>${f("Importe de la fruta",l.bruto)}${l.descuentos.map(d=>f(`− ${agEsc(d.nombre)}`,-d.importe)).join("")}${f("Base imponible",l.baseImponible,true)}${f(l.regimen==="Reagp"?`Compensación REAGP (${pct(l.porcentajeImpuesto)})`:`${l.codigoImpuesto} (${pct(l.porcentajeImpuesto)})`,l.cuotaImpuesto)}${f("Total autofactura",l.totalFactura,true)}${f(`− Retención IRPF (${pct(l.porcentajeRetencion)})`,-l.retencion)}${f("A pagar",l.aPagar,true)}</tbody></table>`;
       const acc=l.estado==="Borrador"
         ? agBotones(`<button class="btn small secondary" onclick="agAccion(()=>api('/agro/liquidaciones/${id}/recalcular',{method:'POST'}),'Recalculada.',()=>vAgroLiquidacion('${id}'))">Recalcular</button>`,`<button class="btn small" onclick="agAccion(()=>api('/agro/liquidaciones/${id}/emitir',{method:'POST'}),'Liquidación emitida y autofactura registrada.',()=>vAgroLiquidacion('${id}'))">Emitir</button>`,`<button class="btn small ghost" onclick="agAccion(()=>api('/agro/liquidaciones/${id}',{method:'DELETE'}),null,vAgroLiquidaciones)">Eliminar</button>`)
-        : (l.estado==="Emitida"?`<button class="btn small ghost" onclick="modalAgroAnularLiq('${id}')">Anular</button>`:"");
+        : (l.estado==="Emitida"?`<button class="btn small secondary" onclick="abrirPdfRuta('/agro/liquidaciones/${id}/pdf')">PDF</button> <button class="btn small ghost" onclick="modalAgroAnularLiq('${id}')">Anular</button>`:"");
       view(panel(`Liquidación ${l.numero||"(borrador)"} · ${agEsc(l.agricultor)}`,`<p style="margin:0 0 12px">${agEstado(l.estado)} ${fdate(l.desde)} – ${fdate(l.hasta)} · ${kg(l.kilos)}${l.motivoAnulacion?` · <span class="muted">${agEsc(l.motivoAnulacion)}</span>`:""}</p>
         <table><thead><tr><th>Recepción</th><th>Fecha</th><th>Categoría</th><th class="num">Kilos</th><th class="num">€/kg</th><th class="num">Importe</th></tr></thead><tbody>${lineas}</tbody></table>${totales}`,acc)
         +`<p><a onclick="vAgroLiquidaciones()" style="cursor:pointer">← Todas las liquidaciones</a></p>`);

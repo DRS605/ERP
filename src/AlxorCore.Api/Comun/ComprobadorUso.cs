@@ -30,6 +30,7 @@ public static class ReferenciasRegistros
                 ("tesoreria.efecto_cartera.tercero_id", "efectos de cartera"),
                 ("agro.pale.cliente_id", "palés expedidos"),
                 ("agro.plantilla_pale.cliente_id", "plantillas de palé"),
+                ("integraciones.socio_edi.cliente_id", "socios EDI"),
                 ("agro.cuenta_envases.tercero_id", "cuenta de envases"),
                 ("contabilidad.cuenta.tercero_id", "movimientos en su subcuenta contable"),
                 ("contabilidad.documento_pendiente.tercero_id", "documentos pendientes de contabilizar"),

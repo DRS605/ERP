@@ -1,6 +1,6 @@
 /** Vistas de los documentos (solo lectura) con sus acciones y la cadena de documentos relacionados. */
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { abrirFichero, useDocs } from "./contexto";
+import { abrirFichero, descargarFichero, useDocs } from "./contexto";
 import { ConceptosAplicados, Dialogo } from "./Componentes";
 import { anticiposDisponibles, anticiposFacturados, repartoAnticipos, type Albaran, type Almacen, type Anticipo, type Factura, type FormaPago, type PedidoCompra, type PedidoVenta, type Presupuesto, type Saldo, type TipoIva } from "./tipos";
 import { cant, clasePill, eur, fecha, hoyIso, num2 } from "./util";
@@ -92,6 +92,9 @@ export function VistaFactura(props: { id: string }) {
               <button className="btn small secondary" onClick={() => abrirFichero(anfitrion, `/facturas/${f.id}/pdf`).catch((e) => anfitrion.aviso(e.message, "err"))}>PDF</button>
               {f.tipo !== "Simplificada" && f.clienteNif && (
                 <button className="btn small secondary" onClick={() => abrirFichero(anfitrion, `/facturas/${f.id}/facturae.xml`).catch((e) => anfitrion.aviso(e.message, "err"))}>Facturae</button>
+              )}
+              {f.estado !== "Borrador" && f.tipo !== "Simplificada" && (
+                <button className="btn small secondary" title="Factura EDIFACT INVOIC (EANCOM) para clientes con EDI" onClick={() => descargarFichero(anfitrion, `/integraciones/edi/facturas/${f.id}/invoic`).catch((e) => anfitrion.aviso(e.message, "err"))}>EDI</button>
               )}
               <button className="btn small secondary" onClick={() => navegar({ tipo: "factura", pantalla: "editor", semilla })}>Duplicar</button>
               {emitida && f.tipo === "Ordinaria" && (
@@ -269,6 +272,7 @@ export function VistaPedidoVenta(props: { id: string }) {
         <Cabecera titulo={<>Pedido de venta <span className="mono">{p.numeroCompleto}</span></>} estado={p.estado} volver={() => navegar({ tipo: "pedido", pantalla: "lista" })}
           acciones={
             <>
+              <button className="btn small secondary" onClick={() => abrirFichero(anfitrion, `/pedidos-venta/${p.id}/pdf`).catch((e) => anfitrion.aviso(e.message, "err"))}>PDF</button>
               <button className="btn small secondary" onClick={() => navegar({ tipo: "pedido", pantalla: "editor", semilla: { ...semilla, fecha: undefined } })}>Duplicar</button>
               {modificable && <button className="btn small secondary" onClick={() => navegar({ tipo: "pedido", pantalla: "editor", id: p.id, semilla })}>Editar</button>}
               {p.estado === "Borrador" && <button className="btn small secondary" onClick={async () => (await accion(() => api.post(`/pedidos-venta/${p.id}/confirmar`), anfitrion.aviso, "Pedido confirmado.")) && recargar()}>Confirmar</button>}
@@ -367,6 +371,7 @@ export function VistaPedidoCompra(props: { id: string }) {
         <Cabecera titulo={<>Pedido de compra <span className="mono">{p.numeroCompleto}</span></>} estado={p.estado} volver={() => navegar({ tipo: "compra", pantalla: "lista" })}
           acciones={
             <>
+              <button className="btn small secondary" onClick={() => abrirFichero(anfitrion, `/compras/pedidos/${p.id}/pdf`).catch((e) => anfitrion.aviso(e.message, "err"))}>PDF</button>
               {!p.empresaOrigenId && <button className="btn small secondary" onClick={() => navegar({ tipo: "compra", pantalla: "editor", semilla: { ...p, fecha: hoyIso() } })}>Duplicar</button>}
               {modificable && <button className="btn small secondary" onClick={() => navegar({ tipo: "compra", pantalla: "editor", id: p.id, semilla: p })}>Editar</button>}
               {p.estado === "Borrador" && <button className="btn small secondary" onClick={async () => (await accion(() => api.post(`/compras/pedidos/${p.id}/confirmar`), anfitrion.aviso, "Pedido confirmado.")) && recargar()}>Confirmar</button>}

@@ -75,6 +75,55 @@ Esquema **`integraciones`**: `clave_api` (índice único por hash; **sin RLS**, 
 autenticación), `suscripcion_webhook` y `entrega_webhook` (ambas con RLS por empresa). Migración
 `MigracionInicialIntegraciones`.
 
+## EDI con la gran distribución (EANCOM D96A)
+
+Sigue el módulo EDI de Hispatec: los mensajes EDIFACT **EANCOM D96A** que exigen Carrefour, Mercadona, El
+Corte Inglés y otros. Usa la sintaxis UNOC nivel 3 con los separadores por defecto (`UNA:+.? '`) y el
+escape `?`.
+
+- **Identificación:**
+  - la empresa se identifica por su **GLN** (`PUT /integraciones/edi/configuracion`);
+  - cada cliente con EDI es un **socio EDI**, con el GLN del comprador (obligatorio), el de facturación y el del punto de entrega;
+  - todos los GLN se validan con su dígito de control GS1;
+  - un cliente solo puede tener un socio y un GLN solo puede ser de un socio;
+  - los artículos se identifican por su **referencia**, que debe ser un GTIN/EAN válido.
+- **ORDERS (entrante):**
+  - se envía a `POST /integraciones/edi/orders` con `{contenido}`;
+  - el cliente se busca por el GLN del comprador (NAD+BY) o del punto de entrega (NAD+DP);
+  - cada línea (LIN) se busca por su GTIN, o por el código de PIA si no trae GTIN;
+  - la cantidad sale de QTY+21 y el precio de PRI+AAA/AAB; si no hay precio, se usa el de la ficha;
+  - crea el **pedido de venta** y guarda el número del cliente (`pedido_edi`);
+  - el mismo pedido del mismo cliente no se importa dos veces (`edi.pedido_duplicado`);
+  - un artículo desconocido o un GLN sin socio se rechaza y se indica cuál.
+- **DESADV (saliente):**
+  - se descarga en `GET /integraciones/edi/albaranes/{id}/desadv`;
+  - es el aviso de expedición del albarán: RFF+ON con el pedido del cliente y NAD SU/BY/DP;
+  - si el albarán salió de palés agro, lleva la jerarquía CPS con un PAC y un GIN+BJ con el **SSCC** por cada palé, y el contenido de cada palé por GTIN en kilos;
+  - si no, lleva las líneas del albarán.
+- **INVOIC (saliente):**
+  - se descarga en `GET /integraciones/edi/facturas/{id}/invoic`;
+  - BGM 380, o 381 para una rectificativa;
+  - RFF+ON con el pedido del cliente y RFF+DQ con el albarán;
+  - por línea: GTIN, QTY+47, PRI+AAA con el precio neto, MOA+203 y TAX;
+  - totales en MOA 86, 79 y 125, y desglose de impuestos por tipo;
+  - una factura en borrador no se envía.
+- **RECADV (entrante):**
+  - se envía a `POST /integraciones/edi/recadv`;
+  - se localiza el albarán por RFF+AAK (el número del DESADV);
+  - lo recibido (QTY+194, o QTY+12) y lo aceptado (QTY+46) se contrastan por GTIN con lo expedido;
+  - devuelve la diferencia por artículo e indica si la recepción es conforme.
+
+El DESADV y el INVOIC se descargan como fichero `.edi`, para dejarlo en el buzón del proveedor de
+comunicaciones (VAN): el envío AS2/VAN queda fuera. La lógica de sintaxis está en
+`Integraciones/Aplicacion/Edifact.cs`, que es puro y no usa base de datos. La que reúne datos de
+Facturación, Catálogo y Agro está en `Api/Comun/IntercambioEdi.cs`.
+
+- **Tablas:** `configuracion_edi`, `socio_edi` y `pedido_edi`, las tres con RLS por empresa (migración `EdiEancom`).
+- **Interfaz:**
+  - panel «EDI con la distribución» en *Configuración → API, webhooks y EDI*: GLN, socios, pedidos recibidos, importación del ORDERS y contraste del RECADV (pegando el mensaje o subiendo el fichero);
+  - botón **DESADV** en la lista de albaranes;
+  - botón **EDI** en la factura.
+
 ## Alcance y siguiente paso
 
 Cubre lo esencial: autenticación por clave, lectura por API y notificación por webhook con firma y
@@ -88,5 +137,7 @@ frecuencia (*rate limiting*), paginación/filtrado en los endpoints públicos, e
   estable y distingue secretos; validación de la suscripción (URL http, eventos normalizados y
   conocidos); firma HMAC estable; backoff y fallo definitivo al agotar los intentos.
 - **Integración**: la clave autentica `/api/v1` y su revocación devuelve `401`; la API sin clave o con
-  clave inventada da `401`; emitir una factura **encola** la entrega del webhook y `procesar` la marca
+  clave inventada da `401`; el ciclo EDI completo (`ImpresosEdiTests`): GLN inválido, socio duplicado,
+ORDERS → pedido sin duplicados ni artículos desconocidos, DESADV con SSCC y pedido del cliente,
+INVOIC con precio y totales, y RECADV con la diferencia; y los PDF de albarán, pedidos y liquidación; emitir una factura **encola** la entrega del webhook y `procesar` la marca
   **entregada** (con cliente HTTP falso, sin red); se rechaza suscribir un evento desconocido.

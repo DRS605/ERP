@@ -9,6 +9,22 @@ factura (Facturación) y los datos del emisor (Organización).
 cliente, líneas, base/IVA/IRPF y total). Se genera con **QuestPDF** (licencia Community). El importe
 se formatea en español (coma decimal) sin depender de la cultura instalada.
 
+### Albaranes, pedidos y liquidaciones
+
+El resto de documentos comerciales se imprime con un generador común (`IGeneradorPdfDocumento`), con la
+misma plantilla de marca. Cada módulo traduce su documento a un `DocumentoImpreso`: título, número,
+fecha, tercero, líneas, totales, datos de cabecera y leyenda. Lo hace `Api/Comun/ImpresosComerciales`.
+
+| Documento | Ruta | Contenido |
+|---|---|---|
+| Albarán de venta | `GET /albaranes-venta/{id}/pdf[?valorado=false]` | Valorado, con precio, descuento, importe y base; o sin precios, el que viaja con la mercancía. Si queda algún precio por fijar, la línea lo avisa. |
+| Pedido de venta | `GET /pedidos-venta/{id}/pdf` | Confirmación de pedido, con lo ya servido por línea. |
+| Pedido de compra | `GET /compras/pedidos/{id}/pdf` | Para enviar al proveedor. |
+| Liquidación al agricultor | `GET /agro/liquidaciones/{id}/pdf` | Entregas con kilos, precio e importe, descuentos, impuesto o compensación REAGP, retención y líquido. Lleva la leyenda de autofactura o del recibo de compensación REAGP. |
+
+La columna de descuento solo aparece si alguna línea lo tiene. Las cantidades se muestran con los
+decimales que tienen, hasta un máximo de tres.
+
 ## Plantilla de documentos (marca configurable por el usuario)
 
 El aspecto de facturas, tickets y presupuestos es **configurable por el propio usuario** desde
@@ -36,6 +52,9 @@ cambiar el puerto `IServicioCorreo`.
 | Método | Ruta | Auth | Descripción |
 |---|---|---|---|
 | `GET` | `/facturas/{id}/pdf` | permiso `factura.leer` | Descarga el PDF. |
+| `GET` | `/albaranes-venta/{id}/pdf`, `/pedidos-venta/{id}/pdf` | permiso `factura.leer` | PDF del albarán o del pedido de venta. |
+| `GET` | `/compras/pedidos/{id}/pdf` | permiso `compra.leer` | PDF del pedido de compra. |
+| `GET` | `/agro/liquidaciones/{id}/pdf` | permiso `agro.leer` | PDF de la liquidación al agricultor. |
 | `POST` | `/facturas/{id}/enviar` | permiso `factura.leer` | Envía la factura por correo. |
 | `PUT` | `/empresas/actual/plantilla` | permiso `empresa.ajustes` | Configura la plantilla (logo, color, contacto, pie). |
 

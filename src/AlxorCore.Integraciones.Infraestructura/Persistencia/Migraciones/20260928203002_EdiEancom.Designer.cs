@@ -3,6 +3,7 @@ using System;
 using AlxorCore.Integraciones.Infraestructura;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AlxorCore.Integraciones.Infraestructura.Persistencia.Migraciones
 {
     [DbContext(typeof(IntegracionesDbContext))]
-    partial class IntegracionesDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260928203002_EdiEancom")]
+    partial class EdiEancom
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

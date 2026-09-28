@@ -359,6 +359,11 @@ saltándose la aplicación:
 - **Valores:** SSCC con dígito de control GS1, SIGPAC, pesadas (bruto > tara ≥ 0), régimen coherente con el
   impuesto, y precios y tarifas sin solapes.
 
+## Impresos y EDI
+
+- **PDF de la liquidación al agricultor:** `GET /agro/liquidaciones/{id}/pdf`. Es la hoja que recibe el agricultor, con las entregas, los descuentos, el impuesto o la compensación REAGP, la retención y el líquido.
+- **DESADV de un albarán expedido desde palés:** lleva el SSCC de cada palé y su contenido por GTIN. Ver [integraciones](integraciones.md#edi-con-la-gran-distribución-eancom-d96a).
+
 ## 11. Pendiente
 
 - **Otros módulos:**
