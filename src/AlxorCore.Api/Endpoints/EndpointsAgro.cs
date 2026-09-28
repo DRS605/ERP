@@ -333,6 +333,41 @@ public static class EndpointsAgro
         g.MapPost("/expediciones", (DatosExpedicion d, IContextoEmpresa c, PalesAgro p, CancellationToken ct) => ConEmpresa(c, async e => (await p.ExpedirAsync(e, d, ct).ConfigureAwait(false)).AOk()))
             .WithSummary("Expide palés cerrados a un cliente (con CartaPorte = true emite además la carta de porte).").RequierePermiso(Permisos.AgroGestionar);
 
+        // Órdenes de carga ligeras sobre la expedición.
+        g.MapGet("/ordenes-carga", (EstadoOrdenCarga? estado, IContextoEmpresa c, OrdenesCargaAgro o, CancellationToken ct) =>
+                ConEmpresa(c, async e => Results.Ok(await o.ListarAsync(e, estado, ct).ConfigureAwait(false))))
+            .WithSummary("Órdenes de carga (filtro por estado).").RequierePermiso(Permisos.AgroLeer);
+        g.MapGet("/ordenes-carga/pendientes", (Guid? clienteId, IContextoEmpresa c, OrdenesCargaAgro o, CancellationToken ct) =>
+                ConEmpresa(c, async e => Results.Ok(await o.PendientesAsync(e, clienteId, ct).ConfigureAwait(false))))
+            .WithSummary("Líneas de pedidos en firme pendientes de servir: lo reservado y lo previsto en otras órdenes.").RequierePermiso(Permisos.AgroLeer);
+        g.MapGet("/ordenes-carga/{id:guid}", async (Guid id, OrdenesCargaAgro o, CancellationToken ct) => Encontrado(await o.ObtenerAsync(id, ct).ConfigureAwait(false), "ordencarga"))
+            .WithSummary("Orden de carga con sus líneas y palés cargados.").RequierePermiso(Permisos.AgroLeer);
+        g.MapPost("/ordenes-carga", (DatosOrdenCarga d, IContextoEmpresa c, OrdenesCargaAgro o, CancellationToken ct) =>
+                ConEmpresa(c, async e => Creado(await o.CrearAsync(e, d, ct).ConfigureAwait(false), "ordenes-carga")))
+            .WithSummary("Crea una orden de carga (en propuesta o pendiente): muelle, transportista, vehículo, conductor, temperatura y camión.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapPut("/ordenes-carga/{id:guid}", async (Guid id, DatosOrdenCarga d, OrdenesCargaAgro o, CancellationToken ct) => (await o.CambiarAsync(id, d, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Cambia los datos de una orden abierta.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapPost("/ordenes-carga/{id:guid}/liberar", async (Guid id, OrdenesCargaAgro o, CancellationToken ct) => (await o.LiberarAsync(id, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("La propuesta pasa a pendiente de cargar.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapPost("/ordenes-carga/{id:guid}/lineas", async (Guid id, LineaOrdenCargaComando d, OrdenesCargaAgro o, CancellationToken ct) =>
+                (await o.AgregarLineaAsync(id, d, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Añade una línea de pedido con los palés previstos y su posición.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapDelete("/ordenes-carga/{id:guid}/lineas/{lineaId:guid}", async (Guid id, Guid lineaId, OrdenesCargaAgro o, CancellationToken ct) =>
+                (await o.QuitarLineaAsync(id, lineaId, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Quita una línea sin palés cargados.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapPost("/ordenes-carga/{id:guid}/cargar", (Guid id, CargarPaleComando d, IContextoEmpresa c, OrdenesCargaAgro o, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await o.CargarAsync(e, id, d, ct).ConfigureAwait(false)).AOk()))
+            .WithSummary("Carga un palé (por su SSCC), validado contra la línea y su reserva.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapDelete("/ordenes-carga/{id:guid}/pales/{paleId:guid}", async (Guid id, Guid paleId, OrdenesCargaAgro o, CancellationToken ct) =>
+                (await o.DescargarAsync(id, paleId, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Descarga un palé aún no expedido.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapPost("/ordenes-carga/{id:guid}/finalizar", (Guid id, IContextoEmpresa c, OrdenesCargaAgro o, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await o.FinalizarAsync(e, id, ct).ConfigureAwait(false)).AOk()))
+            .WithSummary("Expide lo cargado: un albarán por pedido (y carta de porte si se pidió) y los envases.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapPost("/ordenes-carga/{id:guid}/anular", async (Guid id, AnularPeticionEnvases? p, OrdenesCargaAgro o, CancellationToken ct) =>
+                (await o.AnularAsync(id, p?.Motivo, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Anula una orden sin nada expedido.").RequierePermiso(Permisos.AgroGestionar);
+
         g.MapGet("/trazabilidad/atras", (Guid? partidaId, string? sscc, IContextoEmpresa c, TrazabilidadAgro t, CancellationToken ct) =>
                 ConEmpresa(c, async e => (await t.HaciaAtrasAsync(e, partidaId, sscc, ct).ConfigureAwait(false)).AOk()))
             .WithSummary("De un palé (SSCC) o una partida hasta el agricultor, la parcela y la recepción.").RequierePermiso(Permisos.AgroLeer);

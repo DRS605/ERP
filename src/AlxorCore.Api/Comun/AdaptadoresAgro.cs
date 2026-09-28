@@ -82,9 +82,12 @@ public sealed class DocumentosExpedicionFacturacion : IDocumentosExpedicion
     private readonly AnularAlbaranVenta _anularAlbaran;
     private readonly AlxorCore.Catalogo.Aplicacion.IConsultaProductos _productos;
 
+    private readonly ListarPedidosVenta? _listar;
+
     public DocumentosExpedicionFacturacion(CrearCartaPorte crear, AnularCartaPorte anular, ObtenerPedidoVenta pedido, EntregarPedido entregar,
-        AnularAlbaranVenta anularAlbaran, AlxorCore.Catalogo.Aplicacion.IConsultaProductos productos)
+        AnularAlbaranVenta anularAlbaran, AlxorCore.Catalogo.Aplicacion.IConsultaProductos productos, ListarPedidosVenta? listar = null)
     {
+        _listar = listar;
         _crear = crear;
         _anular = anular;
         _pedido = pedido;
@@ -129,6 +132,15 @@ public sealed class DocumentosExpedicionFacturacion : IDocumentosExpedicion
             ? new PedidoParaReservas(p.Id, p.NumeroCompleto, p.ClienteId, p.ClienteNombre, p.Estado is "Confirmado" or "Servido",
                 p.Lineas.Select(l => new LineaPedidoParaReservas(l.Id, l.ProductoId, l.Descripcion, l.Cantidad, l.CantidadServida)).ToList())
             : null;
+
+    public async Task<IReadOnlyList<PedidoParaReservas>> PedidosPendientesAsync(Guid empresaId, CancellationToken ct = default) =>
+        _listar is null ? []
+            : (await _listar.EjecutarAsync(empresaId, ct).ConfigureAwait(false))
+                .Where(p => p.Estado is "Confirmado" or "Servido" && !p.ServidoCompleto)
+                .OrderBy(p => p.Fecha).ThenBy(p => p.Numero)
+                .Select(p => new PedidoParaReservas(p.Id, p.NumeroCompleto, p.ClienteId, p.ClienteNombre, true,
+                    p.Lineas.Select(l => new LineaPedidoParaReservas(l.Id, l.ProductoId, l.Descripcion, l.Cantidad, l.CantidadServida)).ToList()))
+                .ToList();
 
     public async Task<Resultado<(Guid Id, string Numero)>> EmitirAlbaranAsync(Guid empresaId, AlbaranExpedicion albaran, CancellationToken ct = default)
     {

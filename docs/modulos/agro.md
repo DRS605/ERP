@@ -365,6 +365,37 @@ saltándose la aplicación:
 - **Valores:** SSCC con dígito de control GS1, SIGPAC, pesadas (bruto > tara ≥ 0), régimen coherente con el
   impuesto, y precios y tarifas sin solapes.
 
+## Órdenes de carga
+
+Es una versión ligera de `OrdenesCarga` de Hispatec, montada sobre la expedición de palés que ya existe. Tablas:
+`agro.orden_carga`, `linea_orden_carga` y `pale_orden_carga`, con RLS; migración `OrdenesCarga`.
+
+- **Cabecera:**
+  - número sin huecos por ejercicio (`OC-2026-000001`) y fecha de carga;
+  - muelle, transportista, vehículo, matrícula, conductor y temperatura de consigna;
+  - filas × columnas del camión, de 1 a 20 × 1 a 6, para colocar los palés;
+  - si al finalizar se emite la carta de porte;
+  - observaciones.
+- **Estados:** *propuesta* (se prepara, no se carga) → *pendiente* → *en carga* → *finalizada*, o *anulada*. Con `Propuesta: true` nace en propuesta (`OrdenCargaEstadoPorDefectoPropuesta`) y se libera después.
+- **Montaje:**
+  - `GET /agro/ordenes-carga/pendientes` da las líneas de pedidos confirmados con algo pendiente de servir: lo pedido, lo servido, los palés reservados y los ya previstos en otras órdenes abiertas;
+  - cada línea de la orden es una línea de pedido con los **palés previstos** y, si el camión tiene distribución, su posición;
+  - una línea con palés cargados no se quita (`NoPermitirModificarConLineasCargadasOC`).
+- **Carga** (`POST …/cargar` con el SSCC). El palé:
+  - tiene que estar cerrado y no cargado en otra orden abierta;
+  - si está reservado, va a la línea de su reserva, que tiene que estar en la orden; un palé reservado a otro pedido no entra (`CargaPDAPermitirULOtrosPedidos`);
+  - si no está reservado, va a la línea indicada o a la única del artículo del palé con hueco; si vale para varias, se pregunta cuál;
+  - tiene que llevar el artículo de la línea, y la línea no admite más palés que los previstos;
+  - se puede descargar mientras no haya salido.
+- **Finalizar** (`POST …/finalizar`):
+  - agrupa los palés cargados por pedido y los expide con la expedición de siempre: **un albarán por pedido**, la carta de porte si se pidió (una por pedido, porque es un destinatario) y el movimiento de envases;
+  - la orden queda enlazada a sus albaranes;
+  - si un pedido falla, los demás ya han salido; la orden sigue en carga con lo pendiente y se puede volver a finalizar.
+- **Anular:** solo si no ha salido nada; los palés cargados quedan libres.
+- **Hoja de carga:** `GET /agro/ordenes-carga/{id}/pdf`, con las líneas, los SSCC cargados y su posición, y el esquema del camión por filas.
+- **Pantalla:** *Agro → Órdenes de carga*. Tiene el lector de SSCC (se escanea y se pulsa Intro), las líneas, los palés cargados y el camión dibujado por posiciones.
+- **Fuera de alcance** (P3): la PDA con lector, la situación de los muelles, las pilas de palés, el traspaso entre centros con recepción de la orden y las integraciones de temperatura o de control de accesos.
+
 ## Impresos y EDI
 
 - **PDF de la liquidación al agricultor:** `GET /agro/liquidaciones/{id}/pdf`. Es la hoja que recibe el agricultor, con las entregas, los descuentos, el impuesto o la compensación REAGP, la retención y el líquido.

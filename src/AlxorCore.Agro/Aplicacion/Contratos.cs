@@ -160,6 +160,10 @@ public interface IDocumentosExpedicion
     /// <summary>Líneas del pedido de venta (null si no existe): artículo, cantidad pedida y servida, y si está en un estado que admite reservas.</summary>
     Task<PedidoParaReservas?> PedidoParaReservasAsync(Guid pedidoVentaId, CancellationToken ct = default) => Task.FromResult<PedidoParaReservas?>(null);
 
+    /// <summary>Pedidos confirmados con algo pendiente de servir (para montar órdenes de carga).</summary>
+    Task<IReadOnlyList<PedidoParaReservas>> PedidosPendientesAsync(Guid empresaId, CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<PedidoParaReservas>>([]);
+
     /// <summary>Albarán de venta del pedido con lo expedido (kilos o cajas según la unidad del artículo).</summary>
     Task<Resultado<(Guid Id, string Numero)>> EmitirAlbaranAsync(Guid empresaId, AlbaranExpedicion albaran, CancellationToken ct = default) =>
         Task.FromResult(Resultado.Fallo<(Guid, string)>(Error.Validacion("expedicion.sin_albaran", "No se pueden emitir albaranes.")));

@@ -25,10 +25,13 @@ public sealed class ImpresosComerciales
     private readonly ObtenerPedido _pedidosCompra;
     private readonly LiquidacionesAgro _liquidaciones;
     private readonly IRepositorioAgro _agro;
+    private readonly OrdenesCargaAgro? _ordenes;
 
     public ImpresosComerciales(IGeneradorPdfDocumento generador, IConsultaEmpresas empresas, IConsultaClientes clientes, IConsultaProveedores proveedores,
-        ConsultarAlbaranesVenta albaranes, ObtenerPedidoVenta pedidosVenta, ObtenerPedido pedidosCompra, LiquidacionesAgro liquidaciones, IRepositorioAgro agro)
+        ConsultarAlbaranesVenta albaranes, ObtenerPedidoVenta pedidosVenta, ObtenerPedido pedidosCompra, LiquidacionesAgro liquidaciones, IRepositorioAgro agro,
+        OrdenesCargaAgro? ordenes = null)
     {
+        _ordenes = ordenes;
         _generador = generador;
         _empresas = empresas;
         _clientes = clientes;
@@ -123,6 +126,44 @@ public sealed class ImpresosComerciales
                 : "Autofactura emitida por el destinatario por cuenta del proveedor (art. 5 del Reglamento de facturación).",
             TituloCantidad: "Kilos");
         return await PdfAsync(empresaId, doc, $"liquidacion-{l.Numero ?? "borrador"}", ct).ConfigureAwait(false);
+    }
+
+    /// <summary>Hoja de carga: palés por línea de pedido con su SSCC y posición, y el esquema del camión si se indicaron filas y columnas.</summary>
+    public async Task<Resultado<DocumentoPdf>> HojaCargaAsync(Guid empresaId, Guid id, CancellationToken ct = default)
+    {
+        var o = _ordenes is null ? null : await _ordenes.ObtenerAsync(id, ct).ConfigureAwait(false);
+        if (o is null)
+        {
+            return Resultado.Fallo<DocumentoPdf>(Error.NoEncontrado("ordencarga.no_encontrada", "La orden de carga no existe."));
+        }
+
+        var lineas = new List<LineaImpresa>();
+        foreach (var l in o.Lineas)
+        {
+            var pales = o.Cargados.Where(c => c.LineaId == l.Id).ToList();
+            lineas.Add(new LineaImpresa($"{l.Orden}. {l.Pedido} · {l.Cliente} · {l.Descripcion}", l.PalesPrevistos, "palés", null, null, null,
+                pales.Count == 0 ? "Sin cargar" : string.Join(" · ", pales.Select(c => c.Sscc + (c.Fila is { } f ? $" ({f}-{c.Columna})" : "")))));
+        }
+
+        var datos = new List<(string, string)> { ("Estado", o.Estado), ("Fecha de carga", o.FechaCarga.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture)) };
+        if (o.Muelle is { } m) datos.Add(("Muelle", m));
+        if (o.Matricula is { } mat) datos.Add(("Matrícula", mat));
+        if (o.Conductor is { } con) datos.Add(("Conductor", con));
+        if (o.TemperaturaConsigna is { } t) datos.Add(("Temperatura", $"{Redondeo.Formatear(t, 1)} ºC"));
+        datos.Add(("Palés cargados", $"{o.Cargados.Count} · {Redondeo.Formatear(o.Cargados.Sum(c => c.Kilos), 0)} kg"));
+        string? esquema = null;
+        if (o.Filas is { } filas && o.Columnas is { } columnas)
+        {
+            var filasTexto = Enumerable.Range(1, filas).Select(f => $"Fila {f}: " + string.Join(" | ", Enumerable.Range(1, columnas)
+                .Select(c => o.Cargados.FirstOrDefault(p => p.Fila == f && p.Columna == c)?.Sscc[^6..] ?? "—")));
+            esquema = "Distribución del camión (últimas 6 cifras del SSCC; fila 1 junto a la cabina): " + string.Join("  ·  ", filasTexto);
+        }
+
+        var tercero = new TerceroImpreso("Destinatarios", string.Join(", ", o.Lineas.Select(l => l.Cliente).Distinct()), null, null);
+        var doc = new DocumentoImpreso("Hoja de carga", o.Numero, o.FechaCarga, tercero, lineas,
+            [], datos,
+            o.Observaciones, esquema, TituloCantidad: "Previstos", Valorado: false);
+        return await PdfAsync(empresaId, doc, $"hoja-carga-{o.Numero}", ct).ConfigureAwait(false);
     }
 
     private async Task<TerceroImpreso> ClienteAsync(Guid clienteId, string nombre, CancellationToken ct)

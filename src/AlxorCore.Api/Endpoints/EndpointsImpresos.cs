@@ -25,6 +25,9 @@ public static class EndpointsImpresos
         rutas.MapGet("/agro/liquidaciones/{id:guid}/pdf", (Guid id, IContextoEmpresa c, ImpresosComerciales i, CancellationToken ct) => Pdf(c, e => i.LiquidacionAsync(e, id, ct)))
             .WithTags("Documentos").WithSummary("PDF de la liquidación al agricultor (autofactura o recibo de compensación REAGP).")
             .RequierePermiso(Permisos.AgroLeer);
+        rutas.MapGet("/agro/ordenes-carga/{id:guid}/pdf", (Guid id, IContextoEmpresa c, ImpresosComerciales i, CancellationToken ct) => Pdf(c, e => i.HojaCargaAsync(e, id, ct)))
+            .WithTags("Documentos").WithSummary("Hoja de carga de la orden: palés por línea con su SSCC y el esquema del camión.")
+            .RequierePermiso(Permisos.AgroLeer);
         return rutas;
     }
 
