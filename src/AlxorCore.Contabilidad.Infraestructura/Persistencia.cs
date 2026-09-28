@@ -30,6 +30,8 @@ public sealed class ContabilidadDbContext : DbContextEmpresaBase, IUnidadDeTraba
 
     public DbSet<ReglaContabilizacion> ReglasContabilizacion => Set<ReglaContabilizacion>();
 
+    public DbSet<PlantillaAsiento> PlantillasAsiento => Set<PlantillaAsiento>();
+
     public DbSet<Inmovilizado> Inmovilizados => Set<Inmovilizado>();
 
     public DbSet<CentroAnalitico> CentrosAnaliticos => Set<CentroAnalitico>();
@@ -318,6 +320,52 @@ internal sealed class ConfiguracionReglaContabilizacion : IEntityTypeConfigurati
         builder.HasIndex(r => new { r.EmpresaId, r.Sentido }).HasDatabaseName("ix_regla_contabilizacion_empresa_sentido");
         builder.Ignore(r => r.EventosDominio);
     }
+}
+
+internal sealed class ConfiguracionPlantillaAsiento : IEntityTypeConfiguration<PlantillaAsiento>
+{
+    private static readonly System.Text.Json.JsonSerializerOptions Json = new(System.Text.Json.JsonSerializerDefaults.Web)
+    {
+        Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() },
+    };
+
+    public void Configure(EntityTypeBuilder<PlantillaAsiento> builder)
+    {
+        builder.ToTable("plantilla_asiento");
+        builder.HasKey(p => p.Id);
+        builder.Property(p => p.Id).HasColumnName("id").ValueGeneratedNever();
+        builder.Property(p => p.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        builder.Property(p => p.Sentido).HasColumnName("sentido").HasMaxLength(10).HasConversion<string>().IsRequired();
+        builder.Property(p => p.OrigenTipo).HasColumnName("origen_tipo").HasMaxLength(PlantillaAsiento.LongitudOrigen);
+        builder.Property(p => p.Nombre).HasColumnName("nombre").HasMaxLength(100).IsRequired();
+        builder.Property(p => p.Concepto).HasColumnName("concepto").HasMaxLength(PlantillaAsiento.LongitudConcepto);
+        builder.Property(p => p.Diario).HasColumnName("diario").HasMaxLength(10);
+        builder.Property(p => p.Activa).HasColumnName("activa").IsRequired();
+        builder.Property(p => p.Lineas).HasColumnName("lineas").HasColumnType("jsonb").IsRequired()
+            .HasConversion(
+                v => System.Text.Json.JsonSerializer.Serialize(v, Json),
+                v => System.Text.Json.JsonSerializer.Deserialize<List<LineaPlantillaAsiento>>(v, Json) ?? new List<LineaPlantillaAsiento>(),
+                new Microsoft.EntityFrameworkCore.ChangeTracking.ValueComparer<IReadOnlyList<LineaPlantillaAsiento>>(
+                    (a, b) => a!.SequenceEqual(b!), v => v.Aggregate(0, (h, l) => HashCode.Combine(h, l.GetHashCode())), v => v.ToList()));
+        builder.HasIndex(p => new { p.EmpresaId, p.Sentido, p.OrigenTipo }).IsUnique().AreNullsDistinct(false).HasDatabaseName("ux_plantilla_asiento_sentido_origen");
+        builder.Ignore(p => p.EventosDominio);
+    }
+}
+
+internal sealed class RepositorioPlantillasAsiento : IRepositorioPlantillasAsiento
+{
+    private readonly ContabilidadDbContext _contexto;
+
+    public RepositorioPlantillasAsiento(ContabilidadDbContext contexto) => _contexto = contexto;
+
+    public void Agregar(PlantillaAsiento plantilla) => _contexto.PlantillasAsiento.Add(plantilla);
+
+    public void Eliminar(PlantillaAsiento plantilla) => _contexto.PlantillasAsiento.Remove(plantilla);
+
+    public Task<PlantillaAsiento?> ObtenerAsync(Guid id, CancellationToken ct = default) => _contexto.PlantillasAsiento.SingleOrDefaultAsync(p => p.Id == id, ct);
+
+    public async Task<IReadOnlyList<PlantillaAsiento>> ListarAsync(Guid empresaId, CancellationToken ct = default) =>
+        await _contexto.PlantillasAsiento.AsNoTracking().Where(p => p.EmpresaId == empresaId).ToListAsync(ct).ConfigureAwait(false);
 }
 
 internal sealed class RepositorioReglasContabilizacion : IRepositorioReglasContabilizacion

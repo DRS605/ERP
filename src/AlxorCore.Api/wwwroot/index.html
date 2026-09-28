@@ -1996,6 +1996,38 @@
       const cuerpo=gs.length?`<table><thead><tr><th>Concepto</th><th>Proveedor</th><th>Fecha</th><th class="num">Total</th><th class="num">Pagado</th><th class="num">Pendiente</th><th class="right">Estado</th><th></th></tr></thead><tbody>${filas}</tbody></table>`:vacio("pagos","Nada que pagar aún","Cuando registres gastos verás aquí su estado de pago.");
       view(kpis+panel("Pagos a proveedores",cuerpo));
     }
+    // ---- Contabilidad: plantillas de asiento por datos (como las de Hispatec) ----
+    const PAPEL_TXT={Tercero:"Cliente / proveedor",Resultado:"Ingreso / gasto",IvaRepercutido:"IVA repercutido",IvaSoportado:"IVA soportado",RetencionVenta:"Retención soportada",RetencionCompra:"Retención practicada",Tesoreria:"Banco o caja"};
+    async function cargarPlantillasAsiento(){
+      const el=document.getElementById("cont_plantillas"); if(!el) return;
+      try{ const [ps,esq]=await Promise.all([api("/contabilidad/plantillas"),api("/contabilidad/plantillas/esquemas")]); window._plantillas={ps,esq};
+        el.className=""; el.innerHTML=`<p class="muted" style="margin:0 0 10px">El concepto del asiento (con {Referencia}, {Tercero}, {Fecha}, {Total} y {Origen}), el diario y la cuenta y el concepto de cada apunte, por tipo de asiento o por origen concreto (Factura, Gasto, Movimiento, Anticipo…). Lo que no fija la plantilla sale como siempre; la subcuenta del tercero, las reglas por familia y el banco elegido mandan sobre la plantilla.</p>`
+          +(ps.length?`<table data-seleccion="no"><thead><tr><th>Asiento</th><th>Concepto</th><th>Diario</th><th>Cuentas</th><th></th></tr></thead><tbody>${ps.map(p=>`<tr><td><strong>${agEsc(p.nombre)}</strong>${p.activa?"":' <span class="pill wait">Inactiva</span>'}<div class="muted">${p.sentido}${p.origenTipo?" · "+agEsc(p.origenTipo):""}</div></td>
+            <td class="mono" style="font-size:12px">${agEsc(p.concepto||"—")}</td><td>${p.diario||'<span class="muted">el de su origen</span>'}</td>
+            <td>${p.lineas.map(l=>`<span class="pill">${PAPEL_TXT[l.papel]||l.papel}${l.cuenta?": "+l.cuenta:""}</span>`).join(" ")||'<span class="muted">—</span>'}</td>
+            <td class="right" style="white-space:nowrap"><button class="btn small ghost" onclick="modalPlantillaAsiento('${p.id}')">Editar</button> <button class="btn small ghost" onclick="borrarPlantillaAsiento('${p.id}')">✕</button></td></tr>`).join("")}</tbody></table>`
+          :'<p class="muted" style="margin:0">Sin plantillas: los asientos salen con el concepto «Referencia · Tercero» y las cuentas de siempre.</p>');
+      }catch(e){ el.textContent=e.message; }
+    }
+    function modalPlantillaAsiento(id){
+      const {ps,esq}=window._plantillas||{ps:[],esq:[]}; const p=id?ps.find(x=>x.id===id):null;
+      const papeles=s=>((esq.find(e=>e.sentido===s)||{}).papeles||[]);
+      const filas=s=>papeles(s).map(x=>{ const l=(p&&p.lineas.find(y=>y.papel===x.papel))||{}; return `<tr><td>${x.nombre}<div class="muted" style="font-size:12px">${agEsc(x.cuenta||"")}</div></td>
+        <td><input class="pa_c" data-p="${x.papel}" value="${agEsc(l.cuenta||"")}" placeholder="Por defecto"/></td><td><input class="pa_t" data-p="${x.papel}" value="${agEsc(l.concepto||"")}" placeholder="${agEsc(x.concepto)}"/></td></tr>`; }).join("");
+      const sentido=p?p.sentido:"Venta";
+      abrir(p?`Plantilla · ${agEsc(p.nombre)}`:"Nueva plantilla de asiento",`<div class="grid2"><div><label>Asiento de</label><select id="pa_sen" ${p?"disabled":""} onchange="document.getElementById('pa_papeles').innerHTML=window._paFilas(this.value)">${["Venta","Compra","Cobro","Pago"].map(x=>`<option${x===sentido?" selected":""}>${x}</option>`).join("")}</select></div>
+        <div><label>Solo el origen (opcional)</label><input id="pa_ori" value="${agEsc(p?.origenTipo||"")}" placeholder="Factura, Gasto, Movimiento, Anticipo…" ${p?"disabled":""}/></div></div>
+        <div class="grid2"><div><label>Nombre</label><input id="pa_nom" value="${agEsc(p?.nombre||"")}"/></div><div><label>Diario</label><input id="pa_dia" value="${agEsc(p?.diario||"")}" placeholder="El de su origen (VEN, COM, TES…)"/></div></div>
+        <label>Concepto del asiento</label><input id="pa_con" value="${agEsc(p?.concepto||"")}" placeholder="{Referencia} · {Tercero}"/>
+        <table data-rejilla="no" style="margin-top:10px"><thead><tr><th>Apunte</th><th>Cuenta</th><th>Concepto</th></tr></thead><tbody id="pa_papeles">${filas(sentido)}</tbody></table>
+        <label style="display:flex;gap:8px;align-items:center;margin-top:10px;font-weight:500"><input id="pa_act" type="checkbox" style="width:auto;margin:0" ${!p||p.activa?"checked":""}/> Activa</label>`,
+        async()=>{ const lineas=[...document.querySelectorAll(".pa_c")].map(i=>({papel:i.dataset.p,cuenta:i.value.trim()||null,concepto:(document.querySelector(`.pa_t[data-p="${i.dataset.p}"]`).value||"").trim()||null})).filter(l=>l.cuenta||l.concepto);
+          const b=JSON.stringify({sentido:val("pa_sen"),origenTipo:val("pa_ori")||null,nombre:val("pa_nom")||null,concepto:val("pa_con")||null,diario:val("pa_dia")||null,lineas,activa:document.getElementById("pa_act").checked});
+          await api("/contabilidad/plantillas"+(p?"/"+p.id:""),{method:p?"PUT":"POST",body:b}); toast("Plantilla guardada.","ok"); cargarPlantillasAsiento(); });
+      window._paFilas=filas;
+    }
+    async function borrarPlantillaAsiento(id){ if(!confirm("¿Borrar la plantilla? Los asientos ya hechos no cambian; los nuevos saldrán como siempre.")) return;
+      try{ await api("/contabilidad/plantillas/"+id,{method:"DELETE"}); toast("Plantilla borrada.","ok"); cargarPlantillasAsiento(); }catch(e){ toast(e.message,"err"); } }
     // ---- Tesorería: entregas a cuenta a proveedores y liquidaciones de pagos (como Hispatec) ----
     const LP_TIPO={EntregaCuenta:"Entrega a cuenta",Compensacion:"Compensado (lo debe como cliente)",CobroCompensado:"Cobro compensado",Pago:"Pago"};
     const lpMenos=v=>v?"−"+eur(v):eur(0);
@@ -2544,7 +2576,9 @@
           : vacio("informes","Sin reglas","Sin reglas, las ventas usan la 705 y las compras la 629. Añade reglas para afinar la cuenta por familia o tipo de tercero.");
         panelReglas=panel("Reglas de contabilización",
           `<p class="muted" style="margin:0 0 10px">Elige la cuenta de ingreso/gasto según la <strong>familia del artículo</strong> y/o el <strong>tipo de cliente/proveedor</strong>. Gana la regla más específica (familia + tipo &gt; familia &gt; tipo &gt; genérica).</p>`+tablaR,
-          `<button class="btn small" onclick="modalRegla()">+ Nueva regla</button>`);
+          `<button class="btn small" onclick="modalRegla()">+ Nueva regla</button>`)
+          +panel("Plantillas de asiento",'<div id="cont_plantillas" class="muted">Cargando…</div>',`<button class="btn small" onclick="modalPlantillaAsiento()">+ Nueva plantilla</button>`);
+        setTimeout(cargarPlantillasAsiento,0);
       }
       // Diario
       const asientoHtml=a=>{

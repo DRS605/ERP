@@ -96,6 +96,33 @@ regla debe existir en el plan de la empresa.
 Ejemplos: ventas de familia «Mercaderías» → `700`; compras de proveedores tipo «Profesional» → `623`;
 ventas de familia «Formación» a clientes tipo «Intracomunitario» → una cuenta específica.
 
+## Plantillas de asiento
+
+Como las plantillas de Hispatec, los asientos de los documentos se configuran por datos (`contabilidad.plantilla_asiento`).
+Hay una plantilla por sentido (venta, compra, cobro, pago) y, si se quiere, otra por origen concreto (`Factura`,
+`Gasto`, `Movimiento`, `Anticipo`, `EntregaCuenta`…). Gana la del origen; si no la hay, la del sentido.
+
+- **Concepto del asiento**, con variables: `{Referencia}`, `{Tercero}`, `{Fecha}` (dd/mm/aaaa), `{Total}` (1.234,56) y
+  `{Origen}`. Sin concepto en la plantilla, sale «Referencia · Tercero».
+- **Diario** del asiento. Sin diario, el de su origen.
+- **Por papel del apunte**, la cuenta y el concepto:
+  - venta: cliente, ingreso, IVA repercutido y retención soportada;
+  - compra: proveedor, gasto, IVA soportado, IVA autoliquidado y retención practicada;
+  - cobro y pago: tercero y banco o caja.
+- **Qué manda más que la plantilla:**
+  - la subcuenta propia del tercero y la contrapartida fija del documento (438, 407…);
+  - la regla por familia o tipo de tercero y la cuenta propia de la línea;
+  - la subcuenta del banco elegido. La plantilla solo cambia la tesorería genérica (570/572).
+- **Validación:** las cuentas deben existir en el plan (se siembra si hace falta) y el diario debe estar dado de alta.
+  No puede haber dos plantillas para el mismo sentido y origen.
+- **Efecto:** vale para los asientos que se generen desde ese momento. Al borrarla, los documentos vuelven a salir como
+  siempre.
+- **API:** `GET/POST /contabilidad/plantillas`, `PUT/DELETE /contabilidad/plantillas/{id}` y
+  `GET /contabilidad/plantillas/esquemas`, que devuelve los papeles de cada asiento con su cuenta y concepto por defecto.
+- **Pantalla:** Contabilidad → panel **Plantillas de asiento**, junto a las reglas.
+- **Errores:** `plantilla.cuenta_inexistente`, `plantilla.papel`, `plantilla.papel_repetido`, `plantilla.repetida`,
+  `plantilla.diario`, `plantilla.cuenta` y `plantilla.concepto`.
+
 ## Cuenta de Pérdidas y Ganancias
 
 `GET /contabilidad/pyg?ejercicio=` calcula la **cuenta de resultados** a partir del libro diario:

@@ -76,10 +76,12 @@ public sealed class PosterDocumento
 
     private readonly IDeduccionImpuesto _deduccion;
     private readonly ImputadorAnalitico? _imputador;
+    private readonly IRepositorioPlantillasAsiento? _plantillas;
 
     public PosterDocumento(IRepositorioAsientos asientos, IRepositorioCuentas cuentas, IResolverCuentas resolver, IUnidadDeTrabajoContabilidad unidad, IReloj reloj,
-        IDeduccionImpuesto? deduccion = null, ImputadorAnalitico? imputador = null)
+        IDeduccionImpuesto? deduccion = null, ImputadorAnalitico? imputador = null, IRepositorioPlantillasAsiento? plantillas = null)
     {
+        _plantillas = plantillas;
         _asientos = asientos; _cuentas = cuentas; _resolver = resolver; _unidad = unidad; _reloj = reloj;
         _deduccion = deduccion ?? DeduccionTotal.Instancia;
         _imputador = imputador;
@@ -92,13 +94,26 @@ public sealed class PosterDocumento
         var esTesoreria = doc.Sentido is SentidoContable.Cobro or SentidoContable.Pago;
         var cuentaResultado = esTesoreria ? string.Empty
             : await _resolver.CuentaResultadoAsync(doc.EmpresaId, doc.Sentido, doc.Familia, doc.TipoTercero, ct).ConfigureAwait(false);
-        var concepto = doc.Referencia + (string.IsNullOrWhiteSpace(doc.TerceroNombre) ? "" : " · " + doc.TerceroNombre);
+        // Plantilla del documento: la de su origen o, si no hay, la de su sentido. Sin plantilla, todo como siempre.
+        var plantilla = _plantillas is null ? null : await _plantillas.AplicableAsync(doc.EmpresaId, doc.Sentido, doc.OrigenTipo, ct).ConfigureAwait(false);
+        string Texto(string t) => PlantillaAsiento.Rellenar(t, doc.Referencia, doc.TerceroNombre, doc.FechaRegistro, doc.Total, doc.OrigenTipo);
+        var concepto = plantilla?.Concepto is { } c0 ? Texto(c0) : doc.Referencia + (string.IsNullOrWhiteSpace(doc.TerceroNombre) ? "" : " · " + doc.TerceroNombre);
+        if (concepto.Length > PlantillaAsiento.LongitudConcepto)
+        {
+            concepto = concepto[..PlantillaAsiento.LongitudConcepto];
+        }
+
+        if (plantilla?.CuentaDe(PapelApunte.Resultado) is { } resultadoPlantilla
+            && cuentaResultado == (doc.Sentido == SentidoContable.Venta ? PlanBasico.CuentaVentas : PlanBasico.CuentaCompras))
+        {
+            cuentaResultado = resultadoPlantilla;   // solo si ninguna regla por familia o tipo de tercero eligió otra
+        }
 
         // Cuenta del tercero: su subcuenta individual si la tiene asignada; si no, la raíz genérica
         // (430 clientes / 400 proveedores). Así el mayor y el balance muestran el saldo por tercero.
         // Un cobro o un pago puede ir contra otra cuenta (438 anticipos de clientes).
         var cuentaGenerica = doc.Sentido is SentidoContable.Venta or SentidoContable.Cobro ? PlanBasico.CuentaClientes : PlanBasico.CuentaProveedores;
-        var cuentaTercero = cuentaGenerica;
+        var cuentaTercero = plantilla?.CuentaDe(PapelApunte.Tercero) ?? cuentaGenerica;
         if (!string.IsNullOrWhiteSpace(doc.CuentaTercero))
         {
             cuentaTercero = doc.CuentaTercero;
@@ -120,14 +135,21 @@ public sealed class PosterDocumento
             ? baseProrrata
             : Math.Sign(baseProrrata) * await _deduccion.CuotaDeducibleAsync(doc.EmpresaId, doc.FechaRegistro.Year, Math.Abs(baseProrrata), doc.Afectacion, ct).ConfigureAwait(false);
 
-        var tesoreria = string.IsNullOrWhiteSpace(doc.CuentaTesoreria) ? PlanBasico.CuentaBancos : doc.CuentaTesoreria;
+        // La plantilla fija la tesorería cuando el documento solo trae la genérica (570/572), no la subcuenta de un banco.
+        var tesoreria = string.IsNullOrWhiteSpace(doc.CuentaTesoreria) || doc.CuentaTesoreria is PlanBasico.CuentaBancos or PlanBasico.CuentaCaja
+            ? plantilla?.CuentaDe(PapelApunte.Tesoreria) ?? (string.IsNullOrWhiteSpace(doc.CuentaTesoreria) ? PlanBasico.CuentaBancos : doc.CuentaTesoreria)
+            : doc.CuentaTesoreria;
+        var p = new Papeles(
+            papel => plantilla?.CuentaDe(papel),
+            (papel, defecto) => plantilla?.ConceptoDe(papel) is { } t ? Texto(t) : defecto,
+            concepto);
         var lineas = doc.Sentido switch
         {
-            SentidoContable.Venta => LineasVenta(doc, cuentaResultado, cuentaTercero, concepto),
-            SentidoContable.Compra when doc.Lineas.Count > 0 => LineasCompraDesglosada(doc, cuentaResultado, cuentaTercero, concepto, cuotaDeducible),
-            SentidoContable.Compra => LineasCompra(doc, cuentaResultado, cuentaTercero, concepto, cuotaDeducible),
-            SentidoContable.Cobro => [new LineaAsiento(tesoreria, doc.Total, 0m, concepto), new LineaAsiento(cuentaTercero, 0m, doc.Total, concepto)],
-            _ => [new LineaAsiento(cuentaTercero, doc.Total, 0m, concepto), new LineaAsiento(tesoreria, 0m, doc.Total, concepto)],
+            SentidoContable.Venta => LineasVenta(doc, cuentaResultado, cuentaTercero, p),
+            SentidoContable.Compra when doc.Lineas.Count > 0 => LineasCompraDesglosada(doc, cuentaResultado, cuentaTercero, p, cuotaDeducible),
+            SentidoContable.Compra => LineasCompra(doc, cuentaResultado, cuentaTercero, p, cuotaDeducible),
+            SentidoContable.Cobro => [new LineaAsiento(tesoreria, doc.Total, 0m, p.Concepto(PapelApunte.Tesoreria)), new LineaAsiento(cuentaTercero, 0m, doc.Total, p.Concepto(PapelApunte.Tercero))],
+            _ => [new LineaAsiento(cuentaTercero, doc.Total, 0m, p.Concepto(PapelApunte.Tercero)), new LineaAsiento(tesoreria, 0m, doc.Total, p.Concepto(PapelApunte.Tesoreria))],
         };
 
         // Anulación: el contraasiento, con el debe y el haber cambiados.
@@ -153,7 +175,7 @@ public sealed class PosterDocumento
         var ejercicio = doc.FechaRegistro.Year;
         var numero = await _asientos.SiguienteNumeroAsync(doc.EmpresaId, ejercicio, ct).ConfigureAwait(false);
         var origen = doc.Sentido.ToString();
-        return Asiento.Crear(doc.EmpresaId, ejercicio, numero, doc.FechaRegistro, concepto, origen, lineas, _reloj);
+        return Asiento.Crear(doc.EmpresaId, ejercicio, numero, doc.FechaRegistro, concepto, origen, lineas, _reloj, plantilla?.Diario);
     }
 
     public void Agregar(Asiento asiento) => _asientos.Agregar(asiento);
@@ -176,13 +198,22 @@ public sealed class PosterDocumento
 
     public Task GuardarAsync(CancellationToken ct) => _unidad.GuardarCambiosAsync(ct);
 
-    private static List<LineaAsiento> LineasVenta(DocumentoPendiente d, string cuentaIngreso, string cuentaCliente, string concepto)
+    /// <summary>Cuenta y concepto de cada papel según la plantilla (con los de siempre por defecto).</summary>
+    private sealed record Papeles(Func<PapelApunte, string?> CuentaPlantilla, Func<PapelApunte, string, string> ConceptoPlantilla, string ConceptoAsiento)
     {
+        public string Cuenta(PapelApunte papel, string defecto) => CuentaPlantilla(papel) ?? defecto;
+
+        public string Concepto(PapelApunte papel, string? defecto = null) => ConceptoPlantilla(papel, defecto ?? ConceptoAsiento);
+    }
+
+    private static List<LineaAsiento> LineasVenta(DocumentoPendiente d, string cuentaIngreso, string cuentaCliente, Papeles p)
+    {
+        var concepto = p.Concepto(PapelApunte.Resultado);
         // Debe: cliente (total a cobrar) + retención soportada. Haber: ingreso (base) + IVA repercutido.
-        var lineas = new List<LineaAsiento> { new(cuentaCliente, d.Total, 0m, concepto) };
+        var lineas = new List<LineaAsiento> { new(cuentaCliente, d.Total, 0m, p.Concepto(PapelApunte.Tercero)) };
         if (d.RetencionIrpf != 0m)
         {
-            lineas.Add(new LineaAsiento(PlanBasico.CuentaRetencionVenta, d.RetencionIrpf, 0m, "Retención IRPF"));
+            lineas.Add(new LineaAsiento(p.Cuenta(PapelApunte.RetencionVenta, PlanBasico.CuentaRetencionVenta), d.RetencionIrpf, 0m, p.Concepto(PapelApunte.RetencionVenta, "Retención IRPF")));
         }
 
         // Con líneas con cuenta propia (anticipos: 438) su base va a esa cuenta; el resto, a la de ventas. La línea que
@@ -201,7 +232,7 @@ public sealed class PosterDocumento
 
         if (d.CuotaIva != 0m)
         {
-            lineas.Add(new LineaAsiento(PlanBasico.CuentaIvaRepercutido, 0m, d.CuotaIva, "IVA repercutido"));
+            lineas.Add(new LineaAsiento(p.Cuenta(PapelApunte.IvaRepercutido, PlanBasico.CuentaIvaRepercutido), 0m, d.CuotaIva, p.Concepto(PapelApunte.IvaRepercutido, "IVA repercutido")));
         }
 
         return lineas;
@@ -212,8 +243,9 @@ public sealed class PosterDocumento
     /// deducible (tras la prorrata). Haber: IVA autoliquidado (inversión del sujeto pasivo, intracomunitarias), retención y
     /// proveedor (total a pagar). La parte no deducible se reparte entre las líneas en proporción a su cuota.
     /// </summary>
-    private static List<LineaAsiento> LineasCompraDesglosada(DocumentoPendiente d, string cuentaGasto, string cuentaProveedor, string concepto, decimal cuotaDeducible)
+    private static List<LineaAsiento> LineasCompraDesglosada(DocumentoPendiente d, string cuentaGasto, string cuentaProveedor, Papeles p, decimal cuotaDeducible)
     {
+        var concepto = p.Concepto(PapelApunte.Resultado);
         // Cada línea carga su parte no deducible propia (p. ej. el 50 % del IVA de un turismo); lo que además quita la
         // prorrata se reparte en proporción a lo que cada línea dejaba deducir.
         var candidata = d.Lineas.Sum(l => l.CuotaDeducible);
@@ -235,41 +267,43 @@ public sealed class PosterDocumento
         var lineas = cargos.Where(c => c.Value != 0m).Select(c => new LineaAsiento(c.Key, c.Value, 0m, concepto)).ToList();
         if (cuotaDeducible != 0m)
         {
-            lineas.Add(new LineaAsiento(PlanBasico.CuentaIvaSoportado, cuotaDeducible, 0m, "IVA soportado"));
+            lineas.Add(new LineaAsiento(p.Cuenta(PapelApunte.IvaSoportado, PlanBasico.CuentaIvaSoportado), cuotaDeducible, 0m, p.Concepto(PapelApunte.IvaSoportado, "IVA soportado")));
         }
 
         var autoliquidada = d.Lineas.Where(l => l.Autoliquidada).Sum(l => l.Cuota);
         if (autoliquidada != 0m)
         {
-            lineas.Add(new LineaAsiento(PlanBasico.CuentaIvaRepercutido, 0m, autoliquidada, "IVA autoliquidado (inversión del sujeto pasivo / intracomunitaria)"));
+            lineas.Add(new LineaAsiento(p.Cuenta(PapelApunte.IvaRepercutido, PlanBasico.CuentaIvaRepercutido), 0m, autoliquidada,
+                p.Concepto(PapelApunte.IvaRepercutido, "IVA autoliquidado (inversión del sujeto pasivo / intracomunitaria)")));
         }
 
         if (d.RetencionIrpf != 0m)
         {
-            lineas.Add(new LineaAsiento(PlanBasico.CuentaRetencion, 0m, d.RetencionIrpf, "Retención IRPF"));
+            lineas.Add(new LineaAsiento(p.Cuenta(PapelApunte.RetencionCompra, PlanBasico.CuentaRetencion), 0m, d.RetencionIrpf, p.Concepto(PapelApunte.RetencionCompra, "Retención IRPF")));
         }
 
-        lineas.Add(new LineaAsiento(cuentaProveedor, 0m, d.Total, concepto));
+        lineas.Add(new LineaAsiento(cuentaProveedor, 0m, d.Total, p.Concepto(PapelApunte.Tercero)));
         return lineas;
     }
 
-    private static List<LineaAsiento> LineasCompra(DocumentoPendiente d, string cuentaGasto, string cuentaProveedor, string concepto, decimal cuotaDeducible)
+    private static List<LineaAsiento> LineasCompra(DocumentoPendiente d, string cuentaGasto, string cuentaProveedor, Papeles p, decimal cuotaDeducible)
     {
+        var concepto = p.Concepto(PapelApunte.Resultado);
         // Debe: gasto (base + cuota no deducible por prorrata) + IVA soportado deducible.
         // Haber: retención + proveedores (total).
         var noDeducible = d.CuotaIva - cuotaDeducible;
         var lineas = new List<LineaAsiento> { new(cuentaGasto, d.BaseImponible + noDeducible, 0m, concepto) };
         if (cuotaDeducible != 0m)
         {
-            lineas.Add(new LineaAsiento(PlanBasico.CuentaIvaSoportado, cuotaDeducible, 0m, "IVA soportado"));
+            lineas.Add(new LineaAsiento(p.Cuenta(PapelApunte.IvaSoportado, PlanBasico.CuentaIvaSoportado), cuotaDeducible, 0m, p.Concepto(PapelApunte.IvaSoportado, "IVA soportado")));
         }
 
         if (d.RetencionIrpf != 0m)
         {
-            lineas.Add(new LineaAsiento(PlanBasico.CuentaRetencion, 0m, d.RetencionIrpf, "Retención IRPF"));
+            lineas.Add(new LineaAsiento(p.Cuenta(PapelApunte.RetencionCompra, PlanBasico.CuentaRetencion), 0m, d.RetencionIrpf, p.Concepto(PapelApunte.RetencionCompra, "Retención IRPF")));
         }
 
-        lineas.Add(new LineaAsiento(cuentaProveedor, 0m, d.Total, concepto));
+        lineas.Add(new LineaAsiento(cuentaProveedor, 0m, d.Total, p.Concepto(PapelApunte.Tercero)));
         return lineas;
     }
 }

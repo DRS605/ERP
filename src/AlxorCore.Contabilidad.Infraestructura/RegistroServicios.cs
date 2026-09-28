@@ -87,6 +87,8 @@ public static class RegistroServicios
         servicios.AddScoped<IResolverCuentas, ResolverCuentasReglas>();
         servicios.AddScoped<ListarReglasContabilizacion>();
         servicios.AddScoped<GuardarReglaContabilizacion>();
+        servicios.AddScoped<IRepositorioPlantillasAsiento, RepositorioPlantillasAsiento>();
+        servicios.AddScoped<GestionPlantillasAsiento>();
         servicios.AddScoped<EliminarReglaContabilizacion>();
         servicios.AddScoped<PosterDocumento>();
         servicios.AddScoped<EncolarDocumento>();

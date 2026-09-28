@@ -63,6 +63,26 @@ public static class EndpointsContabilidad
             .WithSummary("Libro diario: asientos del ejercicio (con ?diario=VEN, solo los de ese diario, por su número en él).")
             .RequierePermiso(Permisos.ContabilidadLeer);
 
+        grupo.MapGet("/plantillas", async (IContextoEmpresa contexto, GestionPlantillasAsiento caso, CancellationToken ct) =>
+                contexto.EmpresaId is { } e ? Results.Ok(await caso.ListarAsync(e, ct).ConfigureAwait(false)) : SinEmpresa())
+            .WithSummary("Plantillas de asiento de la empresa (concepto, diario y cuentas por papel de cada sentido u origen).")
+            .RequierePermiso(Permisos.ContabilidadLeer);
+        grupo.MapGet("/plantillas/esquemas", () => Results.Ok(GestionPlantillasAsiento.Esquemas()))
+            .WithSummary("Papeles de cada asiento con la cuenta y el concepto que se usan sin plantilla, y las variables del concepto.")
+            .RequierePermiso(Permisos.ContabilidadLeer);
+        grupo.MapPost("/plantillas", async (DatosPlantillaAsiento datos, IContextoEmpresa contexto, GestionPlantillasAsiento caso, CancellationToken ct) =>
+                contexto.EmpresaId is { } e ? (await caso.GuardarAsync(e, null, datos, ct).ConfigureAwait(false)).ACreado("/contabilidad/plantillas") : SinEmpresa())
+            .WithSummary("Crea la plantilla de un sentido (o de un origen concreto).")
+            .RequierePermiso(Permisos.ContabilidadGestionar);
+        grupo.MapPut("/plantillas/{id:guid}", async (Guid id, DatosPlantillaAsiento datos, IContextoEmpresa contexto, GestionPlantillasAsiento caso, CancellationToken ct) =>
+                contexto.EmpresaId is { } e ? (await caso.GuardarAsync(e, id, datos, ct).ConfigureAwait(false)).AOk() : SinEmpresa())
+            .WithSummary("Modifica una plantilla (vale para los asientos que se generen desde ahora).")
+            .RequierePermiso(Permisos.ContabilidadGestionar);
+        grupo.MapDelete("/plantillas/{id:guid}", async (Guid id, IContextoEmpresa contexto, GestionPlantillasAsiento caso, CancellationToken ct) =>
+                contexto.EmpresaId is { } e ? (await caso.EliminarAsync(e, id, ct).ConfigureAwait(false)).ASinContenido() : SinEmpresa())
+            .WithSummary("Borra una plantilla: sus documentos vuelven a contabilizarse como siempre.")
+            .RequierePermiso(Permisos.ContabilidadGestionar);
+
         grupo.MapGet("/diarios", async (IContextoEmpresa contexto, GestionDiarios caso, CancellationToken ct) =>
                 contexto.EmpresaId is { } e ? Results.Ok(await caso.ListarAsync(e, ct).ConfigureAwait(false)) : SinEmpresa())
             .WithSummary("Diarios de asientos: los de sistema y los propios, con los orígenes que recoge cada uno.")
