@@ -59,6 +59,71 @@ La ficha agrícola del agricultor recoge:
 **Envases del agricultor.** Hay un libro de movimientos: la entrega de vacíos suma, la devolución resta.
 Su saldo son los envases de la empresa que tiene el agricultor.
 
+## Envases por tercero (clientes, proveedores, transportistas y pools)
+
+Como en Hispatec, cada tercero puede tener una **cuenta de envases** (`agro.cuenta_envases`, única por tipo y tercero).
+Los tipos son cliente, proveedor, transportista o **pool** (CHEP, IFCO, Euro Pool… dados de alta como proveedor). El
+saldo, los envases de la empresa que tiene el tercero, **se calcula del libro**; no hay contadores.
+
+- **Libro** (`agro.movimiento_envases` y sus líneas):
+  - cada movimiento se numera sin huecos por ejercicio (`ENV-2026-000001`) y es de **solo inserción**;
+  - las líneas llevan el envase (un artículo del catálogo) y la cantidad con signo: **+ entregado** al tercero, **−
+    recogido**;
+  - se anula con su **contrario**: un movimiento de origen `Anulacion` que apunta al anulado. Un movimiento solo se
+    anula una vez (índice único).
+- **Orígenes:** manual (entrega o recogida), regularización, expedición y anulación.
+- **Al expedir palés a un cliente**, se entregan solos la **caja** y el **palé retornables** de su plantilla (campos
+  nuevos de la plantilla). Se entregan tantas cajas como lleve el palé y un palé. Si el cliente no tiene cuenta, se abre
+  sola. Todo se guarda en la misma transacción que la expedición.
+- **Al anular la expedición**, sus envases vuelven con el contramovimiento.
+- **Opciones de la cuenta:**
+  - **Agrupadora** (la «cuenta familiar»): los movimientos se acumulan en ella, por ejemplo los de las tiendas en su
+    central. No se admiten ciclos.
+  - **Llevar al transportista:** en un cliente, lo que se le entrega va a la cuenta del transportista de la expedición.
+  - **Bloqueo:** con `Aviso` se deja mover y se avisa; con `Bloqueo` no se admite ningún movimiento.
+  - **Límite:** por encima, se avisa y la cuenta sale marcada.
+- **Extracto:** saldo inicial, movimientos con el acumulado y saldo final, en total y por envase.
+- **Pantalla:** Agro → **Envases**.
+- **API:**
+  - `GET/POST /agro/envases/cuentas`, `PUT /agro/envases/cuentas/{id}`, `GET /agro/envases/cuentas/{id}/extracto`;
+  - `GET/POST /agro/envases/movimientos`, `POST /agro/envases/movimientos/{id}/anular`.
+- **Errores:**
+  - de la cuenta: `envases.cuenta_existe`, `envases.cuenta_bloqueada`, `envases.cuenta_inactiva` y
+    `envases.agrupadora`;
+  - del movimiento: `envases.sin_lineas` y `envases.ya_anulado`.
+
+Pendiente:
+
+- unir el libro del agricultor a este;
+- facturar envases a los clientes «a facturar» o por lo que excede su saldo;
+- mínimos y límites por envase;
+- ficheros para los pools;
+- mover el stock del envase vacío en el inventario;
+- PDF del justificante y del extracto.
+
+## Reservas de palés a pedidos de venta
+
+Como en Hispatec, un palé **cerrado** puede apartarse para una línea de un pedido de venta confirmado
+(`agro.reserva_pale`). Un palé solo tiene **una reserva activa** (índice único parcial).
+
+- **Reservar:**
+  - el palé debe estar cerrado, sin expedir y ser del artículo de la línea;
+  - no se reserva más de lo pendiente de la línea (pedido − servido − ya reservado), salvo con **Forzar**;
+  - la reserva guarda los kilos y las cajas del palé en ese momento.
+- **Expedir:** un palé reservado **solo sale con su pedido**. Si se expide sin pedido o con otro, el error es
+  `pale.reservado`. Al expedirlo con su pedido, la reserva queda **consumida**.
+- **Anular la expedición:** la reserva vuelve a estar **activa**.
+- **Anular la reserva:** con motivo; el palé queda libre para otro pedido.
+- **Pantalla:** en el pedido de venta, el botón **Reservar palés** (con Agro contratado). Muestra lo reservado y lo
+  pendiente por línea, las reservas y los palés disponibles del artículo.
+- **API:**
+  - `GET /agro/reservas?pedidoVentaId=`;
+  - `GET /agro/reservas/activas`;
+  - `POST /agro/reservas`;
+  - `POST /agro/reservas/{id}/anular`.
+- **Errores:** `reserva.pedido_cerrado`, `reserva.linea`, `reserva.sin_pales`, `reserva.pale_no_cerrado`,
+  `reserva.pale_reservado`, `reserva.producto`, `reserva.supera_pendiente` y `reserva.no_encontrada`.
+
 ## 3. Partidas y palés
 
 La **partida** (lote) es la unidad de trazabilidad. Sus kilos disponibles son la suma de su **libro de

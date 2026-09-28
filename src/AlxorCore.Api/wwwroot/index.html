@@ -476,7 +476,7 @@
       { t:"grupo", k:"compras", l:"Compras", items:[["proveedores","Proveedores"],["solicitudes","Solicitudes"],["pedidos","Pedidos de compra"],["recepcion","Buzón de facturas"],["gastos","Facturas de proveedor"],["cargosacreedor","Cargos de acreedores"]] },
       { t:"grupo", k:"articulos", l:"Artículos y almacén", items:[["productos","Artículos"],["familias","Familias"],["tarifas","Tarifas de precios"],["conceptoslinea","Conceptos de línea"],["inventario","Inventario / Almacenes"],["produccion","Producción"]] },
       { t:"grupo", k:"logistica", l:"Expedición y aduanas", items:[["cartasporte","Cartas de porte · CMR"],["aduanas","Aduanas · Intrastat"]] },
-      { t:"grupo", k:"agro", l:"Agro", items:[["agrorecepciones","Recepciones"],["agropartidas","Partidas y palés"],["agroconfeccion","Confección"],["agroliquidaciones","Liquidaciones"],["agrotrazabilidad","Trazabilidad"],["agroinforme","Informe de campaña"],["agromaestros","Maestros agro"]] },
+      { t:"grupo", k:"agro", l:"Agro", items:[["agrorecepciones","Recepciones"],["agropartidas","Partidas y palés"],["agroconfeccion","Confección"],["agroliquidaciones","Liquidaciones"],["agroenvases","Envases"],["agrotrazabilidad","Trazabilidad"],["agroinforme","Informe de campaña"],["agromaestros","Maestros agro"]] },
       { t:"grupo", k:"tesoreria", l:"Tesorería", items:[["bancos","Bancos y cajas"],["cobros","Cobros"],["cartera","Efectos de cartera"],["impagados","Impagados"],["remesas","Remesas SEPA"],["pagos","Pagos"],["conciliacion","Conciliación bancaria"],["prevision","Previsión de tesorería"],["divisas","Divisas"]] },
       { t:"grupo", k:"contabilidad", l:"Contabilidad", items:[["contabilidad","Contabilidad y libros"],["inmovilizado","Inmovilizado"],["analitica","Analítica · resultados"],["analiticapend","Analítica · pendientes"],["analiticamaestros","Centros, partidas y reglas"],["presupuestoscont","Presupuestos contables"]] },
       { t:"grupo", k:"informes", l:"Informes", items:[["analisis","Análisis de datos"],["informes","Informes y modelos"],["gestion","Análisis de gestión"]] },
@@ -484,11 +484,11 @@
       { t:"item", k:"proyectos", l:"Proyectos" },
       { t:"grupo", k:"ajustes", l:"Configuración", items:[["ajustes","Ajustes"],["aprobaciones","Aprobaciones"],["integraciones","API y webhooks"]] },
     ];
-    const TITULOS = { cargosacreedor:"Cargos de acreedores (portes, comisiones)", albaranesventa:"Albaranes de venta", analisis:"Análisis de datos", bancos:"Bancos y cajas", cartera:"Efectos de cartera", agrorecepciones:"Agro · recepciones de fruta", agropartidas:"Agro · partidas y palés", agroconfeccion:"Agro · confección", agroliquidaciones:"Agro · liquidaciones al agricultor", agrotrazabilidad:"Agro · trazabilidad", agroinforme:"Agro · informe de campaña", agromaestros:"Agro · campañas, agricultores y precios", analitica:"Analítica · resultados", analiticapend:"Analítica · pendientes de imputar", analiticamaestros:"Analítica · centros, partidas y reglas", presupuestoscont:"Presupuestos contables", impagados:"Impagados y reclamaciones", anticipos:"Anticipos de clientes", cartasporte:"Cartas de porte · CMR", aduanas:"Aduanas e Intrastat", intragrupo:"Operaciones entre empresas del grupo", actividades:"Actividades de negocio", inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Facturas de proveedor y gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos",tarifas:"Tarifas de precios", conceptoslinea:"Conceptos de línea", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", gestion:"Análisis de gestión", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", divisas:"Divisas y tipos de cambio", aprobaciones:"Aprobaciones y control de firmas", integraciones:"API pública y webhooks", ajustes:"Ajustes" };
+    const TITULOS = { agroenvases:"Agro · envases por tercero", cargosacreedor:"Cargos de acreedores (portes, comisiones)", albaranesventa:"Albaranes de venta", analisis:"Análisis de datos", bancos:"Bancos y cajas", cartera:"Efectos de cartera", agrorecepciones:"Agro · recepciones de fruta", agropartidas:"Agro · partidas y palés", agroconfeccion:"Agro · confección", agroliquidaciones:"Agro · liquidaciones al agricultor", agrotrazabilidad:"Agro · trazabilidad", agroinforme:"Agro · informe de campaña", agromaestros:"Agro · campañas, agricultores y precios", analitica:"Analítica · resultados", analiticapend:"Analítica · pendientes de imputar", analiticamaestros:"Analítica · centros, partidas y reglas", presupuestoscont:"Presupuestos contables", impagados:"Impagados y reclamaciones", anticipos:"Anticipos de clientes", cartasporte:"Cartas de porte · CMR", aduanas:"Aduanas e Intrastat", intragrupo:"Operaciones entre empresas del grupo", actividades:"Actividades de negocio", inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Facturas de proveedor y gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos",tarifas:"Tarifas de precios", conceptoslinea:"Conceptos de línea", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", gestion:"Análisis de gestión", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", divisas:"Divisas y tipos de cambio", aprobaciones:"Aprobaciones y control de firmas", integraciones:"API pública y webhooks", ajustes:"Ajustes" };
     // Plan contratado de la empresa activa (lo devuelve /empresas/{id}/seleccionar).
     let plan = null;
     // Vista → módulo contratable que necesita. Las vistas que no están aquí son de la base.
-    const MODULO_VISTA = { albaranesventa:"ventas", cargosacreedor:"compras", tarifas:"ventas", presupuestos:"ventas", pedidosventa:"ventas", remesas:"tesoreria_avanzada",
+    const MODULO_VISTA = { agroenvases:"agro", albaranesventa:"ventas", cargosacreedor:"compras", tarifas:"ventas", presupuestos:"ventas", pedidosventa:"ventas", remesas:"tesoreria_avanzada",
       solicitudes:"compras", pedidos:"compras", conciliacion:"tesoreria_avanzada", inventario:"inventario",
       produccion:"produccion", personal:"personal", proyectos:"proyectos", prevision:"tesoreria_avanzada",
       contabilidad:"contabilidad", inmovilizado:"inmovilizado", divisas:"divisas", aprobaciones:"aprobaciones",
@@ -605,7 +605,7 @@
       document.getElementById("viewTitle").textContent=TITULOS[k]||k;
       if(!contratado(k)){ const m=NOMBRE_MODULO[MODULO_VISTA[k]]||MODULO_VISTA[k];
         view(panel("No incluido en tu plan",`<p class="muted" style="margin:0 0 14px">Esta pantalla forma parte del módulo <strong>${m}</strong>, que tu plan no incluye.</p><button class="btn small" onclick="ir('ajustes')">Ver planes en Ajustes →</button>`)); return; }
-      ({cartera:vCartera,albaranesventa:vAlbaranesVenta,cargosacreedor:vCargosAcreedor,analisis:()=>irAnalisis(),bancos:vBancos,agrorecepciones:vAgroRecepciones,agropartidas:vAgroPartidas,agroconfeccion:vAgroConfeccion,agroliquidaciones:vAgroLiquidaciones,agrotrazabilidad:vAgroTrazabilidad,agroinforme:()=>vAgroInforme(),agromaestros:()=>vAgroMaestros(),analitica:vAnalitica,analiticapend:vAnaliticaPend,analiticamaestros:vAnaliticaMaestros,presupuestoscont:vPresupuestosCont,impagados:vImpagados,anticipos:vAnticipos,cartasporte:vCartasPorte,aduanas:vAduanas,intragrupo:vIntragrupo,actividades:vActividades,inicio:vInicio,presupuestos:()=>irDocumento("presupuesto"),facturas:()=>irDocumento("factura"),tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:()=>irDocumento("pedido"),clientes:vClientes,productos:vProductos,familias:vFamilias,tarifas:vTarifas,conceptoslinea:vConceptosLinea,gastos:()=>irDocumento("gasto"),solicitudes:vSolicitudes,pedidos:()=>irDocumento("compra"),inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,gestion:vGestion,contabilidad:vContabilidad,inmovilizado:vInmovilizado,divisas:vDivisas,aprobaciones:vAprobaciones,integraciones:vIntegraciones,ajustes:vAjustes}[k])();
+      ({cartera:vCartera,agroenvases:vAgroEnvases,albaranesventa:vAlbaranesVenta,cargosacreedor:vCargosAcreedor,analisis:()=>irAnalisis(),bancos:vBancos,agrorecepciones:vAgroRecepciones,agropartidas:vAgroPartidas,agroconfeccion:vAgroConfeccion,agroliquidaciones:vAgroLiquidaciones,agrotrazabilidad:vAgroTrazabilidad,agroinforme:()=>vAgroInforme(),agromaestros:()=>vAgroMaestros(),analitica:vAnalitica,analiticapend:vAnaliticaPend,analiticamaestros:vAnaliticaMaestros,presupuestoscont:vPresupuestosCont,impagados:vImpagados,anticipos:vAnticipos,cartasporte:vCartasPorte,aduanas:vAduanas,intragrupo:vIntragrupo,actividades:vActividades,inicio:vInicio,presupuestos:()=>irDocumento("presupuesto"),facturas:()=>irDocumento("factura"),tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:()=>irDocumento("pedido"),clientes:vClientes,productos:vProductos,familias:vFamilias,tarifas:vTarifas,conceptoslinea:vConceptosLinea,gastos:()=>irDocumento("gasto"),solicitudes:vSolicitudes,pedidos:()=>irDocumento("compra"),inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,gestion:vGestion,contabilidad:vContabilidad,inmovilizado:vInmovilizado,divisas:vDivisas,aprobaciones:vAprobaciones,integraciones:vIntegraciones,ajustes:vAjustes}[k])();
     }
     const view = h => { desmontarDocs(); document.getElementById("view").innerHTML=h; try{ mejorarTablas(); }catch(e){} };
 
@@ -632,7 +632,7 @@
       try{ _docsModulo=_docsModulo||await import("/app-docs/documentos.js"); }
       catch(e){ el.innerHTML=panel("No se pudo cargar la pantalla",`<p class="muted" style="margin:0">${agEsc(e.message)}</p>`); return; }
       el.innerHTML=""; const cont=document.createElement("div"); cont.dataset.rejilla="no"; el.appendChild(cont);
-      _docsDesmontar=_docsModulo.montar(cont,{token:()=>token,aviso:(m,t)=>toast(m,t||""),irA:v=>ir(v)},Object.assign({tipo,pantalla:"lista"},ruta||{}));
+      _docsDesmontar=_docsModulo.montar(cont,{token:()=>token,aviso:(m,t)=>toast(m,t||""),irA:v=>ir(v),reservarPales:contratado("agropartidas")?(id=>modalReservasPedido(id)):undefined},Object.assign({tipo,pantalla:"lista"},ruta||{}));
     }
 
     // Normaliza texto para buscar/ordenar sin acentos ni mayúsculas.
@@ -2790,7 +2790,7 @@
         const b=[`<button class="btn small ghost" onclick="verPedidoVenta('${p.id}')">Ver</button>`];
         if((p.estado==="Borrador"||p.estado==="Confirmado")&&p.lineas.every(l=>!l.cantidadServida)) b.push(`<button class="btn small secondary" onclick="modalPedidoVenta('${p.id}')">Editar</button>`);
         if(p.estado==="Borrador"){ b.push(`<button class="btn small" onclick="confirmarPedidoVenta('${p.id}')">Confirmar</button>`); b.push(`<button class="btn small ghost" onclick="cancelarPedidoVenta('${p.id}')">✕</button>`); }
-        else if(p.estado==="Confirmado"||p.estado==="Servido"){ b.push(`<button class="btn small ghost" onclick="entregarPedidoVenta('${p.id}')">Entregar</button>`); b.push(`<button class="btn small" onclick="facturarPedidoVenta('${p.id}')">Facturar</button>`); b.push(`<button class="btn small ghost" onclick="cancelarPedidoVenta('${p.id}')">✕</button>`); }
+        else if(p.estado==="Confirmado"||p.estado==="Servido"){ if(contratado("agropartidas")) b.push(`<button class="btn small ghost" onclick="modalReservasPedido('${p.id}')" title="Apartar palés cerrados para este pedido">Reservar palés</button>`); b.push(`<button class="btn small ghost" onclick="entregarPedidoVenta('${p.id}')">Entregar</button>`); b.push(`<button class="btn small" onclick="facturarPedidoVenta('${p.id}')">Facturar</button>`); b.push(`<button class="btn small ghost" onclick="cancelarPedidoVenta('${p.id}')">✕</button>`); }
         return b.join(" ");
       };
       const filas=ps.map(p=>`<tr><td><strong>${p.numeroCompleto}</strong></td><td>${p.clienteNombre}</td><td class="muted">${fdate(p.fecha)}</td><td class="num"><strong>${eur(p.total)}</strong></td><td class="right">${estadoPillPV(p.estado)}</td><td class="right" style="white-space:nowrap">${acc(p)}</td></tr>`).join("");
@@ -3719,6 +3719,91 @@
         async()=>{ const r=await api("/gastos/cargos-acreedores/liquidar",{method:"POST",body:JSON.stringify({acreedorId:acreedores[0],numeroFactura:val("la_num"),fechaFactura:val("la_fec"),
             desde:cacFiltro.desde||null,hasta:cacFiltro.hasta||null,claves:marcados.length?marcados.map(c=>c.clave):null,codigoIva:val("la_iva"),porcentajeIrpf:Number(val("la_irpf")||0)})});
           toast(`Factura del acreedor registrada: ${r.cargos} cargo(s), total ${eur(r.total)}.`,"ok"); vCargosAcreedor(); });
+    }
+    /* Envases por tercero (clientes, proveedores, transportistas, pools): saldo por consulta del libro, movimientos manuales,
+       anulación con su contrario y extracto. Las expediciones de palés entregan solas las cajas y el palé de su plantilla. */
+    const ENV_TIPO={Cliente:"Cliente",Proveedor:"Proveedor",Transportista:"Transportista",Pool:"Pool (CHEP, IFCO…)"};
+    async function vAgroEnvases(){
+      view('<div class="muted">Cargando…</div>');
+      const [cuentas,productos,clientes,proveedores,transportistas]=await Promise.all([api("/agro/envases/cuentas"),api("/productos"),api("/clientes"),api("/proveedores"),api("/transporte/transportistas").catch(()=>[])]);
+      window._env={cuentas,productos:productos.filter(p=>!["kg","kilo"].includes((p.unidad||"").toLowerCase())),clientes,proveedores,transportistas};
+      const nombre=id=>(cuentas.find(c=>c.id===id)||{}).nombre||"—";
+      const filas=cuentas.map(c=>`<tr><td>${agEsc(c.nombre)}${c.activa?"":' <span class="pill wait">Baja</span>'}</td><td class="muted">${ENV_TIPO[c.tipo]||c.tipo}</td>
+        <td>${c.saldos.map(s=>`<span class="pill">${agEsc(s.envase)}: ${s.saldo}</span>`).join(" ")||'<span class="muted">—</span>'}</td>
+        <td class="num"><strong>${c.saldoTotal}</strong>${c.limite!=null?` <span class="muted">/ ${c.limite}</span>`:""}${c.superaLimite?' <span class="pill neg">Supera el límite</span>':""}</td>
+        <td class="muted">${c.agrupadoraId?"→ "+agEsc(nombre(c.agrupadoraId)):""}${c.imputarATransportista?" → transportista":""}${c.bloqueo!=="Ninguno"?` <span class="pill ${c.bloqueo==="Bloqueo"?"neg":"wait"}">${c.bloqueo}</span>`:""}</td>
+        <td class="right" style="white-space:nowrap"><button class="btn small" onclick="modalMovimientoEnvases('${c.id}')" title="Entregar o recoger envases">Mover</button> <button class="btn small secondary" onclick="modalExtractoEnvases('${c.id}')">Extracto</button> <button class="btn small ghost" onclick="modalCuentaEnvases('${c.id}')" title="Agrupadora, transportista, bloqueo y límite">⚙</button></td></tr>`).join("");
+      view(panel("Envases por tercero",`<p class="muted" style="margin:0 0 12px">Envases de la empresa que tiene cada tercero (+ entregados, − recogidos). Al expedir palés se entregan solos al cliente —o a su transportista— la caja y el palé retornables de la plantilla; al anular la expedición vuelven. Cada movimiento se numera y no se borra: se anula con su contrario.</p>`
+        +(cuentas.length?`<table data-seleccion="no"><thead><tr><th>Cuenta</th><th>Tipo</th><th>Saldo por envase</th><th class="num">Total</th><th>Agrupación · bloqueo</th><th></th></tr></thead><tbody>${filas}</tbody></table>`
+        :'<p class="muted" style="margin:0">Aún no hay cuentas de envases. Se abren solas al expedir a un cliente, o créalas aquí.</p>'),
+        `<button class="btn small" onclick="modalNuevaCuentaEnvases()">+ Cuenta de envases</button>`));
+    }
+    function modalNuevaCuentaEnvases(){
+      const e=window._env; const opc=l=>l.map(x=>`<option value="${x.id}">${agEsc(x.nombre)}</option>`).join("");
+      abrir("Nueva cuenta de envases",`<label>Tipo</label><select id="ce_tipo" onchange="document.querySelectorAll('.ce_t').forEach(d=>d.style.display=d.dataset.t.split(',').includes(this.value)?'':'none')">${Object.entries(ENV_TIPO).map(([k,v])=>`<option value="${k}">${v}</option>`).join("")}</select>
+        <div class="ce_t" data-t="Cliente"><label>Cliente</label><select id="ce_cli">${opc(e.clientes)}</select></div>
+        <div class="ce_t" data-t="Proveedor,Pool" style="display:none"><label>Proveedor</label><select id="ce_pro">${opc(e.proveedores)}</select></div>
+        <div class="ce_t" data-t="Transportista" style="display:none"><label>Transportista</label><select id="ce_tra">${opc(e.transportistas)}</select></div>`,
+        async()=>{ const tipo=val("ce_tipo"); const id=tipo==="Cliente"?val("ce_cli"):tipo==="Transportista"?val("ce_tra"):val("ce_pro");
+          const nombre=tipo==="Transportista"?(e.transportistas.find(t=>t.id===id)||{}).nombre:null;
+          await api("/agro/envases/cuentas",{method:"POST",body:JSON.stringify({tipo,terceroId:id,nombre})}); toast("Cuenta de envases creada.","ok"); vAgroEnvases(); });
+    }
+    function modalCuentaEnvases(id){
+      const e=window._env, c=e.cuentas.find(x=>x.id===id);
+      abrir(`Cuenta de envases · ${agEsc(c.nombre)}`,`<label>Acumular en la cuenta (agrupadora)</label><select id="cc_agr"><option value="">— La propia —</option>${e.cuentas.filter(x=>x.id!==id).map(x=>`<option value="${x.id}"${x.id===c.agrupadoraId?" selected":""}>${agEsc(x.nombre)}</option>`).join("")}</select>
+        ${c.tipo==="Cliente"?`<label style="display:flex;gap:8px;align-items:center;margin-top:10px;font-weight:500"><input id="cc_tra" type="checkbox" style="width:auto;margin:0" ${c.imputarATransportista?"checked":""}/> Llevar lo que se le entrega a la cuenta del transportista de la expedición</label>`:""}
+        <div class="grid2"><div><label>Bloqueo</label><select id="cc_blo">${["Ninguno","Aviso","Bloqueo"].map(b=>`<option${b===c.bloqueo?" selected":""}>${b}</option>`).join("")}</select></div><div><label>Motivo</label><input id="cc_mot" value="${agEsc(c.motivoBloqueo||"")}"/></div></div>
+        <div class="grid2"><div><label>Límite de envases (total)</label><input id="cc_lim" type="number" step="1" min="0" value="${c.limite??""}"/></div><div><label style="display:flex;gap:8px;align-items:center;margin-top:28px;font-weight:500"><input id="cc_act" type="checkbox" style="width:auto;margin:0" ${c.activa?"checked":""}/> Activa</label></div></div>`,
+        async()=>{ await api(`/agro/envases/cuentas/${id}`,{method:"PUT",body:JSON.stringify({agrupadoraId:val("cc_agr")||null,imputarATransportista:!!(document.getElementById("cc_tra")||{}).checked,
+            bloqueo:val("cc_blo"),motivoBloqueo:val("cc_mot")||null,limite:val("cc_lim")===""?null:Number(val("cc_lim")),activa:document.getElementById("cc_act").checked})});
+          toast("Cuenta guardada.","ok"); vAgroEnvases(); });
+    }
+    function modalMovimientoEnvases(id){
+      const e=window._env, c=e.cuentas.find(x=>x.id===id); const hoy=new Date().toISOString().slice(0,10);
+      const fila=()=>`<div class="grid2 me-l" style="grid-template-columns:2fr 1fr;gap:8px"><select class="me-p">${e.productos.map(p=>`<option value="${p.id}">${agEsc(p.nombre)}</option>`).join("")}</select><input class="me-c" type="number" step="1" placeholder="Cantidad"/></div>`;
+      window._envFila=fila;
+      abrir(`Envases · ${agEsc(c.nombre)}`,`<div class="grid2"><div><label>Operación</label><select id="me_op"><option value="1">Entrega al tercero (+)</option><option value="-1">Recogida del tercero (−)</option><option value="0">Regularización (con signo)</option></select></div><div><label>Fecha</label><input id="me_f" type="date" value="${hoy}"/></div></div>
+        <label>Envases</label><div id="me_ls">${fila()}</div><button class="btn small ghost" onclick="document.getElementById('me_ls').insertAdjacentHTML('beforeend',window._envFila())">+ Envase</button>
+        <div class="grid2"><div><label>Matrícula</label><input id="me_mat"/></div><div><label>Observaciones</label><input id="me_obs"/></div></div>`,
+        async()=>{ const op=Number(val("me_op")); const lineas=[...document.querySelectorAll("#me_ls .me-l")].map(r=>({envaseProductoId:r.querySelector(".me-p").value,cantidad:Math.trunc(Number(r.querySelector(".me-c").value||0))*(op===0?1:op)})).filter(l=>l.cantidad);
+          const m=await api("/agro/envases/movimientos",{method:"POST",body:JSON.stringify({cuentaId:id,fecha:val("me_f"),lineas,regularizacion:op===0,matricula:val("me_mat")||null,observaciones:val("me_obs")||null})});
+          toast(`Movimiento ${m.numero} registrado.`+(m.aviso?" "+m.aviso:""),m.aviso?"warn":"ok"); vAgroEnvases(); });
+    }
+    async function modalExtractoEnvases(id){
+      const x=await api(`/agro/envases/cuentas/${id}/extracto`);
+      const filas=x.movimientos.map(l=>`<tr><td class="mono" style="white-space:nowrap">${l.movimiento.numero}</td><td class="muted">${fdate(l.movimiento.fecha)}</td><td>${l.movimiento.origen}${l.movimiento.anulado?' <span class="pill neg">Anulado</span>':""}</td><td>${l.movimiento.lineas.map(i=>`${agEsc(i.envase)} ${i.cantidad>0?"+":""}${i.cantidad}`).join(" · ")}</td><td class="num">${l.neto>0?"+":""}${l.neto}</td><td class="num"><strong>${l.acumulado}</strong></td><td class="right">${l.movimiento.anulado||l.movimiento.origen==="Anulacion"?"":`<button class="btn small ghost" onclick="anularMovimientoEnvases('${l.movimiento.id}','${id}')">Anular</button>`}</td></tr>`).join("");
+      abrir(`Extracto de envases · ${agEsc(x.cuenta.nombre)}`,`<p style="margin:0 0 8px">Saldo inicial <strong>${x.saldoInicial}</strong> · saldo final <strong>${x.saldoFinal}</strong> ${x.saldoFinalPorEnvase.map(s=>`<span class="pill">${agEsc(s.envase)}: ${s.saldo}</span>`).join(" ")}</p>`
+        +(x.movimientos.length?`<table data-seleccion="no" data-totales="no" data-rejilla="no" style="font-size:13px"><thead><tr><th>Número</th><th>Fecha</th><th>Origen</th><th>Envases</th><th class="num">Neto</th><th class="num">Acumulado</th><th></th></tr></thead><tbody>${filas}</tbody></table>`:'<p class="muted">Sin movimientos.</p>'),null);
+      document.getElementById("modalOk").style.display="none";
+      const caja=document.querySelector("#modalBg .modal"); if(caja){ caja.style.maxWidth="900px"; setTimeout(()=>{ const o=new MutationObserver(()=>{ if(document.getElementById("modalBg").style.display==="none"){ caja.style.maxWidth=""; o.disconnect(); } }); o.observe(document.getElementById("modalBg"),{attributes:true}); }); }
+    }
+    async function anularMovimientoEnvases(movId,cuentaId){
+      const motivo=prompt("Motivo de la anulación:"); if(motivo===null) return;
+      try{ await api(`/agro/envases/movimientos/${movId}/anular`,{method:"POST",body:JSON.stringify({motivo})}); toast("Movimiento anulado con su contrario.","ok"); cerrarModal(); vAgroEnvases(); }catch(e){ toast(e.message,"err"); }
+    }
+    /* Reservas de palés (agro): palés cerrados del artículo apartados para una línea del pedido; salen solo con él. */
+    async function modalReservasPedido(pedidoId){
+      let d; try{ d=await api(`/agro/reservas?pedidoVentaId=${pedidoId}`); }catch(e){ toast(e.message,"err"); return; }
+      const kg=v=>numCant(v);
+      const lineas=d.lineas.map(l=>`<tr><td>${agEsc(l.descripcion)}</td><td class="num">${kg(l.cantidad)}</td><td class="num">${kg(l.servida)}</td><td class="num">${kg(l.reservado)} <span class="muted">(${l.palesReservados} palé${l.palesReservados===1?"":"s"})</span></td><td class="num"><strong>${kg(l.pendienteReservar)}</strong></td></tr>`).join("");
+      const res=d.reservas.map(r=>`<tr><td class="mono">${r.sscc}</td><td class="num">${kg(r.kilos)} kg · ${r.cajas} cajas</td><td>${r.estado==="Activa"?'<span class="pill ok">Activa</span>':r.estado==="Consumida"?'<span class="pill part">Expedida</span>':'<span class="pill neg">Anulada</span>'}</td><td class="right">${r.estado==="Activa"?`<button class="btn small ghost" onclick="anularReservaPale('${r.id}','${pedidoId}')">Anular</button>`:""}</td></tr>`).join("");
+      const opcLin=d.lineas.filter(l=>l.productoId).map(l=>`<option value="${l.lineaPedidoId}" data-p="${l.productoId}">${agEsc(l.descripcion)} · pendiente ${kg(l.pendienteReservar)}</option>`).join("");
+      const disp=d.disponibles.map(x=>`<label style="display:flex;gap:8px;align-items:center;font-weight:500;margin:4px 0" class="rp-d" data-p="${x.productoId}"><input type="checkbox" class="rp-sel" value="${x.paleId}" style="width:auto;margin:0"/> <span class="mono">${x.sscc}</span> <span class="muted">${kg(x.kilos)} kg · ${x.cajas} cajas</span></label>`).join("");
+      abrir(`Reservas de palés · pedido ${agEsc(d.numero)} · ${agEsc(d.cliente)}`,`<table data-seleccion="no" data-totales="no" data-rejilla="no"><thead><tr><th>Línea</th><th class="num">Pedido</th><th class="num">Servido</th><th class="num">Reservado</th><th class="num">Pendiente</th></tr></thead><tbody>${lineas}</tbody></table>
+        ${d.reservas.length?`<label style="margin-top:12px">Reservas</label><table data-seleccion="no" data-totales="no" data-rejilla="no"><tbody>${res}</tbody></table>`:""}
+        <label style="margin-top:12px">Reservar para la línea</label><select id="rp_lin" onchange="filtrarDisponiblesReserva()">${opcLin}</select>
+        <div id="rp_disp" style="max-height:220px;overflow:auto;margin-top:6px">${disp||'<p class="muted" style="margin:0">No hay palés cerrados libres de estos artículos.</p>'}</div>
+        <label style="display:flex;gap:8px;align-items:center;margin-top:10px;font-weight:500"><input id="rp_forzar" type="checkbox" style="width:auto;margin:0"/> Permitir reservar más de lo pendiente</label>`,
+        async()=>{ const ids=[...document.querySelectorAll(".rp-sel:checked")].filter(i=>i.closest(".rp-d").style.display!=="none").map(i=>i.value);
+          if(!ids.length) throw new Error("Marca los palés que reservas.");
+          await api("/agro/reservas",{method:"POST",body:JSON.stringify({pedidoVentaId:pedidoId,lineaPedidoId:val("rp_lin"),paleIds:ids,forzar:document.getElementById("rp_forzar").checked})});
+          toast(`${ids.length} palé(s) reservado(s).`,"ok"); });
+      document.getElementById("modalOk").textContent="Reservar"; filtrarDisponiblesReserva();
+    }
+    function filtrarDisponiblesReserva(){ const sel=document.getElementById("rp_lin"); if(!sel||!sel.selectedOptions.length) return; const p=sel.selectedOptions[0].dataset.p;
+      document.querySelectorAll(".rp-d").forEach(d=>d.style.display=d.dataset.p===p?"":"none"); }
+    async function anularReservaPale(id,pedidoId){
+      try{ await api(`/agro/reservas/${id}/anular`,{method:"POST",body:JSON.stringify({motivo:null})}); toast("Reserva anulada: el palé queda libre.","ok"); cerrarModal(); modalReservasPedido(pedidoId); }catch(e){ toast(e.message,"err"); }
     }
     async function vAnticipos() {
       view('<div class="muted">Cargando…</div>');
@@ -4936,11 +5021,13 @@
         <div class="grid2"><div><label>Cajas por palé</label><input id="pp_cajas" type="number" step="1" min="1" value="${t?t.cajasPorPale:80}"/></div><div><label>Kilos por caja</label><input id="pp_kg" type="number" step="0.001" min="0" value="${t?t.kilosPorCaja:12.5}"/></div></div>
         <div class="grid2"><div><label>Mosaico: filas por capa</label><input id="pp_f" type="number" step="1" min="1" value="${t&&t.filas?t.filas:""}" placeholder="4"/></div><div><label>Columnas por capa</label><input id="pp_c" type="number" step="1" min="1" value="${t&&t.columnas?t.columnas:""}" placeholder="5"/></div></div>
         <div class="grid2"><div><label>Marca</label><input id="pp_marca" value="${t?agEsc(t.marca||""):""}"/></div><div><label>Cliente habitual</label><select id="pp_cli">${agOpc(clientes,t?t.clienteId:null,"—")}</select></div></div>
+        <div class="grid2"><div><label>Caja retornable (se entrega al expedir)</label><select id="pp_env">${agOpc(_ag.productos.filter(p=>!agKilos().includes(p)),t?t.envaseProductoId:null,"— Ninguna —")}</select></div><div><label>Palé retornable</label><select id="pp_pal">${agOpc(_ag.productos.filter(p=>!agKilos().includes(p)),t?t.paleProductoId:null,"— Ninguno —")}</select></div></div>
         ${t?`<label style="display:flex;gap:8px;align-items:center;margin-top:8px"><input id="pp_act" type="checkbox" style="width:auto" ${t.activa?"checked":""}/> Activa</label>`:""}
         <p class="muted" style="font-size:12px;margin:10px 0 0" id="pp_res"></p>`,
         async()=>{ const n=x=>val(x)===""?null:Number(val(x));
           const cuerpo={codigo:t?t.codigo:val("pp_cod"),nombre:val("pp_nom"),tipoPale:val("pp_tipo")||null,productoId:val("pp_prod")||null,marca:val("pp_marca")||null,
-            cajasPorPale:Number(val("pp_cajas")||0),kilosPorCaja:Number(val("pp_kg")||0),filas:n("pp_f"),columnas:n("pp_c"),clienteId:val("pp_cli")||null,activa:t?document.getElementById("pp_act").checked:true};
+            cajasPorPale:Number(val("pp_cajas")||0),kilosPorCaja:Number(val("pp_kg")||0),filas:n("pp_f"),columnas:n("pp_c"),clienteId:val("pp_cli")||null,activa:t?document.getElementById("pp_act").checked:true,
+            envaseProductoId:val("pp_env")||null,paleProductoId:val("pp_pal")||null};
           if(t) await api("/agro/plantillas-pale/"+t.id,{method:"PUT",body:JSON.stringify(cuerpo)}); else await api("/agro/plantillas-pale",{method:"POST",body:JSON.stringify(cuerpo)});
           toast(t?"Plantilla guardada.":"Plantilla creada.","ok"); setTimeout(vAgroPartidas); });
       const res=()=>{ const c=Number(val("pp_cajas")||0),k=Number(val("pp_kg")||0),f=Number(val("pp_f")||0),co=Number(val("pp_c")||0);

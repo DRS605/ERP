@@ -124,6 +124,12 @@ public sealed class DocumentosExpedicionFacturacion : IDocumentosExpedicion
     public async Task<Guid?> ClienteDePedidoAsync(Guid pedidoVentaId, CancellationToken ct = default) =>
         (await _pedido.EjecutarAsync(pedidoVentaId, ct).ConfigureAwait(false))?.ClienteId;
 
+    public async Task<PedidoParaReservas?> PedidoParaReservasAsync(Guid pedidoVentaId, CancellationToken ct = default) =>
+        await _pedido.EjecutarAsync(pedidoVentaId, ct).ConfigureAwait(false) is { } p
+            ? new PedidoParaReservas(p.Id, p.NumeroCompleto, p.ClienteId, p.ClienteNombre, p.Estado is "Confirmado" or "Servido",
+                p.Lineas.Select(l => new LineaPedidoParaReservas(l.Id, l.ProductoId, l.Descripcion, l.Cantidad, l.CantidadServida)).ToList())
+            : null;
+
     public async Task<Resultado<(Guid Id, string Numero)>> EmitirAlbaranAsync(Guid empresaId, AlbaranExpedicion albaran, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(albaran);

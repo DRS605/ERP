@@ -14,6 +14,32 @@ public interface IUnidadDeTrabajoAgro : IUnidadDeTrabajo
 /// <summary>Saldo de una partida en un palé (null: kilos sueltos).</summary>
 public sealed record SaldoPartida(Guid PartidaId, Guid? PaleId, decimal Kilos, int Cajas = 0);
 
+/// <summary>Reservas de palés a líneas de pedidos de venta.</summary>
+public interface IRepositorioReservas
+{
+    void Agregar(ReservaPale reserva);
+    Task<ReservaPale?> ReservaAsync(Guid id, CancellationToken ct = default);
+    Task<IReadOnlyList<ReservaPale>> DePedidoAsync(Guid pedidoVentaId, CancellationToken ct = default);
+    Task<IReadOnlyList<ReservaPale>> ActivasDePalesAsync(IReadOnlyCollection<Guid> paleIds, CancellationToken ct = default);
+    Task<IReadOnlyList<ReservaPale>> DePaleAsync(Guid paleId, CancellationToken ct = default);
+    Task<IReadOnlyList<ReservaPale>> ActivasAsync(Guid empresaId, CancellationToken ct = default);
+}
+
+/// <summary>Cuentas de envases por tercero y su libro de movimientos.</summary>
+public interface IRepositorioEnvases
+{
+    void Agregar(object entidad);
+    Task<CuentaEnvases?> CuentaAsync(Guid id, CancellationToken ct = default);
+    Task<CuentaEnvases?> CuentaDeAsync(Guid empresaId, TipoCuentaEnvases tipo, Guid terceroId, CancellationToken ct = default);
+    Task<IReadOnlyList<CuentaEnvases>> CuentasAsync(Guid empresaId, CancellationToken ct = default);
+    Task<IReadOnlyList<(Guid CuentaId, Guid EnvaseProductoId, int Saldo)>> SaldosAsync(Guid empresaId, DateOnly? hasta, CancellationToken ct = default);
+    Task<IReadOnlyList<MovimientoEnvases>> MovimientosAsync(Guid empresaId, Guid? cuentaId, DateOnly? desde, DateOnly? hasta, CancellationToken ct = default);
+    Task<MovimientoEnvases?> MovimientoAsync(Guid id, CancellationToken ct = default);
+    Task<IReadOnlyList<MovimientoEnvases>> DeDocumentoAsync(Guid documentoId, CancellationToken ct = default);
+    Task<bool> AnuladoAsync(Guid movimientoId, CancellationToken ct = default);
+    Task<int> SiguienteNumeroAsync(Guid empresaId, int ejercicio, CancellationToken ct = default);
+}
+
 /// <summary>Persistencia del módulo agro.</summary>
 public interface IRepositorioAgro
 {
@@ -125,12 +151,20 @@ public interface IDocumentosExpedicion
     /// <summary>Cliente del pedido de venta (null si el pedido no existe).</summary>
     Task<Guid?> ClienteDePedidoAsync(Guid pedidoVentaId, CancellationToken ct = default) => Task.FromResult<Guid?>(null);
 
+    /// <summary>Líneas del pedido de venta (null si no existe): artículo, cantidad pedida y servida, y si está en un estado que admite reservas.</summary>
+    Task<PedidoParaReservas?> PedidoParaReservasAsync(Guid pedidoVentaId, CancellationToken ct = default) => Task.FromResult<PedidoParaReservas?>(null);
+
     /// <summary>Albarán de venta del pedido con lo expedido (kilos o cajas según la unidad del artículo).</summary>
     Task<Resultado<(Guid Id, string Numero)>> EmitirAlbaranAsync(Guid empresaId, AlbaranExpedicion albaran, CancellationToken ct = default) =>
         Task.FromResult(Resultado.Fallo<(Guid, string)>(Error.Validacion("expedicion.sin_albaran", "No se pueden emitir albaranes.")));
 
     Task<Resultado> AnularAlbaranAsync(Guid albaranId, string motivo, CancellationToken ct = default) => Task.FromResult(Resultado.Ok());
 }
+
+/// <summary>Pedido de venta visto desde las reservas de palés.</summary>
+public sealed record PedidoParaReservas(Guid Id, string Numero, Guid ClienteId, string Cliente, bool Abierto, IReadOnlyList<LineaPedidoParaReservas> Lineas);
+
+public sealed record LineaPedidoParaReservas(Guid Id, Guid? ProductoId, string Descripcion, decimal Cantidad, decimal Servida);
 
 /// <summary>Albarán de venta de una expedición: pedido y, por producto, los kilos y las cajas expedidos.</summary>
 public sealed record AlbaranExpedicion(Guid PedidoVentaId, DateOnly Fecha, string? Referencia, IReadOnlyList<(Guid ProductoId, decimal Kilos, int Cajas)> Lineas);

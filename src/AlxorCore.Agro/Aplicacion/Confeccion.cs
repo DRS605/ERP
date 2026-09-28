@@ -73,16 +73,16 @@ public sealed record DatosExpedicion(IReadOnlyList<Guid> PaleIds, Guid? ClienteI
 public sealed record EtiquetaPaleDto(string Sscc, string? Producto, string? Marca, string? TipoPale, int Cajas, decimal Kilos, string? Lote, DateOnly Fecha, string? Destinatario);
 
 public sealed record PlantillaPaleDto(Guid Id, string Codigo, string Nombre, string? TipoPale, Guid? ProductoId, string? Marca, int CajasPorPale, decimal KilosPorCaja,
-    int? Filas, int? Columnas, int? CajasPorCapa, int? Capas, decimal KilosPorPale, Guid? ClienteId, bool Activa)
+    int? Filas, int? Columnas, int? CajasPorCapa, int? Capas, decimal KilosPorPale, Guid? ClienteId, bool Activa, Guid? EnvaseProductoId = null, Guid? PaleProductoId = null)
 {
     public static PlantillaPaleDto De(PlantillaPale p) => new(p.Id, p.Codigo, p.Nombre, p.TipoPale, p.ProductoId, p.Marca, p.CajasPorPale, p.KilosPorCaja,
-        p.Filas, p.Columnas, p.CajasPorCapa, p.Capas, p.KilosPorPale, p.ClienteId, p.Activa);
+        p.Filas, p.Columnas, p.CajasPorCapa, p.Capas, p.KilosPorPale, p.ClienteId, p.Activa, p.EnvaseProductoId, p.PaleProductoId);
 }
 
 public sealed record DatosPlantilla(string? Codigo, string? Nombre, int CajasPorPale, decimal KilosPorCaja, string? TipoPale = null, Guid? ProductoId = null,
-    string? Marca = null, int? Filas = null, int? Columnas = null, Guid? ClienteId = null, bool Activa = true)
+    string? Marca = null, int? Filas = null, int? Columnas = null, Guid? ClienteId = null, bool Activa = true, Guid? EnvaseProductoId = null, Guid? PaleProductoId = null)
 {
-    public DatosPlantillaPale Datos => new(CajasPorPale, KilosPorCaja, TipoPale, ProductoId, Marca, Filas, Columnas, ClienteId);
+    public DatosPlantillaPale Datos => new(CajasPorPale, KilosPorCaja, TipoPale, ProductoId, Marca, Filas, Columnas, ClienteId, EnvaseProductoId, PaleProductoId);
 }
 
 /// <summary>Partes de confección: valoración, validación (consumos, salidas y genealogía) y anulación.</summary>
@@ -389,10 +389,14 @@ public sealed class PalesAgro
     private readonly IConsultaProductos _productos;
     private readonly IReloj _reloj;
     private readonly IDocumentosExpedicion? _documentos;
+    private readonly EnvasesTerceros? _envases;
+    private readonly IRepositorioReservas? _reservas;
 
     public PalesAgro(IRepositorioAgro repo, IUnidadDeTrabajoAgro unidad, IConsultaClientes clientes, IConsultaProductos productos, IReloj reloj,
-        IDocumentosExpedicion? documentos = null)
+        IDocumentosExpedicion? documentos = null, EnvasesTerceros? envases = null, IRepositorioReservas? reservas = null)
     {
+        _reservas = reservas;
+        _envases = envases;
         _repo = repo;
         _unidad = unidad;
         _clientes = clientes;
@@ -863,6 +867,21 @@ public sealed class PalesAgro
             return Resultado.Fallo<IReadOnlyList<PaleDto>>(Error.NoEncontrado("pale.no_encontrado", "Algún palé no existe."));
         }
 
+        // Un palé reservado solo sale con su pedido; con él, la reserva queda consumida.
+        if (_reservas is not null)
+        {
+            foreach (var reserva in await _reservas.ActivasDePalesAsync(pales.Select(p => p.Id).ToList(), ct).ConfigureAwait(false))
+            {
+                if (reserva.PedidoVentaId != datos.PedidoVentaId)
+                {
+                    var sscc = pales.First(p => p.Id == reserva.PaleId).Sscc;
+                    return Resultado.Fallo<IReadOnlyList<PaleDto>>(Error.Conflicto("pale.reservado", $"{sscc} está reservado para otro pedido: anula antes la reserva."));
+                }
+
+                reserva.Consumir(fecha);
+            }
+        }
+
         foreach (var pale in pales)
         {
             var r = pale.Expedir(datos.ClienteId, fecha, datos.Referencia);
@@ -918,6 +937,28 @@ public sealed class PalesAgro
                 }
             }
 
+            // Envases retornables: las cajas y el palé de la plantilla se entregan al cliente (o a su transportista).
+            if (_envases is not null && datos.ClienteId is { } destinatario)
+            {
+                var entregas = new List<(Guid, Guid?, int, Guid?)>();
+                foreach (var pale in pales)
+                {
+                    var plantilla = pale.PlantillaId is { } pid ? await _repo.PlantillaPaleAsync(pid, ct).ConfigureAwait(false) : null;
+                    if (plantilla is { EnvaseProductoId: not null } or { PaleProductoId: not null })
+                    {
+                        entregas.Add((pale.Id, plantilla.EnvaseProductoId, cargado.Where(c => c.PaleId == pale.Id).Sum(c => Math.Max(c.Contenido.Cajas, 0)), plantilla.PaleProductoId));
+                    }
+                }
+
+                var envases = await _envases.EntregarEnExpedicionAsync(empresaId, destinatario, entregas, fecha, datos.TransportistaId, datos.Matricula, datos.Referencia, ct)
+                    .ConfigureAwait(false);
+                if (envases.EsFallo)
+                {
+                    await DeshacerDocumentosAsync(albaranId, cartaId).ConfigureAwait(false);
+                    return Resultado.Fallo<IReadOnlyList<PaleDto>>(envases.Error);
+                }
+            }
+
             await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
         }
         catch when (albaranId is not null || cartaId is not null)
@@ -960,6 +1001,18 @@ public sealed class PalesAgro
         {
             _repo.Agregar(MovimientoPartida.Crear(empresaId, partida, Hoy, TipoMovimientoPartida.Anulacion, kilos, pale.Id, DocumentoExpedicion, pale.Id,
                 "Anulación de la expedición", _reloj, Math.Max(cajas, 0)).Valor);
+        }
+
+        // Su reserva, si la tenía, vuelve a estar activa.
+        foreach (var reserva in _reservas is null ? [] : await _reservas.DePaleAsync(pale.Id, ct).ConfigureAwait(false))
+        {
+            reserva.Reactivar();
+        }
+
+        // Los envases entregados con el palé vuelven (contramovimiento en la misma cuenta).
+        if (_envases is not null && await _envases.AnularDeDocumentoAsync(pale.Id, "expedición anulada", ct).ConfigureAwait(false) is { EsFallo: true } fallo)
+        {
+            return Resultado.Fallo<PaleDto>(fallo.Error);
         }
 
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);

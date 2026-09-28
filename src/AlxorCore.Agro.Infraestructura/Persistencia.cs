@@ -25,6 +25,9 @@ public sealed class AgroDbContext : DbContextEmpresaBase, IUnidadDeTrabajoAgro
         DELETE FROM agro.genealogia WHERE empresa_id = {0};
         DELETE FROM agro.movimiento_partida WHERE empresa_id = {0};
         DELETE FROM agro.movimiento_envase WHERE empresa_id = {0};
+        DELETE FROM agro.movimiento_envases WHERE empresa_id = {0};
+        DELETE FROM agro.reserva_pale WHERE empresa_id = {0};
+        DELETE FROM agro.cuenta_envases WHERE empresa_id = {0};
         DELETE FROM agro.clasificacion WHERE empresa_id = {0};
         DELETE FROM agro.liquidacion WHERE empresa_id = {0};
         DELETE FROM agro.parte_confeccion WHERE empresa_id = {0};
@@ -362,9 +365,176 @@ internal sealed class ConfiguracionPlantillaPale : IEntityTypeConfiguration<Plan
         b.Property(x => x.Filas).HasColumnName("filas");
         b.Property(x => x.Columnas).HasColumnName("columnas");
         b.Property(x => x.ClienteId).HasColumnName("cliente_id");
+        b.Property(x => x.EnvaseProductoId).HasColumnName("envase_producto_id");
+        b.Property(x => x.PaleProductoId).HasColumnName("pale_producto_id");
         b.Property(x => x.Activa).HasColumnName("activa").IsRequired();
         b.HasIndex(x => new { x.EmpresaId, x.Codigo }).IsUnique().HasDatabaseName("ux_plantilla_pale_codigo");
     }
+}
+
+internal sealed class ConfiguracionCuentaEnvases : IEntityTypeConfiguration<CuentaEnvases>
+{
+    public void Configure(EntityTypeBuilder<CuentaEnvases> b)
+    {
+        Columnas.Base(b, "cuenta_envases");
+        Columnas.Enum(b.Property(x => x.Tipo), "tipo");
+        b.Property(x => x.TerceroId).HasColumnName("tercero_id").IsRequired();
+        b.Property(x => x.Nombre).HasColumnName("nombre").HasMaxLength(CuentaEnvases.LongitudNombre).IsRequired();
+        b.Property(x => x.AgrupadoraId).HasColumnName("agrupadora_id");
+        b.Property(x => x.ImputarATransportista).HasColumnName("imputar_a_transportista").IsRequired();
+        Columnas.Enum(b.Property(x => x.Bloqueo), "bloqueo");
+        b.Property(x => x.MotivoBloqueo).HasColumnName("motivo_bloqueo").HasMaxLength(200);
+        b.Property(x => x.Limite).HasColumnName("limite");
+        b.Property(x => x.Activa).HasColumnName("activa").IsRequired();
+        b.Property(x => x.CreadaEn).HasColumnName("creada_en").IsRequired();
+        b.HasIndex(x => new { x.EmpresaId, x.Tipo, x.TerceroId }).IsUnique().HasDatabaseName("ux_cuenta_envases_tercero");
+    }
+}
+
+internal sealed class ConfiguracionMovimientoEnvases : IEntityTypeConfiguration<MovimientoEnvases>
+{
+    public void Configure(EntityTypeBuilder<MovimientoEnvases> b)
+    {
+        Columnas.Base(b, "movimiento_envases");
+        b.Property(x => x.Ejercicio).HasColumnName("ejercicio").IsRequired();
+        b.Property(x => x.Numero).HasColumnName("numero").IsRequired();
+        b.Ignore(x => x.NumeroCompleto);
+        b.Property(x => x.Fecha).HasColumnName("fecha").IsRequired();
+        b.Property(x => x.CuentaId).HasColumnName("cuenta_id").IsRequired();
+        b.Property(x => x.CuentaSolicitadaId).HasColumnName("cuenta_solicitada_id").IsRequired();
+        Columnas.Enum(b.Property(x => x.Origen), "origen");
+        b.Property(x => x.DocumentoId).HasColumnName("documento_id");
+        b.Property(x => x.TransportistaId).HasColumnName("transportista_id");
+        b.Property(x => x.Matricula).HasColumnName("matricula").HasMaxLength(20);
+        b.Property(x => x.Observaciones).HasColumnName("observaciones").HasMaxLength(300);
+        b.Property(x => x.AnulaMovimientoId).HasColumnName("anula_movimiento_id");
+        b.Property(x => x.CreadoEn).HasColumnName("creado_en").IsRequired();
+        b.OwnsMany(x => x.Lineas, l =>
+        {
+            l.ToTable("linea_movimiento_envases");
+            l.WithOwner().HasForeignKey("movimiento_envases_id");
+            l.HasKey(x => x.Id);
+            l.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+            l.Property(x => x.EnvaseProductoId).HasColumnName("envase_producto_id").IsRequired();
+            l.Property(x => x.Cantidad).HasColumnName("cantidad").IsRequired();
+            l.HasIndex(x => x.EnvaseProductoId).HasDatabaseName("ix_linea_movimiento_envases_envase");
+        });
+        b.Navigation(x => x.Lineas).UsePropertyAccessMode(PropertyAccessMode.Field);
+        b.HasIndex(x => new { x.EmpresaId, x.Ejercicio, x.Numero }).IsUnique().HasDatabaseName("ux_movimiento_envases_numero");
+        b.HasIndex(x => new { x.CuentaId, x.Fecha }).HasDatabaseName("ix_movimiento_envases_cuenta");
+        b.HasIndex(x => x.DocumentoId).HasDatabaseName("ix_movimiento_envases_documento");
+        // Un movimiento solo se anula una vez.
+        b.HasIndex(x => x.AnulaMovimientoId).IsUnique().HasFilter("anula_movimiento_id IS NOT NULL").HasDatabaseName("ux_movimiento_envases_anula");
+    }
+}
+
+internal sealed class ConfiguracionReservaPale : IEntityTypeConfiguration<ReservaPale>
+{
+    public void Configure(EntityTypeBuilder<ReservaPale> b)
+    {
+        Columnas.Base(b, "reserva_pale");
+        b.Property(x => x.PaleId).HasColumnName("pale_id").IsRequired();
+        b.Property(x => x.PedidoVentaId).HasColumnName("pedido_venta_id").IsRequired();
+        b.Property(x => x.LineaPedidoId).HasColumnName("linea_pedido_id").IsRequired();
+        b.Property(x => x.Kilos).HasColumnName("kilos").HasColumnType(Columnas.Kilos).IsRequired();
+        b.Property(x => x.Cajas).HasColumnName("cajas").IsRequired();
+        Columnas.Enum(b.Property(x => x.Estado), "estado");
+        b.Property(x => x.CreadaEn).HasColumnName("creada_en").IsRequired();
+        b.Property(x => x.ConsumidaEl).HasColumnName("consumida_el");
+        b.Property(x => x.MotivoAnulacion).HasColumnName("motivo_anulacion").HasMaxLength(200);
+        // Un palé tiene como mucho una reserva activa.
+        b.HasIndex(x => x.PaleId).IsUnique().HasFilter("estado = 'Activa'").HasDatabaseName("ux_reserva_pale_activa");
+        b.HasIndex(x => x.PedidoVentaId).HasDatabaseName("ix_reserva_pale_pedido");
+        b.HasOne<Pale>().WithMany().HasForeignKey(x => x.PaleId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+internal sealed class RepositorioReservas : IRepositorioReservas
+{
+    private readonly AgroDbContext _ctx;
+
+    public RepositorioReservas(AgroDbContext ctx) => _ctx = ctx;
+
+    public void Agregar(ReservaPale reserva) => _ctx.Add(reserva);
+
+    public Task<ReservaPale?> ReservaAsync(Guid id, CancellationToken ct = default) => _ctx.Set<ReservaPale>().FirstOrDefaultAsync(r => r.Id == id, ct);
+
+    public async Task<IReadOnlyList<ReservaPale>> DePedidoAsync(Guid pedidoVentaId, CancellationToken ct = default) =>
+        await _ctx.Set<ReservaPale>().Where(r => r.PedidoVentaId == pedidoVentaId).OrderBy(r => r.CreadaEn).ToListAsync(ct).ConfigureAwait(false);
+
+    public async Task<IReadOnlyList<ReservaPale>> ActivasDePalesAsync(IReadOnlyCollection<Guid> paleIds, CancellationToken ct = default) =>
+        await _ctx.Set<ReservaPale>().Where(r => paleIds.Contains(r.PaleId) && r.Estado == EstadoReservaPale.Activa).ToListAsync(ct).ConfigureAwait(false);
+
+    public async Task<IReadOnlyList<ReservaPale>> DePaleAsync(Guid paleId, CancellationToken ct = default) =>
+        await _ctx.Set<ReservaPale>().Where(r => r.PaleId == paleId).ToListAsync(ct).ConfigureAwait(false);
+
+    public async Task<IReadOnlyList<ReservaPale>> ActivasAsync(Guid empresaId, CancellationToken ct = default) =>
+        await _ctx.Set<ReservaPale>().Where(r => r.EmpresaId == empresaId && r.Estado == EstadoReservaPale.Activa).ToListAsync(ct).ConfigureAwait(false);
+}
+
+/// <summary>Cuentas y libro de envases por tercero.</summary>
+internal sealed class RepositorioEnvases : IRepositorioEnvases
+{
+    private readonly AgroDbContext _ctx;
+
+    public RepositorioEnvases(AgroDbContext ctx) => _ctx = ctx;
+
+    public void Agregar(object entidad) => _ctx.Add(entidad);
+
+    public Task<CuentaEnvases?> CuentaAsync(Guid id, CancellationToken ct = default) => _ctx.Set<CuentaEnvases>().FirstOrDefaultAsync(c => c.Id == id, ct);
+
+    public Task<CuentaEnvases?> CuentaDeAsync(Guid empresaId, TipoCuentaEnvases tipo, Guid terceroId, CancellationToken ct = default) =>
+        _ctx.Set<CuentaEnvases>().FirstOrDefaultAsync(c => c.EmpresaId == empresaId && c.Tipo == tipo && c.TerceroId == terceroId, ct);
+
+    public async Task<IReadOnlyList<CuentaEnvases>> CuentasAsync(Guid empresaId, CancellationToken ct = default) =>
+        await _ctx.Set<CuentaEnvases>().AsNoTracking().Where(c => c.EmpresaId == empresaId).OrderBy(c => c.Nombre).ToListAsync(ct).ConfigureAwait(false);
+
+    public async Task<IReadOnlyList<(Guid CuentaId, Guid EnvaseProductoId, int Saldo)>> SaldosAsync(Guid empresaId, DateOnly? hasta, CancellationToken ct = default)
+    {
+        var q = _ctx.Set<MovimientoEnvases>().AsNoTracking().Where(m => m.EmpresaId == empresaId);
+        if (hasta is { } h)
+        {
+            q = q.Where(m => m.Fecha <= h);
+        }
+
+        var filas = await q.SelectMany(m => m.Lineas.Select(l => new { m.CuentaId, l.EnvaseProductoId, l.Cantidad }))
+            .GroupBy(x => new { x.CuentaId, x.EnvaseProductoId })
+            .Select(g => new { g.Key.CuentaId, g.Key.EnvaseProductoId, Saldo = g.Sum(x => x.Cantidad) })
+            .ToListAsync(ct).ConfigureAwait(false);
+        return filas.Select(f => (f.CuentaId, f.EnvaseProductoId, f.Saldo)).ToList();
+    }
+
+    public async Task<IReadOnlyList<MovimientoEnvases>> MovimientosAsync(Guid empresaId, Guid? cuentaId, DateOnly? desde, DateOnly? hasta, CancellationToken ct = default)
+    {
+        var q = _ctx.Set<MovimientoEnvases>().AsNoTracking().Where(m => m.EmpresaId == empresaId);
+        if (cuentaId is { } c)
+        {
+            q = q.Where(m => m.CuentaId == c || m.CuentaSolicitadaId == c);
+        }
+
+        if (desde is { } d)
+        {
+            q = q.Where(m => m.Fecha >= d);
+        }
+
+        if (hasta is { } h)
+        {
+            q = q.Where(m => m.Fecha <= h);
+        }
+
+        return await q.OrderBy(m => m.Fecha).ThenBy(m => m.Ejercicio).ThenBy(m => m.Numero).ToListAsync(ct).ConfigureAwait(false);
+    }
+
+    public Task<MovimientoEnvases?> MovimientoAsync(Guid id, CancellationToken ct = default) => _ctx.Set<MovimientoEnvases>().FirstOrDefaultAsync(m => m.Id == id, ct);
+
+    public async Task<IReadOnlyList<MovimientoEnvases>> DeDocumentoAsync(Guid documentoId, CancellationToken ct = default) =>
+        await _ctx.Set<MovimientoEnvases>().Where(m => m.DocumentoId == documentoId).ToListAsync(ct).ConfigureAwait(false);
+
+    public Task<bool> AnuladoAsync(Guid movimientoId, CancellationToken ct = default) =>
+        _ctx.Set<MovimientoEnvases>().AnyAsync(m => m.AnulaMovimientoId == movimientoId, ct);
+
+    public async Task<int> SiguienteNumeroAsync(Guid empresaId, int ejercicio, CancellationToken ct = default) =>
+        ((await _ctx.Set<MovimientoEnvases>().Where(m => m.EmpresaId == empresaId && m.Ejercicio == ejercicio).Select(m => (int?)m.Numero).MaxAsync(ct).ConfigureAwait(false)) ?? 0) + 1;
 }
 
 internal sealed class ConfiguracionMovimientoEnvase : IEntityTypeConfiguration<MovimientoEnvase>

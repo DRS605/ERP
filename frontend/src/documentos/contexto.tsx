@@ -9,6 +9,8 @@ export interface Anfitrion {
   aviso: (mensaje: string, tipo?: "ok" | "err" | "") => void;
   /** Abre una pantalla de la interfaz anfitriona (p. ej. «cobros»). */
   irA?: (vista: string) => void;
+  /** Acciones que resuelve la interfaz clásica (p. ej. reservar palés de agro); si falta, no se ofrecen. */
+  reservarPales?: (pedidoVentaId: string) => void;
 }
 
 export type TipoDocumento = "presupuesto" | "pedido" | "factura" | "compra" | "gasto";

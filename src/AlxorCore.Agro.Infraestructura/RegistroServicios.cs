@@ -31,6 +31,10 @@ public static class RegistroServicios
 
         servicios.AddScoped<IUnidadDeTrabajoAgro>(sp => sp.GetRequiredService<AgroDbContext>());
         servicios.AddScoped<IRepositorioAgro, RepositorioAgro>();
+        servicios.AddScoped<IRepositorioEnvases, RepositorioEnvases>();
+        servicios.AddScoped<EnvasesTerceros>();
+        servicios.AddScoped<IRepositorioReservas, RepositorioReservas>();
+        servicios.AddScoped<ReservasPales>();
 
         servicios.AddScoped<MaestrosAgro>();
         servicios.AddScoped<RecepcionesAgro>();

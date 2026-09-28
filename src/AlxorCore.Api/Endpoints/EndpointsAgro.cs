@@ -88,6 +88,43 @@ public static class EndpointsAgro
         g.MapPost("/agricultores/{id:guid}/envases", (Guid id, DatosMovimientoEnvase d, IContextoEmpresa c, RecepcionesAgro r, CancellationToken ct) =>
                 ConEmpresa(c, async e => (await r.MoverEnvasesAsync(e, id, d, ct).ConfigureAwait(false)).ASinContenido()))
             .WithSummary("Entrega (+) o devolución (−) de envases vacíos.").RequierePermiso(Permisos.AgroGestionar);
+        // Reservas de palés a líneas de pedidos de venta.
+        g.MapGet("/reservas", (Guid pedidoVentaId, IContextoEmpresa c, ReservasPales r, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await r.DePedidoAsync(e, pedidoVentaId, ct).ConfigureAwait(false)).AOk()))
+            .WithSummary("Reservas de un pedido: por línea, lo pedido, servido y reservado; sus reservas y los palés disponibles.").RequierePermiso(Permisos.AgroLeer);
+        g.MapGet("/reservas/activas", (IContextoEmpresa c, ReservasPales r, CancellationToken ct) =>
+                ConEmpresa(c, async e => Results.Ok(await r.ActivasAsync(e, ct).ConfigureAwait(false))))
+            .WithSummary("Reservas activas de la empresa (palés apartados para un pedido).").RequierePermiso(Permisos.AgroLeer);
+        g.MapPost("/reservas", (ReservarPalesComando d, IContextoEmpresa c, ReservasPales r, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await r.ReservarAsync(e, d, ct).ConfigureAwait(false)).AOk()))
+            .WithSummary("Reserva palés cerrados para una línea de un pedido de venta.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapPost("/reservas/{id:guid}/anular", async (Guid id, AnularPeticionEnvases? p, ReservasPales r, CancellationToken ct) =>
+                (await r.AnularAsync(id, p?.Motivo, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Anula una reserva activa (el palé queda libre).").RequierePermiso(Permisos.AgroGestionar);
+
+        // Envases retornables por tercero (clientes, proveedores, transportistas y pools).
+        g.MapGet("/envases/cuentas", (DateOnly? hasta, IContextoEmpresa c, EnvasesTerceros v, CancellationToken ct) =>
+                ConEmpresa(c, async e => Results.Ok(await v.CuentasAsync(e, hasta, ct).ConfigureAwait(false))))
+            .WithSummary("Cuentas de envases con su saldo por envase (a una fecha, si se indica).").RequierePermiso(Permisos.AgroLeer);
+        g.MapPost("/envases/cuentas", (CrearCuentaEnvasesComando d, IContextoEmpresa c, EnvasesTerceros v, CancellationToken ct) =>
+                ConEmpresa(c, async e => Creado(await v.CrearCuentaAsync(e, d, ct).ConfigureAwait(false), "envases/cuentas")))
+            .WithSummary("Abre la cuenta de envases de un cliente, proveedor, transportista o pool.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapPut("/envases/cuentas/{id:guid}", async (Guid id, ConfigurarCuentaEnvasesComando d, EnvasesTerceros v, CancellationToken ct) =>
+                (await v.ConfigurarCuentaAsync(id, d, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Agrupadora, llevar al transportista, bloqueo o aviso, límite y baja de la cuenta.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapGet("/envases/cuentas/{id:guid}/extracto", (Guid id, DateOnly? desde, DateOnly? hasta, IContextoEmpresa c, EnvasesTerceros v, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await v.ExtractoAsync(e, id, desde, hasta, ct).ConfigureAwait(false)).AOk()))
+            .WithSummary("Extracto de la cuenta: saldo inicial, movimientos con el acumulado y saldo final.").RequierePermiso(Permisos.AgroLeer);
+        g.MapGet("/envases/movimientos", (Guid? cuentaId, DateOnly? desde, DateOnly? hasta, IContextoEmpresa c, EnvasesTerceros v, CancellationToken ct) =>
+                ConEmpresa(c, async e => Results.Ok(await v.MovimientosAsync(e, cuentaId, desde, hasta, ct).ConfigureAwait(false))))
+            .WithSummary("Movimientos de envases (de una cuenta o de todas).").RequierePermiso(Permisos.AgroLeer);
+        g.MapPost("/envases/movimientos", (MovimientoEnvasesComando d, IContextoEmpresa c, EnvasesTerceros v, CancellationToken ct) =>
+                ConEmpresa(c, async e => Creado(await v.RegistrarAsync(e, d, ct).ConfigureAwait(false), "envases/movimientos")))
+            .WithSummary("Entrega (+) o recogida (−) de envases a un tercero, o una regularización.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapPost("/envases/movimientos/{id:guid}/anular", async (Guid id, AnularPeticionEnvases? p, EnvasesTerceros v, CancellationToken ct) =>
+                (await v.AnularAsync(id, p?.Motivo, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Anula un movimiento con su contrario (el libro es de solo inserción).").RequierePermiso(Permisos.AgroGestionar);
+
         g.MapPost("/agricultores/{id:guid}/parcelas", (Guid id, DatosParcela d, IContextoEmpresa c, MaestrosAgro m, CancellationToken ct) =>
                 ConEmpresa(c, async e => Creado(await m.CrearParcelaAsync(e, id, d, ct).ConfigureAwait(false), "parcelas")))
             .WithSummary("Añade una parcela al agricultor (SIGPAC, superficie, cultivo, centro analítico).").RequierePermiso(Permisos.AgroGestionar);
@@ -290,3 +327,6 @@ public static class EndpointsAgro
     private static IResult NoEncontrado(string que) =>
         ResultadosHttp.AProblema(Error.NoEncontrado($"{que}.no_encontrado", "No existe."));
 }
+
+/// <summary>Motivo de la anulación de un movimiento de envases.</summary>
+public sealed record AnularPeticionEnvases(string? Motivo);

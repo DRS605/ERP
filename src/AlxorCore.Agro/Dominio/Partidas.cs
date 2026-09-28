@@ -410,6 +410,12 @@ public sealed class PlantillaPale : RaizAgregadoEmpresa<Guid>
     /// <summary>Cliente para el que se monta habitualmente (opcional; se propone al expedir).</summary>
     public Guid? ClienteId { get; private set; }
 
+    /// <summary>Caja retornable (artículo del catálogo): al expedir el palé se entregan tantas como cajas lleve.</summary>
+    public Guid? EnvaseProductoId { get; private set; }
+
+    /// <summary>Palé retornable (artículo del catálogo): al expedir se entrega uno por palé.</summary>
+    public Guid? PaleProductoId { get; private set; }
+
     public bool Activa { get; private set; }
 
     public int? CajasPorCapa => Filas is { } f && Columnas is { } c ? f * c : null;
@@ -476,6 +482,8 @@ public sealed class PlantillaPale : RaizAgregadoEmpresa<Guid>
         Filas = datos.Filas;
         Columnas = datos.Columnas;
         ClienteId = datos.ClienteId;
+        EnvaseProductoId = datos.EnvaseProductoId;
+        PaleProductoId = datos.PaleProductoId;
         Activa = activa;
         return Resultado.Ok();
     }
@@ -489,7 +497,7 @@ public sealed class PlantillaPale : RaizAgregadoEmpresa<Guid>
 
 /// <summary>Datos de una plantilla de palé.</summary>
 public sealed record DatosPlantillaPale(int CajasPorPale, decimal KilosPorCaja, string? TipoPale = null, Guid? ProductoId = null, string? Marca = null,
-    int? Filas = null, int? Columnas = null, Guid? ClienteId = null);
+    int? Filas = null, int? Columnas = null, Guid? ClienteId = null, Guid? EnvaseProductoId = null, Guid? PaleProductoId = null);
 
 /// <summary>
 /// Movimiento de envases con un agricultor (palots, cajas…): positivos los que se le entregan vacíos,

@@ -272,6 +272,7 @@ export function VistaPedidoVenta(props: { id: string }) {
               <button className="btn small secondary" onClick={() => navegar({ tipo: "pedido", pantalla: "editor", semilla: { ...semilla, fecha: undefined } })}>Duplicar</button>
               {modificable && <button className="btn small secondary" onClick={() => navegar({ tipo: "pedido", pantalla: "editor", id: p.id, semilla })}>Editar</button>}
               {p.estado === "Borrador" && <button className="btn small secondary" onClick={async () => (await accion(() => api.post(`/pedidos-venta/${p.id}/confirmar`), anfitrion.aviso, "Pedido confirmado.")) && recargar()}>Confirmar</button>}
+              {vivo && p.estado !== "Borrador" && pendiente && anfitrion.reservarPales && <button className="btn small secondary" title="Apartar palés cerrados para este pedido" onClick={() => anfitrion.reservarPales!(p.id)}>Reservar palés</button>}
               {vivo && p.estado !== "Borrador" && pendiente && <button className="btn small secondary" onClick={() => setEntregar(Object.fromEntries(p.lineas.map((l) => [l.id, l.pendienteServir])))}>Entregar (albarán)</button>}
               {vivo && p.estado !== "Borrador" && <button className="btn small" onClick={() => setFacturar(true)}>Facturar</button>}
               {vivo && <button className="btn small ghost" onClick={async () => window.confirm("¿Cancelar el pedido?") && (await accion(() => api.post(`/pedidos-venta/${p.id}/cancelar`), anfitrion.aviso, "Pedido cancelado.")) && recargar()}>Cancelar</button>}
