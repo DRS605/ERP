@@ -78,9 +78,11 @@ Los documentos de venta y compra (presupuestos, pedidos de venta, facturas y ped
 `montar(elemento, { token, aviso, irA }, ruta)`, así que comparte el menú, la sesión, los avisos y los estilos.
 
 - **Listados**:
-  - búsqueda por número, cliente o NIF, y filtros por estado y fechas;
-  - suma de lo visible;
-  - en facturas, paginados en el servidor.
+  - búsqueda por número, cliente o NIF, y filtros por estado, fechas, cliente o proveedor, serie, importe y estado de
+    cobro/pago;
+  - columnas de base, impuestos, total y pendiente, orden por columna y exportación a Excel/CSV;
+  - totales sin anulados; en facturas y gastos, paginados en el servidor y con los totales de todo el filtro
+    (ver [`rejillas-y-exportacion.md`](rejillas-y-exportacion.md)).
 - **Editor**:
   - Cabecera con el cliente o proveedor (buscador por nombre o NIF) y su ficha: tarifa, recargo, límite de riesgo y
     aviso de riesgo.

@@ -261,14 +261,14 @@
     /* Rejillas: filtros por columna, totales, grupos y selección */
     .cols-btn.on { border-color:var(--accent); color:var(--accent); background:var(--accent-soft); }
     .rej-badge { background:var(--accent); color:#fff; border-radius:999px; font-size:10.5px; font-weight:750; padding:1px 6px; margin-left:2px; }
-    .rej-agrupar { width:auto; padding:6px 10px; font-size:12.5px; border-radius:10px; background:var(--bg); color:var(--muted); font-weight:600; max-width:220px; }
+    .rej-agrupar { width:auto; padding:6px 10px; border:1px solid var(--line); font-size:12.5px; border-radius:10px; background:var(--bg); color:var(--muted); font-weight:600; max-width:220px; }
     .rej-sel { font-size:12.5px; background:var(--accent-soft); color:var(--ink); border-radius:999px; padding:4px 12px; white-space:nowrap; }
     .rej-sel a { color:var(--accent); text-decoration:none; margin-left:4px; font-weight:700; }
     .cols-menu .rej-op { display:block; width:100%; text-align:left; background:none; border:none; padding:7px 8px; border-radius:8px; font-size:13px; color:var(--ink); font-weight:500; }
     .cols-menu .rej-op:hover { background:var(--accent-soft); color:var(--accent); }
     thead tr.rej-filtros td { padding:6px 8px; background:var(--bg); border-bottom:1px solid var(--line); vertical-align:top; }
     thead tr.rej-filtros td:first-child { padding-left:20px; }
-    tr.rej-filtros input, tr.rej-filtros select { padding:5px 8px; font-size:12px; border-radius:8px; min-width:72px; }
+    tr.rej-filtros input, tr.rej-filtros select { padding:5px 8px; font-size:12px; border-radius:8px; min-width:72px; background:var(--surface); color:var(--ink); }
     tr.rej-filtros input[type="date"] { min-width:118px; }
     .rej-rango { display:flex; flex-direction:column; gap:4px; }
     th.rej-chk, td.rej-chk { width:34px; padding-right:0 !important; }
@@ -751,7 +751,8 @@
       const hayImportes=cols0.some(c=>c.total==="suma"&&(c.tipo==="moneda"||c.suf==="kg"));
 
       // Casilla de selección (primera columna) si hay importes y la tabla no tiene ya las suyas.
-      const conSel=hayImportes&&!estructurada&&tabla.dataset.seleccion!=="no"&&!tbody.querySelector('input[type="checkbox"]');
+      const grande=datos.length>=5; // en tablas cortas (rankings, resúmenes) sobran casillas, filtros y grupos
+      const conSel=grande&&hayImportes&&!estructurada&&tabla.dataset.seleccion!=="no"&&!tbody.querySelector('input[type="checkbox"]');
       const off=conSel?1:0;
       if(conSel){
         const th=document.createElement("th"); th.className="rej-chk"; th.innerHTML='<input type="checkbox" title="Seleccionar las filas visibles"/>';
@@ -849,7 +850,7 @@
 
       // Filtros por columna (fila bajo la cabecera).
       let filaFiltros=null, btnLimpiar=null;
-      const filtrables=cols.filter(c=>c.tipo!=="sel"&&c.nombre&&(c.tipo!=="texto"||c.distintos));
+      const filtrables=grande?cols.filter(c=>c.tipo!=="sel"&&c.nombre&&(c.tipo!=="texto"||c.distintos)):[];
       const btnFiltros=filtrables.length?boton(ico('<path d="M3 5h18l-7 8v6l-4-2v-4z"/>')+'Filtros<span class="rej-badge" style="display:none"></span>',"Filtrar por columna",()=>{
         if(!filaFiltros) crearFiltros(); const ver=filaFiltros.style.display==="none"; filaFiltros.style.display=ver?"":"none"; btnFiltros.classList.toggle("on",ver);
         if(ver) filaFiltros.querySelector("input,select")?.focus(); }):null;
@@ -882,7 +883,7 @@
       }
 
       // Agrupar por una columna de texto con pocos valores distintos.
-      const agrupables=(estructurada||tabla.dataset.agrupar==="no")?[]:cols.filter(c=>c.distintos&&c.distintos.length>=2&&c.distintos.length<=50&&c.distintos.length<datos.length);
+      const agrupables=(!grande||estructurada||tabla.dataset.agrupar==="no")?[]:cols.filter(c=>c.distintos&&c.distintos.length>=2&&c.distintos.length<=50&&c.distintos.length<datos.length);
       if(agrupables.length){
         const g=document.createElement("select"); g.className="rej-agrupar"; g.title="Agrupar por";
         g.innerHTML=`<option value="">Sin agrupar</option>${agrupables.map(c=>`<option value="${agEsc(c.nombre)}">Agrupar: ${agEsc(c.nombre)}</option>`).join("")}`;
@@ -965,7 +966,10 @@
         return { titulo:(document.getElementById("viewTitle")?.textContent||"Listado").trim(), cols, filas, total:null, grupos:null };
       }
       const cols=R.cols.filter(c=>c.nombre&&c.tipo!=="sel"&&!R.st.ocultas.has(c.i));
-      const vis=R.visibles();
+      let vis=R.visibles();
+      // Agrupada: las filas salen seguidas por grupo (en el orden de los grupos), como se ven.
+      const gc=R.st.grupo?R.cols.find(c=>c.nombre===R.st.grupo):null;
+      if(gc){ const k=r=>_norm(R.M.get(r)[gc.i]||"(vacío)"); vis=vis.map((r,n)=>[r,n]).sort((a,b)=>k(a[0]).localeCompare(k(b[0]),"es",{numeric:true})||a[1]-b[1]).map(x=>x[0]); }
       const filas=vis.map(r=>cols.map(c=>R.M.get(r)[c.i]));
       let total=null;
       if(R.conTfoot()){ const s=R.resumen(vis); total=cols.map(c=>c.total&&s[c.i]!=null?_rejFmt(c,s[c.i],c.total==="media"):"");

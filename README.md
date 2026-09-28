@@ -12,6 +12,7 @@ factura en menos de cinco minutos sin leer un manual**.
 - **Monolito modular** con **Clean Architecture ligera** y **DDD práctico**.
 - **API First** (OpenAPI/Swagger).
 - **Multiempresa** desde el diseño (`empresa_id` obligatorio y Row-Level Security forzada, probada con un rol sin privilegios).
+- **Rejillas con reporting**: en todas las listas, filtros por columna, totales de lo filtrado, selección con suma, agrupación con subtotales, exportación a Excel (.xlsx con formatos y fórmulas) e impresión ([`docs/rejillas-y-exportacion.md`](docs/rejillas-y-exportacion.md)).
 - **Garantías en la base de datos**: facturas emitidas y asientos inalterables, numeración sin huecos, importes coherentes ([`docs/garantias-base-datos.md`](docs/garantias-base-datos.md)).
 - **Analítica en dos dimensiones** (centro × partida) con reglas, repartos, campañas y presupuestos ([`docs/modulos/analitica.md`](docs/modulos/analitica.md)); **IGIC** y **prorrata** ([`docs/modulos/impuestos-indirectos.md`](docs/modulos/impuestos-indirectos.md)).
 - **Migración desde Hispatec**: paquete extraído con T-SQL, validación que detecta los problemas de integridad de origen y carga que se puede repetir sin duplicar ([`docs/migracion-hispatec.md`](docs/migracion-hispatec.md)).

@@ -81,7 +81,7 @@ de la AEAT (`GeneradorXmlVerifactu`).
 |---|---|---|---|
 | `POST` | `/facturas` | permiso `factura.emitir` | Emite una factura. **201** |
 | `GET` | `/facturas` | permiso `factura.leer` | Lista de facturas de la empresa. |
-| `GET` | `/facturas/buscar` | permiso `factura.leer` | Búsqueda paginada: `texto` (nº/cliente/NIF), `estado`, `desde`/`hasta`, `importeMin`/`importeMax`, `clienteId`, `pagina`, `tamanoPagina`. |
+| `GET` | `/facturas/buscar` | permiso `factura.leer` | Búsqueda paginada: `texto` (nº/cliente/NIF), `estado`, `desde`/`hasta`, `importeMin`/`importeMax`, `clienteId`, `serie` (prefijo), `cobro` (`pendiente`/`vencida`/`cobrada`), `orden` (`fecha`/`numero`/`cliente`/`base`/`impuestos`/`total`) y `desc`, `pagina`, `tamanoPagina`. Devuelve también `totales` de todo el filtro (sin anuladas; con pendiente y vencido) y `pendientes` de las facturas de la página ([rejillas](../rejillas-y-exportacion.md)). |
 | `GET` | `/facturas/{id}` | permiso `factura.leer` | Factura con sus líneas. |
 | `POST` | `/facturas/{id}/rectificar` | permiso `factura.emitir` | Emite una rectificativa de esa factura. **201** |
 

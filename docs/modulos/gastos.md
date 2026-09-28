@@ -45,7 +45,8 @@ Un gasto es una **factura recibida completa**:
 
 Pantalla: **Compras → Facturas de proveedor** (módulo de documentos):
 
-- **Listado**: búsqueda por número, proveedor o concepto, y filtros.
+- **Listado**: búsqueda por número, proveedor o concepto; filtros por estado, fechas, proveedor, importe y estado de
+  pago; columnas de base, impuestos, total y pendiente; totales de todo el filtro y exportación a Excel/CSV.
 - **Editor**:
   - cabecera con el proveedor, el nº y las fechas, la forma de pago, el IRPF y la prorrata especial;
   - líneas con la cuenta, la base, el impuesto, el % autoliquidado y el % deducible;
@@ -75,7 +76,7 @@ El editor marca por defecto «El proveedor me cobra recargo de equivalencia».
 | Método | Ruta | Auth | Descripción |
 |---|---|---|---|
 | `GET` | `/gastos` | permiso `gasto.leer` | Lista de gastos. |
-| `GET` | `/gastos/buscar` | permiso `gasto.leer` | Búsqueda paginada: `texto` (concepto, proveedor o nº de factura), `estado`, `desde`/`hasta`, `importeMin`/`importeMax`, `proveedorId`, `pagina`, `tamanoPagina`. |
+| `GET` | `/gastos/buscar` | permiso `gasto.leer` | Búsqueda paginada: `texto` (concepto, proveedor o nº de factura), `estado`, `desde`/`hasta`, `importeMin`/`importeMax`, `proveedorId`, `cobro` (`pendiente`/`vencida`/`pagada`), `orden` (`fecha`/`numero`/`proveedor`/`base`/`impuestos`/`total`) y `desc`, `pagina`, `tamanoPagina`. Devuelve también `totales` de todo el filtro (sin anulados; con pendiente y vencido) y `pendientes` de los gastos de la página ([rejillas](../rejillas-y-exportacion.md)). |
 | `GET` | `/gastos/{id}` | permiso `gasto.leer` | Obtiene un gasto con sus líneas, vencimientos y desglose. |
 | `POST` | `/gastos` | permiso `gasto.gestionar` | Registra una factura recibida (`numeroFactura`, `fechaFactura`, `fecha`, `lineas[]`, `vencimientos[]`, `recargoEquivalencia`, `porcentajeIrpf`, `formaPagoId`…). Sin `lineas`, una con `baseImponible` y `codigoIva`. **201** |
 | `POST` | `/gastos/simular` | permiso `gasto.leer` | Calcula la factura sin guardarla. |
