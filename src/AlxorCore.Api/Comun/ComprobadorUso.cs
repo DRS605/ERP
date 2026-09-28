@@ -159,6 +159,7 @@ public static class ReferenciasRegistros
             [TiposRegistro.Parcela] =
             [
                 ("agro.linea_recepcion.parcela_id", "recepciones"),
+                ("agro.tratamiento_parcela.parcela_id", "tratamientos en el cuaderno de campo"),
                 ("agro.partida.parcela_id", "partidas"),
             ],
             [TiposRegistro.Agricultor] =

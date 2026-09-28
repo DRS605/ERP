@@ -54,9 +54,12 @@ public sealed class RecepcionesAgro
     private readonly IConsultaProductos _productos;
     private readonly IReloj _reloj;
     private readonly EnvasesTerceros? _envases;
+    private readonly CuadernoCampoAgro? _cuaderno;
 
-    public RecepcionesAgro(IRepositorioAgro repo, IUnidadDeTrabajoAgro unidad, IConsultaProductos productos, IReloj reloj, EnvasesTerceros? envases = null)
+    public RecepcionesAgro(IRepositorioAgro repo, IUnidadDeTrabajoAgro unidad, IConsultaProductos productos, IReloj reloj, EnvasesTerceros? envases = null,
+        CuadernoCampoAgro? cuaderno = null)
     {
+        _cuaderno = cuaderno;
         _envases = envases;
         _repo = repo;
         _unidad = unidad;
@@ -219,6 +222,12 @@ public sealed class RecepcionesAgro
         if (campana is null || !campana.Contiene(r.Fecha))
         {
             errores.Add(Error.Validacion("recepcion.fuera_campana", "La fecha de la recepción no está dentro de su campaña."));
+        }
+
+        // Cuaderno de campo: ninguna línea recolectada dentro del plazo de seguridad de un tratamiento de su parcela.
+        if (_cuaderno is not null)
+        {
+            errores.AddRange(await _cuaderno.ComprobarPlazosAsync(r, ct).ConfigureAwait(false));
         }
 
         if (errores.Count > 0)

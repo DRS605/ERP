@@ -58,6 +58,9 @@ public sealed record DatosMoverKilos(Guid PartidaId, decimal Kilos, Guid? DesdeP
 /// <summary>Cajas de una partida que se ponen en el palé (positivas) o se sacan de él (negativas).</summary>
 public sealed record DatosCajas(Guid PartidaId, int Cajas, DateOnly? Fecha = null);
 
+/// <summary>Lectura del escáner en el punto de paletizado: la etiqueta de la caja (GS1-128 con el lote en el AI 10, o el código de la partida).</summary>
+public sealed record LecturaCaja(string Codigo, int Cajas = 1);
+
 /// <summary>
 /// Montaje rápido: con una plantilla y una partida, monta de una vez <see cref="NumeroPales"/> palés completos, o reparte
 /// <see cref="Cajas"/> cajas (el último palé queda abierto si no se completa). Sin ninguno de los dos, monta todos los
@@ -603,6 +606,68 @@ public sealed class PalesAgro
     /// Pone cajas de una partida en un palé montado con plantilla (o las saca, con cajas negativas). Los kilos son las
     /// cajas por los kilos por caja de la plantilla, y el palé se cierra solo al completar sus cajas.
     /// </summary>
+    /// <summary>
+    /// Lectura de una caja con el escáner: el lote de la etiqueta es el código de la partida, y la caja se añade al palé como
+    /// si se indicara a mano (con la plantilla del palé, sus kilos por caja).
+    /// </summary>
+    public async Task<Resultado<PaleDto>> LeerCajaAsync(Guid empresaId, Guid paleId, LecturaCaja datos, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(datos);
+        var lote = LoteDeEtiqueta(datos.Codigo);
+        if (lote.Length == 0)
+        {
+            return Resultado.Fallo<PaleDto>(Error.Validacion("lectura.vacia", "La lectura no trae ningún código."));
+        }
+
+        var partida = (await _repo.PartidasConSaldoAsync(empresaId, ct).ConfigureAwait(false))
+            .FirstOrDefault(p => string.Equals(p.Codigo, lote, StringComparison.OrdinalIgnoreCase));
+        if (partida is null)
+        {
+            return Resultado.Fallo<PaleDto>(Error.NoEncontrado("lectura.partida", $"No hay ninguna partida con existencias con el lote {lote}."));
+        }
+
+        return await CajasAsync(paleId, new DatosCajas(partida.Id, datos.Cajas <= 0 ? 1 : datos.Cajas), ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Lote de una etiqueta leída: el AI (10) de un GS1-128, legible «(01)…(10)LOTE» o en bruto («01» + GTIN, fechas
+    /// opcionales y «10» + lote hasta el separador FNC1), o el propio código si no es GS1.
+    /// </summary>
+    public static string LoteDeEtiqueta(string? codigo)
+    {
+        var c = (codigo ?? string.Empty).Trim();
+        if (c.StartsWith("]C1", StringComparison.Ordinal) || c.StartsWith("]d2", StringComparison.Ordinal))
+        {
+            c = c[3..];
+        }
+
+        var legible = c.IndexOf("(10)", StringComparison.Ordinal);
+        if (legible >= 0)
+        {
+            var resto = c[(legible + 4)..];
+            var fin = resto.IndexOf('(', StringComparison.Ordinal);
+            return (fin >= 0 ? resto[..fin] : resto).Trim();
+        }
+
+        if (c.Length > 18 && c.StartsWith("01", StringComparison.Ordinal) && c[2..16].All(char.IsAsciiDigit))
+        {
+            var i = 16;
+            while (i + 8 <= c.Length && c.Substring(i, 2) is "11" or "13" or "15" or "17" && c.Substring(i + 2, 6).All(char.IsAsciiDigit))
+            {
+                i += 8;
+            }
+
+            if (i + 2 < c.Length && c.Substring(i, 2) == "10")
+            {
+                var resto = c[(i + 2)..];
+                var fin = resto.IndexOf('\u001d', StringComparison.Ordinal);
+                return fin >= 0 ? resto[..fin] : resto;
+            }
+        }
+
+        return c;
+    }
+
     public async Task<Resultado<PaleDto>> CajasAsync(Guid paleId, DatosCajas datos, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(datos);

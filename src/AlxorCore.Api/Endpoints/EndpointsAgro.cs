@@ -166,6 +166,18 @@ public static class EndpointsAgro
         g.MapGet("/envases/stock-terceros", (DateOnly? hasta, IContextoEmpresa c, EnvasesTerceros v, CancellationToken ct) =>
                 ConEmpresa(c, async e => Results.Ok(await v.StockEnTercerosAsync(e, hasta, ct).ConfigureAwait(false))))
             .WithSummary("Envases en poder de clientes, proveedores y agricultores, transportistas y pools.").RequierePermiso(Permisos.AgroLeer);
+        g.MapGet("/tratamientos", (Guid? agricultorId, Guid? parcelaId, DateOnly? desde, DateOnly? hasta, IContextoEmpresa c, CuadernoCampoAgro q, CancellationToken ct) =>
+                ConEmpresa(c, async e => Results.Ok(await q.ListarAsync(e, agricultorId, parcelaId, desde, hasta, ct).ConfigureAwait(false))))
+            .WithSummary("Tratamientos fitosanitarios de las parcelas (cuaderno de campo).").RequierePermiso(Permisos.AgroLeer);
+        g.MapPost("/tratamientos", (DatosTratamiento d, IContextoEmpresa c, CuadernoCampoAgro q, CancellationToken ct) =>
+                ConEmpresa(c, async e => Creado(await q.RegistrarAsync(e, d, ct).ConfigureAwait(false), "tratamientos")))
+            .WithSummary("Registra un tratamiento de una parcela con su plazo de seguridad.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapPost("/tratamientos/{id:guid}/anular", async (Guid id, AnularPeticionEnvases? p, CuadernoCampoAgro q, CancellationToken ct) =>
+                (await q.AnularAsync(id, p?.Motivo, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Anula un tratamiento (no se borra).").RequierePermiso(Permisos.AgroGestionar);
+        g.MapGet("/agricultores/{id:guid}/cuaderno", (Guid id, DateOnly? desde, DateOnly? hasta, IContextoEmpresa c, CuadernoCampoAgro q, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await q.CuadernoAsync(e, id, desde, hasta, ct).ConfigureAwait(false)).AOk()))
+            .WithSummary("Cuaderno de campo del agricultor: tratamientos, recolecciones e incidencias de plazo de seguridad.").RequierePermiso(Permisos.AgroLeer);
         g.MapGet("/envases/informe-limites", (DateOnly? sinMovimientosDesde, IContextoEmpresa c, EnvasesTerceros v, CancellationToken ct) =>
                 ConEmpresa(c, async e => Results.Ok(await v.InformeLimitesAsync(e, sinMovimientosDesde, ct).ConfigureAwait(false))))
             .WithSummary("Cuentas sobre su límite, bajo un mínimo o sin movimientos desde una fecha.").RequierePermiso(Permisos.AgroLeer);
@@ -305,6 +317,9 @@ public static class EndpointsAgro
         g.MapPost("/pales/montar", (DatosMontaje d, IContextoEmpresa c, PalesAgro p, CancellationToken ct) => ConEmpresa(c, async e => (await p.MontarAsync(e, d, ct).ConfigureAwait(false)).AOk()))
             .WithSummary("Montaje rápido: con una plantilla y una partida, monta de una vez los palés (completos y cerrados; el último, abierto si no se llena).")
             .RequierePermiso(Permisos.AgroGestionar);
+        g.MapPost("/pales/{id:guid}/lecturas", (Guid id, LecturaCaja d, IContextoEmpresa c, PalesAgro p, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await p.LeerCajaAsync(e, id, d, ct).ConfigureAwait(false)).AOk()))
+            .WithSummary("Escáner del punto de paletizado: añade al palé la caja leída (lote GS1 AI 10 = código de la partida).").RequierePermiso(Permisos.AgroGestionar);
         g.MapPost("/pales/{id:guid}/cajas", async (Guid id, DatosCajas d, PalesAgro p, CancellationToken ct) => (await p.CajasAsync(id, d, ct).ConfigureAwait(false)).AOk())
             .WithSummary("Pone cajas de una partida en un palé con plantilla (o las saca, en negativo); se cierra solo al completarse.").RequierePermiso(Permisos.AgroGestionar);
         g.MapGet("/pales/{idOSscc}/etiqueta", (string idOSscc, IContextoEmpresa c, PalesAgro p, IConsultaEmpresas empresas, IGeneradorEtiquetaLogistica generador, CancellationToken ct) =>

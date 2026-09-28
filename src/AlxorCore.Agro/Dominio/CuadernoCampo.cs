@@ -1,0 +1,105 @@
+using AlxorCore.Nucleo.Dominio;
+using AlxorCore.Nucleo.Resultados;
+using AlxorCore.Nucleo.Tiempo;
+
+namespace AlxorCore.Agro.Dominio;
+
+/// <summary>
+/// Tratamiento fitosanitario de una parcela: el registro del cuaderno de campo (RD 1311/2012) que piden GlobalG.A.P. y
+/// los clientes. El plazo de seguridad son los días que deben pasar desde el tratamiento hasta la recolección: una
+/// entrega recolectada antes no se confirma. No se borra: se anula con el motivo.
+/// </summary>
+public sealed class TratamientoParcela : RaizAgregadoEmpresa<Guid>
+{
+    public const int LongitudTexto = 150;
+
+    private TratamientoParcela(Guid id)
+        : base(id, Guid.Empty)
+    {
+        Producto = null!;
+    }
+
+    private TratamientoParcela(Guid id, Guid empresaId)
+        : base(id, empresaId)
+    {
+        Producto = null!;
+    }
+
+    public Guid ParcelaId { get; private set; }
+
+    public DateOnly Fecha { get; private set; }
+
+    /// <summary>Producto fitosanitario (nombre comercial).</summary>
+    public string Producto { get; private set; }
+
+    /// <summary>Número del Registro Oficial de Productos Fitosanitarios.</summary>
+    public string? NumeroRegistro { get; private set; }
+
+    public string? MateriaActiva { get; private set; }
+
+    /// <summary>Plaga, enfermedad o motivo del tratamiento.</summary>
+    public string? Motivo { get; private set; }
+
+    public decimal? Dosis { get; private set; }
+
+    /// <summary>Unidad de la dosis (l/ha, kg/ha, cc/hl…).</summary>
+    public string? UnidadDosis { get; private set; }
+
+    public decimal? SuperficieTratadaHa { get; private set; }
+
+    /// <summary>Días desde el tratamiento hasta que se puede recolectar.</summary>
+    public int PlazoSeguridadDias { get; private set; }
+
+    /// <summary>Aplicador (con su carné de aplicador) o empresa de servicios.</summary>
+    public string? Aplicador { get; private set; }
+
+    public string? Observaciones { get; private set; }
+
+    public bool Anulado { get; private set; }
+
+    public string? MotivoAnulacion { get; private set; }
+
+    public DateTimeOffset CreadoEn { get; private set; }
+
+    /// <summary>Primer día en que se puede recolectar.</summary>
+    public DateOnly RecolectableDesde => Fecha.AddDays(PlazoSeguridadDias);
+
+    /// <summary>Si una recolección de ese día queda dentro del plazo de seguridad (no se puede recolectar aún).</summary>
+    public bool DentroDePlazo(DateOnly recoleccion) => !Anulado && recoleccion >= Fecha && recoleccion < RecolectableDesde;
+
+    public static Resultado<TratamientoParcela> Crear(Guid empresaId, Guid parcelaId, DateOnly fecha, string? producto, int plazoSeguridadDias, IReloj reloj,
+        string? numeroRegistro = null, string? materiaActiva = null, string? motivo = null, decimal? dosis = null, string? unidadDosis = null,
+        decimal? superficieTratadaHa = null, string? aplicador = null, string? observaciones = null)
+    {
+        ArgumentNullException.ThrowIfNull(reloj);
+        if (string.IsNullOrWhiteSpace(producto))
+        {
+            return Resultado.Fallo<TratamientoParcela>(Error.Validacion("tratamiento.producto", "Indica el producto fitosanitario."));
+        }
+
+        if (plazoSeguridadDias is < 0 or > 365 || dosis is < 0m || superficieTratadaHa is < 0m)
+        {
+            return Resultado.Fallo<TratamientoParcela>(Error.Validacion("tratamiento.valores", "El plazo de seguridad (0 a 365 días), la dosis y la superficie no pueden ser negativos."));
+        }
+
+        static string? T(string? t, int max = LongitudTexto) => string.IsNullOrWhiteSpace(t) ? null : t.Trim()[..Math.Min(t.Trim().Length, max)];
+        return Resultado.Ok(new TratamientoParcela(Guid.NewGuid(), empresaId)
+        {
+            ParcelaId = parcelaId, Fecha = fecha, Producto = T(producto)!, NumeroRegistro = T(numeroRegistro, 30), MateriaActiva = T(materiaActiva), Motivo = T(motivo),
+            Dosis = dosis, UnidadDosis = T(unidadDosis, 20), SuperficieTratadaHa = superficieTratadaHa, PlazoSeguridadDias = plazoSeguridadDias, Aplicador = T(aplicador),
+            Observaciones = T(observaciones, 300), CreadoEn = reloj.AhoraUtc,
+        });
+    }
+
+    public Resultado Anular(string? motivo)
+    {
+        if (Anulado)
+        {
+            return Resultado.Fallo(Error.Conflicto("tratamiento.anulado", "El tratamiento ya está anulado."));
+        }
+
+        Anulado = true;
+        MotivoAnulacion = string.IsNullOrWhiteSpace(motivo) ? "Anulado" : motivo.Trim()[..Math.Min(motivo.Trim().Length, 200)];
+        return Resultado.Ok();
+    }
+}

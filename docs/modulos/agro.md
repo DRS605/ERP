@@ -429,6 +429,32 @@ Es una versión ligera de `OrdenesCarga` de Hispatec, montada sobre la expedici�
 - **Pantalla:** *Agro → Órdenes de carga*. Tiene el lector de SSCC (se escanea y se pulsa Intro), las líneas, los palés cargados y el camión dibujado por posiciones.
 - **Fuera de alcance** (P3): la PDA con lector, la situación de los muelles, las pilas de palés, el traspaso entre centros con recepción de la orden y las integraciones de temperatura o de control de accesos.
 
+## Cuaderno de campo (tratamientos fitosanitarios)
+
+Registro de los tratamientos de cada parcela, como pide el RD 1311/2012 y GlobalG.A.P. (`agro.tratamiento_parcela`):
+fecha, producto y su **número de registro**, materia activa, plaga o motivo, dosis y unidad, superficie tratada (no más
+que la de la parcela), **plazo de seguridad** en días, aplicador y observaciones.
+
+- **Plazo de seguridad:** una recepción no se confirma si alguna línea se recolectó (fecha de recolección, o la de la
+  recepción) desde el día del tratamiento hasta antes de que pase el plazo (`recepcion.plazo_seguridad`, con el producto
+  y el primer día en que se podía recolectar).
+- Un tratamiento no se borra: se anula con el motivo (`POST /agro/tratamientos/{id}/anular`) y deja de contar.
+- **Cuaderno del agricultor** (`GET /agro/agricultores/{id}/cuaderno?desde=&hasta=`): sus tratamientos y sus
+  recolecciones (las entregas con parcela), con las que quedaron dentro de un plazo de seguridad.
+- **Pantalla:** Agro → **Cuaderno de campo**. **API:** `GET/POST /agro/tratamientos` (filtros por agricultor,
+  parcela y fechas).
+
+## Escáner de cajas en el punto de paletizado
+
+`POST /agro/pales/{id}/lecturas` con el `Codigo` leído añade la caja al palé, como si se indicara a mano (con la
+plantilla del palé, sus kilos por caja). El lote de la etiqueta es el código de la partida:
+
+- GS1-128 legible, `(01)GTIN(10)LOTE…`, o en bruto (`01` + GTIN, fechas `11`/`13`/`15`/`17` opcionales, `10` + lote
+  hasta el separador FNC1), con o sin el prefijo de simbología `]C1`;
+- o, si no es GS1, el propio código de la partida.
+
+Si no hay ninguna partida con existencias con ese lote, falla con `lectura.partida`.
+
 ## Vuelta de palés expedidos
 
 Al anular la expedición de un palé que salió con un albarán del pedido:
@@ -453,6 +479,7 @@ Al anular la expedición de un palé que salió con un albarán del pedido:
   - REAGP del IGIC en Canarias (hoy se indica a mano el impuesto de la autofactura): falta confirmar el porcentaje de
     compensación vigente antes de darlo de alta en el catálogo de impuestos.
 - **Operativa:**
-  - lectura de cajas con escáner en el punto de paletizado (hoy se indican las cajas en pantalla);
-  - lectura directa de básculas;
-  - certificaciones (GlobalG.A.P.) y cuaderno de campo.
+  - lectura directa de básculas: la pesada se registra por la API (`POST /agro/recepciones/{id}/lineas/{linea}/pesadas`,
+    con el campo `Bascula`), pero falta el agente local que lea el indicador de la báscula y la envíe;
+  - el resto de la certificación GlobalG.A.P. (abonados, riegos, auditorías internas); el cuaderno de campo ya lleva
+    los tratamientos fitosanitarios.

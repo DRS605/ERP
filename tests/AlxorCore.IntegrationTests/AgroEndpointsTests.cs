@@ -256,6 +256,45 @@ public sealed class AgroEndpointsTests : IClassFixture<FabricaApiPruebas>
         (await e.Api.PostAsJsonAsync("/agro/liquidaciones", datos)).StatusCode.Should().Be(HttpStatusCode.Created);
     }
 
+    private sealed record TratamientoResp(Guid Id, string Producto, DateOnly RecolectableDesde, bool Anulado);
+    private sealed record RecoleccionResp(string Recepcion, DateOnly Fecha, decimal NetoKg, string? Incidencia);
+    private sealed record CuadernoResp(List<TratamientoResp> Tratamientos, List<RecoleccionResp> Recolecciones, int Incidencias);
+
+    [Fact]
+    public async Task El_cuaderno_de_campo_impide_recibir_fruta_dentro_del_plazo_de_seguridad()
+    {
+        var e = await EscenarioAsync();
+        await IdAsync(e.Api, "/agro/tratamientos", new
+        {
+            ParcelaId = e.Parcela, Fecha = Dia.AddDays(-30), Producto = "Cobre 50", NumeroRegistro = "ES-00123", Motivo = "Aguado", Dosis = 2.5m, UnidadDosis = "kg/ha",
+            SuperficieTratadaHa = 2.5m, PlazoSeguridadDias = 15, Aplicador = "Juan Labrador (carné 1234)",
+        });
+        var reciente = await IdAsync(e.Api, "/agro/tratamientos", new { ParcelaId = e.Parcela, Fecha = Dia.AddDays(-3), Producto = "Abamectina", PlazoSeguridadDias = 7 });
+        (await ProblemaAsync(await e.Api.PostAsJsonAsync("/agro/tratamientos", new { ParcelaId = e.Parcela, Fecha = Dia, Producto = "X", PlazoSeguridadDias = 1, SuperficieTratadaHa = 9m }),
+            HttpStatusCode.BadRequest)).Codigo.Should().Be("tratamiento.superficie");
+
+        // Recolectada el 10 con un tratamiento del 7 y 7 días de plazo: no se confirma.
+        var rec = await IdAsync(e.Api, "/agro/recepciones", new { AgricultorId = e.Agricultor, Fecha = Dia });
+        var r = await OkAsync<RecepcionResp>(await e.Api.PostAsJsonAsync($"/agro/recepciones/{rec}/lineas",
+            new { ProductoId = e.Naranja, ParcelaId = e.Parcela, FechaRecoleccion = Dia, EnvaseProductoId = e.Palot }));
+        (await e.Api.PostAsJsonAsync($"/agro/recepciones/{rec}/lineas/{r.Lineas.Single().Id}/pesadas", new { BrutoKg = 1_200m, TaraKg = 200m, Envases = 4 })).EnsureSuccessStatusCode();
+        var rechazo = await e.Api.PostAsync(new Uri($"/agro/recepciones/{rec}/confirmar", UriKind.Relative), null);
+        rechazo.IsSuccessStatusCode.Should().BeFalse();
+        var problema = (await rechazo.Content.ReadFromJsonAsync<ProblemaResp>())!;
+        problema.Codigo.Should().Be("recepcion.plazo_seguridad");
+        problema.Title.Should().Contain("Abamectina").And.Contain($"{Dia.AddDays(4):dd/MM/yyyy}");
+
+        // Anulado el tratamiento (se registró por error), se confirma; el cuaderno lo recoge todo.
+        await OkAsync<TratamientoResp>(await e.Api.PostAsJsonAsync($"/agro/tratamientos/{reciente}/anular", new { Motivo = "Se registró en otra parcela" }));
+        (await e.Api.PostAsync(new Uri($"/agro/recepciones/{rec}/confirmar", UriKind.Relative), null)).EnsureSuccessStatusCode();
+        var cuaderno = await OkAsync<CuadernoResp>(await e.Api.GetAsync($"/agro/agricultores/{e.Agricultor}/cuaderno"));
+        cuaderno.Tratamientos.Should().HaveCount(2);
+        cuaderno.Tratamientos.Should().ContainSingle(t => t.Anulado);
+        cuaderno.Tratamientos.Single(t => t.Producto == "Cobre 50").RecolectableDesde.Should().Be(Dia.AddDays(-15));
+        cuaderno.Recolecciones.Should().ContainSingle(x => x.NetoKg == 1_000m && x.Incidencia == null);
+        cuaderno.Incidencias.Should().Be(0);
+    }
+
     [Fact]
     public async Task Los_cargos_y_abonos_de_la_liquidacion_se_aplican_por_agricultor_articulo_y_envase()
     {
