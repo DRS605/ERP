@@ -71,6 +71,12 @@ public static class EndpointsAgro
         g.MapPost("/campanas/{id:guid}/precios", (Guid id, DatosPrecio d, IContextoEmpresa c, MaestrosAgro m, CancellationToken ct) =>
                 ConEmpresa(c, async e => Creado(await m.CrearPrecioAsync(e, id, d, ct).ConfigureAwait(false), "precios")))
             .WithSummary("Añade un precio (€/kg) por artículo, categoría y periodo, sin solapes.").RequierePermiso(Permisos.AgroLiquidar);
+        g.MapPost("/campanas/{id:guid}/precios/masivo", (Guid id, DatosPreciosMasivos d, IContextoEmpresa c, MaestrosAgro m, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await m.FijarPreciosAsync(e, id, d, ct).ConfigureAwait(false)).AOk()))
+            .WithSummary("Fijación masiva: da de alta o actualiza muchos precios de la campaña (día, periodo o general; por envase).").RequierePermiso(Permisos.AgroGestionar);
+        g.MapPost("/campanas/{id:guid}/precios/propuesta-ventas", async (Guid id, DatosPropuestaVentas d, MaestrosAgro m, CancellationToken ct) =>
+                (await m.ProponerDesdeVentasAsync(id, d, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Liquidación a resultas: precio medio de venta de cada artículo en las fechas, menos la deducción (no guarda).").RequierePermiso(Permisos.AgroLeer);
         g.MapPut("/precios/{id:guid}", async (Guid id, DatosPrecio d, MaestrosAgro m, CancellationToken ct) => (await m.ActualizarPrecioAsync(id, d, ct).ConfigureAwait(false)).AOk())
             .WithSummary("Cambia el periodo o el importe de un precio no aplicado en una liquidación emitida.").RequierePermiso(Permisos.AgroLiquidar);
         g.MapDelete("/precios/{id:guid}", async (Guid id, MaestrosAgro m, CancellationToken ct) => (await m.EliminarPrecioAsync(id, ct).ConfigureAwait(false)).ASinContenido())

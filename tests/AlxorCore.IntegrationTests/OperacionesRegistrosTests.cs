@@ -30,6 +30,8 @@ public sealed class OperacionesRegistrosTests : IClassFixture<FabricaApiPruebas>
         ["/auth/restablecer"] = "sesión",
         ["/cobros"] = "se anula con /tesoreria/movimientos/{id}/anular",
         ["/pagos"] = "se anula con /tesoreria/movimientos/{id}/anular",
+        ["/agro/campanas/{id}/precios/masivo"] = "cada precio se corrige en PUT /agro/precios/{id} o se borra en DELETE /agro/precios/{id}",
+        ["/agro/campanas/{id}/precios/propuesta-ventas"] = "solo calcula: no registra nada",
         ["/pagos/liquidaciones/previsualizar"] = "solo calcula: no registra nada",
         ["/pagos/liquidaciones/masiva"] = "cada liquidación del lote se anula en /pagos/liquidaciones/{id}/anular (y la remesa en la suya)",
         ["/pagos/entregas-cuenta/{id}/aplicar"] = "es un pago de la factura: se anula con /tesoreria/movimientos/{id}/anular",

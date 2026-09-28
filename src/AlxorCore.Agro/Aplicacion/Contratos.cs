@@ -175,3 +175,9 @@ public interface ICosteAnalitico
     /// <summary>Null si la empresa no tiene el módulo de analítica.</summary>
     Task<IReadOnlyDictionary<Guid, (decimal Gastos, decimal Ingresos)>?> PorCentroAsync(Guid empresaId, DateOnly desde, DateOnly hasta, CancellationToken ct = default);
 }
+
+/// <summary>Ventas del artículo en unas fechas (kilos y su importe a precio de venta, sin conceptos): base de la liquidación a resultas.</summary>
+public interface IVentasAgro
+{
+    Task<(decimal Kilos, decimal Importe)> VentasAsync(Guid productoId, DateOnly desde, DateOnly hasta, CancellationToken ct = default);
+}

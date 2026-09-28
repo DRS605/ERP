@@ -165,6 +165,8 @@ internal sealed class ConfiguracionPrecio : IEntityTypeConfiguration<PrecioLiqui
         b.Property(x => x.Desde).HasColumnName("desde").IsRequired();
         b.Property(x => x.Hasta).HasColumnName("hasta").IsRequired();
         b.Property(x => x.PrecioKg).HasColumnName("precio_kg").HasColumnType(Columnas.PrecioKg).IsRequired();
+        b.Property(x => x.Tipo).HasColumnName("tipo").HasMaxLength(10).HasConversion<string>().IsRequired().HasDefaultValue(TipoPrecioLiquidacion.Periodo);
+        b.Property(x => x.EnvaseProductoId).HasColumnName("envase_producto_id");
         b.HasIndex(x => new { x.CampanaId, x.ProductoId, x.Desde }).HasDatabaseName("ix_precio_liquidacion_campana");
         b.HasIndex(x => x.CategoriaId).HasDatabaseName("ix_precio_liquidacion_categoria");
     }

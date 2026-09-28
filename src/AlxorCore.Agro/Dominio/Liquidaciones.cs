@@ -116,7 +116,8 @@ public sealed class LineaClasificacion : EntidadBase<Guid>
 // ---------------------------------------------------------------------------------------------- Valoración
 
 /// <summary>Línea de recepción a liquidar.</summary>
-public sealed record LineaALiquidar(Guid LineaRecepcionId, Guid RecepcionId, Guid PartidaId, string Etiqueta, Guid ProductoId, DateOnly Fecha, decimal NetoKg);
+public sealed record LineaALiquidar(Guid LineaRecepcionId, Guid RecepcionId, Guid PartidaId, string Etiqueta, Guid ProductoId, DateOnly Fecha, decimal NetoKg,
+    Guid? EnvaseProductoId = null);
 
 /// <summary>Muestra de una categoría en la clasificación definitiva.</summary>
 public sealed record MuestraCategoria(Guid CategoriaId, string Categoria, decimal KgMuestra);
@@ -132,6 +133,9 @@ public interface IPreciosLiquidacion
     IReadOnlyList<MuestraCategoria>? Clasificacion(Guid partidaId);
 
     PrecioAplicable? Precio(Guid productoId, Guid? categoriaId, DateOnly fecha);
+
+    /// <summary>Precio para una entrega con su envase (sin implementación propia, el mismo que sin envase).</summary>
+    PrecioAplicable? Precio(Guid productoId, Guid? categoriaId, DateOnly fecha, Guid? envaseProductoId) => Precio(productoId, categoriaId, fecha);
 }
 
 public sealed record LineaValorada(Guid LineaRecepcionId, Guid RecepcionId, Guid PartidaId, Guid? CategoriaId, Guid PrecioId, DateOnly Fecha, decimal Kilos, decimal PrecioKg, decimal Importe);
@@ -187,7 +191,7 @@ public static class Valoracion
 
             if (metodo == MetodoLiquidacion.PorPeriodo)
             {
-                var precio = precios.Precio(l.ProductoId, null, l.Fecha);
+                var precio = precios.Precio(l.ProductoId, null, l.Fecha, l.EnvaseProductoId);
                 if (precio is null)
                 {
                     lista.Add(Error.Validacion("liquidacion.sin_precio", $"{l.Etiqueta}: no hay precio de liquidación vigente el {l.Fecha:dd/MM/yyyy}."));
@@ -208,7 +212,7 @@ public static class Valoracion
             var kilos = ReglasAgro.Repartir(l.NetoKg, muestra.Select(m => m.KgMuestra).ToList(), 3);
             for (var i = 0; i < muestra.Count; i++)
             {
-                var precio = precios.Precio(l.ProductoId, muestra[i].CategoriaId, l.Fecha);
+                var precio = precios.Precio(l.ProductoId, muestra[i].CategoriaId, l.Fecha, l.EnvaseProductoId);
                 if (precio is null)
                 {
                     lista.Add(Error.Validacion("liquidacion.sin_precio", $"{l.Etiqueta}: no hay precio de la categoría {muestra[i].Categoria} vigente el {l.Fecha:dd/MM/yyyy}."));

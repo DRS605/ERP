@@ -424,6 +424,22 @@ public sealed class ArticuloCampana : RaizAgregadoEmpresa<Guid>
     public void CambiarMetodo(MetodoLiquidacion metodo) => Metodo = metodo;
 }
 
+/// <summary>
+/// Tipo de precio de liquidación, como los de valoración de compras de Hispatec. Al valorar gana el más concreto: el del
+/// día, luego el del periodo y luego el general; y, en cada uno, el del envase de la entrega antes que el sin envase.
+/// </summary>
+public enum TipoPrecioLiquidacion
+{
+    /// <summary>Precio general del artículo para la campaña (o un tramo largo).</summary>
+    General = 1,
+
+    /// <summary>Precio de un periodo de gestión (semana, quincena…).</summary>
+    Periodo = 2,
+
+    /// <summary>Precio de un día concreto.</summary>
+    Dia = 3,
+}
+
 /// <summary>Precio de liquidación (€/kg) de un artículo —y categoría, si se liquida por clasificación— en un periodo de la campaña.</summary>
 public sealed class PrecioLiquidacion : RaizAgregadoEmpresa<Guid>
 {
@@ -432,9 +448,12 @@ public sealed class PrecioLiquidacion : RaizAgregadoEmpresa<Guid>
     {
     }
 
-    private PrecioLiquidacion(Guid id, Guid empresaId, Guid campanaId, Guid productoId, Guid? categoriaId, DateOnly desde, DateOnly hasta, decimal precioKg)
+    private PrecioLiquidacion(Guid id, Guid empresaId, Guid campanaId, Guid productoId, Guid? categoriaId, DateOnly desde, DateOnly hasta, decimal precioKg,
+        TipoPrecioLiquidacion tipo, Guid? envaseProductoId)
         : base(id, empresaId)
     {
+        Tipo = tipo;
+        EnvaseProductoId = envaseProductoId;
         CampanaId = campanaId;
         ProductoId = productoId;
         CategoriaId = categoriaId;
@@ -455,12 +474,24 @@ public sealed class PrecioLiquidacion : RaizAgregadoEmpresa<Guid>
 
     public decimal PrecioKg { get; private set; }
 
+    public TipoPrecioLiquidacion Tipo { get; private set; } = TipoPrecioLiquidacion.Periodo;
+
+    /// <summary>Envase de la entrega al que se limita (null: cualquiera).</summary>
+    public Guid? EnvaseProductoId { get; private set; }
+
     public bool Vigente(DateOnly fecha) => fecha >= Desde && fecha <= Hasta;
+
+    /// <summary>Prioridad al valorar: día &gt; periodo &gt; general, y con envase antes que sin él.</summary>
+    public int Prioridad => (int)Tipo * 2 + (EnvaseProductoId is null ? 0 : 1);
+
+    /// <summary>¿Compite con otro por las mismas entregas (mismo artículo, categoría, envase y tipo, y fechas que se pisan)?</summary>
+    public bool Solapa(Guid productoId, Guid? categoriaId, Guid? envaseProductoId, TipoPrecioLiquidacion tipo, DateOnly desde, DateOnly hasta) =>
+        ProductoId == productoId && CategoriaId == categoriaId && EnvaseProductoId == envaseProductoId && Tipo == tipo && Desde <= hasta && desde <= Hasta;
 
     /// <summary>Cambia el periodo o el importe (la base de datos lo impide si ya se aplicó en una liquidación emitida).</summary>
     public Resultado Actualizar(DateOnly desde, DateOnly hasta, decimal precioKg)
     {
-        var validado = Crear(EmpresaId, CampanaId, ProductoId, CategoriaId, desde, hasta, precioKg);
+        var validado = Crear(EmpresaId, CampanaId, ProductoId, CategoriaId, desde, hasta, precioKg, Tipo, EnvaseProductoId);
         if (validado.EsFallo)
         {
             return Resultado.Fallo(validado.Error);
@@ -472,16 +503,27 @@ public sealed class PrecioLiquidacion : RaizAgregadoEmpresa<Guid>
         return Resultado.Ok();
     }
 
-    public static Resultado<PrecioLiquidacion> Crear(Guid empresaId, Guid campanaId, Guid productoId, Guid? categoriaId, DateOnly desde, DateOnly hasta, decimal precioKg)
+    public static Resultado<PrecioLiquidacion> Crear(Guid empresaId, Guid campanaId, Guid productoId, Guid? categoriaId, DateOnly desde, DateOnly hasta, decimal precioKg,
+        TipoPrecioLiquidacion tipo = TipoPrecioLiquidacion.Periodo, Guid? envaseProductoId = null)
     {
         if (hasta < desde)
         {
             return Resultado.Fallo<PrecioLiquidacion>(Error.Validacion("precio.fechas", "El periodo del precio termina antes de empezar."));
         }
 
+        if (!Enum.IsDefined(tipo))
+        {
+            return Resultado.Fallo<PrecioLiquidacion>(Error.Validacion("precio.tipo", "Tipo de precio no válido: General, Periodo o Dia."));
+        }
+
+        if (tipo == TipoPrecioLiquidacion.Dia && desde != hasta)
+        {
+            return Resultado.Fallo<PrecioLiquidacion>(Error.Validacion("precio.dia", "Un precio del día vale para un solo día (desde = hasta)."));
+        }
+
         return precioKg < 0m || decimal.Round(precioKg, 6) != precioKg
             ? Resultado.Fallo<PrecioLiquidacion>(Error.Validacion("precio.importe", "El precio por kilo no puede ser negativo (hasta 6 decimales)."))
-            : Resultado.Ok(new PrecioLiquidacion(Guid.NewGuid(), empresaId, campanaId, productoId, categoriaId, desde, hasta, precioKg));
+            : Resultado.Ok(new PrecioLiquidacion(Guid.NewGuid(), empresaId, campanaId, productoId, categoriaId, desde, hasta, precioKg, tipo, envaseProductoId));
     }
 }
 

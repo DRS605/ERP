@@ -226,6 +226,29 @@ En el **303**, las compensaciones REAGP se muestran aparte (casillas 42-43) dent
 **Anular** una liquidación emitida anula su autofactura con un **contraasiento**, siempre que la autofactura
 no esté pagada. Sus entregas quedan libres para otra liquidación.
 
+### Tipos de precio, fijación masiva y precios a resultas
+
+Como la valoración de compras de Hispatec (`PreciosValoracionAlbaranCompra`):
+
+- **Tipos de precio:** cada precio de liquidación es **general**, **de periodo** o **del día** (desde = hasta), y puede
+  limitarse a un **envase** de la entrega.
+- **Valoración:** entre los precios vigentes gana el del día, luego el del periodo y luego el general. En cada tipo, el
+  del envase de la entrega va antes que el que no tiene envase; a igualdad, el tramo más corto.
+- **Solapes:** solo se impiden entre precios del mismo tipo, artículo, categoría y envase. La comprobación está en la
+  aplicación y en la base de datos.
+- **Fijación masiva** (`POST /agro/campanas/{id}/precios/masivo`):
+  - muchos precios de una vez;
+  - con `sustituir`, el de la misma clave y fechas se actualiza, salvo si ya lo usa una liquidación;
+  - los que no se pueden guardar vuelven con su motivo y el resto se guarda.
+- **A resultas** (`POST /agro/campanas/{id}/precios/propuesta-ventas`), como la valoración según ventas de Hispatec:
+  - calcula, por artículo de la campaña, el precio medio de venta en las fechas: albaranes valorados y facturas vivas sin
+    albarán, con su descuento y sin conceptos;
+  - le resta un porcentaje y un importe por kilo;
+  - no guarda nada: la propuesta se fija como precio del periodo.
+- **Pantalla:** Agro → Maestros → **Fijación masiva** y **Desde ventas**. El alta de un precio pide el tipo y el envase.
+- **Errores:** `precio.dia`, `precio.tipo`, `precio.solapado`, `precio.en_uso`, `precio.sin_precios` y
+  `precio.propuesta`.
+
 ## 6. Confección
 
 El parte de confección tiene:

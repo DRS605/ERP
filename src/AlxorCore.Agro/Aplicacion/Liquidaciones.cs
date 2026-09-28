@@ -405,7 +405,7 @@ public sealed class LiquidacionesAgro
             .Where(x => !ocupadas.Contains(x.l.Id) || propias.Contains(x.l.Id))
             .OrderBy(x => x.r.Fecha).ThenBy(x => x.r.Numero).ThenBy(x => x.l.NumeroLinea)
             .Select(x => new LineaALiquidar(x.l.Id, x.r.Id, x.l.PartidaId!.Value, $"{x.r.NumeroCompleto} línea {x.l.NumeroLinea} ({x.l.ProductoNombre})",
-                x.l.ProductoId, x.r.Fecha, x.l.NetoKg ?? 0m))
+                x.l.ProductoId, x.r.Fecha, x.l.NetoKg ?? 0m, x.l.EnvaseProductoId))
             .ToList();
     }
 
@@ -439,8 +439,13 @@ public sealed class LiquidacionesAgro
 
         public IReadOnlyList<MuestraCategoria>? Clasificacion(Guid partidaId) => _clasificaciones.GetValueOrDefault(partidaId);
 
-        public PrecioAplicable? Precio(Guid productoId, Guid? categoriaId, DateOnly fecha) =>
-            _precios.Where(p => p.ProductoId == productoId && p.CategoriaId == categoriaId && p.Vigente(fecha))
+        public PrecioAplicable? Precio(Guid productoId, Guid? categoriaId, DateOnly fecha) => Precio(productoId, categoriaId, fecha, null);
+
+        // Día > periodo > general; en cada tipo, el del envase de la entrega antes que el general.
+        public PrecioAplicable? Precio(Guid productoId, Guid? categoriaId, DateOnly fecha, Guid? envaseProductoId) =>
+            _precios.Where(p => p.ProductoId == productoId && p.CategoriaId == categoriaId && p.Vigente(fecha)
+                                && (p.EnvaseProductoId is null || p.EnvaseProductoId == envaseProductoId))
+                .OrderByDescending(p => p.Prioridad).ThenBy(p => p.Hasta.DayNumber - p.Desde.DayNumber)
                 .Select(p => new PrecioAplicable(p.Id, p.PrecioKg)).FirstOrDefault();
     }
 

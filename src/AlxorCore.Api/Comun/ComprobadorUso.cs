@@ -79,6 +79,7 @@ public static class ReferenciasRegistros
                 ("agro.linea_recepcion.producto_id", "recepciones de fruta"),
                 ("agro.linea_recepcion.envase_producto_id", "recepciones de fruta (como envase)"),
                 ("agro.linea_movimiento_envases.envase_producto_id", "movimientos de envases con terceros"),
+                ("agro.precio_liquidacion.envase_producto_id", "precios de liquidación por envase"),
                 ("agro.plantilla_pale.envase_producto_id", "plantillas de palé (como caja)"),
                 ("agro.plantilla_pale.pale_producto_id", "plantillas de palé (como palé)"),
                 ("agro.movimiento_envase.envase_producto_id", "movimientos de envases"),

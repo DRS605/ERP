@@ -36,9 +36,10 @@ public sealed record ArticuloCampanaDto(Guid Id, Guid CampanaId, Guid ProductoId
     public static ArticuloCampanaDto De(ArticuloCampana a) => new(a.Id, a.CampanaId, a.ProductoId, a.Metodo.ToString());
 }
 
-public sealed record PrecioDto(Guid Id, Guid CampanaId, Guid ProductoId, Guid? CategoriaId, DateOnly Desde, DateOnly Hasta, decimal PrecioKg)
+public sealed record PrecioDto(Guid Id, Guid CampanaId, Guid ProductoId, Guid? CategoriaId, DateOnly Desde, DateOnly Hasta, decimal PrecioKg,
+    string Tipo = "Periodo", Guid? EnvaseProductoId = null)
 {
-    public static PrecioDto De(PrecioLiquidacion p) => new(p.Id, p.CampanaId, p.ProductoId, p.CategoriaId, p.Desde, p.Hasta, p.PrecioKg);
+    public static PrecioDto De(PrecioLiquidacion p) => new(p.Id, p.CampanaId, p.ProductoId, p.CategoriaId, p.Desde, p.Hasta, p.PrecioKg, p.Tipo.ToString(), p.EnvaseProductoId);
 }
 
 public sealed record ConceptoDto(Guid Id, string Codigo, string Nombre, string Tipo, decimal Valor, bool Activo)
@@ -63,7 +64,19 @@ public sealed record DatosCategoria(string? Codigo, string? Nombre, bool EsDestr
 
 public sealed record DatosArticuloCampana(Guid ProductoId, MetodoLiquidacion Metodo);
 
-public sealed record DatosPrecio(Guid ProductoId, Guid? CategoriaId, DateOnly Desde, DateOnly Hasta, decimal PrecioKg);
+public sealed record DatosPrecio(Guid ProductoId, Guid? CategoriaId, DateOnly Desde, DateOnly Hasta, decimal PrecioKg,
+    TipoPrecioLiquidacion Tipo = TipoPrecioLiquidacion.Periodo, Guid? EnvaseProductoId = null);
+
+/// <summary>Varios precios de una vez. Con <paramref name="Sustituir"/>, el que tenga exactamente la misma clave y fechas se actualiza.</summary>
+public sealed record DatosPreciosMasivos(IReadOnlyList<DatosPrecio> Precios, bool Sustituir = true);
+
+public sealed record ResultadoPreciosMasivosDto(int Creados, int Actualizados, IReadOnlyList<ErrorDto> Errores);
+
+/// <summary>Propuesta de precios del periodo a partir de lo vendido: precio medio de venta menos una deducción por kilo y un porcentaje.</summary>
+public sealed record DatosPropuestaVentas(DateOnly Desde, DateOnly Hasta, decimal DeduccionKg = 0m, decimal DeduccionPorcentaje = 0m, IReadOnlyList<Guid>? ProductoIds = null);
+
+public sealed record PropuestaPrecioVentaDto(Guid ProductoId, string? Producto, string Metodo, decimal KilosVendidos, decimal ImporteVentas, decimal? PrecioMedioVenta,
+    decimal? PrecioPropuesto, string? Aviso);
 
 public sealed record DatosConcepto(string? Codigo, string? Nombre, TipoConceptoLiquidacion Tipo, decimal Valor, bool Activo = true);
 
@@ -80,9 +93,14 @@ public sealed class MaestrosAgro
     private readonly IConsultaProveedores _proveedores;
 
     private readonly IComprobadorUso? _uso;
+    private readonly IVentasAgro? _ventas;
+    private readonly AlxorCore.Catalogo.Aplicacion.IConsultaProductos? _productos;
 
-    public MaestrosAgro(IRepositorioAgro repo, IUnidadDeTrabajoAgro unidad, IConsultaProveedores proveedores, IComprobadorUso? uso = null)
+    public MaestrosAgro(IRepositorioAgro repo, IUnidadDeTrabajoAgro unidad, IConsultaProveedores proveedores, IComprobadorUso? uso = null, IVentasAgro? ventas = null,
+        AlxorCore.Catalogo.Aplicacion.IConsultaProductos? productos = null)
     {
+        _ventas = ventas;
+        _productos = productos;
         _repo = repo;
         _unidad = unidad;
         _proveedores = proveedores;
@@ -424,7 +442,7 @@ public sealed class MaestrosAgro
             return Resultado.Fallo<PrecioDto>(Error.NoEncontrado("campana.no_encontrada", "La campaña no existe."));
         }
 
-        var p = PrecioLiquidacion.Crear(empresaId, campanaId, datos.ProductoId, datos.CategoriaId, datos.Desde, datos.Hasta, datos.PrecioKg);
+        var p = PrecioLiquidacion.Crear(empresaId, campanaId, datos.ProductoId, datos.CategoriaId, datos.Desde, datos.Hasta, datos.PrecioKg, datos.Tipo, datos.EnvaseProductoId);
         if (p.EsFallo)
         {
             return Resultado.Fallo<PrecioDto>(p.Error);
@@ -436,10 +454,10 @@ public sealed class MaestrosAgro
         }
 
         var solapa = (await _repo.PreciosAsync(campanaId, ct).ConfigureAwait(false))
-            .Any(x => x.ProductoId == datos.ProductoId && x.CategoriaId == datos.CategoriaId && x.Desde <= datos.Hasta && datos.Desde <= x.Hasta);
+            .Any(x => x.Solapa(datos.ProductoId, datos.CategoriaId, datos.EnvaseProductoId, datos.Tipo, datos.Desde, datos.Hasta));
         if (solapa)
         {
-            return Resultado.Fallo<PrecioDto>(Error.Conflicto("precio.solapado", "Ya hay un precio de ese artículo y categoría en esas fechas."));
+            return Resultado.Fallo<PrecioDto>(Error.Conflicto("precio.solapado", "Ya hay un precio de ese tipo para el artículo, la categoría y el envase en esas fechas."));
         }
 
         _repo.Agregar(p.Valor);
@@ -467,7 +485,7 @@ public sealed class MaestrosAgro
         }
 
         var solapa = (await _repo.PreciosAsync(p.CampanaId, ct).ConfigureAwait(false))
-            .Any(x => x.Id != p.Id && x.ProductoId == p.ProductoId && x.CategoriaId == p.CategoriaId && x.Desde <= datos.Hasta && datos.Desde <= x.Hasta);
+            .Any(x => x.Id != p.Id && x.Solapa(p.ProductoId, p.CategoriaId, p.EnvaseProductoId, p.Tipo, datos.Desde, datos.Hasta));
         if (solapa)
         {
             return Resultado.Fallo<PrecioDto>(Error.Conflicto("precio.solapado", "Ya hay un precio de ese artículo y categoría en esas fechas."));
@@ -481,6 +499,118 @@ public sealed class MaestrosAgro
 
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return Resultado.Ok(PrecioDto.De(p));
+    }
+
+    /// <summary>
+    /// Fijación masiva: da de alta (o, con sustituir, actualiza el de la misma clave y fechas) muchos precios de la campaña
+    /// de una vez. Los que no se pueden se devuelven con su motivo; los demás se guardan juntos.
+    /// </summary>
+    public async Task<Resultado<ResultadoPreciosMasivosDto>> FijarPreciosAsync(Guid empresaId, Guid campanaId, DatosPreciosMasivos datos, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(datos);
+        var campana = await _repo.CampanaAsync(campanaId, ct).ConfigureAwait(false);
+        if (campana is null)
+        {
+            return Resultado.Fallo<ResultadoPreciosMasivosDto>(Error.NoEncontrado("campana.no_encontrada", "La campaña no existe."));
+        }
+
+        if (datos.Precios is not { Count: > 0 })
+        {
+            return Resultado.Fallo<ResultadoPreciosMasivosDto>(Error.Validacion("precio.sin_precios", "Indica al menos un precio."));
+        }
+
+        var existentes = (await _repo.PreciosAsync(campanaId, ct).ConfigureAwait(false)).ToList();
+        var nuevos = new List<PrecioLiquidacion>();
+        var errores = new List<ErrorDto>();
+        var actualizados = 0;
+        foreach (var (d, i) in datos.Precios.Select((d, i) => (d, i + 1)))
+        {
+            if (!campana.Contiene(d.Desde) || !campana.Contiene(d.Hasta))
+            {
+                errores.Add(new ErrorDto("precio.fuera_campana", $"Fila {i}: el periodo debe estar dentro de la campaña."));
+                continue;
+            }
+
+            var igual = existentes.FirstOrDefault(x => x.ProductoId == d.ProductoId && x.CategoriaId == d.CategoriaId && x.EnvaseProductoId == d.EnvaseProductoId
+                                                        && x.Tipo == d.Tipo && x.Desde == d.Desde && x.Hasta == d.Hasta);
+            if (igual is not null && datos.Sustituir)
+            {
+                if (igual.PrecioKg == d.PrecioKg)
+                {
+                    continue;
+                }
+
+                if (await _repo.PrecioEnUsoAsync(igual.Id, ct).ConfigureAwait(false))
+                {
+                    errores.Add(new ErrorDto("precio.en_uso", $"Fila {i}: el precio actual ya se usa en una liquidación: cámbialo a mano."));
+                    continue;
+                }
+
+                var tracked = await _repo.PrecioAsync(igual.Id, ct).ConfigureAwait(false);
+                var r = tracked!.Actualizar(d.Desde, d.Hasta, d.PrecioKg);
+                if (r.EsFallo)
+                {
+                    errores.Add(new ErrorDto(r.Error.Codigo, $"Fila {i}: {r.Error.Mensaje}"));
+                    continue;
+                }
+
+                actualizados++;
+                continue;
+            }
+
+            if (existentes.Concat(nuevos).Any(x => x.Solapa(d.ProductoId, d.CategoriaId, d.EnvaseProductoId, d.Tipo, d.Desde, d.Hasta)))
+            {
+                errores.Add(new ErrorDto("precio.solapado", $"Fila {i}: ya hay un precio de ese tipo para el artículo, la categoría y el envase en esas fechas."));
+                continue;
+            }
+
+            var p = PrecioLiquidacion.Crear(empresaId, campanaId, d.ProductoId, d.CategoriaId, d.Desde, d.Hasta, d.PrecioKg, d.Tipo, d.EnvaseProductoId);
+            if (p.EsFallo)
+            {
+                errores.Add(new ErrorDto(p.Error.Codigo, $"Fila {i}: {p.Error.Mensaje}"));
+                continue;
+            }
+
+            nuevos.Add(p.Valor);
+            _repo.Agregar(p.Valor);
+        }
+
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(new ResultadoPreciosMasivosDto(nuevos.Count, actualizados, errores));
+    }
+
+    /// <summary>
+    /// Liquidación a resultas, como la valoración de compras según ventas de Hispatec: por artículo de la campaña, el precio
+    /// medio al que se vendió en las fechas (albaranes valorados y facturas sin albarán) menos la deducción. No guarda nada:
+    /// la propuesta se fija después con la fijación masiva.
+    /// </summary>
+    public async Task<Resultado<IReadOnlyList<PropuestaPrecioVentaDto>>> ProponerDesdeVentasAsync(Guid campanaId, DatosPropuestaVentas datos, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(datos);
+        if (_ventas is null)
+        {
+            return Resultado.Fallo<IReadOnlyList<PropuestaPrecioVentaDto>>(Error.Validacion("precio.sin_ventas", "No hay acceso a las ventas."));
+        }
+
+        if (datos.Hasta < datos.Desde || datos.DeduccionKg < 0 || datos.DeduccionPorcentaje is < 0 or > 100)
+        {
+            return Resultado.Fallo<IReadOnlyList<PropuestaPrecioVentaDto>>(Error.Validacion("precio.propuesta", "Revisa las fechas y las deducciones (no negativas, porcentaje hasta 100)."));
+        }
+
+        var articulos = await _repo.ArticulosCampanaAsync(campanaId, ct).ConfigureAwait(false);
+        var lista = new List<PropuestaPrecioVentaDto>();
+        foreach (var a in articulos.Where(a => datos.ProductoIds is not { Count: > 0 } || datos.ProductoIds.Contains(a.ProductoId)))
+        {
+            var nombre = _productos is null ? null : (await _productos.ObtenerAsync(a.ProductoId, ct).ConfigureAwait(false))?.Nombre;
+            var (kilos, importe) = await _ventas.VentasAsync(a.ProductoId, datos.Desde, datos.Hasta, ct).ConfigureAwait(false);
+            decimal? medio = kilos > 0 ? decimal.Round(importe / kilos, 6) : null;
+            decimal? propuesto = medio is { } m ? decimal.Round(Math.Max(0m, m * (1 - datos.DeduccionPorcentaje / 100m) - datos.DeduccionKg), 4) : null;
+            var aviso = kilos <= 0 ? "Sin ventas valoradas en esas fechas."
+                : a.Metodo == MetodoLiquidacion.PorClasificacion ? "Se liquida por clasificación: la propuesta es para todas las categorías (ajústala por categoría)." : null;
+            lista.Add(new PropuestaPrecioVentaDto(a.ProductoId, nombre, a.Metodo.ToString(), decimal.Round(kilos, 3), decimal.Round(importe, 2), medio, propuesto, aviso));
+        }
+
+        return Resultado.Ok<IReadOnlyList<PropuestaPrecioVentaDto>>(lista);
     }
 
     /// <summary>Elimina un precio que no use ninguna liquidación (en borrador o emitida).</summary>
