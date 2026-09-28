@@ -62,6 +62,11 @@ public sealed class MiddlewareAuditoria
     private static string DescribirAccion(string metodo, string ruta)
     {
         var recurso = ruta.TrimStart('/').Split('/', StringSplitOptions.RemoveEmptyEntries) is { Length: > 0 } partes ? partes[0] : "recurso";
+        if (recurso.Equals("exportar", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Exportación de datos a Excel";
+        }
+
         var verbo = metodo.ToUpperInvariant() switch
         {
             "POST" => "Alta",

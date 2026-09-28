@@ -32,6 +32,7 @@ public sealed class OperacionesRegistrosTests : IClassFixture<FabricaApiPruebas>
         ["/pagos"] = "se anula con /tesoreria/movimientos/{id}/anular",
         ["/tickets"] = "un ticket es una factura simplificada: se anula o rectifica en /facturas",
         ["/facturas/simular"] = "solo calcula: no guarda nada",
+        ["/exportar/xlsx"] = "genera un fichero Excel con lo que envía la interfaz: no guarda nada",
         ["/compras/pedidos/simular"] = "solo calcula: no guarda nada",
         ["/gastos/simular"] = "solo calcula: no guarda nada",
         ["/inventario/entrada"] = "movimiento de almacén: se corrige con otro movimiento (ajuste o salida)",

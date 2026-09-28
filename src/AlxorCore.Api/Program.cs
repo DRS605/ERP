@@ -290,6 +290,7 @@ app.MapearAprobaciones();
 app.MapearIntegraciones();
 app.MapearCuenta();
 app.MapearImportacion();
+app.MapearExportacion();
 
 // La nueva interfaz (SPA React) se sirve bajo /app con enrutado en el cliente: cualquier ruta
 // /app/... que no sea un fichero devuelve su index.html. Debe ir antes del fallback general.
