@@ -339,7 +339,7 @@ public sealed class GestionRemesas
             }
 
             remesa.Valor.AgregarLinea(TipoDocumentoTesoreria.Factura, facturaId, factura.NumeroCompleto, cliente.Nombre, cliente.Iban, cliente.MandatoReferencia,
-                cliente.MandatoFecha, pendiente);
+                cliente.MandatoFecha, pendiente, factura.FechaVencimiento);
             adeudos.Add(new XmlSepa.Adeudo(factura.NumeroCompleto, pendiente, cliente.Nombre, cliente.Iban!, cliente.MandatoReferencia!, cliente.MandatoFecha.Value,
                 $"Factura {factura.NumeroCompleto}"));
         }
@@ -376,7 +376,7 @@ public sealed class GestionRemesas
             }
 
             remesa.Valor.AgregarLinea(TipoDocumentoTesoreria.Cartera, efectoId, efecto.Documento, cliente.Nombre, cliente.Iban, cliente.MandatoReferencia,
-                cliente.MandatoFecha, pendiente);
+                cliente.MandatoFecha, pendiente, efecto.Vencimiento);
             adeudos.Add(new XmlSepa.Adeudo(efecto.Documento, pendiente, cliente.Nombre, cliente.Iban!, cliente.MandatoReferencia!, cliente.MandatoFecha.Value,
                 $"Recibo {efecto.Documento}"));
         }

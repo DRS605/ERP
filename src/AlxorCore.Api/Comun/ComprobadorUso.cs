@@ -28,6 +28,8 @@ public static class ReferenciasRegistros
                 ("tesoreria.anticipo.cliente_id", "anticipos"),
                 ("tesoreria.liquidacion_pagos.cliente_id", "compensaciones en liquidaciones de pagos"),
                 ("tesoreria.efecto_cartera.tercero_id", "efectos de cartera"),
+                ("tesoreria.renovacion_efecto.tercero_id", "renovaciones de efectos"),
+                ("tesoreria.situacion_deuda.tercero_id", "deudas impagadas o dudosas"),
                 ("agro.pale.cliente_id", "palés expedidos"),
                 ("agro.plantilla_pale.cliente_id", "plantillas de palé"),
                 ("integraciones.socio_edi.cliente_id", "socios EDI"),

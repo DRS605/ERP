@@ -308,6 +308,7 @@ app.MapearLiquidacionesPagos();
 app.MapearImpresos();
 app.MapearEdi();
 app.MapearDevoluciones();
+app.MapearDeudas();
 app.MapearImpuestosIndirectos();
 app.MapearAnalitica();
 app.MapearPresupuestosContables();

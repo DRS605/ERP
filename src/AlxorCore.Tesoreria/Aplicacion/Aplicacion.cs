@@ -334,10 +334,12 @@ public sealed class AnularMovimiento
     private readonly ContabilizacionTesoreria? _contabilizacion;
 
     private readonly IRepositorioLiquidacionesPagos? _liquidaciones;
+    private readonly IRepositorioDeudas? _deudas;
 
     public AnularMovimiento(IRepositorioMovimientos movimientos, IUnidadDeTrabajoTesoreria unidad, IReloj reloj, ContabilizacionTesoreria? contabilizacion = null,
-        IRepositorioLiquidacionesPagos? liquidaciones = null)
+        IRepositorioLiquidacionesPagos? liquidaciones = null, IRepositorioDeudas? deudas = null)
     {
+        _deudas = deudas;
         _liquidaciones = liquidaciones;
         _movimientos = movimientos;
         _unidad = unidad;
@@ -362,6 +364,11 @@ public sealed class AnularMovimiento
         {
             return Resultado.Fallo<MovimientoDto>(Error.Conflicto("movimiento.de_descuento",
                 "Este cobro es de una remesa al descuento: si el cliente no paga, registra la devolución del recibo."));
+        }
+
+        if (original.Metodo == CuentasDeuda.MetodoRenovacion && _deudas is not null && await _deudas.EsMovimientoDeRenovacionAsync(movimientoId, ct).ConfigureAwait(false))
+        {
+            return Resultado.Fallo<MovimientoDto>(Error.Conflicto("movimiento.de_renovacion", "Este cobro es la renovación del documento: anula la renovación."));
         }
 
         EntregaCuentaProveedor? entrega = null;

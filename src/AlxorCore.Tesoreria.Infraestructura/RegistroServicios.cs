@@ -63,6 +63,8 @@ public static class RegistroServicios
         servicios.AddScoped<IRepositorioRemesas, RepositorioRemesas>();
         servicios.AddScoped<GestionRemesas>();
         servicios.AddScoped<IRepositorioDevoluciones, RepositorioDevoluciones>();
+        servicios.AddScoped<IRepositorioDeudas, RepositorioDeudas>();
+        servicios.AddScoped<GestionDeudas>();
         servicios.AddScoped<GestionDevoluciones>();
         servicios.AddScoped<IRepositorioConciliacion, RepositorioConciliacion>();
         servicios.AddScoped<ConciliacionBancaria>();

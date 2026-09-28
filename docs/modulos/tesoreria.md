@@ -207,6 +207,41 @@ Como en Hispatec (`EntregasCuentaProveedor` y `Liquidaciones`), para pagar a pro
   - cargos y abonos propios de la liquidación;
   - el impreso para el agricultor.
 
+## Deuda de clientes: impagados, dudosos, incobrables y renovaciones
+
+Siguen los estados del documento de cobro y la clasificación de la deuda de Hispatec. `SituacionDeuda` registra, por
+factura o efecto, en qué cuenta está la deuda cuando ha salido de su cuenta de origen (la del cliente o la del efecto),
+por qué importe y con qué deterioro dotado.
+
+- **Impagados (4315).** Se activa en `PUT /tesoreria/cartera/configuracion` (`ImpagadosA4315`). Al devolverse un recibo,
+  la deuda que vuelve pasa de la cuenta del cliente a 4315.
+- **Dudoso cobro (436).** `POST /tesoreria/deudas/{tipo}/{documentoId}/clasificar` clasifica la deuda como dudoso,
+  precontencioso, contencioso o moroso.
+  - Lo pendiente pasa a 436: lo que estaba en impagados y el resto desde la cuenta del cliente.
+  - Si se indica un porcentaje, se dota el deterioro (694 contra 490).
+  - `POST /tesoreria/deudas/{id}/dotar` ajusta la dotación: sube con 694/490 y baja con 490/794.
+  - `…/desclasificar` devuelve la deuda a la cuenta del cliente y revierte el deterioro.
+- **Al cobrar**, antes del asiento del cobro de siempre, lo cobrado sale de 4315 o 436 hacia la cuenta de origen, y el
+  deterioro se revierte en proporción (490/794). Si se anula el cobro, todo se deshace: la deuda vuelve a su cuenta y
+  la dotación se repone (`RegularizacionDeuda`, una por cobro).
+- **Incobrable.** `…/incobrable` da lo pendiente por cobrado contra pérdidas (650). Con la regla anterior, la deuda sale
+  de 436 y el deterioro se aplica. Se deshace anulando ese cobro.
+- **Renovación.** `…/renovar` sustituye lo pendiente por uno o varios efectos nuevos (`RenovacionEfecto`).
+  - Los efectos nuevos suman lo pendiente más los gastos e intereses que se cargan al cliente. Sin importe de gastos, se
+    aplica el porcentaje de la configuración (`PorcRenovEfectos`).
+  - El documento se cancela contra efectos en cartera (4310); los efectos nuevos se llevan en 4310, su cuenta propia, y
+    los gastos van de 4310 a 769.
+  - Cobrar un efecto nuevo lo saca de 4310.
+  - El cobro de la renovación y sus efectos no se anulan sueltos. `POST /tesoreria/renovaciones/{id}/anular` deshace la
+    renovación si los efectos no tienen cobros.
+- **Remesa al descuento.** Cada efecto paga intereses por sus días hasta su vencimiento, o hasta el cargo de la remesa
+  si es posterior, con los días mínimos. La línea de la remesa guarda el vencimiento del documento.
+- **Pantalla:** *Tesorería → Impagados*. Cada factura vencida tiene los botones Renovar, Dudoso e Incobrable. Hay
+  paneles de deuda fuera de la cuenta del cliente (con el ajuste del deterioro) y de renovaciones, y la configuración.
+- **Tablas:** `configuracion_cartera`, `situacion_deuda`, `regularizacion_deuda` y `renovacion_efecto`, todas con RLS.
+  La comprobación de las cuentas puente de `movimiento` admite 4310 y 650 (migración `SituacionDeuda`).
+- **Pruebas:** `DeudaClientesTests` recorre el ciclo completo con los saldos del diario en cada paso.
+
 ## API
 
 | Método | Ruta | Permiso | Descripción |

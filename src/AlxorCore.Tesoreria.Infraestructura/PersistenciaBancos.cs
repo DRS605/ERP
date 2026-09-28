@@ -122,6 +122,7 @@ internal sealed class ConfiguracionRemesa : IEntityTypeConfiguration<Remesa>
             l.Property(x => x.Mandato).HasColumnName("mandato").HasMaxLength(35);
             l.Property(x => x.MandatoFecha).HasColumnName("mandato_fecha");
             l.Property(x => x.Importe).HasColumnName("importe").HasColumnType("numeric(14,2)").IsRequired();
+            l.Property(x => x.Vencimiento).HasColumnName("vencimiento");
             l.Property(x => x.MovimientoId).HasColumnName("movimiento_id");
             l.Property(x => x.Viva).HasColumnName("viva").IsRequired();
             l.HasIndex("remesa_id").HasDatabaseName("ix_linea_remesa_remesa");

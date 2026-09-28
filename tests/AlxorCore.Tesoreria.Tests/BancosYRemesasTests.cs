@@ -89,4 +89,16 @@ public class BancosYRemesasTests
         MotivosDevolucionSepa.Describir(d.Motivo).Should().Be("Fondos insuficientes");
         GestionDevoluciones.EsDomiciliado(cobro, enRemesa: false).Should().BeTrue();
     }
+
+    [Fact]
+    public void Al_descuento_cada_efecto_paga_intereses_hasta_su_vencimiento()
+    {
+        var r = Remesa.Crear(Guid.NewGuid(), TipoRemesa.Cobro, 1, Hoy, Hoy.AddDays(10), null, "CORE", "OOFF", Reloj).Valor;
+        r.AgregarLinea(TipoDocumentoTesoreria.Factura, Guid.NewGuid(), "F1", "Cliente", "ES7620770024003102575766", "M1", Hoy, 3_600m, Hoy.AddDays(90)).EsCorrecto.Should().BeTrue();
+        r.AgregarLinea(TipoDocumentoTesoreria.Factura, Guid.NewGuid(), "F2", "Cliente", "ES7620770024003102575766", "M1", Hoy, 3_600m, Hoy.AddDays(5)).EsCorrecto.Should().BeTrue();
+        r.Condiciones(ModalidadRemesa.Descuento, new CondicionesRemesa(PorcentajeInteres: 10m, DiasMinimos: 15)).EsCorrecto.Should().BeTrue();
+
+        // F1: 90 días → 3.600 × 10 % × 90 / 360 = 90. F2 vence antes del cargo (día 10) y tiene mínimo de 15 días → 15.
+        r.Calcular(Hoy).Intereses.Should().Be(105m);
+    }
 }

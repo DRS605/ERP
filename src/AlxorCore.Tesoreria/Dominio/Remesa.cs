@@ -53,9 +53,10 @@ public sealed class LineaRemesa
     }
 
     internal LineaRemesa(TipoDocumentoTesoreria tipoDocumento, Guid documentoId, string documento, string terceroNombre, string? iban, string? mandato,
-        DateOnly? mandatoFecha, decimal importe)
+        DateOnly? mandatoFecha, decimal importe, DateOnly? vencimiento = null)
     {
         Id = Guid.NewGuid();
+        Vencimiento = vencimiento;
         TipoDocumento = tipoDocumento;
         DocumentoId = documentoId;
         Documento = Recortar(documento, 80);
@@ -68,6 +69,9 @@ public sealed class LineaRemesa
     }
 
     public Guid Id { get; private set; }
+
+    /// <summary>Vencimiento del documento: al descuento, los intereses de cada efecto se calculan por sus días hasta él.</summary>
+    public DateOnly? Vencimiento { get; private set; }
 
     public TipoDocumentoTesoreria TipoDocumento { get; private set; }
 
@@ -244,7 +248,7 @@ public sealed class Remesa : RaizAgregadoEmpresa<Guid>
     }
 
     public Resultado AgregarLinea(TipoDocumentoTesoreria tipoDocumento, Guid documentoId, string documento, string terceroNombre, string? iban, string? mandato,
-        DateOnly? mandatoFecha, decimal importe)
+        DateOnly? mandatoFecha, decimal importe, DateOnly? vencimiento = null)
     {
         if (Estado != EstadoRemesa.Generada || !string.IsNullOrEmpty(Fichero))
         {
@@ -261,7 +265,7 @@ public sealed class Remesa : RaizAgregadoEmpresa<Guid>
             return Resultado.Fallo(Error.Conflicto("remesa.documento_repetido", $"{documento} ya está en la remesa."));
         }
 
-        _lineas.Add(new LineaRemesa(tipoDocumento, documentoId, documento, terceroNombre, iban, mandato, mandatoFecha, importe));
+        _lineas.Add(new LineaRemesa(tipoDocumento, documentoId, documento, terceroNombre, iban, mandato, mandatoFecha, importe, vencimiento));
         Total = Math.Round(_lineas.Sum(l => l.Importe), 2);
         return Resultado.Ok();
     }
@@ -311,7 +315,12 @@ public sealed class Remesa : RaizAgregadoEmpresa<Guid>
     public CalculoLiquidacionRemesa Calcular(DateOnly fecha)
     {
         var dias = Math.Max(FechaCargo.DayNumber - fecha.DayNumber, 0);
-        var intereses = Modalidad == ModalidadRemesa.Descuento ? Math.Round(Total * PorcentajeInteres / 100m * Math.Max(dias, DiasMinimos) / 360m, 2) : 0m;
+        // Al descuento, cada efecto paga intereses por sus días hasta su vencimiento —o hasta el cargo de la remesa, si es
+        // posterior— con los días mínimos (fórmula de Hispatec: Σ nominal × % × max(días, mínimos) / 360).
+        var intereses = Modalidad == ModalidadRemesa.Descuento
+            ? Math.Round(_lineas.Sum(l => l.Importe * PorcentajeInteres / 100m
+                * Math.Max(Math.Max(Math.Max((l.Vencimiento ?? FechaCargo).DayNumber, FechaCargo.DayNumber) - fecha.DayNumber, 0), DiasMinimos) / 360m), 2)
+            : 0m;
         var comision = Modalidad == ModalidadRemesa.Vencimiento ? 0m : Math.Round(Total * PorcentajeComision / 100m, 2);
         var iva = Math.Round(comision * PorcentajeIvaComision / 100m, 2);
         var gastos = Modalidad == ModalidadRemesa.Vencimiento ? 0m : Math.Round(GastosFijos + GastosPorEfecto * _lineas.Count + Timbres + OtrosGastos, 2);

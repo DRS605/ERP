@@ -69,9 +69,12 @@ public sealed class EfectoCartera : RaizAgregadoEmpresa<Guid>
 
     public DateTimeOffset CreadoEn { get; private set; }
 
+    /// <summary>Cuenta en que está el efecto (4310 en cartera, en una renovación); null: la del cliente o proveedor.</summary>
+    public string? CuentaContable { get; private set; }
+
     public static Resultado<EfectoCartera> Crear(
         Guid empresaId, SentidoCartera sentido, Guid? terceroId, string? terceroNombre, string? documento, DateOnly? fechaDocumento,
-        DateOnly vencimiento, decimal importe, string? origen, string? origenReferencia, IReloj reloj)
+        DateOnly vencimiento, decimal importe, string? origen, string? origenReferencia, IReloj reloj, string? cuentaContable = null)
     {
         ArgumentNullException.ThrowIfNull(reloj);
         if (!Enum.IsDefined(sentido))
@@ -92,7 +95,10 @@ public sealed class EfectoCartera : RaizAgregadoEmpresa<Guid>
         }
 
         return Resultado.Ok(new EfectoCartera(Guid.NewGuid(), empresaId, sentido, terceroId, nombre, doc, fechaDocumento, vencimiento, importe,
-            string.IsNullOrWhiteSpace(origen) ? null : origen.Trim(), string.IsNullOrWhiteSpace(origenReferencia) ? null : origenReferencia.Trim(), reloj.AhoraUtc));
+            string.IsNullOrWhiteSpace(origen) ? null : origen.Trim(), string.IsNullOrWhiteSpace(origenReferencia) ? null : origenReferencia.Trim(), reloj.AhoraUtc)
+        {
+            CuentaContable = string.IsNullOrWhiteSpace(cuentaContable) ? null : cuentaContable.Trim(),
+        });
     }
 }
 

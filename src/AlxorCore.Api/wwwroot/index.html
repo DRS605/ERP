@@ -3344,21 +3344,58 @@
     // ---- Impagados: facturas vencidas con pendiente y reclamación por niveles ----
     async function vImpagados() {
       view('<div class="muted">Cargando…</div>');
-      const lista=await api("/impagados");
+      const [lista,deudas,renovaciones,cfgCartera]=await Promise.all([api("/impagados"),api("/tesoreria/deudas").catch(()=>[]),api("/tesoreria/renovaciones").catch(()=>[]),api("/tesoreria/cartera/configuracion").catch(()=>({}))]);
+      window._deudas=deudas;
       const total=lista.reduce((a,i)=>a+i.pendiente,0), porReclamar=lista.filter(i=>i.pendienteDeReclamar).length;
       const filas=lista.map(i=>{
         const accion=i.pendienteDeReclamar
           ?`<button class="btn small" onclick="reclamar('${i.facturaId}')">Reclamar · nivel ${i.nivelQueToca}</button>`
           :(i.ultimoNivelReclamado?`<span class="pill ok">Reclamado nivel ${i.ultimoNivelReclamado}</span>`:'<span class="muted">Aún no toca</span>');
         const dev=i.motivoDevolucion?`<span class="pill neg" title="${agEsc(i.descripcionDevolucion||"")}">Recibo devuelto · ${i.motivoDevolucion}</span><div class="muted" style="font-size:11.5px">${agEsc(i.descripcionDevolucion||"")} · ${fdate(i.fechaDevolucion)}${i.gastosDevolucion?` · gastos ${eur(i.gastosDevolucion)}`:""}</div>`:'<span class="muted">Vencida</span>';
-        return `<tr><td><strong>${i.numero}</strong></td><td>${i.clienteNombre}</td><td class="muted">${fdate(i.vencimiento)}</td><td class="num">${i.diasRetraso}</td><td class="num">${eur(i.pendiente)}</td><td>${dev}</td><td class="right">${accion}</td></tr>`;}).join("");
+        const sit=deudas.find(d=>d.documentoId===i.facturaId);
+        const cuentaDeuda=sit?.cuenta==="436"?`<span class="pill neg">Dudoso · ${sit.clasificacion}</span>`:sit?.cuenta==="4315"?'<span class="pill warn">En 4315</span>':"";
+        const mas=`<button class="btn small ghost" onclick="modalRenovar('Factura','${i.facturaId}',${i.pendiente},'${agEsc(i.numero)}')" title="Nuevos vencimientos para lo pendiente">Renovar</button> <button class="btn small ghost" onclick="modalDudoso('${i.facturaId}','${agEsc(i.numero)}')">Dudoso</button> <button class="btn small ghost" onclick="declararIncobrable('${i.facturaId}','${agEsc(i.numero)}')">Incobrable</button>`;
+        return `<tr><td><strong>${i.numero}</strong> ${cuentaDeuda}</td><td>${i.clienteNombre}</td><td class="muted">${fdate(i.vencimiento)}</td><td class="num">${i.diasRetraso}</td><td class="num">${eur(i.pendiente)}</td><td>${dev}</td><td class="right"><div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">${accion} ${mas}</div></td></tr>`;}).join("");
       const kpis=`<div class="kpis" style="grid-template-columns:repeat(2,1fr);max-width:560px">
         <div class="kpi ${total>0?'warn':''}"><div class="lbl">Vencido pendiente · ${lista.length} factura${lista.length===1?'':'s'}</div><div class="val ${total>0?'neg':''}">${eur(total)}</div></div>
         <div class="kpi"><div class="lbl">Por reclamar</div><div class="val">${porReclamar}</div></div></div>`;
       const cuerpo=lista.length?`<table><thead><tr><th>Factura</th><th>Cliente</th><th>Vencimiento</th><th class="num">Días</th><th class="num">Pendiente</th><th>Motivo</th><th></th></tr></thead><tbody>${filas}</tbody></table>`
         :'<p class="muted" style="margin:0">No hay facturas vencidas pendientes de cobro.</p>';
-      view(kpis+panel("Facturas vencidas",`<p class="muted" style="margin:0 0 12px">Aparecen las facturas vencidas con pendiente y las de recibos domiciliados devueltos por el banco (con el motivo SEPA). Cada nivel de reclamación llega unos días después del vencimiento (por defecto 7, 30 y 60). Al reclamar se envía el aviso por correo con la factura en PDF y queda registrado.</p>`+cuerpo));
+      const filasD=deudas.map(d=>`<tr><td class="mono">${agEsc(d.documento)}</td><td>${agEsc(d.tercero)}</td><td>${d.incobrableEl?`<span class="pill">Incobrable · ${fdate(d.incobrableEl)}</span>`:d.cuenta==="436"?`<span class="pill neg">${d.clasificacion}</span>`:'<span class="pill warn">Impagado (4315)</span>'}</td><td class="mono">${d.cuenta||"—"}</td><td class="num">${eur(d.importe)}</td><td class="num">${eur(d.dotado)}</td><td class="num">${eur(d.pendiente)}</td>
+        <td class="right" style="white-space:nowrap">${d.cuenta==="436"?`<button class="btn small secondary" onclick="dotarDeuda('${d.id}',${d.importe},${d.dotado})">Deterioro</button> <button class="btn small ghost" onclick="desclasificarDeuda('${d.id}')">Sale de dudoso</button>`:""}</td></tr>`).join("");
+      const panelD=panel("Impagados, dudosos e incobrables",`<p class="muted" style="margin:0 0 12px">Dónde está la deuda que ha salido de la cuenta del cliente: los recibos devueltos en <strong>4315</strong> (si se activa abajo) y la deuda dudosa en <strong>436</strong> con su deterioro (694/490). Al cobrar, lo cobrado sale de allí y el deterioro se revierte en proporción (794); declarar incobrable lleva lo pendiente a pérdidas (650).</p>
+        <div style="display:flex;gap:16px;align-items:end;flex-wrap:wrap;margin-bottom:12px"><label style="display:flex;gap:8px;align-items:center;font-weight:500"><input id="cc_4315" type="checkbox" style="width:auto;margin:0" ${cfgCartera.impagadosA4315?"checked":""}/> Los recibos devueltos pasan a efectos impagados (4315)</label>
+        <div style="width:200px"><label>% de gastos al renovar</label><input id="cc_ren" type="number" step="0.01" min="0" max="100" value="${cfgCartera.porcentajeRenovacion??0}"/></div><button class="btn small secondary" onclick="guardarConfigCartera()">Guardar</button></div>`
+        +(deudas.length?`<table><thead><tr><th>Documento</th><th>Cliente</th><th>Situación</th><th>Cuenta</th><th class="num">En la cuenta</th><th class="num">Deterioro</th><th class="num">Pendiente</th><th></th></tr></thead><tbody>${filasD}</tbody></table>`:'<p class="muted" style="margin:0">Ninguna deuda fuera de la cuenta del cliente.</p>'));
+      const filasR=renovaciones.map(r=>`<tr><td class="mono">${agEsc(r.documento)}</td><td>${agEsc(r.tercero)}</td><td class="muted">${fdate(r.fecha)}</td><td class="num">${eur(r.importe)}</td><td class="num">${eur(r.gastos)}</td><td>${r.efectos.map(e=>`${agEsc(e.documento)} · ${fdate(e.vencimiento)} · ${eur(e.importe)}${e.pendiente<e.importe?` (pend. ${eur(e.pendiente)})`:""}`).join("<br>")}</td><td>${r.anulada?'<span class="pill">Anulada</span>':'<span class="pill ok">Vigente</span>'}</td><td class="right">${r.anulada?"":`<button class="btn small ghost" onclick="anularRenovacion('${r.id}')">Anular</button>`}</td></tr>`).join("");
+      const panelR=panel("Renovaciones de efectos",renovaciones.length?`<table><thead><tr><th>Documento</th><th>Cliente</th><th>Fecha</th><th class="num">Renovado</th><th class="num">Gastos</th><th>Efectos nuevos</th><th>Estado</th><th></th></tr></thead><tbody>${filasR}</tbody></table>`:'<p class="muted" style="margin:0">Sin renovaciones.</p>');
+      view(kpis+panel("Facturas vencidas",`<p class="muted" style="margin:0 0 12px">Aparecen las facturas vencidas con pendiente y las de recibos domiciliados devueltos por el banco (con el motivo SEPA). Cada nivel de reclamación llega unos días después del vencimiento (por defecto 7, 30 y 60). Al reclamar se envía el aviso por correo con la factura en PDF y queda registrado.</p>`+cuerpo)+panelD+panelR);
     }
+    async function guardarConfigCartera(){ try{ await api("/tesoreria/cartera/configuracion",{method:"PUT",body:JSON.stringify({impagadosA4315:document.getElementById("cc_4315").checked,porcentajeRenovacion:Number(val("cc_ren")||0)})}); toast("Configuración guardada.","ok"); }catch(e){ toast(e.message,"err"); } }
+    function modalRenovar(tipo,id,pendiente,doc){
+      const hoy=new Date(); const f=d=>{ const x=new Date(hoy); x.setDate(x.getDate()+d); return x.toISOString().slice(0,10); };
+      window._renFila=()=>`<div class="grid2 rn-l" style="gap:8px"><input class="rn-f" type="date" value="${f(30)}"/><input class="rn-i" type="number" step="0.01" placeholder="Importe"/></div>`;
+      abrir(`Renovar ${doc}`,`<p class="muted" style="margin:0 0 10px">Lo pendiente (${eur(pendiente)}) se cancela contra efectos en cartera (4310) y se crean los efectos nuevos. Deben sumar lo pendiente más los gastos que se cargan al cliente (vacío: el % de la configuración).</p>
+        <label>Gastos e intereses para el cliente (€)</label><input id="rn_g" type="number" step="0.01" min="0"/>
+        <label>Vencimientos nuevos</label><div id="rn_ls">${window._renFila()}</div><button class="btn small ghost" onclick="document.getElementById('rn_ls').insertAdjacentHTML('beforeend',window._renFila())">+ Vencimiento</button>`,
+        async()=>{ const vencimientos=[...document.querySelectorAll("#rn_ls .rn-l")].map(r=>({fecha:r.querySelector(".rn-f").value,importe:Number(r.querySelector(".rn-i").value)})).filter(v=>v.importe>0);
+          const g=val("rn_g"); await api(`/tesoreria/deudas/${tipo}/${id}/renovar`,{method:"POST",body:JSON.stringify({vencimientos,gastos:g===""?null:Number(g)})}); toast("Renovado.","ok"); vImpagados(); });
+    }
+    function modalDudoso(id,doc){
+      abrir(`Deuda dudosa · ${doc}`,`<label>Clasificación</label><select id="du_c"><option>Dudoso</option><option>Precontencioso</option><option>Contencioso</option><option>Moroso</option></select>
+        <label>Deterioro a dotar (% de lo pendiente)</label><input id="du_p" type="number" step="1" min="0" max="100" placeholder="Opcional"/>`,
+        async()=>{ const p=val("du_p"); await api(`/tesoreria/deudas/Factura/${id}/clasificar`,{method:"POST",body:JSON.stringify({clasificacion:val("du_c"),porcentajeDotacion:p===""?null:Number(p)})}); toast("Deuda clasificada.","ok"); vImpagados(); });
+    }
+    async function declararIncobrable(id,doc){ const motivo=prompt(`¿Declarar incobrable lo pendiente de ${doc}? Irá a pérdidas (650). Motivo:`); if(motivo===null) return;
+      try{ await api(`/tesoreria/deudas/Factura/${id}/incobrable`,{method:"POST",body:JSON.stringify({motivo})}); toast("Declarada incobrable.","ok"); vImpagados(); }catch(e){ toast(e.message,"err"); } }
+    function dotarDeuda(id,importe,dotado){
+      abrir("Deterioro de la deuda",`<p class="muted" style="margin:0 0 10px">En dudoso: ${eur(importe)}. Dotado: ${eur(dotado)}.</p><label>Deterioro total (€)</label><input id="dt_i" type="number" step="0.01" min="0" max="${importe}" value="${dotado}"/>`,
+        async()=>{ await api(`/tesoreria/deudas/${id}/dotar`,{method:"POST",body:JSON.stringify({importe:Number(val("dt_i"))})}); toast("Deterioro ajustado.","ok"); vImpagados(); });
+    }
+    async function desclasificarDeuda(id){ if(!confirm("¿Deja de ser dudosa? Vuelve a la cuenta del cliente y se revierte el deterioro.")) return;
+      try{ await api(`/tesoreria/deudas/${id}/desclasificar`,{method:"POST"}); vImpagados(); }catch(e){ toast(e.message,"err"); } }
+    async function anularRenovacion(id){ if(!confirm("¿Anular la renovación? Se anulan los efectos nuevos y el documento vuelve a estar pendiente.")) return;
+      try{ await api(`/tesoreria/renovaciones/${id}/anular`,{method:"POST"}); vImpagados(); }catch(e){ toast(e.message,"err"); } }
     async function reclamar(facturaId){
       try{ const r=await api("/impagados/"+facturaId+"/reclamar",{method:"POST",body:JSON.stringify({canal:"Email"})});
         toast(r.correoEnviado?`Reclamación de nivel ${r.reclamacion.nivel} enviada.`:(r.motivoNoEnviado||"Reclamación registrada."), r.correoEnviado?"ok":"warn"); vImpagados();

@@ -40,10 +40,14 @@ public sealed class ContabilizacionTesoreria
     private readonly IUnidadDeTrabajoTesoreria _unidad;
     private readonly IReloj _reloj;
     private readonly IRepositorioCuentasBancarias? _bancos;
+    private readonly IRepositorioDeudas? _deudas;
+
+    public const string OrigenDeuda = "SituacionDeuda";
 
     public ContabilizacionTesoreria(IRepositorioSalidaTesoreria salida, IConsultaFacturas facturas, IConsultaGastos gastos, IRepositorioCartera cartera,
-        IColaContabilizacion cola, IUnidadDeTrabajoTesoreria unidad, IReloj reloj, IRepositorioCuentasBancarias? bancos = null)
+        IColaContabilizacion cola, IUnidadDeTrabajoTesoreria unidad, IReloj reloj, IRepositorioCuentasBancarias? bancos = null, IRepositorioDeudas? deudas = null)
     {
+        _deudas = deudas;
         _bancos = bancos;
         _salida = salida;
         _facturas = facturas;
@@ -86,10 +90,84 @@ public sealed class ContabilizacionTesoreria
         var tipo = sentido == SentidoContable.Cobro ? "Cobro" : "Pago";
         var referencia = Recortar((original is null ? "" : (prefijo ?? "Anulación") + ": ") + $"{tipo} {documento}".Trim());
         var tesoreria = datos.CuentaPuente ?? (aplicacionAnticipo ? "438" : null) ?? await CuentaTesoreriaAsync(datos.CuentaBancariaId, datos.Metodo, ct).ConfigureAwait(false);
+        var cuentaDocumento = await CuentaDocumentoAsync(datos, ct).ConfigureAwait(false);
         _salida.Agregar(MensajeSalida.Crear(movimiento.EmpresaId, MensajeSalida.TipoContabilizacion, SalidaJson.Serializar(new DocumentoContabilizable(
             sentido, OrigenMovimiento, movimiento.Id, referencia, terceroId, tercero, movimiento.Fecha,
-            0m, string.Empty, 0m, 0m, 0m, Math.Abs(movimiento.Importe), Anulacion: original is not null, CuentaTesoreria: tesoreria)), _reloj.AhoraUtc));
+            0m, string.Empty, 0m, 0m, 0m, Math.Abs(movimiento.Importe), Anulacion: original is not null, CuentaTesoreria: tesoreria, CuentaTercero: cuentaDocumento)),
+            _reloj.AhoraUtc));
+
+        // Deuda fuera de su cuenta (impagado 4315, dudoso 436): lo cobrado vuelve antes a la de origen y su deterioro se
+        // revierte en proporción; si se anula el cobro, se deshace.
+        if (_deudas is not null && datos.Sentido == SentidoMovimiento.Cobro && datos.TipoDocumento is TipoDocumentoTesoreria.Factura or TipoDocumentoTesoreria.Cartera)
+        {
+            if (original is null)
+            {
+                var situacion = await _deudas.SituacionAsync(datos.TipoDocumento, datos.DocumentoId, ct).ConfigureAwait(false);
+                if (situacion is { Cuenta: { } cuenta, Importe: > 0m })
+                {
+                    var (importe, dotacion) = situacion.Regularizar(Math.Abs(movimiento.Importe));
+                    EncolarTraspaso(movimiento.EmpresaId, Derivado(movimiento.Id, "deuda"), $"Cobro de {documento} ({NombreCuenta(cuenta)})", movimiento.Fecha, importe,
+                        situacion.CuentaOrigen, cuenta, terceroId, tercero);
+                    if (dotacion > 0m)
+                    {
+                        EncolarTraspaso(movimiento.EmpresaId, Derivado(movimiento.Id, "reversion"), $"Reversión deterioro {documento}", movimiento.Fecha, dotacion,
+                            CuentasDeuda.Deterioro, CuentasDeuda.Reversion, null, null);
+                    }
+
+                    _deudas.Agregar(RegularizacionDeuda.Crear(situacion, movimiento.Id, cuenta, importe, dotacion));
+                }
+            }
+            else if (await _deudas.RegularizacionDeAsync(original.Id, ct).ConfigureAwait(false) is { } reg
+                && await _deudas.SituacionAsync(reg.SituacionId, ct).ConfigureAwait(false) is { } situacion)
+            {
+                situacion.Deshacer(reg.Cuenta, reg.Importe, reg.Dotacion);
+                EncolarTraspaso(movimiento.EmpresaId, Derivado(movimiento.Id, "deuda"), $"Anulación del cobro de {documento} ({NombreCuenta(reg.Cuenta)})", movimiento.Fecha,
+                    reg.Importe, reg.Cuenta, situacion.CuentaOrigen, terceroId, tercero);
+                if (reg.Dotacion > 0m)
+                {
+                    EncolarTraspaso(movimiento.EmpresaId, Derivado(movimiento.Id, "dotacion"), $"Deterioro {documento}", movimiento.Fecha, reg.Dotacion,
+                        CuentasDeuda.Dotacion, CuentasDeuda.Deterioro, null, null);
+                }
+
+                reg.Deshacer();
+            }
+        }
     }
+
+    /// <summary>
+    /// Encola un traspaso entre dos cuentas: <paramref name="debe"/> al debe y <paramref name="haber"/> al haber. Una cuenta
+    /// null es la del tercero (el cliente).
+    /// </summary>
+    public void EncolarTraspaso(Guid empresaId, Guid origenId, string referencia, DateOnly fecha, decimal importe, string? debe, string? haber, Guid? terceroId,
+        string? terceroNombre)
+    {
+        if (importe <= 0m)
+        {
+            return;
+        }
+
+        if (debe is not null)
+        {
+            EncolarAsientoDirecto(empresaId, OrigenDeuda, origenId, SentidoMovimiento.Cobro, referencia, fecha, importe, debe, haber ?? string.Empty,
+                terceroId: haber is null ? terceroId : null, terceroNombre: haber is null ? terceroNombre : null);
+        }
+        else if (haber is not null)
+        {
+            EncolarAsientoDirecto(empresaId, OrigenDeuda, origenId, SentidoMovimiento.Cobro, referencia, fecha, importe, haber, string.Empty, anulacion: true,
+                terceroId: terceroId, terceroNombre: terceroNombre);
+        }
+    }
+
+    private static string NombreCuenta(string cuenta) => cuenta switch
+    {
+        CuentasDeuda.Impagados => "impagado",
+        CuentasDeuda.Dudoso => "dudoso cobro",
+        _ => cuenta,
+    };
+
+    /// <summary>Cuenta propia del documento (la del efecto, si la tiene); null: la del tercero.</summary>
+    public async Task<string?> CuentaDocumentoAsync(Movimiento m, CancellationToken ct = default) =>
+        m.TipoDocumento == TipoDocumentoTesoreria.Cartera ? (await _cartera.ObtenerAsync(m.DocumentoId, ct).ConfigureAwait(false))?.CuentaContable : null;
 
     /// <summary>
     /// Encola un asiento de tesorería contra una cuenta concreta (sin documento de tercero): gastos bancarios, intereses o

@@ -51,10 +51,12 @@ public sealed class GestionDevoluciones
     private readonly IUnidadDeTrabajoTesoreria _unidad;
     private readonly IReloj _reloj;
     private readonly ContabilizacionTesoreria? _contabilizacion;
+    private readonly GestionDeudas? _deudas;
 
     public GestionDevoluciones(IRepositorioDevoluciones devoluciones, IRepositorioMovimientos movimientos, IRepositorioRemesas remesas, IRepositorioCartera cartera,
-        IConsultaFacturas facturas, IUnidadDeTrabajoTesoreria unidad, IReloj reloj, ContabilizacionTesoreria? contabilizacion = null)
+        IConsultaFacturas facturas, IUnidadDeTrabajoTesoreria unidad, IReloj reloj, ContabilizacionTesoreria? contabilizacion = null, GestionDeudas? deudas = null)
     {
+        _deudas = deudas;
         _devoluciones = devoluciones;
         _movimientos = movimientos;
         _remesas = remesas;
@@ -144,6 +146,11 @@ public sealed class GestionDevoluciones
         {
             // Contraasiento del cobro (cliente al debe, banco al haber) y, si hay, los gastos de devolución.
             await _contabilizacion.EncolarMovimientoAsync(anulacion.Valor, aplicacionAnticipo: false, cobro, $"Devolución {motivo}", ct).ConfigureAwait(false);
+            if (_deudas is not null)
+            {
+                // Con la opción de la empresa, el recibo devuelto pasa a efectos impagados (4315).
+                await _deudas.AlDevolverAsync(empresaId, cobro.TipoDocumento, cobro.DocumentoId, cobro.Importe, fecha, devolucion.Valor.Id, cobro.Id, ct).ConfigureAwait(false);
+            }
             var banco = await _contabilizacion.CuentaTesoreriaAsync(cobro.CuentaBancariaId ?? remesa?.CuentaBancariaId, cobro.Metodo, ct).ConfigureAwait(false);
             if (remesa is { Modalidad: ModalidadRemesa.Descuento })
             {

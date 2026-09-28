@@ -103,6 +103,7 @@ internal sealed class ConfiguracionEfectoCartera : IEntityTypeConfiguration<Efec
         builder.Property(e => e.Importe).HasColumnName("importe").HasColumnType("numeric(14,2)").IsRequired();
         builder.Property(e => e.Origen).HasColumnName("origen").HasMaxLength(40);
         builder.Property(e => e.OrigenReferencia).HasColumnName("origen_referencia").HasMaxLength(80);
+        builder.Property(e => e.CuentaContable).HasColumnName("cuenta_contable").HasMaxLength(12);
         builder.Property(e => e.CreadoEn).HasColumnName("creado_en").IsRequired();
         builder.HasIndex(e => new { e.EmpresaId, e.Sentido, e.Vencimiento }).HasDatabaseName("ix_efecto_cartera_vencimiento");
         builder.HasIndex(e => new { e.EmpresaId, e.Origen, e.OrigenReferencia }).IsUnique().HasDatabaseName("ux_efecto_cartera_origen");
