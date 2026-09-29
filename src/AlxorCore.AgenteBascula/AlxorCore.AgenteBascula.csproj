@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <RootNamespace>AlxorCore.AgenteBascula</RootNamespace>
+    <AssemblyName>AlxorCore.AgenteBascula</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.IO.Ports" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="AlxorCore.AgenteBascula.Tests" />
+  </ItemGroup>
+
+</Project>
