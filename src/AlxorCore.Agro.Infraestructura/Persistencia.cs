@@ -28,10 +28,12 @@ public sealed class AgroDbContext : DbContextEmpresaBase, IUnidadDeTrabajoAgro
         DELETE FROM agro.movimiento_envases WHERE empresa_id = {0};
         DELETE FROM agro.reserva_pale WHERE empresa_id = {0};
         DELETE FROM agro.cuenta_envases WHERE empresa_id = {0};
+        DELETE FROM agro.configuracion_envases WHERE empresa_id = {0};
         DELETE FROM agro.clasificacion WHERE empresa_id = {0};
         DELETE FROM agro.liquidacion WHERE empresa_id = {0};
         DELETE FROM agro.parte_confeccion WHERE empresa_id = {0};
         DELETE FROM agro.partida WHERE empresa_id = {0};
+        DELETE FROM agro.orden_carga WHERE empresa_id = {0};
         DELETE FROM agro.pale WHERE empresa_id = {0};
         DELETE FROM agro.plantilla_pale WHERE empresa_id = {0};
         DELETE FROM agro.recepcion WHERE empresa_id = {0};
@@ -39,6 +41,7 @@ public sealed class AgroDbContext : DbContextEmpresaBase, IUnidadDeTrabajoAgro
         DELETE FROM agro.articulo_campana WHERE empresa_id = {0};
         DELETE FROM agro.concepto_liquidacion WHERE empresa_id = {0};
         DELETE FROM agro.tarifa_coste WHERE empresa_id = {0};
+        DELETE FROM agro.tratamiento_parcela WHERE empresa_id = {0};
         DELETE FROM agro.parcela WHERE empresa_id = {0};
         DELETE FROM agro.agricultor WHERE empresa_id = {0};
         DELETE FROM agro.categoria WHERE empresa_id = {0};
@@ -224,6 +227,8 @@ internal sealed class ConfiguracionAjustes : IEntityTypeConfiguration<Configurac
     {
         Columnas.Base(b, "configuracion");
         b.Property(x => x.PrefijoGs1).HasColumnName("prefijo_gs1").HasMaxLength(10).IsRequired();
+        b.Property(x => x.ReflejarPartidasEnInventario).HasColumnName("reflejar_partidas_inventario").IsRequired();
+        b.Property(x => x.ReflejarEnvasesEnInventario).HasColumnName("reflejar_envases_inventario").IsRequired();
         b.Property(x => x.DigitoExtension).HasColumnName("digito_extension").IsRequired();
         b.HasIndex(x => x.EmpresaId).IsUnique().HasDatabaseName("ux_configuracion_empresa");
     }

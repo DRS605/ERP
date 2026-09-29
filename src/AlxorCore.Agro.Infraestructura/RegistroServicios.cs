@@ -29,7 +29,7 @@ public static class RegistroServicios
                     npgsql.MigrationsHistoryTable("__historial_migraciones", AgroDbContext.Esquema))
                 .AddInterceptors(sp.GetRequiredService<InterceptorEmpresa>()));
 
-        servicios.AddScoped<IUnidadDeTrabajoAgro>(sp => sp.GetRequiredService<AgroDbContext>());
+        servicios.AddScoped<IUnidadDeTrabajoAgro>(sp => new UnidadAgroConInventario(sp.GetRequiredService<AgroDbContext>(), sp));
         servicios.AddScoped<IRepositorioAgro, RepositorioAgro>();
         servicios.AddScoped<IRepositorioEnvases, RepositorioEnvases>();
         servicios.AddScoped<EnvasesTerceros>();

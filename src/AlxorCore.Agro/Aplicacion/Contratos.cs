@@ -203,6 +203,18 @@ public interface ICosteAnalitico
     Task<IReadOnlyDictionary<Guid, (decimal Gastos, decimal Ingresos)>?> PorCentroAsync(Guid empresaId, DateOnly desde, DateOnly hasta, CancellationToken ct = default);
 }
 
+/// <summary>Movimiento de existencias en el inventario del almacén: + entrada, − salida.</summary>
+public sealed record MovimientoInventarioAgro(Guid ProductoId, decimal Cantidad, string Motivo);
+
+/// <summary>
+/// Inventario del almacén (Catálogo e Inventario): Agro refleja en él lo que mueven sus partidas y sus envases. Los
+/// artículos sin control de stock se ignoran. Devuelve los avisos (p. ej. una salida sin existencias en el almacén).
+/// </summary>
+public interface IInventarioAgro
+{
+    Task<IReadOnlyList<string>> MoverAsync(Guid empresaId, IReadOnlyList<MovimientoInventarioAgro> movimientos, CancellationToken ct = default);
+}
+
 /// <summary>Impuesto indirecto de la empresa (IVA, o IGIC en Canarias): decide el impuesto de las autofacturas a agricultores.</summary>
 public interface IImpuestoEmpresaAgro
 {

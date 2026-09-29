@@ -129,7 +129,10 @@ saldo, los envases de la empresa que tiene el tercero, **se calcula del libro**;
 - **Impresos:** justificante de un movimiento para firmar el tercero (`GET /agro/envases/movimientos/{id}/pdf`) y
   extracto de la cuenta (`GET /agro/envases/cuentas/{id}/extracto/pdf?desde=&hasta=`).
 
-Pendiente: mover el stock del envase vacío en el inventario del almacén (hoy se ve el stock en terceros).
+- **Stock del envase vacío en el almacén:** con «Mover los envases retornables» en la configuración agro, cada
+  movimiento de envases mueve el inventario del artículo envase: lo entregado a un tercero sale del almacén y lo
+  recogido entra. Una facturación de envases entra y su albarán sale, así que no cambia nada (los envases ya salieron
+  al entregarse).
 
 ## Reservas de palés a pedidos de venta
 
@@ -440,6 +443,22 @@ Es una versión ligera de `OrdenesCarga` de Hispatec, montada sobre la expedici�
 - **Pantalla:** *Agro → Órdenes de carga*. Tiene el lector de SSCC (se escanea y se pulsa Intro), las líneas, los palés cargados y el camión dibujado por posiciones.
 - **Fuera de alcance** (P3): la PDA con lector, la situación de los muelles, las pilas de palés, el traspaso entre centros con recepción de la orden y las integraciones de temperatura o de control de accesos.
 
+## Partidas en el inventario del almacén
+
+Con «Reflejar las partidas» en la configuración agro (`ReflejarPartidasEnInventario`), lo que mueven las partidas se
+refleja en el inventario general del artículo (su existencia o, si la empresa trabaja con almacenes, su almacén
+principal), para una valoración única de existencias:
+
+- la **recepción** entra los kilos netos y su anulación los saca;
+- el **parte de confección** saca lo consumido y entra lo obtenido (otro artículo);
+- los **ajustes** (merma, recuento) entran o salen;
+- la **expedición sin albarán** sale y su vuelta entra. La expedición **con albarán** no cuenta: el stock lo saca el
+  albarán, y su anulación o la devolución de una vuelta parcial lo devuelven;
+- el paletizado no cambia nada (pasa kilos de un sitio a otro).
+
+Se hace al guardar, sumando por artículo los movimientos nuevos de partidas. Solo cuentan los artículos por kilos con
+control de stock. Si una salida no cabe en el almacén, queda como aviso y no deshace lo agro.
+
 ## Cuaderno de campo (tratamientos fitosanitarios)
 
 Registro de los tratamientos de cada parcela, como pide el RD 1311/2012 y GlobalG.A.P. (`agro.tratamiento_parcela`):
@@ -488,8 +507,6 @@ Al anular la expedición de un palé que salió con un albarán del pedido:
 
 ## 11. Pendiente
 
-- **Otros módulos:**
-  - reflejar las partidas en Inventario, para una valoración única de existencias;
 - **Operativa:**
   - lectura directa de básculas: la pesada se registra por la API (`POST /agro/recepciones/{id}/lineas/{linea}/pesadas`,
     con el campo `Bascula`), pero falta el agente local que lea el indicador de la báscula y la envíe;

@@ -575,6 +575,21 @@ public sealed class ConfiguracionAgro : RaizAgregadoEmpresa<Guid>
     /// <summary>Dígito de extensión del SSCC (0-9).</summary>
     public int DigitoExtension { get; private set; }
 
+    /// <summary>
+    /// Las partidas se reflejan en el inventario del almacén (artículos por kilos): la recepción entra, la confección
+    /// transforma, los ajustes y las expediciones sin albarán salen (con albarán, sale el albarán).
+    /// </summary>
+    public bool ReflejarPartidasEnInventario { get; private set; }
+
+    /// <summary>Los envases retornables se mueven en el inventario: lo entregado a terceros sale del almacén y lo recogido entra.</summary>
+    public bool ReflejarEnvasesEnInventario { get; private set; }
+
+    public void FijarInventario(bool partidas, bool envases)
+    {
+        ReflejarPartidasEnInventario = partidas;
+        ReflejarEnvasesEnInventario = envases;
+    }
+
     public static ConfiguracionAgro Crear(Guid empresaId) => new(Guid.NewGuid(), empresaId);
 
     public Resultado Actualizar(string? prefijoGs1, int digitoExtension)
