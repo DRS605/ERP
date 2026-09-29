@@ -1,4 +1,6 @@
 using AlxorCore.Catalogo.Aplicacion;
+using AlxorCore.Nucleo.Aplicacion;
+using AlxorCore.Nucleo.Autorizacion;
 using AlxorCore.Nucleo.Comun;
 using AlxorCore.Facturacion.Dominio;
 using AlxorCore.Nucleo.Resultados;
@@ -14,7 +16,8 @@ public sealed record LineaPedidoVentaDto(Guid Id, Guid? ProductoId, string Descr
     decimal PorcentajeDescuento, string CodigoIva, decimal Base, decimal CantidadServida, decimal CantidadFacturada, decimal PendienteServir, IReadOnlyList<ConceptoAplicado>? Conceptos = null, decimal ImporteConceptos = 0m, decimal CosteConceptos = 0m);
 
 public sealed record PedidoVentaDto(Guid Id, string Estado, int Ejercicio, int Numero, string NumeroCompleto, Guid ClienteId, string ClienteNombre,
-    DateOnly Fecha, Guid? PresupuestoOrigenId, Guid? FacturaId, decimal Total, bool ServidoCompleto, IReadOnlyList<LineaPedidoVentaDto> Lineas, decimal Suplidos = 0m)
+    DateOnly Fecha, Guid? PresupuestoOrigenId, Guid? FacturaId, decimal Total, bool ServidoCompleto, IReadOnlyList<LineaPedidoVentaDto> Lineas, decimal Suplidos = 0m,
+    string? AvisoRiesgo = null)
 {
     public static PedidoVentaDto Desde(PedidoVenta p) => new(p.Id, p.Estado.ToString(), p.Ejercicio, p.Numero, p.NumeroCompleto, p.ClienteId, p.ClienteNombre,
         p.Fecha, p.PresupuestoOrigenId, p.FacturaId, p.Total, p.ServidoCompleto,
@@ -228,14 +231,53 @@ public sealed class DecidirPedidoVenta
 {
     private readonly IRepositorioPedidosVenta _repo;
     private readonly IUnidadDeTrabajoFacturacion _unidad;
+    private readonly IConsultaClientes? _clientes;
+    private readonly IConsultaRiesgo? _riesgo;
+    private readonly IConsultaEmpresas? _empresas;
+    private readonly IPermisosUsuario? _permisos;
 
-    public DecidirPedidoVenta(IRepositorioPedidosVenta repo, IUnidadDeTrabajoFacturacion unidad)
+    public DecidirPedidoVenta(IRepositorioPedidosVenta repo, IUnidadDeTrabajoFacturacion unidad, IConsultaClientes? clientes = null, IConsultaRiesgo? riesgo = null,
+        IConsultaEmpresas? empresas = null, IPermisosUsuario? permisos = null)
     {
         _repo = repo;
         _unidad = unidad;
+        _clientes = clientes;
+        _riesgo = riesgo;
+        _empresas = empresas;
+        _permisos = permisos;
     }
 
-    public Task<Resultado<PedidoVentaDto>> ConfirmarAsync(Guid id, CancellationToken ct = default) => CambiarAsync(id, p => p.Confirmar(), ct);
+    /// <summary>
+    /// Confirma el pedido. Con límite de riesgo del cliente, cuenta su riesgo vivo (facturas pendientes de cobro), lo
+    /// pendiente de facturar de sus otros pedidos y albaranes directos y este pedido (por su base): si lo supera, avisa
+    /// o, si la empresa bloquea y el usuario no tiene <see cref="Permisos.RiesgoForzar"/>, no lo confirma.
+    /// </summary>
+    public async Task<Resultado<PedidoVentaDto>> ConfirmarAsync(Guid id, CancellationToken ct = default)
+    {
+        var pedido = await _repo.ObtenerPorIdAsync(id, ct).ConfigureAwait(false);
+        string? aviso = null;
+        if (pedido is not null && pedido.Estado == EstadoPedidoVenta.Borrador && _clientes is not null && _riesgo is not null
+            && await _clientes.ObtenerAsync(pedido.ClienteId, ct).ConfigureAwait(false) is { LimiteRiesgo: { } limite } && limite > 0m)
+        {
+            var vivo = await _riesgo.RiesgoVivoClienteAsync(pedido.EmpresaId, pedido.ClienteId, ct).ConfigureAwait(false)
+                       + await _riesgo.PendienteFacturarClienteAsync(pedido.EmpresaId, pedido.ClienteId, pedido.Id, ct).ConfigureAwait(false);
+            if (vivo + pedido.Total > limite)
+            {
+                var bloquea = _empresas is not null && (await _empresas.ObtenerAsync(pedido.EmpresaId, ct).ConfigureAwait(false))?.ControlRiesgo == ControlRiesgo.Bloqueo;
+                var forzado = bloquea && (_permisos?.FuerzaRiesgo ?? false);
+                if (bloquea && !forzado)
+                {
+                    return Resultado.Fallo<PedidoVentaDto>(Error.Conflicto("riesgo.superado",
+                        $"El cliente supera su límite de riesgo ({limite:F2} €): riesgo vivo y pendiente de facturar {vivo:F2} € + este pedido {pedido.Total:F2} €."));
+                }
+
+                aviso = $"El cliente supera su límite de riesgo ({limite:F2} €). Riesgo tras este pedido: {vivo + pedido.Total:F2} €{(forzado ? " (confirmado con permiso para forzar el riesgo)" : "")}.";
+            }
+        }
+
+        var r = await CambiarAsync(id, p => p.Confirmar(), ct).ConfigureAwait(false);
+        return r.EsCorrecto && aviso is not null ? Resultado.Ok(r.Valor with { AvisoRiesgo = aviso }) : r;
+    }
 
     public Task<Resultado<PedidoVentaDto>> CancelarAsync(Guid id, CancellationToken ct = default) => CambiarAsync(id, p => p.Cancelar(), ct);
 

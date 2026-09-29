@@ -77,6 +77,9 @@ public static class Permisos
     public const string EmpresaAjustes = "empresa.ajustes";
     public const string UsuarioGestionar = "usuario.gestionar";
 
+    /// <summary>Emitir o confirmar por encima del límite de riesgo del tercero aunque la empresa lo bloquee.</summary>
+    public const string RiesgoForzar = "riesgo.forzar";
+
     /// <summary>Todos los permisos definidos, para validación y semillas.</summary>
     public static readonly IReadOnlySet<string> Todos = new HashSet<string>(StringComparer.Ordinal)
     {
@@ -97,5 +100,6 @@ public static class Permisos
         IntegracionGestionar,
         ActividadGestionar,
         EmpresaAjustes, UsuarioGestionar,
+        RiesgoForzar,
     };
 }

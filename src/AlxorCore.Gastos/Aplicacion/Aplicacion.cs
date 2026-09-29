@@ -156,6 +156,7 @@ public sealed class RegistrarGasto
     private readonly IConsultaEmpresas _empresas;
     private readonly IReloj _reloj;
     private readonly AlxorCore.Catalogo.Aplicacion.IResolverIvaEmpresa? _resolverIva;
+    private readonly AlxorCore.Nucleo.Autorizacion.IPermisosUsuario? _permisos;
 
     public RegistrarGasto(
         IRepositorioGastos gastos,
@@ -168,8 +169,10 @@ public sealed class RegistrarGasto
         IConsultaRiesgo riesgo,
         IConsultaEmpresas empresas,
         IReloj reloj,
-        AlxorCore.Catalogo.Aplicacion.IResolverIvaEmpresa? resolverIva = null)
+        AlxorCore.Catalogo.Aplicacion.IResolverIvaEmpresa? resolverIva = null,
+        AlxorCore.Nucleo.Autorizacion.IPermisosUsuario? permisos = null)
     {
+        _permisos = permisos;
         _resolverIva = resolverIva;
         _gastos = gastos;
         _proveedores = proveedores;
@@ -358,7 +361,8 @@ public sealed class RegistrarGasto
             if (riesgoVivo + total > limite)
             {
                 var emp = await _empresas.ObtenerAsync(empresaId, ct).ConfigureAwait(false);
-                if ((emp?.ControlRiesgo ?? ControlRiesgo.Aviso) == ControlRiesgo.Bloqueo && !simular)
+                var forzado = _permisos?.FuerzaRiesgo ?? false;
+                if ((emp?.ControlRiesgo ?? ControlRiesgo.Aviso) == ControlRiesgo.Bloqueo && !simular && !forzado)
                 {
                     return Resultado.Fallo<GastoDto>(Error.Conflicto("riesgo.superado",
                         $"El proveedor supera su límite de riesgo ({limite:F2} €): riesgo vivo {riesgoVivo:F2} € + este gasto {total:F2} €."));

@@ -512,7 +512,11 @@
       const h = Object.assign({ "Content-Type":"application/json" }, opts.headers||{});
       if (token) h["Authorization"]="Bearer "+token;
       const r = await fetch(API+path, Object.assign({}, opts, { headers:h }));
-      if (!r.ok){ let m="", c=""; try{ const b=await r.json(); m=b.title||""; c=b.codigo||""; }catch{} const e=new Error(m||("HTTP "+r.status)); e.codigo=c; e.status=r.status; throw e; }
+      if (!r.ok){ let m="", c=""; try{ const b=await r.json(); m=b.title||""; c=b.codigo||""; }catch{}
+        // Límite de riesgo en modo bloqueo: quien tenga el permiso para forzarlo puede seguir, a sabiendas.
+        if(c==="riesgo.superado" && !opts._forzarRiesgo && confirm(m+"\n\n¿Seguir de todos modos? (hace falta el permiso para forzar el riesgo)"))
+          return api(path, Object.assign({}, opts, { _forzarRiesgo:true, headers:Object.assign({}, opts.headers||{}, { "X-Forzar-Riesgo":"true" }) }));
+        const e=new Error(m||("HTTP "+r.status)); e.codigo=c; e.status=r.status; throw e; }
       const ct = r.headers.get("content-type")||""; return ct.includes("json") ? r.json() : r.text();
     }
 

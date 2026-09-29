@@ -59,7 +59,28 @@ El límite se fija con `limiteRiesgo` en `/clientes` y `/proveedores`. Las factu
   emitir al superar; dentro del límite emite sin aviso; el riesgo vivo acumula facturas pendientes;
   el límite del proveedor avisa al registrar un gasto.
 
+## Pedidos sin facturar
+
+Al **confirmar un pedido de venta**, el riesgo del cliente es su riesgo vivo (facturas pendientes de cobro) más lo
+**pendiente de facturar**:
+
+- lo que falta por facturar de sus otros pedidos confirmados o servidos, por su base y en proporción a lo que queda
+  de cada línea;
+- sus albaranes directos sin facturar, por su base (los de un pedido ya cuentan en su pedido).
+
+Si con el pedido (por su base) pasa del límite, avisa (`avisoRiesgo` en la respuesta) o, en modo bloqueo, no lo
+confirma (`riesgo.superado`). La factura sigue comparando solo con las facturas pendientes, para no contar dos veces el
+pedido que se factura.
+
+## Forzar el riesgo
+
+El permiso `riesgo.forzar` (del propietario) permite pasar por encima del límite en modo bloqueo. Hay que pedirlo
+expresamente: la petición lleva la cabecera `X-Forzar-Riesgo: true`. Así, el propietario queda bloqueado como
+cualquiera salvo que decida seguir. Vale para facturas, gastos y la confirmación de pedidos. El documento sale con el
+aviso de que se forzó.
+
+En la interfaz, al recibir `riesgo.superado`, se pregunta si se quiere seguir y se repite la petición con la cabecera.
+
 ## Futuro (documentado)
 
-Incluir en el riesgo vivo los pedidos/presupuestos aún no facturados; permiso especial para forzar
-por encima del límite en modo bloqueo.
+Los presupuestos no cuentan en el riesgo (no comprometen): se podría avisar al aceptarlos.

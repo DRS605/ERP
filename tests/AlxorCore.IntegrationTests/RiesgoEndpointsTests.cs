@@ -85,4 +85,43 @@ public sealed class RiesgoEndpointsTests : IClassFixture<FabricaApiPruebas>
         var gasto = await resp.Content.ReadFromJsonAsync<GastoResp>();
         gasto!.AvisoRiesgo.Should().NotBeNullOrEmpty();
     }
+
+    private sealed record PedidoResp(Guid Id, string Estado, decimal Total, string? AvisoRiesgo);
+    private sealed record ProblemaResp(string Codigo);
+
+    private static async Task<Guid> PedidoAsync(HttpClient c, Guid clienteId, decimal precio)
+    {
+        var r = await c.PostAsJsonAsync("/pedidos-venta", new { ClienteId = clienteId, Lineas = new[] { new { Descripcion = "Mercancía", Cantidad = 1m, PrecioUnitario = precio, CodigoIva = "IVA0" } } });
+        r.StatusCode.Should().Be(HttpStatusCode.Created, await r.Content.ReadAsStringAsync());
+        return (await r.Content.ReadFromJsonAsync<IdResp>())!.Id;
+    }
+
+    [Fact]
+    public async Task Al_confirmar_un_pedido_cuentan_las_facturas_pendientes_y_los_pedidos_sin_facturar()
+    {
+        var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+        await cliente.PutAsJsonAsync("/empresas/actual/control-riesgo", new { ControlRiesgo = "Bloqueo" });
+        var clienteId = await ClienteConLimiteAsync(cliente, 100m);
+
+        // Factura de 40 pendiente de cobro y un pedido confirmado de 40 sin facturar: el tercero, de 30, pasa de 100.
+        (await cliente.PostAsJsonAsync("/facturas", FacturaDe(clienteId, 40m))).StatusCode.Should().Be(HttpStatusCode.Created);
+        var primero = await PedidoAsync(cliente, clienteId, 40m);
+        (await cliente.PostAsync(new Uri($"/pedidos-venta/{primero}/confirmar", UriKind.Relative), null)).StatusCode.Should().Be(HttpStatusCode.OK);
+        var tercero = await PedidoAsync(cliente, clienteId, 30m);
+        var bloqueado = await cliente.PostAsync(new Uri($"/pedidos-venta/{tercero}/confirmar", UriKind.Relative), null);
+        bloqueado.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await bloqueado.Content.ReadFromJsonAsync<ProblemaResp>())!.Codigo.Should().Be("riesgo.superado");
+
+        // El propietario puede forzarlo, pidiéndolo expresamente: se confirma con aviso.
+        using var forzar = new HttpRequestMessage(HttpMethod.Post, new Uri($"/pedidos-venta/{tercero}/confirmar", UriKind.Relative));
+        forzar.Headers.Add("X-Forzar-Riesgo", "true");
+        var forzado = await cliente.SendAsync(forzar);
+        forzado.StatusCode.Should().Be(HttpStatusCode.OK, await forzado.Content.ReadAsStringAsync());
+        (await forzado.Content.ReadFromJsonAsync<PedidoResp>())!.AvisoRiesgo.Should().Contain("forzar");
+
+        // Y lo mismo en una factura bloqueada.
+        using var factura = new HttpRequestMessage(HttpMethod.Post, new Uri("/facturas", UriKind.Relative)) { Content = JsonContent.Create(FacturaDe(clienteId, 500m)) };
+        factura.Headers.Add("X-Forzar-Riesgo", "true");
+        (await cliente.SendAsync(factura)).StatusCode.Should().Be(HttpStatusCode.Created);
+    }
 }

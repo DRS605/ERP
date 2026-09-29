@@ -15,12 +15,41 @@ public sealed class ConsultaRiesgo : IConsultaRiesgo
     private readonly IConsultaFacturas _facturas;
     private readonly IConsultaGastos _gastos;
     private readonly IRepositorioMovimientos _movimientos;
+    private readonly IRepositorioPedidosVenta? _pedidos;
+    private readonly IRepositorioAlbaranesVenta? _albaranes;
 
-    public ConsultaRiesgo(IConsultaFacturas facturas, IConsultaGastos gastos, IRepositorioMovimientos movimientos)
+    public ConsultaRiesgo(IConsultaFacturas facturas, IConsultaGastos gastos, IRepositorioMovimientos movimientos, IRepositorioPedidosVenta? pedidos = null,
+        IRepositorioAlbaranesVenta? albaranes = null)
     {
         _facturas = facturas;
         _gastos = gastos;
         _movimientos = movimientos;
+        _pedidos = pedidos;
+        _albaranes = albaranes;
+    }
+
+    public async Task<decimal> PendienteFacturarClienteAsync(Guid empresaId, Guid clienteId, Guid? excluirPedidoId = null, CancellationToken ct = default)
+    {
+        var pendiente = 0m;
+        if (_pedidos is not null)
+        {
+            // Lo que falta por facturar de cada línea, en proporción a su base (con sus conceptos).
+            foreach (var p in (await _pedidos.ListarAsync(empresaId, ct).ConfigureAwait(false))
+                .Where(p => p.ClienteId == clienteId && p.Id != excluirPedidoId && p.Estado is "Confirmado" or "Servido"))
+            {
+                pendiente += p.Lineas.Where(l => l.Cantidad > 0m && l.CantidadFacturada < l.Cantidad)
+                    .Sum(l => l.Base * (l.Cantidad - l.CantidadFacturada) / l.Cantidad);
+            }
+        }
+
+        if (_albaranes is not null)
+        {
+            // Los albaranes de un pedido ya cuentan en su pedido; los directos, por su base.
+            pendiente += (await _albaranes.ListarAsync(empresaId, new FiltroAlbaranesVenta(ClienteId: clienteId), ct).ConfigureAwait(false))
+                .Where(a => a.PedidoId is null && a.FacturaId is null && !a.Anulado && a.Estado != "Facturado").Sum(a => a.Base);
+        }
+
+        return Redondeo.Dos(pendiente);
     }
 
     public async Task<decimal> RiesgoVivoClienteAsync(Guid empresaId, Guid clienteId, CancellationToken ct = default)

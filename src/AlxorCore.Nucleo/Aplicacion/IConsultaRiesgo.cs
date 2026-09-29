@@ -12,4 +12,11 @@ public interface IConsultaRiesgo
 
     /// <summary>Suma pendiente de pago de los gastos del proveedor (sin incluir el documento en curso).</summary>
     Task<decimal> RiesgoVivoProveedorAsync(Guid empresaId, Guid proveedorId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Pendiente de facturar al cliente (por su base): lo que falta por facturar de sus pedidos de venta confirmados o
+    /// servidos y sus albaranes directos sin facturar, sin el pedido indicado.
+    /// </summary>
+    Task<decimal> PendienteFacturarClienteAsync(Guid empresaId, Guid clienteId, Guid? excluirPedidoId = null, CancellationToken ct = default) =>
+        Task.FromResult(0m);
 }

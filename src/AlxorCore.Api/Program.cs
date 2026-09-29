@@ -39,6 +39,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 // --- Contexto de empresa (multiempresa) ---
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<AlxorCore.Nucleo.Autorizacion.IPermisosUsuario, AlxorCore.Api.Comun.PermisosUsuarioHttp>();
 builder.Services.AddScoped<ContextoEmpresaHttp>();
 builder.Services.AddScoped<IContextoEmpresa>(sp => sp.GetRequiredService<ContextoEmpresaHttp>());
 builder.Services.AddScoped<IContextoEmpresaMutable>(sp => sp.GetRequiredService<ContextoEmpresaHttp>());

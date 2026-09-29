@@ -1,6 +1,7 @@
 using AlxorCore.Catalogo.Aplicacion;
 using AlxorCore.Facturacion.Dominio;
 using AlxorCore.Nucleo.Aplicacion;
+using AlxorCore.Nucleo.Autorizacion;
 using AlxorCore.Nucleo.Comun;
 using AlxorCore.Nucleo.Resultados;
 using AlxorCore.Nucleo.Tiempo;
@@ -66,6 +67,7 @@ public sealed class EmitirFactura
     private readonly IReloj _reloj;
     private readonly IResolverConceptos? _conceptos;
     private readonly IAnticiposFactura? _anticipos;
+    private readonly IPermisosUsuario? _permisos;
 
     public EmitirFactura(
         IConsultaClientes clientes,
@@ -84,8 +86,10 @@ public sealed class EmitirFactura
         IResolverPrecioVenta precios,
         IReloj reloj,
         IResolverConceptos? conceptos = null,
-        IAnticiposFactura? anticipos = null)
+        IAnticiposFactura? anticipos = null,
+        IPermisosUsuario? permisos = null)
     {
+        _permisos = permisos;
         _conceptos = conceptos;
         _anticipos = anticipos;
         _resolverIva = resolverIva;
@@ -280,13 +284,15 @@ public sealed class EmitirFactura
             if (riesgoVivo + totalProyectado > limiteRiesgo)
             {
                 var emp = await _empresas.ObtenerAsync(empresaId, ct).ConfigureAwait(false);
-                if ((emp?.ControlRiesgo ?? ControlRiesgo.Aviso) == ControlRiesgo.Bloqueo)
+                var bloquea = (emp?.ControlRiesgo ?? ControlRiesgo.Aviso) == ControlRiesgo.Bloqueo;
+                var forzado = bloquea && (_permisos?.FuerzaRiesgo ?? false);
+                if (bloquea && !forzado)
                 {
                     return Resultado.Fallo<FacturaDto>(Error.Conflicto("riesgo.superado",
                         $"El cliente supera su límite de riesgo ({limiteRiesgo:F2} €): riesgo vivo {riesgoVivo:F2} € + esta factura {totalProyectado:F2} €."));
                 }
 
-                avisoRiesgo = $"El cliente supera su límite de riesgo ({limiteRiesgo:F2} €). Riesgo tras esta factura: {riesgoVivo + totalProyectado:F2} €.";
+                avisoRiesgo = $"El cliente supera su límite de riesgo ({limiteRiesgo:F2} €). Riesgo tras esta factura: {riesgoVivo + totalProyectado:F2} €{(forzado ? " (emitida con permiso para forzar el riesgo)" : "")}.";
             }
         }
 
