@@ -19,6 +19,7 @@ public static class RegistroServicios
         servicios.AddScoped<CalcularProrrata>();
         servicios.AddScoped<GenerarResumenesFiscales>();
         servicios.AddScoped<GenerarModelo420>();
+        servicios.AddScoped<GenerarModelo425>();
         servicios.AddScoped<GenerarDeclaracionAnual>();
         servicios.AddScoped<GenerarRetencionesIrpf>();
         servicios.AddScoped<GenerarModelo349>();

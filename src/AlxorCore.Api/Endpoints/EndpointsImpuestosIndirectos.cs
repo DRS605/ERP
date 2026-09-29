@@ -26,6 +26,12 @@ public static class EndpointsImpuestosIndirectos
         g.MapPut("/prorrata/{ejercicio:int}", ConfigurarProrrataAsync)
             .WithSummary("Fija la prorrata del ejercicio (Regimen: General o Especial; PorcentajeProvisional 0-100). Regimen nulo la quita.")
             .RequierePermiso(Permisos.EmpresaAjustes);
+        g.MapPost("/prorrata/{ejercicio:int}/regularizar", RegularizarProrrataAsync)
+            .WithSummary("Asiento de la regularización anual de la prorrata a 31/12: 472 a 639 si se deduce más, 634 a 472 si menos. Una sola vez por ejercicio.")
+            .RequierePermiso(Permisos.EmpresaAjustes);
+        g.MapGet("/modelo-425", Modelo425Async)
+            .WithSummary("Borrador del modelo 425 (resumen anual del IGIC): los cuatro 420 del año sumados, por tipo, con la prorrata.")
+            .RequierePermiso(Permisos.InformeLeer);
         g.MapGet("/modelo-420", Modelo420Async)
             .WithSummary("Borrador del modelo 420 (IGIC, Canarias): devengado por tipo, deducible con prorrata y resultado del trimestre.")
             .RequierePermiso(Permisos.InformeLeer);
@@ -53,6 +59,51 @@ public static class EndpointsImpuestosIndirectos
         contexto.EmpresaId is not { } empresaId
             ? ResultadosHttp.AProblema(SinEmpresa())
             : (await caso.EjecutarAsync(empresaId, ejercicio, comando, ct).ConfigureAwait(false)).AOk();
+
+    /// <summary>Concepto del asiento de la regularización de la prorrata de un ejercicio (también sirve para no repetirlo).</summary>
+    public static string ConceptoRegularizacion(int ejercicio, TipoImpuesto impuesto) => $"Regularización de la prorrata {ejercicio} ({impuesto.Siglas()})";
+
+    private static async Task<IResult> RegularizarProrrataAsync(int ejercicio, IContextoEmpresa contexto, IConsultaEmpresas empresas, CalcularProrrata prorrata,
+        AlxorCore.Contabilidad.Aplicacion.CrearAsiento crear, AlxorCore.Contabilidad.Aplicacion.IRepositorioAsientos asientos, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is not { } empresaId)
+        {
+            return ResultadosHttp.AProblema(SinEmpresa());
+        }
+
+        var impuesto = (await empresas.ObtenerAsync(empresaId, ct).ConfigureAwait(false))?.ImpuestoIndirecto ?? TipoImpuesto.Iva;
+        var calculo = await prorrata.EjecutarAsync(empresaId, ejercicio, impuesto, ct).ConfigureAwait(false);
+        if (calculo.Regimen is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("prorrata.sin_configurar", $"El ejercicio {ejercicio} no tiene prorrata configurada."));
+        }
+
+        if (calculo.Regularizacion == 0m)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("prorrata.sin_regularizacion",
+                $"El porcentaje definitivo ({calculo.PorcentajeDefinitivo} %) no cambia lo deducido: no hay nada que regularizar."));
+        }
+
+        var concepto = ConceptoRegularizacion(ejercicio, impuesto);
+        if ((await asientos.DiarioAsync(empresaId, ejercicio, ct).ConfigureAwait(false)).Any(a => a.Concepto == concepto && a.AnuladoPorId is null && a.AnulaAsientoId is null))
+        {
+            return ResultadosHttp.AProblema(Error.Conflicto("prorrata.regularizada", $"La prorrata de {ejercicio} ya está regularizada en contabilidad (anula ese asiento para rehacerlo)."));
+        }
+
+        // Más deducible con el definitivo: la Hacienda nos debe (472) y es un ingreso (639); menos: gasto (634) contra la 472.
+        var importe = Math.Abs(calculo.Regularizacion);
+        IReadOnlyList<AlxorCore.Contabilidad.Aplicacion.LineaAsientoComando> lineas = calculo.Regularizacion > 0m
+            ? [new("472", importe, 0m, concepto), new("639", 0m, importe, "Ajustes positivos en la imposición indirecta")]
+            : [new("634", importe, 0m, "Ajustes negativos en la imposición indirecta"), new("472", 0m, importe, concepto)];
+        var r = await crear.EjecutarAsync(empresaId, new AlxorCore.Contabilidad.Aplicacion.CrearAsientoComando(new DateOnly(ejercicio, 12, 31), concepto, lineas), ct)
+            .ConfigureAwait(false);
+        return r.EsFallo ? ResultadosHttp.AProblema(r.Error) : Results.Ok(r.Valor);
+    }
+
+    private static async Task<IResult> Modelo425Async(IContextoEmpresa contexto, GenerarModelo425 caso, CancellationToken ct, int? anio = null) =>
+        contexto.EmpresaId is not { } empresaId
+            ? ResultadosHttp.AProblema(SinEmpresa())
+            : Results.Ok(await caso.EjecutarAsync(empresaId, anio ?? DateTime.UtcNow.Year, ct).ConfigureAwait(false));
 
     private static async Task<IResult> Modelo420Async(
         IContextoEmpresa contexto, GenerarModelo420 caso, CancellationToken ct, int? anio = null, int trimestre = 1)

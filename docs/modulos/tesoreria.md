@@ -144,11 +144,8 @@ al vencimiento (la SEPA de siempre), en gestión de cobro o al descuento. Se eli
   cargan en el banco.
 - **Errores:** `remesa.modalidad`, `remesa.condiciones`, `remesa.liquido`, `remesa.no_descontada`,
   `remesa.riesgo_cancelado` y `remesa.no_vencida`.
-- **Pendiente:**
-  - intereses por efecto con su propio vencimiento (hoy se usa la fecha de cobro de la remesa);
-  - la cuenta 4315 de efectos impagados;
-  - la renovación de efectos;
-  - la clasificación de dudosos.
+- Los intereses por efecto con su propio vencimiento, la 4315 de impagados, la renovación de efectos y los dudosos
+  están en [Deuda de clientes](#deuda-de-clientes-impagados-dudosos-incobrables-y-renovaciones).
 
 ## Entregas a cuenta y liquidación de pagos
 
@@ -215,12 +212,8 @@ Como en Hispatec (`EntregasCuentaProveedor` y `Liquidaciones`), para pagar a pro
     y `entregacuenta.otro_proveedor`;
   - `liquidacionpagos.sin_facturas`, `liquidacionpagos.nada`, `liquidacionpagos.desactualizada`,
     `liquidacionpagos.en_remesa`, `liquidacionpagos.anulada` y `liquidacionpagos.forma_pago`.
-- **Pendiente:**
-  - intereses de las entregas a cuenta;
-  - retención en el pago (hoy va en la factura);
-  - documento de pago de renovación (pagaré o cheque);
-  - cargos y abonos propios de la liquidación;
-  - el impreso para el agricultor.
+- **Pendiente:** cargos y abonos propios de la liquidación de pagos (los intereses, la retención, el pagaré y el
+  impreso ya están arriba).
 
 ## Deuda de clientes: impagados, dudosos, incobrables y renovaciones
 

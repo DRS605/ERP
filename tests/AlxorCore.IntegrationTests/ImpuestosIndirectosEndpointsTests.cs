@@ -21,6 +21,8 @@ public sealed class ImpuestosIndirectosEndpointsTests : IClassFixture<FabricaApi
     private sealed record DevengoResp(string Codigo, decimal Porcentaje, decimal Base, decimal Cuota);
     private sealed record Modelo420Resp(List<DevengoResp> Devengado, decimal DevengadoCuota, decimal SoportadoCuota, int PorcentajeProrrata,
         decimal DeducibleCuota, decimal RegularizacionProrrata, decimal Resultado);
+    private sealed record TrimestreResp(int Trimestre, decimal Resultado);
+    private sealed record Modelo425Resp(decimal DevengadoCuota, decimal Resultado, List<TrimestreResp> Trimestres);
     private sealed record Modelo303Resp(decimal IvaDevengadoCuota, decimal IvaDeducibleCuota, decimal Resultado, decimal IvaSoportadoCuota,
         int PorcentajeProrrata, decimal RegularizacionProrrata);
     private sealed record ResumenResp(Modelo303Resp Modelo303);
@@ -134,6 +136,12 @@ public sealed class ImpuestosIndirectosEndpointsTests : IClassFixture<FabricaApi
         m420.SoportadoCuota.Should().Be(3.50m);
         m420.Resultado.Should().Be(9.50m);
 
+        var m425 = (await api.GetFromJsonAsync<Modelo425Resp>($"/impuestos/modelo-425?anio={Anio}"))!;
+        m425.DevengadoCuota.Should().Be(13m);
+        m425.Resultado.Should().Be(9.50m);
+        m425.Trimestres.Should().HaveCount(4);
+        m425.Trimestres.Single(t => t.Trimestre == 1).Resultado.Should().Be(9.50m);
+
         var r303 = (await api.GetFromJsonAsync<ResumenResp>($"/informes/resumen-trimestral?anio={Anio}&trimestre=1"))!;
         r303.Modelo303.IvaDevengadoCuota.Should().Be(0m);
         r303.Modelo303.IvaDeducibleCuota.Should().Be(0m);
@@ -167,6 +175,15 @@ public sealed class ImpuestosIndirectosEndpointsTests : IClassFixture<FabricaApi
         var t4 = (await api.GetFromJsonAsync<ResumenResp>($"/informes/resumen-trimestral?anio={Anio}&trimestre=4"))!.Modelo303;
         t4.RegularizacionProrrata.Should().Be(23.10m, "la última autoliquidación regulariza el año con el porcentaje definitivo");
         t4.Resultado.Should().Be(-23.10m);
+
+        // El asiento de la regularización, a 31/12: 472 a 639 (se deduce más). Una sola vez.
+        var reg = await api.PostAsync(new Uri($"/impuestos/prorrata/{Anio}/regularizar", UriKind.Relative), null);
+        reg.StatusCode.Should().Be(HttpStatusCode.OK, await reg.Content.ReadAsStringAsync());
+        var asiento = (await reg.Content.ReadFromJsonAsync<AsientoResp>())!;
+        asiento.Apuntes.Should().ContainSingle(x => x.CuentaCodigo == "472" && x.Debe == 23.10m);
+        asiento.Apuntes.Should().ContainSingle(x => x.CuentaCodigo == "639" && x.Haber == 23.10m);
+        var otra = await api.PostAsync(new Uri($"/impuestos/prorrata/{Anio}/regularizar", UriKind.Relative), null);
+        (await otra.Content.ReadFromJsonAsync<ProblemaResp>())!.Codigo.Should().Be("prorrata.regularizada");
     }
 
     [Fact]

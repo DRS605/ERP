@@ -41,7 +41,11 @@ Cada empresa tiene un **territorio fiscal**: **Comun** (Península y Baleares, I
   Tributaria Canaria) el IGIC: devengado por tipo, soportado, deducible (con prorrata) y resultado.
   `GET /impuestos/modelo-420?anio&trimestre`.
 
-**Pendiente:** el modelo 425 (resumen anual), el SII del IGIC y el IPSI de Ceuta y Melilla.
+- **El resumen anual.** El **modelo 425** (borrador) suma los cuatro 420 del año: devengado por tipo, soportado,
+  deducible con la prorrata y su regularización, y el resultado de cada trimestre.
+  `GET /impuestos/modelo-425?anio`. En Informes, «Resumen anual (425)» junto al 420.
+
+**Pendiente:** el SII del IGIC y el IPSI de Ceuta y Melilla.
 
 ## 2. Prorrata
 
@@ -70,9 +74,12 @@ en *Ajustes → Fiscalidad* o con `PUT /impuestos/prorrata/{ejercicio}`:
 **En la contabilidad** (modo Completo), al contabilizar una compra solo va a la **472** la parte
 deducible. La no deducible se suma a la cuenta de gasto, como manda el PGC.
 
-**Pendiente:**
-- El asiento de la regularización anual (634/639); hoy el importe se calcula pero el asiento se hace a mano.
-- La regularización de bienes de inversión en 5 o 10 años (art. 107).
+**El asiento de la regularización** (`POST /impuestos/prorrata/{ejercicio}/regularizar`, o «Contabilizar la
+regularización» en Ajustes → Fiscalidad) va a 31/12: si con el definitivo se deduce más, **472 a 639** (ajustes
+positivos en la imposición indirecta); si menos, **634 a 472**. Se hace una sola vez por ejercicio
+(`prorrata.regularizada`); para rehacerlo se anula el asiento.
+
+**Pendiente:** la regularización de bienes de inversión en 5 o 10 años (art. 107).
 
 ## 3. Compensaciones del REAGP
 

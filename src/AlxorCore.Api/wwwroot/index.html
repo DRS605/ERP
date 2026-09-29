@@ -4964,8 +4964,22 @@
         ${Math.abs(m.regularizacionProrrata)>0.005?`<tr><td colspan="3" class="muted">Regularización de la prorrata</td><td class="num">${eur(m.regularizacionProrrata)}</td></tr>`:''}
         <tr><td colspan="3"><strong>Resultado</strong> <span class="pill ${m.resultado>0.005?'neg':'ok'}">${signo}</span></td><td class="num"><strong>${eur(Math.abs(m.resultado))}</strong></td></tr></tbody></table>
         <p class="muted" style="font-size:12px;margin:14px 0 0">Borrador del modelo 420 (Agencia Tributaria Canaria) para preparar la declaración; no es un envío oficial.</p>`;
-      return panel(`Modelo 420 · IGIC · ${trimSel}T ${anio}`,cuerpo,selTrim(anio));
+      return panel(`Modelo 420 · IGIC · ${trimSel}T ${anio}`,cuerpo,`<div style="display:flex;gap:8px;align-items:center">${selTrim(anio)}<button class="btn small secondary" onclick="modal425(${anio})">Resumen anual (425)</button></div>`);
     }
+    async function modal425(anio){ try{
+      const m=await api(`/impuestos/modelo-425?anio=${anio}`);
+      const filas=m.devengado.map(d=>`<tr><td>${d.codigo}</td><td class="num">${eur(d.base)}</td><td class="num">${eur(d.cuota)}</td></tr>`).join("");
+      const trim=m.trimestres.map(t=>`<tr><td>${t.trimestre}T</td><td class="num">${eur(t.devengadoCuota)}</td><td class="num">${eur(t.deducibleCuota)}</td><td class="num">${eur(t.resultado)}</td></tr>`).join("");
+      abrir(`Modelo 425 · resumen anual del IGIC ${anio}`,`<table><thead><tr><th>Tipo</th><th class="num">Base</th><th class="num">Cuota</th></tr></thead><tbody>${filas||'<tr><td colspan="3" class="muted">Sin IGIC devengado.</td></tr>'}
+        <tr><td><strong>Devengado</strong></td><td class="num">${eur(m.devengadoBase)}</td><td class="num"><strong>${eur(m.devengadoCuota)}</strong></td></tr>
+        <tr><td class="muted">Soportado</td><td class="num">${eur(m.soportadoBase)}</td><td class="num">${eur(m.soportadoCuota)}</td></tr>
+        <tr><td class="muted">Deducible${m.porcentajeProrrata<100?` (prorrata ${m.porcentajeProrrata} %)`:""}</td><td></td><td class="num">${eur(m.deducibleCuota)}</td></tr>
+        ${Math.abs(m.regularizacionProrrata)>0.005?`<tr><td class="muted">Regularización de la prorrata</td><td></td><td class="num">${eur(m.regularizacionProrrata)}</td></tr>`:""}
+        <tr><td><strong>Resultado del año</strong></td><td></td><td class="num"><strong>${eur(m.resultado)}</strong></td></tr></tbody></table>
+        <h4 style="margin:14px 0 6px">Por trimestre (420)</h4><table><thead><tr><th>Trimestre</th><th class="num">Devengado</th><th class="num">Deducible</th><th class="num">Resultado</th></tr></thead><tbody>${trim}</tbody></table>
+        <p class="muted" style="font-size:12px;margin:10px 0 0">Borrador para preparar la declaración; no es un envío oficial.</p>`,null);
+      document.getElementById("modalOk").style.display="none";
+    }catch(e){ toast(e.message,"err"); } }
     function panelResumen(r,anio){
       const c3=r.modelo303, c1=r.modelo130;
       const signo303=c3.resultado>0.005?'A ingresar':(c3.resultado<-0.005?'A compensar':'Sin cuota');
@@ -5046,7 +5060,7 @@
           ${reg?`<tr><td class="muted">Deducido con el provisional (${pr.porcentajeProvisional} %)</td><td class="num">${eur(pr.deducibleProvisional)}</td></tr>
           <tr><td class="muted">Deducible con el definitivo</td><td class="num">${eur(pr.deducibleDefinitivo)}</td></tr>
           <tr><td><strong>Regularización en el 4T</strong></td><td class="num"><strong>${eur(pr.regularizacion)}</strong></td></tr>`:""}
-        </tbody></table>${pr.aviso?`<p class="pill part" style="display:block;margin-top:10px;white-space:normal">${pr.aviso}</p>`:""}`:"";
+        </tbody></table>${reg&&Math.abs(pr.regularizacion)>0.005?`<button class="btn small secondary" style="margin-top:8px" onclick="regularizarProrrata(${anio})">Contabilizar la regularización (31/12)</button>`:""}${pr.aviso?`<p class="pill part" style="display:block;margin-top:10px;white-space:normal">${pr.aviso}</p>`:""}`:"";
       const cuerpo=`<div class="grid2"><div>
           <label>Territorio fiscal</label><select id="fi_terr">${opt("Comun","Península y Baleares (IVA)",IMP.territorio)}${opt("Canarias","Canarias (IGIC)",IMP.territorio)}</select>
           <p class="muted" style="font-size:12px">Decide el impuesto de tus facturas (${IMP.siglas} ahora), los tipos disponibles y la autoliquidación (303 o 420).</p>
@@ -5056,6 +5070,10 @@
           <p class="muted" style="font-size:12px">Para empresas con ventas exentas sin derecho a deducir. El porcentaje provisional suele ser el definitivo del año anterior.</p>
           <button class="btn small" onclick="guardarProrrata(${anio})">Guardar prorrata</button></div></div>${datos}`;
       return panel("Fiscalidad",cuerpo);
+    }
+    async function regularizarProrrata(anio){
+      if(!confirm(`¿Contabilizar a 31/12/${anio} la regularización de la prorrata? (472 contra 639 o 634)`)) return;
+      try{ const a=await api(`/impuestos/prorrata/${anio}/regularizar`,{method:"POST"}); toast(`Asiento ${a.numero} de la regularización creado.`,"ok"); }catch(e){ toast(e.message,"err"); }
     }
     async function guardarTerritorio(){ try{
       await api("/empresas/actual/territorio-fiscal",{method:"PUT",body:JSON.stringify({territorioFiscal:val("fi_terr")})});

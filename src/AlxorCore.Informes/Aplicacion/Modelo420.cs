@@ -54,3 +54,46 @@ public sealed class GenerarModelo420
             Redondeo.Dos(devCuota - deduccion.Deducible - deduccion.Regularizacion));
     }
 }
+
+/// <summary>Trimestre del resumen anual del IGIC: su resultado en el 420.</summary>
+public sealed record TrimestreModelo425Dto(int Trimestre, decimal DevengadoCuota, decimal DeducibleCuota, decimal Resultado);
+
+/// <summary>
+/// Borrador del <b>modelo 425</b>: declaración-resumen anual del IGIC. Suma los cuatro 420 del año: IGIC devengado por
+/// tipo, soportado, deducible (con la prorrata y su regularización del cuarto trimestre) y el resultado de cada
+/// trimestre, que tiene que coincidir con lo autoliquidado. Es una ayuda para prepararla, no su envío.
+/// </summary>
+public sealed record Modelo425Dto(
+    int Anio,
+    IReadOnlyList<DevengoIgicDto> Devengado,
+    decimal DevengadoBase, decimal DevengadoCuota,
+    decimal SoportadoBase, decimal SoportadoCuota,
+    int PorcentajeProrrata, decimal DeducibleCuota, decimal RegularizacionProrrata,
+    decimal Resultado,
+    IReadOnlyList<TrimestreModelo425Dto> Trimestres);
+
+/// <summary>Caso de uso: calcula el borrador del modelo 425 de un año con los cuatro 420.</summary>
+public sealed class GenerarModelo425
+{
+    private readonly GenerarModelo420 _trimestral;
+
+    public GenerarModelo425(GenerarModelo420 trimestral) => _trimestral = trimestral;
+
+    public async Task<Modelo425Dto> EjecutarAsync(Guid empresaId, int anio, CancellationToken ct = default)
+    {
+        var trimestres = new List<Modelo420Dto>();
+        for (var t = 1; t <= 4; t++)
+        {
+            trimestres.Add(await _trimestral.EjecutarAsync(empresaId, anio, t, ct).ConfigureAwait(false));
+        }
+
+        var devengado = trimestres.SelectMany(t => t.Devengado).GroupBy(d => (d.Codigo, d.Porcentaje))
+            .Select(g => new DevengoIgicDto(g.Key.Codigo, g.Key.Porcentaje, Redondeo.Dos(g.Sum(d => d.Base)), Redondeo.Dos(g.Sum(d => d.Cuota))))
+            .OrderByDescending(d => d.Porcentaje).ToList();
+        return new Modelo425Dto(anio, devengado, Redondeo.Dos(devengado.Sum(d => d.Base)), Redondeo.Dos(devengado.Sum(d => d.Cuota)),
+            Redondeo.Dos(trimestres.Sum(t => t.SoportadoBase)), Redondeo.Dos(trimestres.Sum(t => t.SoportadoCuota)), trimestres[3].PorcentajeProrrata,
+            Redondeo.Dos(trimestres.Sum(t => t.DeducibleCuota)), Redondeo.Dos(trimestres.Sum(t => t.RegularizacionProrrata)),
+            Redondeo.Dos(trimestres.Sum(t => t.Resultado)),
+            trimestres.Select(t => new TrimestreModelo425Dto(t.Trimestre, t.DevengadoCuota, t.DeducibleCuota + t.RegularizacionProrrata, t.Resultado)).ToList());
+    }
+}
