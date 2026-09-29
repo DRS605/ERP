@@ -16,12 +16,12 @@ public sealed record LineaPresupuestoDto(
 /// <summary>Vista de un presupuesto.</summary>
 public sealed record PresupuestoDto(
     Guid Id, string NumeroCompleto, Guid ClienteId, string ClienteNombre, DateOnly Fecha, DateOnly Validez,
-    string Estado, decimal BaseImponible, decimal CuotaIva, decimal Total, Guid? FacturaId, IReadOnlyList<LineaPresupuestoDto> Lineas)
+    string Estado, decimal BaseImponible, decimal CuotaIva, decimal Total, Guid? FacturaId, IReadOnlyList<LineaPresupuestoDto> Lineas, decimal Suplidos = 0m)
 {
     public static PresupuestoDto Desde(Presupuesto p) => new(
         p.Id, p.NumeroCompleto, p.ClienteId, p.ClienteNombre, p.Fecha, p.Validez, p.Estado.ToString(),
         p.BaseImponible, p.CuotaIva, p.Total, p.FacturaId,
-        p.Lineas.Select(l => new LineaPresupuestoDto(l.Descripcion, l.Cantidad, l.PrecioUnitario, l.PorcentajeDescuento, l.CodigoIva, l.PorcentajeIva, l.Base, l.CuotaIva, l.ProductoId, l.Conceptos, l.ImporteConceptos, l.CosteConceptos)).ToList());
+        p.Lineas.Select(l => new LineaPresupuestoDto(l.Descripcion, l.Cantidad, l.PrecioUnitario, l.PorcentajeDescuento, l.CodigoIva, l.PorcentajeIva, l.Base, l.CuotaIva, l.ProductoId, l.Conceptos, l.ImporteConceptos, l.CosteConceptos)).ToList(), p.Suplidos);
 }
 
 /// <summary>Resumen de presupuesto para listados.</summary>

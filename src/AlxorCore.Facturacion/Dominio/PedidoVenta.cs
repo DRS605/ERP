@@ -156,6 +156,9 @@ public sealed class PedidoVenta : RaizAgregadoEmpresa<Guid>
 
     public decimal Total => Redondeo.Dos(_lineas.Sum(l => l.Base));
 
+    /// <summary>Suplidos y fianzas de las líneas: fuera de la base y sin impuesto (la factura los suma al total).</summary>
+    public decimal Suplidos => Redondeo.Dos(_lineas.Sum(l => ConceptosLinea.SumaSuplidos(l.Conceptos)));
+
     /// <summary>Pone los conceptos de cada línea (en el orden de las líneas) mientras se puede modificar el pedido.</summary>
     public Resultado PonerConceptos(IReadOnlyList<IReadOnlyList<ConceptoAplicado>> conceptos)
     {

@@ -250,6 +250,15 @@ public sealed class CargosAbonosTests : IClassFixture<FabricaApiPruebas>
 
         var pdf = await api.GetAsync($"/facturas/{f.Id}/pdf");
         pdf.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // El presupuesto también lo suma a su total; el pedido lo muestra aparte (su total es la base).
+        var presupuesto = await api.PostAsJsonAsync("/presupuestos", new { ClienteId = cliente, Lineas = new[] { new { Descripcion = "Mercancía", Cantidad = 1m, PrecioUnitario = 100m, CodigoIva = "IVA21" } } });
+        presupuesto.StatusCode.Should().Be(HttpStatusCode.Created, await presupuesto.Content.ReadAsStringAsync());
+        (await presupuesto.Content.ReadFromJsonAsync<FacturaSuplidosResp>())!.Should()
+            .Match<FacturaSuplidosResp>(x => x.BaseImponible == 100m && x.Suplidos == 15m && x.Total == 136m);
+        var pedido = await api.PostAsJsonAsync("/pedidos-venta", new { ClienteId = cliente, Lineas = new[] { new { Descripcion = "Mercancía", Cantidad = 1m, PrecioUnitario = 100m, CodigoIva = "IVA21" } } });
+        pedido.StatusCode.Should().Be(HttpStatusCode.Created, await pedido.Content.ReadAsStringAsync());
+        (await pedido.Content.ReadFromJsonAsync<FacturaSuplidosResp>())!.Should().Match<FacturaSuplidosResp>(x => x.Suplidos == 15m && x.Total == 100m);
     }
 
     private sealed record LineaIvaResp(string Descripcion, decimal Base, string CodigoIva, decimal CuotaIva);

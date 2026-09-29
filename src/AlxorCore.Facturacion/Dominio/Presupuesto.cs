@@ -59,6 +59,9 @@ public sealed class LineaPresupuesto : EntidadBase<Guid>
     /// <summary>Importe antes de conceptos.</summary>
     public decimal BaseBruta => Base - ImporteConceptos;
 
+    /// <summary>Suplidos y fianzas de la línea (fuera de la base y sin impuesto).</summary>
+    public decimal SuplidosConceptos => ConceptosLinea.SumaSuplidos(Conceptos);
+
     public Guid EmpresaId { get; private set; }
 
     public Guid? ProductoId { get; private set; }
@@ -212,6 +215,9 @@ public sealed class Presupuesto : RaizAgregadoEmpresa<Guid>
 
         BaseImponible = Redondeo.Dos(_lineas.Sum(l => l.Base));
         CuotaIva = Redondeo.Dos(_lineas.Sum(l => l.CuotaIva));
-        Total = Redondeo.Dos(BaseImponible + CuotaIva);
+        Total = Redondeo.Dos(BaseImponible + CuotaIva + Suplidos);
     }
+
+    /// <summary>Suplidos y fianzas: suman al total, como en la factura.</summary>
+    public decimal Suplidos => Redondeo.Dos(_lineas.Sum(l => l.SuplidosConceptos));
 }

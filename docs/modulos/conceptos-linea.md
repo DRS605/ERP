@@ -79,6 +79,8 @@ paga impuesto: es un gasto que se repercute al cliente tal cual (un suplido, la 
 - En la factura: `suplidos` = suma de los suplidos de las líneas, y **total = base + impuesto + recargo − retención +
   suplidos**. La base de datos lo comprueba (`ck_factura_total`, `ck_linea_factura_suplidos` y el cuadre con las líneas).
 - En el asiento: el cliente al debe por el total; el suplido, al haber de su cuenta, sin IVA.
+- En el presupuesto, `suplidos` y el total los suman igual que en la factura. En el pedido de venta, cuyo total es la
+  base, van aparte en `suplidos`.
 - En el PDF salen después de los impuestos; en Facturae, como `TotalReimbursableExpenses`.
 - El libro de IVA, el SII y los modelos no los incluyen en la base.
 
@@ -220,8 +222,7 @@ revés) y `concepto.linea_negativa`.
 
 ## Pendiente
 
-- Suplidos en compras (hoy solo en ventas) y en el total de presupuestos y pedidos (se muestran en la línea, pero su
-  total solo suma en la factura).
+- Suplidos en compras (hoy solo en ventas).
 - Reglas por **envase** en las ventas.
 - La provisión contable del cargo de coste con acreedor en el documento (hoy el coste se contabiliza al registrar la
   factura del acreedor).

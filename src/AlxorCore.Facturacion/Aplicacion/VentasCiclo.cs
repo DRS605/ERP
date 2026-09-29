@@ -14,12 +14,12 @@ public sealed record LineaPedidoVentaDto(Guid Id, Guid? ProductoId, string Descr
     decimal PorcentajeDescuento, string CodigoIva, decimal Base, decimal CantidadServida, decimal CantidadFacturada, decimal PendienteServir, IReadOnlyList<ConceptoAplicado>? Conceptos = null, decimal ImporteConceptos = 0m, decimal CosteConceptos = 0m);
 
 public sealed record PedidoVentaDto(Guid Id, string Estado, int Ejercicio, int Numero, string NumeroCompleto, Guid ClienteId, string ClienteNombre,
-    DateOnly Fecha, Guid? PresupuestoOrigenId, Guid? FacturaId, decimal Total, bool ServidoCompleto, IReadOnlyList<LineaPedidoVentaDto> Lineas)
+    DateOnly Fecha, Guid? PresupuestoOrigenId, Guid? FacturaId, decimal Total, bool ServidoCompleto, IReadOnlyList<LineaPedidoVentaDto> Lineas, decimal Suplidos = 0m)
 {
     public static PedidoVentaDto Desde(PedidoVenta p) => new(p.Id, p.Estado.ToString(), p.Ejercicio, p.Numero, p.NumeroCompleto, p.ClienteId, p.ClienteNombre,
         p.Fecha, p.PresupuestoOrigenId, p.FacturaId, p.Total, p.ServidoCompleto,
         p.Lineas.Select(l => new LineaPedidoVentaDto(l.Id, l.ProductoId, l.Descripcion, l.Cantidad, l.PrecioUnitario, l.PorcentajeDescuento,
-            l.CodigoIva, l.Base, l.CantidadServida, l.CantidadFacturada, l.PendienteServir, l.Conceptos, l.ImporteConceptos, l.CosteConceptos)).ToList());
+            l.CodigoIva, l.Base, l.CantidadServida, l.CantidadFacturada, l.PendienteServir, l.Conceptos, l.ImporteConceptos, l.CosteConceptos)).ToList(), p.Suplidos);
 }
 
 public sealed record LineaAlbaranVentaDto(Guid? LineaPedidoId, Guid? ProductoId, string Descripcion, decimal Cantidad,
