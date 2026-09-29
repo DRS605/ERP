@@ -25,7 +25,21 @@ internal sealed class GeneradorEtiquetaLogisticaQuestPdf : IGeneradorEtiquetaLog
 
         var sscc = new List<(string, string)> { ("00", etiqueta.Sscc) };
         var contenido = new List<(string, string)> { Gs1128.PesoNeto(etiqueta.KilosNetos) };
-        if (etiqueta.Cajas > 0)
+        List<(string, string)>? articulo = null;
+        if (etiqueta.Gtin is { Length: 14 } gtin)
+        {
+            articulo = [("02", gtin)];
+            if (etiqueta.FechaCaducidad is { } cad)
+            {
+                articulo.Add(("17", cad.ToString("yyMMdd", CultureInfo.InvariantCulture)));
+            }
+
+            if (etiqueta.Cajas > 0)
+            {
+                articulo.Add(("37", etiqueta.Cajas.ToString(CultureInfo.InvariantCulture)));
+            }
+        }
+        else if (etiqueta.Cajas > 0)
         {
             contenido.Add(("37", etiqueta.Cajas.ToString(CultureInfo.InvariantCulture)));
         }
@@ -57,11 +71,26 @@ internal sealed class GeneradorEtiquetaLogisticaQuestPdf : IGeneradorEtiquetaLog
                 col.Item().Row(f =>
                 {
                     f.RelativeItem().Column(x => Campo(x, "Lote", etiqueta.Lote));
-                    f.RelativeItem().Column(x => Campo(x, "Fecha", etiqueta.Fecha.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)));
+                    f.RelativeItem().Column(x => Campo(x, etiqueta.FechaCaducidad is null ? "Fecha" : "Caducidad",
+                        (etiqueta.FechaCaducidad ?? etiqueta.Fecha).ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)));
                 });
+                if (etiqueta.Gtin is not null || etiqueta.KilosBrutos is not null)
+                {
+                    col.Item().Row(f =>
+                    {
+                        f.RelativeItem().Column(x => Campo(x, "GTIN", etiqueta.Gtin));
+                        f.RelativeItem().Column(x => Campo(x, "Peso bruto", etiqueta.KilosBrutos is { } b ? Redondeo.Formatear(b, 3) + " kg" : null));
+                    });
+                }
+
                 Campo(col, "Tipo de palé", etiqueta.TipoPale);
                 Campo(col, "Destinatario", etiqueta.Destinatario);
                 col.Item().LineHorizontal(1);
+                if (articulo is not null)
+                {
+                    Codigo(col, articulo);
+                }
+
                 Codigo(col, contenido);
                 Codigo(col, sscc);
             });

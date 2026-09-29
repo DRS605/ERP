@@ -40,6 +40,7 @@ public static class CatalogoModulos
     public const string Aprobaciones = "aprobaciones";
     public const string Integraciones = "integraciones";
     public const string Agro = "agro";
+    public const string Logistica = "logistica";
 
     public const string EdicionStart = "start";
     public const string EdicionGestion = "gestion";
@@ -65,6 +66,8 @@ public static class CatalogoModulos
         new(Divisas, "Divisas", "Tipos de cambio y documentos en otras monedas.", []),
         new(Aprobaciones, "Aprobaciones", "Circuitos de aprobación de documentos.", []),
         new(Integraciones, "Integraciones", "API pública y webhooks para conectar otras aplicaciones.", []),
+        new(Logistica, "Logística", "Fichas logísticas (GTIN, cajas, pesos y mosaico), plantillas de paletizado, palés y cajas SSCC multinivel desde el almacén "
+            + "(por caducidad) o desde fabricación, etiqueta GS1 y lectura con pistola o móvil.", [Inventario]),
         new(Agro, "Agro (hortofrutícola)", "Recepción de fruta con pesadas y envases, partidas, clasificación, liquidación al agricultor con autofactura (REAGP), "
             + "confección con coste por kilo, palés SSCC, expedición y trazabilidad del campo al cliente.", [], Vertical: true),
     ];
@@ -80,7 +83,7 @@ public static class CatalogoModulos
             [Ventas, Compras, Inventario, Divisas, Aprobaciones, Integraciones, Contabilidad, Inmovilizado, Analitica, TesoreriaAvanzada]),
         new(EdicionCompleta, "Completa", "Todos los módulos generalistas, incluidos producción y proyectos (los sectoriales, como agro, se contratan aparte).",
             [Ventas, Compras, Inventario, Divisas, Aprobaciones, Integraciones, Contabilidad, Inmovilizado, Analitica, TesoreriaAvanzada,
-             Produccion, Personal, Proyectos]),
+             Produccion, Personal, Proyectos, Logistica]),
     ];
 
     public static ModuloAlxor? BuscarModulo(string? codigo) =>

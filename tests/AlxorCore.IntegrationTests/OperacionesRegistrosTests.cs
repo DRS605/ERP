@@ -86,6 +86,8 @@ public sealed class OperacionesRegistrosTests : IClassFixture<FabricaApiPruebas>
         ["/agro/liquidaciones/previsualizar"] = "cálculo sin guardar",
         ["/productos/composiciones/buscar"] = "consulta (compuestos con la misma lista de materiales)",
         ["/productos/composiciones/recalcular-precios"] = "recalcula precios (se corrigen en la ficha de cada artículo)",
+        ["/logistica/paletizar"] = "monta palés de una vez: cada uno se corrige con /logistica/unidades/{id}/contenido o se desmonta con /logistica/unidades/{id}/anular",
+        ["/logistica/paletizar-fabricacion"] = "monta palés de una vez: cada uno se corrige con /logistica/unidades/{id}/contenido o se desmonta con /logistica/unidades/{id}/anular",
         ["/agro/pales/montar"] = "monta palés de una vez: cada uno se corrige con /agro/pales/{id}/cajas (reabriéndolo si está cerrado)",
         ["/agro/expediciones"] = "marca palés como expedidos: cada uno se anula con /agro/pales/{id}/anular-expedicion",
         ["/usuarios/invitar"] = "se revoca con /usuarios/{usuarioId}/revocar",

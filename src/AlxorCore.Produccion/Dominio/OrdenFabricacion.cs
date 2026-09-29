@@ -98,6 +98,11 @@ public sealed class OrdenFabricacion : RaizAgregadoEmpresa<Guid>
 
     public DateTimeOffset? TerminadaEn { get; private set; }
 
+    /// <summary>Lote con que entró lo fabricado en el almacén (null si no se lleva por lotes).</summary>
+    public string? Lote { get; private set; }
+
+    public DateOnly? FechaCaducidad { get; private set; }
+
     public IReadOnlyList<ComponentePlan> Componentes => _componentes;
 
     public static Resultado<OrdenFabricacion> Crear(Guid empresaId, int numero, Guid productoId, string? productoNombre,
@@ -176,8 +181,13 @@ public sealed class OrdenFabricacion : RaizAgregadoEmpresa<Guid>
     }
 
     /// <summary>Marca la orden como terminada. La consumición/producción de stock la orquesta el caso de uso.</summary>
-    public Resultado Terminar(DateTimeOffset ahora)
+    public Resultado Terminar(DateTimeOffset ahora, string? lote = null, DateOnly? caducidad = null)
     {
+        if (lote is { Length: > 60 })
+        {
+            return Resultado.Fallo(Error.Validacion("orden.lote", "El lote tiene hasta 60 caracteres."));
+        }
+
         if (Estado is EstadoOrdenFabricacion.Terminada)
         {
             return Resultado.Fallo(Error.Conflicto("orden.ya_terminada", "La orden ya está terminada."));
@@ -190,6 +200,8 @@ public sealed class OrdenFabricacion : RaizAgregadoEmpresa<Guid>
 
         Estado = EstadoOrdenFabricacion.Terminada;
         TerminadaEn = ahora;
+        Lote = string.IsNullOrWhiteSpace(lote) ? null : lote.Trim();
+        FechaCaducidad = Lote is null ? null : caducidad;
         return Resultado.Ok();
     }
 

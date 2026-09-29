@@ -15,6 +15,11 @@ Al **terminar** la orden se ejecuta el **montaje** en el Inventario: se **consum
 componentes y se **da entrada** del artículo fabricado, todo en una única transacción. Si falta stock
 de algún componente, el montaje falla y la orden no se termina.
 
+Al terminar se puede indicar el **lote** y la **caducidad** de lo fabricado (`{ lote, fechaCaducidad }`
+en el cuerpo, opcional). Así lo fabricado entra en el inventario con su lote, que queda en la orden, y
+Logística puede paletizarlo desde la orden (`POST /logistica/paletizar-fabricacion`), con la
+trazabilidad de fabricación → palé → cliente. Ver [logistica.md](logistica.md).
+
 Numeración correlativa **por empresa y ejercicio** (índice único `ux_orden_serie`).
 
 ## Reglas (invariantes)
@@ -32,7 +37,7 @@ Numeración correlativa **por empresa y ejercicio** (índice único `ux_orden_se
 | `GET` | `/produccion/ordenes/{id}` | `produccion.leer` | Obtiene una orden. |
 | `POST` | `/produccion/ordenes` | `produccion.gestionar` | Crea una orden (planifica la lista de materiales). **201** |
 | `POST` | `/produccion/ordenes/{id}/iniciar` | `produccion.gestionar` | Pasa a EnCurso. |
-| `POST` | `/produccion/ordenes/{id}/terminar` | `produccion.gestionar` | Consume componentes y produce el artículo. |
+| `POST` | `/produccion/ordenes/{id}/terminar` | `produccion.gestionar` | Consume componentes y produce el artículo (con lote y caducidad opcionales). |
 | `POST` | `/produccion/ordenes/{id}/cancelar` | `produccion.gestionar` | Cancela la orden. |
 
 ## Composición (fronteras entre módulos)

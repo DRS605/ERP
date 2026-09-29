@@ -47,8 +47,8 @@ public static class EndpointsProduccion
     private static async Task<IResult> IniciarAsync(Guid id, IContextoEmpresa c, DecidirOrden caso, CancellationToken ct)
         => c.EmpresaId is null ? SinEmpresa() : (await caso.IniciarAsync(c.EmpresaId.Value, id, ct).ConfigureAwait(false)).AOk();
 
-    private static async Task<IResult> TerminarAsync(Guid id, IContextoEmpresa c, DecidirOrden caso, CancellationToken ct)
-        => c.EmpresaId is null ? SinEmpresa() : (await caso.TerminarAsync(c.EmpresaId.Value, id, ct).ConfigureAwait(false)).AOk();
+    private static async Task<IResult> TerminarAsync(Guid id, TerminarOrdenComando? comando, IContextoEmpresa c, DecidirOrden caso, CancellationToken ct)
+        => c.EmpresaId is null ? SinEmpresa() : (await caso.TerminarAsync(c.EmpresaId.Value, id, comando, ct).ConfigureAwait(false)).AOk();
 
     private static async Task<IResult> CancelarAsync(Guid id, IContextoEmpresa c, DecidirOrden caso, CancellationToken ct)
         => c.EmpresaId is null ? SinEmpresa() : (await caso.CancelarAsync(c.EmpresaId.Value, id, ct).ConfigureAwait(false)).AOk();

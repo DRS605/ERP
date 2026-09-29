@@ -51,6 +51,8 @@ internal sealed class ConfiguracionOrden : IEntityTypeConfiguration<OrdenFabrica
         b.Property(o => o.Estado).HasColumnName("estado").HasMaxLength(20).HasConversion<string>().IsRequired();
         b.Property(o => o.CreadoEn).HasColumnName("creado_en").IsRequired();
         b.Property(o => o.TerminadaEn).HasColumnName("terminada_en");
+        b.Property(o => o.Lote).HasColumnName("lote").HasMaxLength(60);
+        b.Property(o => o.FechaCaducidad).HasColumnName("fecha_caducidad");
         b.OwnsMany(o => o.Componentes, c =>
         {
             c.ToTable("componente_plan");
@@ -129,12 +131,34 @@ internal sealed class ConsultaListaMaterialesCatalogo : IConsultaListaMateriales
 internal sealed class MontajeProduccionInventario : IMontajeProduccion
 {
     private readonly MontajeArticulo _montaje;
-    public MontajeProduccionInventario(MontajeArticulo montaje) => _montaje = montaje;
+    private readonly LotesArticulos? _lotes;
 
-    public async Task<Resultado> MontarAsync(Guid empresaId, Guid productoId, decimal cantidad, Guid almacenId, CancellationToken ct = default)
+    public MontajeProduccionInventario(MontajeArticulo montaje, LotesArticulos? lotes = null)
     {
-        var r = await _montaje.EjecutarAsync(empresaId, new MontajeComando(productoId, cantidad, almacenId), ct).ConfigureAwait(false);
-        return r.EsCorrecto ? Resultado.Ok() : Resultado.Fallo(r.Error);
+        _montaje = montaje;
+        _lotes = lotes;
+    }
+
+    public async Task<Resultado> MontarAsync(Guid empresaId, Guid productoId, decimal cantidad, Guid almacenId, string? lote = null, DateOnly? caducidad = null,
+        CancellationToken ct = default)
+    {
+        var r = await _montaje.EjecutarAsync(empresaId, new MontajeComando(productoId, cantidad, almacenId, Lote: lote), ct).ConfigureAwait(false);
+        if (r.EsFallo)
+        {
+            return Resultado.Fallo(r.Error);
+        }
+
+        // La caducidad del lote fabricado queda en el lote del inventario (para servir por caducidad y paletizar).
+        if (lote is not null && caducidad is not null && _lotes is not null)
+        {
+            var fijado = await _lotes.FijarAsync(empresaId, new DatosLote(productoId, lote, caducidad), ct).ConfigureAwait(false);
+            if (fijado.EsFallo)
+            {
+                return Resultado.Fallo(fijado.Error);
+            }
+        }
+
+        return Resultado.Ok();
     }
 }
 

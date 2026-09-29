@@ -123,6 +123,7 @@ public class FabricaApiPruebas : WebApplicationFactory<Program>, IAsyncLifetime
         await ambito.ServiceProvider.GetRequiredService<AlxorCore.Informes.Infraestructura.FiscalDbContext>().Database.MigrateAsync().ConfigureAwait(false);
         await tesoreria.Database.MigrateAsync().ConfigureAwait(false);
         await agro.Database.MigrateAsync().ConfigureAwait(false);
+        await ambito.ServiceProvider.GetRequiredService<AlxorCore.Logistica.Infraestructura.LogisticaDbContext>().Database.MigrateAsync().ConfigureAwait(false);
         await migracion.Database.MigrateAsync().ConfigureAwait(false);
         await auditoria.Database.MigrateAsync().ConfigureAwait(false);
         await divisas.Database.MigrateAsync().ConfigureAwait(false);

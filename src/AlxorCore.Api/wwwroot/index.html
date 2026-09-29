@@ -219,6 +219,14 @@
     .backdrop { display:none; position:fixed; inset:0; background:rgba(11,42,74,.35); z-index:40; }
     .backdrop.show { display:block; }
     @media (max-width: 980px) { .kpis { grid-template-columns: repeat(2,1fr); } }
+    .lg-scan { font-size:22px; padding:14px 16px; margin-top:10px; border-width:2px; }
+    .lg-big { padding:14px 18px; font-size:16px; width:auto; margin:0; }
+    .lg-msg { margin-top:12px; padding:12px 14px; border-radius:12px; font-size:17px; font-weight:600; min-height:24px; }
+    .lg-msg.ok { background:rgba(16,185,129,.14); color:#065f46; } .lg-msg.err { background:rgba(239,68,68,.14); color:#991b1b; }
+    .lg-card { margin-top:12px; padding:14px; border:1px solid var(--line,#dde6ec); border-radius:14px; }
+    body.modo-terminal .sidebar, body.modo-terminal .topbar { display:none; }
+    body.modo-terminal .app { grid-template-columns: 1fr; }
+    body.modo-terminal .content { padding:8px; }
     @media (max-width: 900px) {
       .app { grid-template-columns: 1fr; }
       .sidebar { position:fixed; left:0; top:0; bottom:0; width:266px; z-index:50; transform:translateX(-100%);
@@ -475,7 +483,7 @@
       { t:"grupo", k:"ventas", l:"Ventas", items:[["clientes","Clientes"],["presupuestos","Presupuestos"],["pedidosventa","Pedidos de venta"],["albaranesventa","Albaranes"],["devolucionesventa","Devoluciones"],["reclamaciones","Reclamaciones"],["facturas","Facturas"],["tpv","TPV · Tickets"],["recurrentes","Facturación periódica"],["anticipos","Anticipos"]] },
       { t:"grupo", k:"compras", l:"Compras", items:[["proveedores","Proveedores"],["solicitudes","Solicitudes"],["pedidos","Pedidos de compra"],["recepcion","Buzón de facturas"],["gastos","Facturas de proveedor"],["cargosacreedor","Cargos de acreedores"]] },
       { t:"grupo", k:"articulos", l:"Artículos y almacén", items:[["productos","Artículos"],["familias","Familias"],["tarifas","Tarifas de precios"],["conceptoslinea","Conceptos de línea"],["inventario","Inventario / Almacenes"],["produccion","Producción"]] },
-      { t:"grupo", k:"logistica", l:"Expedición y aduanas", items:[["cartasporte","Cartas de porte · CMR"],["aduanas","Aduanas · Intrastat"]] },
+      { t:"grupo", k:"logistica", l:"Logística y expedición", items:[["logterminal","Terminal (móvil / pistola)"],["logunidades","Palés y unidades SSCC"],["logcalculo","Cálculo de palés"],["logmaestros","Fichas, soportes y plantillas"],["cartasporte","Cartas de porte · CMR"],["aduanas","Aduanas · Intrastat"]] },
       { t:"grupo", k:"agro", l:"Agro", items:[["agrorecepciones","Recepciones"],["agropartidas","Partidas y palés"],["agroconfeccion","Confección"],["agroordenescarga","Órdenes de carga"],["agroliquidaciones","Liquidaciones"],["agroenvases","Envases"],["agrocuaderno","Cuaderno de campo"],["agrofitos","Fitosanitarios"],["agroglobalgap","GlobalG.A.P."],["agrotrazabilidad","Trazabilidad"],["agroinforme","Informe de campaña"],["agromaestros","Maestros agro"]] },
       { t:"grupo", k:"tesoreria", l:"Tesorería", items:[["bancos","Bancos y cajas"],["cobros","Cobros"],["cartera","Efectos de cartera"],["impagados","Impagados"],["remesas","Remesas SEPA"],["pagos","Pagos"],["liquidacionespagos","Liquidaciones y entregas a cuenta"],["conciliacion","Conciliación bancaria"],["prevision","Previsión de tesorería"],["divisas","Divisas"]] },
       { t:"grupo", k:"contabilidad", l:"Contabilidad", items:[["contabilidad","Contabilidad y libros"],["inmovilizado","Inmovilizado"],["analitica","Analítica · resultados"],["analiticapend","Analítica · pendientes"],["analiticamaestros","Centros, partidas y reglas"],["presupuestoscont","Presupuestos contables"]] },
@@ -484,17 +492,17 @@
       { t:"item", k:"proyectos", l:"Proyectos" },
       { t:"grupo", k:"ajustes", l:"Configuración", items:[["ajustes","Ajustes"],["aprobaciones","Aprobaciones"],["integraciones","API, webhooks y EDI"]] },
     ];
-    const TITULOS = { agrofitos:"Agro · registro de fitosanitarios", agroglobalgap:"Agro · autoevaluaciones GlobalG.A.P.", agrocuaderno:"Agro · cuaderno de campo", agroordenescarga:"Agro · órdenes de carga", devolucionesventa:"Devoluciones de venta", reclamaciones:"Reclamaciones sobre ventas", liquidacionespagos:"Liquidaciones de pagos y entregas a cuenta", agroenvases:"Agro · envases por tercero", cargosacreedor:"Cargos de acreedores (portes, comisiones)", albaranesventa:"Albaranes de venta", analisis:"Análisis de datos", bancos:"Bancos y cajas", cartera:"Efectos de cartera", agrorecepciones:"Agro · recepciones de fruta", agropartidas:"Agro · partidas y palés", agroconfeccion:"Agro · confección", agroliquidaciones:"Agro · liquidaciones al agricultor", agrotrazabilidad:"Agro · trazabilidad", agroinforme:"Agro · informe de campaña", agromaestros:"Agro · campañas, agricultores y precios", analitica:"Analítica · resultados", analiticapend:"Analítica · pendientes de imputar", analiticamaestros:"Analítica · centros, partidas y reglas", presupuestoscont:"Presupuestos contables", impagados:"Impagados y reclamaciones", anticipos:"Anticipos de clientes", cartasporte:"Cartas de porte · CMR", aduanas:"Aduanas e Intrastat", intragrupo:"Operaciones entre empresas del grupo", actividades:"Actividades de negocio", inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Facturas de proveedor y gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos",tarifas:"Tarifas de precios", conceptoslinea:"Conceptos de línea", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", gestion:"Análisis de gestión", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", divisas:"Divisas y tipos de cambio", aprobaciones:"Aprobaciones y control de firmas", integraciones:"API pública, webhooks y EDI", ajustes:"Ajustes" };
+    const TITULOS = { logterminal:"Logística · terminal de palés", logunidades:"Logística · palés y unidades SSCC", logcalculo:"Logística · cálculo de palés", logmaestros:"Logística · fichas, soportes y plantillas", agrofitos:"Agro · registro de fitosanitarios", agroglobalgap:"Agro · autoevaluaciones GlobalG.A.P.", agrocuaderno:"Agro · cuaderno de campo", agroordenescarga:"Agro · órdenes de carga", devolucionesventa:"Devoluciones de venta", reclamaciones:"Reclamaciones sobre ventas", liquidacionespagos:"Liquidaciones de pagos y entregas a cuenta", agroenvases:"Agro · envases por tercero", cargosacreedor:"Cargos de acreedores (portes, comisiones)", albaranesventa:"Albaranes de venta", analisis:"Análisis de datos", bancos:"Bancos y cajas", cartera:"Efectos de cartera", agrorecepciones:"Agro · recepciones de fruta", agropartidas:"Agro · partidas y palés", agroconfeccion:"Agro · confección", agroliquidaciones:"Agro · liquidaciones al agricultor", agrotrazabilidad:"Agro · trazabilidad", agroinforme:"Agro · informe de campaña", agromaestros:"Agro · campañas, agricultores y precios", analitica:"Analítica · resultados", analiticapend:"Analítica · pendientes de imputar", analiticamaestros:"Analítica · centros, partidas y reglas", presupuestoscont:"Presupuestos contables", impagados:"Impagados y reclamaciones", anticipos:"Anticipos de clientes", cartasporte:"Cartas de porte · CMR", aduanas:"Aduanas e Intrastat", intragrupo:"Operaciones entre empresas del grupo", actividades:"Actividades de negocio", inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Facturas de proveedor y gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos",tarifas:"Tarifas de precios", conceptoslinea:"Conceptos de línea", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", gestion:"Análisis de gestión", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", divisas:"Divisas y tipos de cambio", aprobaciones:"Aprobaciones y control de firmas", integraciones:"API pública, webhooks y EDI", ajustes:"Ajustes" };
     // Plan contratado de la empresa activa (lo devuelve /empresas/{id}/seleccionar).
     let plan = null;
     // Vista → módulo contratable que necesita. Las vistas que no están aquí son de la base.
-    const MODULO_VISTA = { agrofitos:"agro", agroglobalgap:"agro", agrocuaderno:"agro", agroenvases:"agro", albaranesventa:"ventas", cargosacreedor:"compras", tarifas:"ventas", presupuestos:"ventas", pedidosventa:"ventas", remesas:"tesoreria_avanzada",
+    const MODULO_VISTA = { logterminal:"logistica", logunidades:"logistica", logcalculo:"logistica", logmaestros:"logistica", agrofitos:"agro", agroglobalgap:"agro", agrocuaderno:"agro", agroenvases:"agro", albaranesventa:"ventas", cargosacreedor:"compras", tarifas:"ventas", presupuestos:"ventas", pedidosventa:"ventas", remesas:"tesoreria_avanzada",
       solicitudes:"compras", pedidos:"compras", conciliacion:"tesoreria_avanzada", inventario:"inventario",
       produccion:"produccion", personal:"personal", proyectos:"proyectos", prevision:"tesoreria_avanzada",
       contabilidad:"contabilidad", inmovilizado:"inmovilizado", divisas:"divisas", aprobaciones:"aprobaciones",
       integraciones:"integraciones", analitica:"analitica", analiticapend:"analitica", analiticamaestros:"analitica", presupuestoscont:"analitica",
       agrorecepciones:"agro", agropartidas:"agro", agroconfeccion:"agro", agroliquidaciones:"agro", agrotrazabilidad:"agro", agroinforme:"agro", agromaestros:"agro" };
-    const NOMBRE_MODULO = { agro:"Agro (hortofrutícola)", analitica:"Analítica y presupuestos", ventas:"Ventas", compras:"Compras", inventario:"Inventario", produccion:"Producción",
+    const NOMBRE_MODULO = { logistica:"Logística", agro:"Agro (hortofrutícola)", analitica:"Analítica y presupuestos", ventas:"Ventas", compras:"Compras", inventario:"Inventario", produccion:"Producción",
       personal:"Personal", proyectos:"Proyectos", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado",
       tesoreria_avanzada:"Tesorería avanzada", divisas:"Divisas", aprobaciones:"Aprobaciones", integraciones:"Integraciones" };
     // Sin plan en el token (tokens antiguos) no se oculta nada.
@@ -609,7 +617,7 @@
       document.getElementById("viewTitle").textContent=TITULOS[k]||k;
       if(!contratado(k)){ const m=NOMBRE_MODULO[MODULO_VISTA[k]]||MODULO_VISTA[k];
         view(panel("No incluido en tu plan",`<p class="muted" style="margin:0 0 14px">Esta pantalla forma parte del módulo <strong>${m}</strong>, que tu plan no incluye.</p><button class="btn small" onclick="ir('ajustes')">Ver planes en Ajustes →</button>`)); return; }
-      ({cartera:vCartera,agrofitos:vAgroFitos,agroglobalgap:vAgroGlobalGap,agrocuaderno:vAgroCuaderno,agroordenescarga:vAgroOrdenesCarga,devolucionesventa:vDevolucionesVenta,reclamaciones:vReclamaciones,liquidacionespagos:vLiquidacionesPagos,agroenvases:vAgroEnvases,albaranesventa:vAlbaranesVenta,cargosacreedor:vCargosAcreedor,analisis:()=>irAnalisis(),bancos:vBancos,agrorecepciones:vAgroRecepciones,agropartidas:vAgroPartidas,agroconfeccion:vAgroConfeccion,agroliquidaciones:vAgroLiquidaciones,agrotrazabilidad:vAgroTrazabilidad,agroinforme:()=>vAgroInforme(),agromaestros:()=>vAgroMaestros(),analitica:vAnalitica,analiticapend:vAnaliticaPend,analiticamaestros:vAnaliticaMaestros,presupuestoscont:vPresupuestosCont,impagados:vImpagados,anticipos:vAnticipos,cartasporte:vCartasPorte,aduanas:vAduanas,intragrupo:vIntragrupo,actividades:vActividades,inicio:vInicio,presupuestos:()=>irDocumento("presupuesto"),facturas:()=>irDocumento("factura"),tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:()=>irDocumento("pedido"),clientes:vClientes,productos:vProductos,familias:vFamilias,tarifas:vTarifas,conceptoslinea:vConceptosLinea,gastos:()=>irDocumento("gasto"),solicitudes:vSolicitudes,pedidos:()=>irDocumento("compra"),inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,gestion:vGestion,contabilidad:vContabilidad,inmovilizado:vInmovilizado,divisas:vDivisas,aprobaciones:vAprobaciones,integraciones:vIntegraciones,ajustes:vAjustes}[k])();
+      ({cartera:vCartera,logterminal:vLogTerminal,logunidades:vLogUnidades,logcalculo:vLogCalculo,logmaestros:vLogMaestros,agrofitos:vAgroFitos,agroglobalgap:vAgroGlobalGap,agrocuaderno:vAgroCuaderno,agroordenescarga:vAgroOrdenesCarga,devolucionesventa:vDevolucionesVenta,reclamaciones:vReclamaciones,liquidacionespagos:vLiquidacionesPagos,agroenvases:vAgroEnvases,albaranesventa:vAlbaranesVenta,cargosacreedor:vCargosAcreedor,analisis:()=>irAnalisis(),bancos:vBancos,agrorecepciones:vAgroRecepciones,agropartidas:vAgroPartidas,agroconfeccion:vAgroConfeccion,agroliquidaciones:vAgroLiquidaciones,agrotrazabilidad:vAgroTrazabilidad,agroinforme:()=>vAgroInforme(),agromaestros:()=>vAgroMaestros(),analitica:vAnalitica,analiticapend:vAnaliticaPend,analiticamaestros:vAnaliticaMaestros,presupuestoscont:vPresupuestosCont,impagados:vImpagados,anticipos:vAnticipos,cartasporte:vCartasPorte,aduanas:vAduanas,intragrupo:vIntragrupo,actividades:vActividades,inicio:vInicio,presupuestos:()=>irDocumento("presupuesto"),facturas:()=>irDocumento("factura"),tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:()=>irDocumento("pedido"),clientes:vClientes,productos:vProductos,familias:vFamilias,tarifas:vTarifas,conceptoslinea:vConceptosLinea,gastos:()=>irDocumento("gasto"),solicitudes:vSolicitudes,pedidos:()=>irDocumento("compra"),inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,gestion:vGestion,contabilidad:vContabilidad,inmovilizado:vInmovilizado,divisas:vDivisas,aprobaciones:vAprobaciones,integraciones:vIntegraciones,ajustes:vAjustes}[k])();
     }
     const view = h => { desmontarDocs(); document.getElementById("view").innerHTML=h; try{ mejorarTablas(); }catch(e){} };
 
@@ -1708,6 +1716,270 @@
     let toastT=null;
     function toast(msg,tipo=""){ let el=document.getElementById("toast"); if(!el){ el=document.createElement("div"); el.id="toast"; el.className="toast"; document.body.appendChild(el);} el.className="toast "+tipo; el.textContent=msg; requestAnimationFrame(()=>el.classList.add("show")); clearTimeout(toastT); toastT=setTimeout(()=>el.classList.remove("show"),2600); }
 
+    // =============================== Logística: palés SSCC, cálculo, maestros y terminal ===============================
+    const lgEsc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+    const lgKg=n=>(Number(n)||0).toLocaleString("es-ES",{maximumFractionDigits:3})+" kg";
+    const ESTADO_UL={Abierta:'<span class="pill part">Abierta</span>',Cerrada:'<span class="pill ok">Cerrada</span>',Expedida:'<span class="pill">Expedida</span>',Anulada:'<span class="pill neg">Anulada</span>'};
+    let _lg={productos:[],almacenes:[],clientes:[],soportes:[]};
+    async function lgCargar(){
+      const [productos,almacenes,clientes,soportes]=await Promise.all([api("/productos").catch(()=>[]),api("/inventario/almacenes").catch(()=>[]),api("/clientes").catch(()=>[]),api("/logistica/soportes").catch(()=>[])]);
+      _lg={productos,almacenes,clientes:Array.isArray(clientes)?clientes:(clientes.elementos||[]),soportes}; return _lg; }
+    const lgNom=(lista,id)=>(lista.find(x=>x.id===id)||{}).nombre||"—";
+    const lgOpc=(lista,sel,vacio,txt=x=>x.nombre)=>(vacio!==undefined?`<option value="">${vacio}</option>`:"")+lista.map(x=>`<option value="${x.id}"${x.id===sel?" selected":""}>${lgEsc(txt(x))}</option>`).join("");
+    async function lgPdf(ruta,nombre){ try{
+        const r=await fetch(ruta,{headers:{Authorization:"Bearer "+token}});
+        if(!r.ok){ let m="No se pudo generar el PDF"; try{ m=(await r.json()).title||m; }catch(_){} throw new Error(m); }
+        const u=URL.createObjectURL(await r.blob()); const w=window.open(u,"_blank"); if(!w){ const a=document.createElement("a"); a.href=u; a.download=nombre||"etiqueta.pdf"; a.click(); } setTimeout(()=>URL.revokeObjectURL(u),60000);
+      }catch(e){ toast(e.message,"err"); } }
+    const lgEtiqueta=sscc=>lgPdf(`/logistica/unidades/${sscc}/etiqueta`,`etiqueta-${sscc}.pdf`);
+
+    // ----- Palés y unidades -----
+    async function vLogUnidades(){
+      view('<div class="muted">Cargando…</div>');
+      await lgCargar();
+      const f=window._lgFiltro||{estado:"",almacenId:"",productoId:""};
+      const q=new URLSearchParams(); if(f.estado)q.set("estado",f.estado); if(f.almacenId)q.set("almacenId",f.almacenId); if(f.productoId)q.set("productoId",f.productoId); q.set("soloRaiz","true");
+      const lista=await api(`/logistica/unidades?${q}`); window._lgUnidades=lista;
+      const cont=u=>u.contenido.map(l=>`${lgEsc(l.producto||lgNom(_lg.productos,l.productoId))}${l.lote?` · <span class="mono">${lgEsc(l.lote)}</span>`:""}${l.fechaCaducidad?` · cad. ${fdate(l.fechaCaducidad)}`:""} · ${l.cajas} cj`).join("<br>")+(u.hijas.length?`<br><span class="muted">${u.hijas.length} unidad(es) dentro</span>`:"");
+      const filas=lista.map(u=>`<tr><td class="mono" style="cursor:pointer" onclick="vLogUnidad('${u.id}')">${u.sscc}</td><td>${u.tipo==="Pale"?"Palé":u.tipo}</td><td>${lgEsc(lgNom(_lg.almacenes,u.almacenId))}</td><td style="font-size:12px">${cont(u)||'<span class="muted">vacía</span>'}</td><td class="num">${u.cajas}${u.cajasCompleta?` / ${u.cajasCompleta}`:""}</td><td class="num">${lgKg(u.pesoBrutoKg)}</td><td>${u.clienteId?lgEsc(lgNom(_lg.clientes,u.clienteId)):'<span class="muted">—</span>'}</td><td>${ESTADO_UL[u.estado]||u.estado}</td><td class="right" style="white-space:nowrap"><button class="btn small secondary" onclick="lgEtiqueta('${u.sscc}')">Etiqueta</button> <button class="btn small ghost" onclick="vLogUnidad('${u.id}')">Abrir</button></td></tr>`).join("");
+      const filtros=`<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-bottom:12px">
+        <div><label>Estado</label><select id="lgf_e" onchange="lgFiltrar()"><option value="">Vivas y expedidas</option>${["Abierta","Cerrada","Expedida","Anulada"].map(e=>`<option${f.estado===e?" selected":""}>${e}</option>`).join("")}</select></div>
+        <div><label>Almacén</label><select id="lgf_a" onchange="lgFiltrar()">${lgOpc(_lg.almacenes,f.almacenId,"Todos")}</select></div>
+        <div><label>Artículo</label><select id="lgf_p" onchange="lgFiltrar()">${lgOpc(_lg.productos,f.productoId,"Todos")}</select></div>
+        <div style="flex:1;min-width:220px"><label>Buscar por SSCC (pistola o teclado)</label><input id="lgf_s" class="mono" placeholder="Escanea la etiqueta y pulsa Intro" onkeydown="if(event.key==='Enter')lgBuscarSscc()"/></div></div>`;
+      view(panel("Palés y unidades logísticas",`<p class="muted" style="margin:0 0 12px">Cada palé, caja o contenedor tiene su SSCC. Montar un palé no mueve existencias: reserva físicamente lo que lleva, que ya no se puede volver a paletizar. Se monta desde el almacén (por lote o por caducidad, FEFO), desde lo fabricado en una orden, o caja a caja con la pistola en el terminal.</p>${filtros}`
+        +(lista.length?`<table><thead><tr><th>SSCC</th><th>Tipo</th><th>Almacén</th><th>Contenido</th><th class="num">Cajas</th><th class="num">Peso bruto</th><th>Cliente</th><th>Estado</th><th></th></tr></thead><tbody>${filas}</tbody></table>`:'<p class="muted" style="margin:0">No hay unidades con ese filtro.</p>'),
+        `<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn small secondary" onclick="modalLgFabricacion()">Paletizar fabricación</button><button class="btn small secondary" onclick="modalLgNueva()">+ Unidad vacía</button><button class="btn small" onclick="modalLgPaletizar()">Paletizar del almacén</button></div>`));
+    }
+    function lgFiltrar(){ window._lgFiltro={estado:val("lgf_e"),almacenId:val("lgf_a"),productoId:val("lgf_p")}; vLogUnidades(); }
+    async function lgBuscarSscc(){ const c=val("lgf_s").trim(); if(!c) return;
+      try{ const u=await api(`/logistica/unidades/${encodeURIComponent(c)}`); vLogUnidad(u.id); }catch(e){ toast(e.message,"err"); } }
+    function lgAvisos(r){ const t=`${r.unidades.length} unidad(es): ${r.completas} completa(s)${r.abiertas?`, ${r.abiertas} abierta(s)`:""} · ${r.cajas} cajas.`;
+      if(r.avisos.length) abrir("Paletizado hecho",`<p style="margin:0 0 10px">${t}</p>${r.avisos.map(a=>`<p class="pill part" style="display:block;white-space:normal;margin:4px 0">${lgEsc(a)}</p>`).join("")}`,async()=>{});
+      else toast(t,"ok"); }
+    async function modalLgPaletizar(){
+      const conFicha=new Set((await api("/logistica/fichas")).map(f=>f.productoId));
+      const prods=_lg.productos.filter(p=>conFicha.has(p.id));
+      if(!prods.length){ toast("Primero da de alta la ficha logística del artículo (Logística · Fichas, soportes y plantillas).","err"); return; }
+      abrir("Paletizar del almacén",`<div class="grid2"><div><label>Artículo</label><select id="lp_p">${lgOpc(prods)}</select></div><div><label>Almacén</label><select id="lp_a">${lgOpc(_lg.almacenes)}</select></div></div>
+        <div class="grid2"><div><label>Cajas (vacío = todo lo libre)</label><input id="lp_c" type="number" min="1" step="1"/></div><div><label>Lote (vacío = por caducidad, FEFO)</label><input id="lp_l"/></div></div>
+        <div class="grid2"><div><label>Cliente (usa su plantilla)</label><select id="lp_cl">${lgOpc(_lg.clientes,null,"—")}</select></div><div style="padding-top:26px"><label style="display:flex;gap:8px;align-items:center;font-weight:500"><input id="lp_sc" type="checkbox" style="width:auto;margin:0"/> Solo palés completos</label></div></div>`,
+        async()=>{ const c=val("lp_c");
+          const r=await api("/logistica/paletizar",{method:"POST",body:JSON.stringify({productoId:val("lp_p"),almacenId:val("lp_a"),cajas:c?Number(c):null,lote:val("lp_l")||null,clienteId:val("lp_cl")||null,soloCompletos:document.getElementById("lp_sc").checked})});
+          setTimeout(()=>{ lgAvisos(r); vLogUnidades(); }); });
+    }
+    async function modalLgFabricacion(){
+      const ordenes=(await api("/produccion/ordenes").catch(()=>[])).filter(o=>o.estado==="Terminada");
+      if(!ordenes.length){ toast("No hay órdenes de fabricación terminadas.","err"); return; }
+      abrir("Paletizar lo fabricado",`<label>Orden de fabricación terminada</label><select id="lf_o">${ordenes.map(o=>`<option value="${o.id}">OF ${o.numero}/${o.ejercicio} · ${lgEsc(o.productoNombre)} · ${numCant(o.cantidad)}${o.lote?` · lote ${lgEsc(o.lote)}`:""}</option>`).join("")}</select>
+        <div class="grid2"><div><label>Almacén</label><select id="lf_a">${lgOpc(_lg.almacenes,ordenes[0].almacenId)}</select></div><div><label>Cajas (vacío = lo que falte)</label><input id="lf_c" type="number" min="1" step="1"/></div></div>
+        <label>Cliente (usa su plantilla)</label><select id="lf_cl">${lgOpc(_lg.clientes,null,"—")}</select>`,
+        async()=>{ const c=val("lf_c");
+          const r=await api("/logistica/paletizar-fabricacion",{method:"POST",body:JSON.stringify({ordenFabricacionId:val("lf_o"),almacenId:val("lf_a"),cajas:c?Number(c):null,clienteId:val("lf_cl")||null})});
+          setTimeout(()=>{ lgAvisos(r); vLogUnidades(); }); });
+    }
+    function modalLgNueva(){
+      abrir("Nueva unidad vacía",`<div class="grid2"><div><label>Tipo</label><select id="ln_t"><option value="Pale">Palé</option><option value="Caja">Caja</option><option value="Contenedor">Contenedor</option></select></div><div><label>Almacén</label><select id="ln_a">${lgOpc(_lg.almacenes)}</select></div></div>
+        <div class="grid2"><div><label>Soporte</label><select id="ln_s">${lgOpc(_lg.soportes.filter(s=>s.activo),null,"—")}</select></div><div><label>Cliente</label><select id="ln_c">${lgOpc(_lg.clientes,null,"—")}</select></div></div>
+        <label>Observaciones</label><input id="ln_o"/>`,
+        async()=>{ const u=await api("/logistica/unidades",{method:"POST",body:JSON.stringify({tipo:val("ln_t"),almacenId:val("ln_a"),soporteId:val("ln_s")||null,clienteId:val("ln_c")||null,observaciones:val("ln_o")||null})});
+          toast(`Unidad ${u.sscc} abierta.`,"ok"); setTimeout(()=>vLogUnidad(u.id)); });
+    }
+    async function vLogUnidad(id){
+      if(!_lg.almacenes.length) await lgCargar();
+      const u=await api(`/logistica/unidades/${id}`); window._lgU=u;
+      const filas=u.contenido.map(l=>`<tr><td>${lgEsc(l.producto||lgNom(_lg.productos,l.productoId))}</td><td class="mono">${lgEsc(l.lote||"—")}</td><td>${l.fechaCaducidad?fdate(l.fechaCaducidad):"—"}</td><td class="num">${l.cajas}</td><td class="num">${num3(l.unidades)}</td><td class="num">${lgKg(l.pesoNetoKg)}</td><td class="right">${u.estado==="Abierta"?`<button class="btn small ghost" onclick="lgQuitar('${l.productoId}','${lgEsc(l.lote||"")}')">Quitar</button>`:""}</td></tr>`).join("");
+      const b=[`<button class="btn small ghost" onclick="vLogUnidades()">← Unidades</button>`,`<button class="btn small secondary" onclick="lgEtiqueta('${u.sscc}')">Etiqueta</button>`];
+      if(u.estado==="Abierta") b.push(`<button class="btn small" onclick="lgAccion('cerrar')">Cerrar</button>`);
+      if(u.estado==="Cerrada") b.push(`<button class="btn small secondary" onclick="lgAccion('abrir')">Abrir</button>`,`<button class="btn small" onclick="modalLgExpedir()">Expedir</button>`);
+      if(u.estado==="Abierta"||u.estado==="Cerrada") b.push(`<button class="btn small secondary" onclick="modalLgMover()">Mover</button>`,`<button class="btn small secondary" onclick="modalLgAsignar()">Cliente / pedido</button>`,`<button class="btn small secondary" onclick="modalLgMeter()">${u.padreId?"Sacar / cambiar de palé":"Meter en otro palé"}</button>`,`<button class="btn small ghost" onclick="lgAnular()">Desmontar</button>`);
+      const info=[`${u.tipo==="Pale"?"Palé":u.tipo} · ${lgEsc(lgNom(_lg.almacenes,u.almacenId))}`,u.cajasCompleta?`${u.cajas} / ${u.cajasCompleta} cajas`:`${u.cajas} cajas`,`${lgKg(u.pesoBrutoKg)} brutos`,u.alturaMm&&`${u.alturaMm} mm`,
+        u.clienteId&&`Cliente ${lgEsc(lgNom(_lg.clientes,u.clienteId))}`,u.ordenFabricacionId&&"De fabricación",u.fechaExpedicion&&`Expedida el ${fdate(u.fechaExpedicion)}${u.referenciaExpedicion?` (${lgEsc(u.referenciaExpedicion)})`:""}`,u.motivoAnulacion&&`Motivo: ${lgEsc(u.motivoAnulacion)}`].filter(Boolean).join(" · ");
+      view(panel(`<span class="mono">${u.sscc}</span>`,`<p style="margin:0 0 10px">${ESTADO_UL[u.estado]||u.estado} <span class="muted">${info}</span></p>
+        ${u.estado==="Abierta"?`<div style="display:flex;gap:8px;align-items:end;margin-bottom:12px;flex-wrap:wrap"><div style="flex:1;min-width:240px;max-width:420px"><label>Leer caja (GTIN-14 / GS1-128 con lote y caducidad) o una caja con SSCC</label><input id="lu_scan" class="mono" placeholder="Pasa la pistola aquí…" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();lgLeerEnUnidad();}"/></div><button class="btn small secondary" onclick="modalLgPoner()">+ Contenido a mano</button></div><div id="lu_log" class="muted" style="font-size:12px;margin:-6px 0 10px"></div>`:""}
+        ${u.contenido.length?`<table><thead><tr><th>Artículo</th><th>Lote</th><th>Caducidad</th><th class="num">Cajas</th><th class="num">Unidades</th><th class="num">Neto</th><th></th></tr></thead><tbody>${filas}</tbody></table>`:'<p class="muted" style="margin:0">Sin contenido propio.</p>'}
+        ${u.hijas.length?`<h4 style="margin:14px 0 6px">Unidades dentro</h4><p class="mono" style="margin:0">${u.hijas.map(s=>`<a href="#" onclick="lgIrSscc('${s}');return false">${s}</a>`).join("<br>")}</p>`:""}`,`<div style="display:flex;gap:8px;flex-wrap:wrap">${b.join(" ")}</div>`));
+      setTimeout(()=>document.getElementById("lu_scan")?.focus(),50);
+    }
+    async function lgIrSscc(s){ try{ const u=await api(`/logistica/unidades/${s}`); vLogUnidad(u.id); }catch(e){ toast(e.message,"err"); } }
+    async function lgAccion(accion,cuerpo){ try{ await api(`/logistica/unidades/${window._lgU.id}/${accion}`,{method:"POST",body:JSON.stringify(cuerpo||{})}); vLogUnidad(window._lgU.id); }catch(e){ toast(e.message,"err"); } }
+    function lgAnular(){ const m=prompt("Motivo para desmontar la unidad (su contenido queda libre en el almacén):",""); if(m===null) return; lgAccion("anular",{motivo:m||null}); }
+    function lgQuitar(productoId,lote){ const n=prompt("¿Cuántas cajas quitas?","1"); if(!n) return;
+      api(`/logistica/unidades/${window._lgU.id}/contenido`,{method:"POST",body:JSON.stringify({productoId,lote:lote||null,cajas:-Math.abs(Number(n))})}).then(()=>vLogUnidad(window._lgU.id)).catch(e=>toast(e.message,"err")); }
+    /** Lee lo que envía la pistola en una unidad abierta: una caja con SSCC se mete dentro; un artículo (GTIN) suma cajas de su lote. */
+    async function lgLeerEnUnidad(){
+      const el=document.getElementById("lu_scan"), log=document.getElementById("lu_log"), codigo=el.value.trim(); el.value=""; if(!codigo) return;
+      try{ const r=await lgPonerLectura(window._lgU,codigo);
+        log.innerHTML=`<span class="pill ok">${r.cajas}${r.cajasCompleta?`/${r.cajasCompleta}`:""}</span> ${lgEsc(codigo)}`+(r.estado==="Cerrada"?" · <strong>Unidad completa y cerrada.</strong>":"");
+        lgPitido(true); if(r.estado==="Cerrada"){ toast("Unidad completa y cerrada.","ok"); return vLogUnidad(r.id); }
+        window._lgU=r; setTimeout(()=>vLogUnidad(r.id),10);
+      }catch(e){ lgPitido(false); log.innerHTML=`<span class="pill neg">${lgEsc(e.message)}</span>`; el.focus(); }
+    }
+    async function lgPonerLectura(unidad,codigo){
+      const l=await api(`/logistica/lectura?codigo=${encodeURIComponent(codigo)}`);
+      if(l.tipo==="Unidad"){ if(!l.unidad) throw new Error("Ese SSCC no es de ninguna unidad de la empresa.");
+        await api(`/logistica/unidades/${l.unidad.id}/meter`,{method:"POST",body:JSON.stringify({padreId:unidad.id})}); return await api(`/logistica/unidades/${unidad.id}`); }
+      if(l.tipo==="Articulo"&&l.productoId){ const cuerpo={productoId:l.productoId,lote:l.lote||null,fechaCaducidad:l.fechaCaducidad||null};
+        // La etiqueta de la caja (su GTIN o ITF-14) es una caja; (02)+(37) dice cuántas unidades lleva; un GTIN de unidad suelto, una caja.
+        if(!l.esCaja&&l.cantidad) cuerpo.unidades=l.cantidad; else cuerpo.cajas=1;
+        if(!cuerpo.lote){ const lote=prompt(`${l.producto}: la etiqueta no trae lote. Indica el lote:`,""); if(!lote) throw new Error("Sin lote."); cuerpo.lote=lote; }
+        return await api(`/logistica/unidades/${unidad.id}/contenido`,{method:"POST",body:JSON.stringify(cuerpo)}); }
+      throw new Error(l.aviso||"Código no reconocido: no es un SSCC ni un GTIN de un artículo con ficha logística.");
+    }
+    function lgPitido(ok){ try{ const c=new (window.AudioContext||window.webkitAudioContext)(); const o=c.createOscillator(); o.frequency.value=ok?1400:320; o.connect(c.destination); o.start(); o.stop(c.currentTime+(ok?0.08:0.3)); if(navigator.vibrate) navigator.vibrate(ok?40:[80,60,80]); }catch(_){} }
+    function modalLgPoner(){
+      abrir("Añadir contenido",`<label>Artículo</label><select id="lpo_p">${lgOpc(_lg.productos)}</select>
+        <div class="grid2"><div><label>Lote</label><input id="lpo_l"/></div><div><label>Caducidad (si no la tiene el lote)</label><input id="lpo_f" type="date"/></div></div>
+        <div class="grid2"><div><label>Cajas</label><input id="lpo_c" type="number" step="1"/></div><div><label>o unidades sueltas</label><input id="lpo_u" type="number" step="0.001"/></div></div>`,
+        async()=>{ const c=val("lpo_c"),u=val("lpo_u");
+          await api(`/logistica/unidades/${window._lgU.id}/contenido`,{method:"POST",body:JSON.stringify({productoId:val("lpo_p"),lote:val("lpo_l")||null,fechaCaducidad:val("lpo_f")||null,cajas:c?Number(c):null,unidades:u?Number(u):null})});
+          setTimeout(()=>vLogUnidad(window._lgU.id)); });
+    }
+    function modalLgMover(){ const u=window._lgU;
+      abrir("Mover la unidad",`<label>Almacén</label><select id="lm_a">${lgOpc(_lg.almacenes,u.almacenId)}</select><label>Ubicación (id, opcional)</label><input id="lm_u" value="${u.ubicacionId||""}"/>`,
+        async()=>{ await api(`/logistica/unidades/${u.id}/mover`,{method:"POST",body:JSON.stringify({almacenId:val("lm_a"),ubicacionId:val("lm_u")||null})}); setTimeout(()=>vLogUnidad(u.id)); }); }
+    async function modalLgAsignar(){ const u=window._lgU;
+      abrir("Cliente y pedido",`<label>Cliente</label><select id="la_c">${lgOpc(_lg.clientes,u.clienteId,"— (libre)")}</select><label>Pedido de venta (id, opcional)</label><input id="la_p" value="${u.pedidoVentaId||""}"/>`,
+        async()=>{ await api(`/logistica/unidades/${u.id}/asignar`,{method:"POST",body:JSON.stringify({clienteId:val("la_c")||null,pedidoVentaId:val("la_p")||null})}); setTimeout(()=>vLogUnidad(u.id)); }); }
+    function modalLgMeter(){ const u=window._lgU;
+      abrir(u.padreId?"Cambiar de palé":"Meter en otro palé",`<label>SSCC del palé abierto (vacío = sacarla)</label><input id="lme_s" class="mono" placeholder="Escanea la etiqueta del palé"/>`,
+        async()=>{ await api(`/logistica/unidades/${u.id}/meter`,{method:"POST",body:JSON.stringify({padreSscc:val("lme_s")||null})}); setTimeout(()=>vLogUnidad(u.id)); });
+      setTimeout(()=>document.getElementById("lme_s")?.focus(),50); }
+    function modalLgExpedir(){ const u=window._lgU, hoy=new Date().toISOString().slice(0,10);
+      abrir("Expedir la unidad",`<div class="grid2"><div><label>Fecha</label><input id="le_f" type="date" value="${hoy}"/></div><div><label>Referencia (albarán, CMR…)</label><input id="le_r"/></div></div>`,
+        async()=>{ await api(`/logistica/unidades/${u.id}/expedir`,{method:"POST",body:JSON.stringify({fecha:val("le_f"),referencia:val("le_r")||null})}); setTimeout(()=>vLogUnidad(u.id)); }); }
+
+    // ----- Cálculo de palés -----
+    async function vLogCalculo(){
+      view('<div class="muted">Cargando…</div>');
+      await lgCargar();
+      const fichas=await api("/logistica/fichas"); const prods=_lg.productos.filter(p=>fichas.some(f=>f.productoId===p.id));
+      const pedidos=await api("/pedidos-venta").catch(()=>[]); const abiertos=(Array.isArray(pedidos)?pedidos:(pedidos.elementos||[])).filter(p=>p.estado==="Confirmado"||p.estado==="Servido");
+      view(panel("Cálculo de palés",`<p class="muted" style="margin:0 0 12px">Con la ficha logística del artículo (o la plantilla del cliente, si la tiene): cuántos palés completos salen, el pico, el peso bruto y la altura, y si se pasa de los límites del soporte o del cliente.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end"><div><label>Artículo</label><select id="lc_p">${lgOpc(prods)}</select></div><div><label>Cajas</label><input id="lc_c" type="number" min="1" style="width:110px"/></div><div><label>o unidades</label><input id="lc_u" type="number" min="0" step="0.001" style="width:120px"/></div>
+        <div><label>Cliente</label><select id="lc_cl">${lgOpc(_lg.clientes,null,"—")}</select></div><button class="btn small" onclick="lgCalcular()">Calcular</button></div><div id="lc_r" style="margin-top:14px"></div>`)
+        +panel("Palés de un pedido",`<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end"><div style="flex:1;min-width:260px"><label>Pedido de venta pendiente de servir</label><select id="lc_pe">${abiertos.map(p=>`<option value="${p.id}">${lgEsc(p.numeroCompleto||p.id)} · ${lgEsc(p.clienteNombre||"")}</option>`).join("")||'<option value="">— sin pedidos pendientes —</option>'}</select></div><button class="btn small" onclick="lgCalcularPedido()">Calcular</button></div><div id="lc_rp" style="margin-top:14px"></div>`));
+    }
+    const lgPaleTxt=p=>p?`${p.cajas} cajas (${p.capasCompletas} capas${p.cajasCapaIncompleta?` + ${p.cajasCapaIncompleta}`:""}) · ${lgKg(p.pesoBrutoKg)}${p.alturaMm?` · ${p.alturaMm} mm`:""}`:"—";
+    async function lgCalcular(){ const q=new URLSearchParams({productoId:val("lc_p")}); if(val("lc_c"))q.set("cajas",val("lc_c")); if(val("lc_u"))q.set("unidades",val("lc_u")); if(val("lc_cl"))q.set("clienteId",val("lc_cl"));
+      try{ const r=await api(`/logistica/calculo?${q}`), c=r.calculo;
+        document.getElementById("lc_r").innerHTML=`<div class="kpis" style="margin-bottom:10px"><div class="kpi"><div class="k">Palés</div><div class="v">${c.pales}</div></div><div class="kpi"><div class="k">Completos</div><div class="v">${c.palesCompletos}</div></div><div class="kpi"><div class="k">Cajas</div><div class="v">${c.cajasTotales}</div></div><div class="kpi"><div class="k">Peso bruto</div><div class="v">${lgKg(c.pesoBrutoTotalKg)}</div></div></div>
+          <p style="margin:0 0 6px">Mosaico: <strong>${r.cajasPorCapa} × ${r.capas}</strong> = ${c.cajasPorPale} cajas por palé${r.soporte?` sobre ${lgEsc(r.soporte)}`:""} <span class="muted">(${lgEsc(r.origenMosaico)})</span></p>
+          <p style="margin:0 0 6px">Palé completo: ${lgPaleTxt(c.paleCompleto)}</p><p style="margin:0 0 6px">Pico: ${lgPaleTxt(c.pico)}</p>${c.avisos.map(a=>`<p class="pill part" style="display:block;white-space:normal;margin:4px 0">${lgEsc(a)}</p>`).join("")}`;
+      }catch(e){ toast(e.message,"err"); } }
+    async function lgCalcularPedido(){ const id=val("lc_pe"); if(!id) return;
+      try{ const r=await api(`/logistica/pedidos/${id}/pales`);
+        document.getElementById("lc_rp").innerHTML=`<p style="margin:0 0 8px"><strong>${r.pales} palé(s)</strong> · ${r.palesCompletos} completos y ${r.picos} picos · ${lgKg(r.pesoBrutoKg)} brutos</p>
+          <table><thead><tr><th>Línea</th><th class="num">Pendiente</th><th>Mosaico</th><th class="num">Palés</th><th class="num">Peso</th><th>Avisos</th></tr></thead><tbody>${r.lineas.map(l=>`<tr><td>${lgEsc(l.descripcion)}</td><td class="num">${num3(l.pendiente)}</td>${l.calculo?`<td>${l.calculo.cajasPorCapa}×${l.calculo.capas} <span class="muted">${lgEsc(l.calculo.origenMosaico)}</span></td><td class="num">${l.calculo.calculo.pales}</td><td class="num">${lgKg(l.calculo.calculo.pesoBrutoTotalKg)}</td><td style="font-size:12px">${l.calculo.calculo.avisos.map(lgEsc).join("<br>")}</td>`:`<td colspan="4" class="muted">${lgEsc(l.error||"")}</td>`}</tr>`).join("")}</tbody></table>`;
+      }catch(e){ toast(e.message,"err"); } }
+
+    // ----- Fichas, soportes, plantillas y configuración -----
+    async function vLogMaestros(){
+      view('<div class="muted">Cargando…</div>');
+      await lgCargar();
+      const [fichas,plantillas,config]=await Promise.all([api("/logistica/fichas"),api("/logistica/plantillas"),api("/logistica/configuracion")]);
+      window._lgFichas=fichas; window._lgPlantillas=plantillas;
+      const fs=fichas.map(f=>`<tr><td>${lgEsc(f.producto||lgNom(_lg.productos,f.productoId))}</td><td class="mono">${f.gtin||"—"}</td><td class="mono">${f.gtinCaja||"—"}</td><td class="num">${f.unidadesPorCaja}</td><td class="num">${f.pesoBrutoCajaKg!=null?lgKg(f.pesoBrutoCajaKg):"—"}</td><td>${f.cajasPorCapa&&f.capas?`${f.cajasPorCapa}×${f.capas}`:"—"}</td><td class="muted">${f.soporteId?lgEsc(lgNom(_lg.soportes,f.soporteId)):"—"}</td><td>${f.temperaturaMinC!=null||f.temperaturaMaxC!=null?`${f.temperaturaMinC??""}…${f.temperaturaMaxC??""} ºC`:"—"}</td><td>${f.vidaUtilDias?`${f.vidaUtilDias} d`:"—"}</td><td class="right"><button class="btn small secondary" onclick="modalLgFicha('${f.productoId}')">Editar</button></td></tr>`).join("");
+      const ss=_lg.soportes.map(s=>`<tr><td class="mono">${lgEsc(s.codigo)}</td><td>${lgEsc(s.nombre)}${s.activo?"":' <span class="pill neg">baja</span>'}</td><td>${s.largoMm}×${s.anchoMm}×${s.altoMm} mm</td><td class="num">${lgKg(s.taraKg)}</td><td class="num">${s.cargaMaxKg!=null?lgKg(s.cargaMaxKg):"—"}</td><td class="right" style="white-space:nowrap"><button class="btn small secondary" onclick="modalLgSoporte('${s.id}')">Editar</button> <button class="btn small ghost" onclick="lgBorrar('/logistica/soportes/${s.id}')">Eliminar</button></td></tr>`).join("");
+      const ps=plantillas.map(p=>`<tr><td>${lgEsc(p.producto||lgNom(_lg.productos,p.productoId))}</td><td>${p.clienteId?lgEsc(lgNom(_lg.clientes,p.clienteId)):'<span class="muted">general</span>'}</td><td>${lgEsc(p.soporte||"")}</td><td>${p.cajasPorCapa}×${p.capas} = ${p.cajasPorCapa*p.capas}</td><td>${p.alturaMaxMm?`${p.alturaMaxMm} mm`:"—"}${p.pesoMaxKg?` · ${lgKg(p.pesoMaxKg)}`:""}</td><td>${p.activa?"":'<span class="pill neg">inactiva</span>'}</td><td class="right" style="white-space:nowrap"><button class="btn small secondary" onclick="modalLgPlantilla('${p.id}')">Editar</button> <button class="btn small ghost" onclick="lgBorrar('/logistica/plantillas/${p.id}')">Eliminar</button></td></tr>`).join("");
+      view(panel("Fichas logísticas",`<p class="muted" style="margin:0 0 12px">GTIN de la unidad y de la caja (ITF-14), unidades por caja, pesos y medidas, mosaico por defecto, límites del palé, temperatura y vida útil. Sirve para cualquier producto envasado: alimentación, bebidas, droguería, industria…</p>`+(fichas.length?`<table><thead><tr><th>Artículo</th><th>GTIN</th><th>GTIN caja</th><th class="num">Ud/caja</th><th class="num">Bruto caja</th><th>Mosaico</th><th>Soporte</th><th>Temperatura</th><th>Vida útil</th><th></th></tr></thead><tbody>${fs}</tbody></table>`:'<p class="muted" style="margin:0">Sin fichas.</p>'),`<button class="btn small" onclick="modalLgFicha()">+ Ficha</button>`)
+        +panel("Soportes",ss?`<table><thead><tr><th>Código</th><th>Nombre</th><th>Medidas</th><th class="num">Tara</th><th class="num">Carga máx.</th><th></th></tr></thead><tbody>${ss}</tbody></table>`:'<p class="muted" style="margin:0">Da de alta el europalé (1200×800), el americano (1200×1000), medio palé…</p>',`<button class="btn small" onclick="modalLgSoporte()">+ Soporte</button>`)
+        +panel("Plantillas de paletizado",`<p class="muted" style="margin:0 0 12px">El mosaico que pide cada cliente (o uno general del artículo). Se usa la del cliente, si no la general, y si no la ficha.</p>`+(ps?`<table><thead><tr><th>Artículo</th><th>Cliente</th><th>Soporte</th><th>Mosaico</th><th>Límites</th><th></th><th></th></tr></thead><tbody>${ps}</tbody></table>`:'<p class="muted" style="margin:0">Sin plantillas.</p>'),`<button class="btn small" onclick="modalLgPlantilla()">+ Plantilla</button>`)
+        +panel("Numeración SSCC",`<p style="margin:0 0 8px">Prefijo de empresa GS1 <strong class="mono">${config.prefijoGs1}</strong> · dígito de extensión <strong>${config.digitoExtension}</strong> · último número ${config.ultimaSerie} · ${config.mezclarLotes?"se pueden mezclar lotes en un palé":"cada lote en su palé"}</p>`,`<button class="btn small secondary" onclick="modalLgConfig()">Cambiar</button>`));
+      window._lgConfig=config;
+    }
+    async function lgBorrar(ruta){ if(!confirm("¿Eliminar? Si ya se ha usado, se dará de baja.")) return;
+      try{ const r=await api(ruta,{method:"DELETE"}); toast(r&&r.eliminado===false?"Estaba en uso: dado de baja.":"Eliminado.","ok"); vLogMaestros(); }catch(e){ toast(e.message,"err"); } }
+    function modalLgFicha(productoId){ const f=productoId?(window._lgFichas||[]).find(x=>x.productoId===productoId):null; const n=id=>val(id)===""?null:Number(val(id));
+      abrir(f?`Ficha de ${f.producto||""}`:"Nueva ficha logística",`<label>Artículo</label><select id="fl_p"${f?" disabled":""}>${lgOpc(_lg.productos,productoId)}</select>
+        <div class="grid2"><div><label>GTIN unidad (EAN-13)</label><input id="fl_g" class="mono" value="${f?.gtin||""}"/></div><div><label>GTIN caja (ITF-14)</label><input id="fl_gc" class="mono" value="${f?.gtinCaja||""}"/></div></div>
+        <div class="grid2"><div><label>Unidades por caja</label><input id="fl_u" type="number" min="1" value="${f?.unidadesPorCaja??1}"/></div><div><label>Peso neto unidad (kg)</label><input id="fl_pn" type="number" step="0.0001" value="${f?.pesoNetoUnidadKg??""}"/></div></div>
+        <div class="grid2"><div><label>Peso bruto caja (kg)</label><input id="fl_pb" type="number" step="0.0001" value="${f?.pesoBrutoCajaKg??""}"/></div><div class="grid2" style="gap:6px"><div><label>Largo mm</label><input id="fl_l" type="number" value="${f?.largoCajaMm??""}"/></div><div><label>Ancho mm</label><input id="fl_a" type="number" value="${f?.anchoCajaMm??""}"/></div></div></div>
+        <div class="grid2"><div><label>Alto caja mm</label><input id="fl_h" type="number" value="${f?.altoCajaMm??""}"/></div><div class="grid2" style="gap:6px"><div><label>Cajas por capa</label><input id="fl_cc" type="number" value="${f?.cajasPorCapa??""}"/></div><div><label>Capas</label><input id="fl_ca" type="number" value="${f?.capas??""}"/></div></div></div>
+        <div class="grid2"><div><label>Soporte</label><select id="fl_s">${lgOpc(_lg.soportes.filter(s=>s.activo||s.id===f?.soporteId),f?.soporteId,"—")}</select></div><div class="grid2" style="gap:6px"><div><label>Altura máx. palé mm</label><input id="fl_am" type="number" value="${f?.alturaMaxPaleMm??""}"/></div><div><label>Peso máx. palé kg</label><input id="fl_pm" type="number" step="0.001" value="${f?.pesoMaxPaleKg??""}"/></div></div></div>
+        <div class="grid2"><div class="grid2" style="gap:6px"><div><label>Tª mín. ºC</label><input id="fl_tn" type="number" value="${f?.temperaturaMinC??""}"/></div><div><label>Tª máx. ºC</label><input id="fl_tx" type="number" value="${f?.temperaturaMaxC??""}"/></div></div><div class="grid2" style="gap:6px"><div><label>Vida útil (días)</label><input id="fl_v" type="number" value="${f?.vidaUtilDias??""}"/></div><div><label>Vida mín. entrega</label><input id="fl_vm" type="number" value="${f?.vidaMinimaEntregaDias??""}"/></div></div></div>
+        <label style="display:flex;gap:8px;align-items:center;margin-top:10px;font-weight:500"><input id="fl_lt" type="checkbox" style="width:auto;margin:0" ${f?f.gestionLotes?"checked":"":"checked"}/> Se gestiona por lotes</label>
+        <label style="display:flex;gap:8px;align-items:center;margin-top:6px;font-weight:500"><input id="fl_r" type="checkbox" style="width:auto;margin:0" ${f?.remontable?"checked":""}/> Remontable (se puede poner un palé encima)</label>`,
+        async()=>{ await api(`/logistica/fichas/${val("fl_p")}`,{method:"PUT",body:JSON.stringify({gtin:val("fl_g")||null,gtinCaja:val("fl_gc")||null,unidadesPorCaja:n("fl_u")||1,pesoNetoUnidadKg:n("fl_pn"),pesoBrutoCajaKg:n("fl_pb"),
+            largoCajaMm:n("fl_l"),anchoCajaMm:n("fl_a"),altoCajaMm:n("fl_h"),cajasPorCapa:n("fl_cc"),capas:n("fl_ca"),soporteId:val("fl_s")||null,alturaMaxPaleMm:n("fl_am"),pesoMaxPaleKg:n("fl_pm"),
+            remontable:document.getElementById("fl_r").checked,temperaturaMinC:n("fl_tn"),temperaturaMaxC:n("fl_tx"),vidaUtilDias:n("fl_v"),vidaMinimaEntregaDias:n("fl_vm"),gestionLotes:document.getElementById("fl_lt").checked})});
+          setTimeout(vLogMaestros); }); }
+    function modalLgSoporte(id){ const s=id?_lg.soportes.find(x=>x.id===id):null; const n=i=>val(i)===""?null:Number(val(i));
+      abrir(s?`Soporte ${s.codigo}`:"Nuevo soporte",`<div class="grid2"><div><label>Código</label><input id="so_c" value="${lgEsc(s?.codigo||"")}" placeholder="EUR"/></div><div><label>Nombre</label><input id="so_n" value="${lgEsc(s?.nombre||"")}" placeholder="Europalé"/></div></div>
+        <div class="grid2"><div class="grid2" style="gap:6px"><div><label>Largo mm</label><input id="so_l" type="number" value="${s?.largoMm??1200}"/></div><div><label>Ancho mm</label><input id="so_a" type="number" value="${s?.anchoMm??800}"/></div></div><div><label>Alto mm</label><input id="so_h" type="number" value="${s?.altoMm??144}"/></div></div>
+        <div class="grid2"><div><label>Tara (kg)</label><input id="so_t" type="number" step="0.001" value="${s?.taraKg??25}"/></div><div><label>Carga máxima (kg)</label><input id="so_m" type="number" step="0.001" value="${s?.cargaMaxKg??""}"/></div></div>
+        <label>Artículo de envase (para el stock de palés, opcional)</label><select id="so_e">${lgOpc(_lg.productos,s?.envaseProductoId,"—")}</select>
+        ${s?`<label style="display:flex;gap:8px;align-items:center;margin-top:10px;font-weight:500"><input id="so_ac" type="checkbox" style="width:auto;margin:0" ${s.activo?"checked":""}/> Activo</label>`:""}`,
+        async()=>{ const c={codigo:val("so_c"),nombre:val("so_n"),largoMm:n("so_l"),anchoMm:n("so_a"),altoMm:n("so_h"),taraKg:n("so_t")||0,cargaMaxKg:n("so_m"),envaseProductoId:val("so_e")||null,activo:s?document.getElementById("so_ac").checked:true};
+          await api(s?`/logistica/soportes/${s.id}`:"/logistica/soportes",{method:s?"PUT":"POST",body:JSON.stringify(c)}); setTimeout(vLogMaestros); }); }
+    function modalLgPlantilla(id){ const p=id?(window._lgPlantillas||[]).find(x=>x.id===id):null; const n=i=>val(i)===""?null:Number(val(i));
+      abrir(p?"Plantilla de paletizado":"Nueva plantilla de paletizado",`<div class="grid2"><div><label>Artículo</label><select id="pp_p">${lgOpc(_lg.productos,p?.productoId)}</select></div><div><label>Cliente</label><select id="pp_c">${lgOpc(_lg.clientes,p?.clienteId,"— general —")}</select></div></div>
+        <div class="grid2"><div><label>Soporte</label><select id="pp_s">${lgOpc(_lg.soportes.filter(s=>s.activo||s.id===p?.soporteId),p?.soporteId)}</select></div><div class="grid2" style="gap:6px"><div><label>Cajas por capa</label><input id="pp_cc" type="number" value="${p?.cajasPorCapa??""}"/></div><div><label>Capas</label><input id="pp_ca" type="number" value="${p?.capas??""}"/></div></div></div>
+        <div class="grid2"><div><label>Altura máxima (mm)</label><input id="pp_am" type="number" value="${p?.alturaMaxMm??""}"/></div><div><label>Peso máximo (kg)</label><input id="pp_pm" type="number" step="0.001" value="${p?.pesoMaxKg??""}"/></div></div>
+        <label>Instrucciones (film, esquineros, etiqueta en dos caras…)</label><input id="pp_i" value="${lgEsc(p?.instrucciones||"")}"/>
+        ${p?`<label style="display:flex;gap:8px;align-items:center;margin-top:10px;font-weight:500"><input id="pp_ac" type="checkbox" style="width:auto;margin:0" ${p.activa?"checked":""}/> Activa</label>`:""}`,
+        async()=>{ const c={productoId:val("pp_p"),clienteId:val("pp_c")||null,soporteId:val("pp_s"),cajasPorCapa:n("pp_cc"),capas:n("pp_ca"),alturaMaxMm:n("pp_am"),pesoMaxKg:n("pp_pm"),instrucciones:val("pp_i")||null,activa:p?document.getElementById("pp_ac").checked:true};
+          await api(p?`/logistica/plantillas/${p.id}`:"/logistica/plantillas",{method:p?"PUT":"POST",body:JSON.stringify(c)}); setTimeout(vLogMaestros); }); }
+    function modalLgConfig(){ const c=window._lgConfig;
+      abrir("Numeración SSCC",`<p class="muted" style="margin:0 0 10px">El prefijo de empresa lo asigna GS1 (en España, AECOC). El SSCC es: extensión + prefijo + número + dígito de control.</p>
+        <div class="grid2"><div><label>Prefijo GS1 (7 a 10 dígitos)</label><input id="cf_p" class="mono" value="${c.prefijoGs1}"/></div><div><label>Dígito de extensión (0-9)</label><input id="cf_e" type="number" min="0" max="9" value="${c.digitoExtension}"/></div></div>
+        <label style="display:flex;gap:8px;align-items:center;margin-top:10px;font-weight:500"><input id="cf_m" type="checkbox" style="width:auto;margin:0" ${c.mezclarLotes?"checked":""}/> Al paletizar, se pueden mezclar lotes en un mismo palé</label>`,
+        async()=>{ await api("/logistica/configuracion",{method:"PUT",body:JSON.stringify({prefijoGs1:val("cf_p"),digitoExtension:Number(val("cf_e")||0),mezclarLotes:document.getElementById("cf_m").checked})}); setTimeout(vLogMaestros); }); }
+
+    // ----- Terminal: móvil (cámara) o pistola (teclado) -----
+    let lgTerm={unidad:null,stream:null,timer:null,ultimo:"",hora:0};
+    async function vLogTerminal(){
+      if(!_lg.almacenes.length) await lgCargar();
+      const alm=localStorage.getItem("lg_almacen")||(_lg.almacenes[0]||{}).id||"";
+      const u=lgTerm.unidad;
+      view(`<div class="panel lg-term"><div class="panel-head"><h2>Terminal de palés</h2><button class="btn small ghost" onclick="document.body.classList.toggle('modo-terminal')">⛶ Pantalla completa</button></div>
+        <p class="muted" style="margin:0 0 10px">Funciona con una pistola (el lector escribe y pulsa Intro), con la cámara del móvil o tecleando. Lee un SSCC para abrir o consultar un palé; con un palé abierto, cada caja leída (GTIN con lote y caducidad) se suma; una caja con SSCC se mete dentro.</p>
+        <div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap"><div style="flex:1;min-width:160px"><label>Almacén</label><select id="lt_a" onchange="try{localStorage.setItem('lg_almacen',this.value)}catch(_){}">${lgOpc(_lg.almacenes,alm)}</select></div>
+          <button class="btn lg-big secondary" onclick="lgTermNuevo()">+ Palé nuevo</button>${u?`<button class="btn lg-big ghost" onclick="lgTerm.unidad=null;vLogTerminal()">Soltar palé</button>`:""}</div>
+        <input id="lt_scan" class="mono lg-scan" placeholder="Escanea aquí…" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="${localStorage.getItem("lg_teclado")==="no"?"none":"text"}" onkeydown="if(event.key==='Enter'){event.preventDefault();lgTermLeer(this.value);this.value='';}"/>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button class="btn lg-big" onclick="lgTermCamara()">📷 Cámara</button><button class="btn lg-big ghost" onclick="lgTermTeclado()">⌨ Teclado ${localStorage.getItem("lg_teclado")==="no"?"oculto":"visible"}</button>${u?`<button class="btn lg-big secondary" onclick="lgEtiqueta('${u.sscc}')">🖨 Etiqueta</button>${u.estado==="Abierta"?`<button class="btn lg-big" onclick="lgTermCerrar()">✔ Cerrar palé</button>`:""}`:""}</div>
+        <div id="lt_video" style="display:none;margin-top:10px"><video id="lt_v" playsinline muted style="width:100%;max-width:480px;border-radius:12px;background:#000"></video><br><button class="btn small ghost" onclick="lgTermParar()">Parar cámara</button></div>
+        <div id="lt_msg" class="lg-msg"></div>
+        ${u?`<div class="lg-card"><div class="mono" style="font-size:18px;font-weight:700">${u.sscc}</div><div>${ESTADO_UL[u.estado]||u.estado} · ${u.cajas}${u.cajasCompleta?` / ${u.cajasCompleta}`:""} cajas · ${lgKg(u.pesoBrutoKg)}</div>
+          ${u.cajasCompleta?`<div style="height:10px;background:#e5edf2;border-radius:6px;margin:8px 0;overflow:hidden"><div style="height:100%;width:${Math.min(100,Math.round(u.cajas*100/u.cajasCompleta))}%;background:#10b981"></div></div>`:""}
+          ${u.contenido.map(l=>`<div style="font-size:14px">${lgEsc(l.producto||lgNom(_lg.productos,l.productoId))} · <span class="mono">${lgEsc(l.lote||"—")}</span> · ${l.cajas} cj${l.fechaCaducidad?` · cad. ${fdate(l.fechaCaducidad)}`:""}</div>`).join("")}${u.hijas.length?`<div class="muted">${u.hijas.length} caja(s) con SSCC dentro</div>`:""}</div>`:'<div class="lg-card muted">Sin palé: lee su etiqueta o pulsa «Palé nuevo».</div>'}
+      </div>`);
+      lgTermFoco();
+    }
+    function lgTermFoco(){ setTimeout(()=>{ const el=document.getElementById("lt_scan"); if(el&&document.getElementById("modalBg").style.display!=="grid") el.focus(); },60); }
+    function lgTermTeclado(){ try{ localStorage.setItem("lg_teclado",localStorage.getItem("lg_teclado")==="no"?"si":"no"); }catch(_){} vLogTerminal(); }
+    function lgTermMsg(t,ok){ const m=document.getElementById("lt_msg"); if(m){ m.className="lg-msg "+(ok?"ok":"err"); m.textContent=t; } lgPitido(ok); }
+    async function lgTermNuevo(){ try{ const u=await api("/logistica/unidades",{method:"POST",body:JSON.stringify({tipo:"Pale",almacenId:val("lt_a")})}); lgTerm.unidad=u; await vLogTerminal(); lgTermMsg(`Palé ${u.sscc} abierto.`,true); }catch(e){ lgTermMsg(e.message,false); } }
+    async function lgTermCerrar(){ try{ lgTerm.unidad=await api(`/logistica/unidades/${lgTerm.unidad.id}/cerrar`,{method:"POST",body:"{}"}); await vLogTerminal(); lgTermMsg("Palé cerrado.",true); }catch(e){ lgTermMsg(e.message,false); } }
+    async function lgTermLeer(codigo){
+      codigo=(codigo||"").trim(); if(!codigo) return;
+      const ahora=Date.now(); if(codigo===lgTerm.ultimo&&ahora-lgTerm.hora<1500) return; lgTerm.ultimo=codigo; lgTerm.hora=ahora;
+      try{
+        const u=lgTerm.unidad;
+        if(u&&u.estado==="Abierta"){ const l=await api(`/logistica/lectura?codigo=${encodeURIComponent(codigo)}`);
+          if(l.tipo==="Unidad"&&l.unidad&&l.unidad.id!==u.id&&(l.unidad.tipo!=="Caja")){ lgTerm.unidad=l.unidad; await vLogTerminal(); return lgTermMsg(`Palé ${l.unidad.sscc}.`,true); }
+          const r=await lgPonerLectura(u,codigo); lgTerm.unidad=r; await vLogTerminal();
+          return lgTermMsg(r.estado==="Cerrada"?`Palé completo y cerrado (${r.cajas} cajas).`:`${r.cajas}${r.cajasCompleta?` / ${r.cajasCompleta}`:""} cajas.`,true); }
+        const l=await api(`/logistica/lectura?codigo=${encodeURIComponent(codigo)}`);
+        if(l.tipo==="Unidad"&&l.unidad){ lgTerm.unidad=l.unidad; await vLogTerminal(); return lgTermMsg(`Palé ${l.unidad.sscc}.`,true); }
+        if(l.tipo==="Articulo") return lgTermMsg(`${l.producto||"Artículo"}${l.lote?` · lote ${l.lote}`:""}${l.fechaCaducidad?` · cad. ${fdate(l.fechaCaducidad)}`:""}: abre un palé para cargarlo.`,false);
+        lgTermMsg(l.aviso||"Código no reconocido.",false);
+      }catch(e){ lgTermMsg(e.message,false); lgTermFoco(); }
+    }
+    async function lgTermCamara(){
+      if(!('BarcodeDetector' in window)){ toast("Este navegador no lee códigos con la cámara: usa Chrome en Android, una pistola o teclea el código.","err"); return; }
+      try{ lgTerm.stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}});
+        const v=document.getElementById("lt_v"); v.srcObject=lgTerm.stream; await v.play(); document.getElementById("lt_video").style.display="block";
+        const det=new BarcodeDetector({formats:["code_128","ean_13","ean_8","itf","data_matrix","qr_code","upc_a"]});
+        lgTerm.timer=setInterval(async()=>{ try{ const cs=await det.detect(v); if(cs&&cs.length) lgTermLeer(cs[0].rawValue); }catch(_){} },300);
+      }catch(e){ toast("No se pudo abrir la cámara: "+e.message,"err"); } }
+    function lgTermParar(){ if(lgTerm.timer){clearInterval(lgTerm.timer);lgTerm.timer=null;} if(lgTerm.stream){lgTerm.stream.getTracks().forEach(t=>t.stop());lgTerm.stream=null;} const w=document.getElementById("lt_video"); if(w) w.style.display="none"; }
+    // La pistola «teclea»: aunque el foco se pierda, lo que llega rápido y acaba en Intro se toma como una lectura.
+    (()=>{ let buf="",t0=0; document.addEventListener("keydown",e=>{ if(!document.getElementById("lt_scan")||document.activeElement?.id==="lt_scan") return;
+      if(["INPUT","SELECT","TEXTAREA"].includes(document.activeElement?.tagName)) return;
+      const ahora=Date.now(); if(ahora-t0>80) buf=""; t0=ahora;
+      if(e.key==="Enter"){ if(buf.length>=8){ e.preventDefault(); lgTermLeer(buf); } buf=""; } else if(e.key.length===1) buf+=e.key; else if(e.key==="Unidentified"||e.keyCode===29) buf+="\u001d"; }); })();
+
     async function vClientes() {
       view('<div class="muted">Cargando…</div>');
       const subs=await api("/contabilidad/subcuentas?tipo=Cliente").catch(()=>[]);
@@ -2162,6 +2434,11 @@
       view(panel("Órdenes de fabricación",cuerpo,`<button class="btn small" onclick="modalOrden()">+ Nueva orden</button>`));
     }
     async function accionOrden(id,accion){ if(accion==="cancelar"&&!confirm("¿Cancelar la orden?"))return;
+      if(accion==="terminar"&&!window._ofSinLote){ const o=(window._ordenes||[]).find(x=>x.id===id);
+        abrir(`Terminar OF ${o?.numero??""}`,`<p class="muted" style="margin:0 0 10px">Lo fabricado entra en el almacén con este lote y su caducidad: así se puede paletizar desde la orden y seguir la trazabilidad hasta el cliente.</p>
+          <div class="grid2"><div><label>Lote fabricado (opcional)</label><input id="of_l" placeholder="L${new Date().toISOString().slice(2,10).replace(/-/g,"")}"/></div><div><label>Caducidad (opcional)</label><input id="of_c" type="date"/></div></div>`,
+          async()=>{ await api(`/produccion/ordenes/${id}/terminar`,{method:"POST",body:JSON.stringify({lote:val("of_l")||null,fechaCaducidad:val("of_c")||null})}); toast("Orden terminada · stock actualizado.","ok"); setTimeout(vProduccion); });
+        document.getElementById("modalOk").textContent="Terminar"; return; }
       try{ await api(`/produccion/ordenes/${id}/${accion}`,{method:"POST"}); toast("Orden "+({iniciar:"iniciada",terminar:"terminada · stock actualizado",cancelar:"cancelada"}[accion])+".","ok"); vProduccion(); }catch(e){ toast(e.message,"err"); } }
     async function modalOrden(id){
       const o=id?(window._ordenes||[]).find(x=>x.id===id):null;

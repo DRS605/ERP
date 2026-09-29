@@ -75,6 +75,11 @@ builder.Services.AddScoped<AlxorCore.Facturacion.Aplicacion.IAnticiposFactura, A
 builder.Services.AddScoped<AlxorCore.Api.Comun.RegistrarAnticipoFacturado>();
 builder.Services.AgregarModuloTesoreria(builder.Configuration);
 builder.Services.AgregarModuloAgro(builder.Configuration);
+AlxorCore.Logistica.Infraestructura.RegistroServicios.AgregarModuloLogistica(builder.Services, builder.Configuration);
+builder.Services.AddScoped<AlxorCore.Logistica.Aplicacion.IExistenciasLogistica, AlxorCore.Api.Comun.ExistenciasLogisticaInventario>();
+builder.Services.AddScoped<AlxorCore.Logistica.Aplicacion.IArticulosLogistica, AlxorCore.Api.Comun.ArticulosLogisticaCatalogo>();
+builder.Services.AddScoped<AlxorCore.Logistica.Aplicacion.IPedidosLogistica, AlxorCore.Api.Comun.PedidosLogisticaFacturacion>();
+builder.Services.AddScoped<AlxorCore.Logistica.Aplicacion.IFabricacionLogistica, AlxorCore.Api.Comun.FabricacionLogisticaProduccion>();
 builder.Services.AgregarModuloMigracion(builder.Configuration);
 builder.Services.AgregarModuloDocumentos();
 builder.Services.AgregarModuloInformes();
@@ -232,6 +237,7 @@ if (app.Environment.IsDevelopment())
     await ambito.ServiceProvider.GetRequiredService<FiscalDbContext>().Database.MigrateAsync().ConfigureAwait(false);
     await ambito.ServiceProvider.GetRequiredService<AlxorCore.Tesoreria.Infraestructura.TesoreriaDbContext>().Database.MigrateAsync().ConfigureAwait(false);
     await ambito.ServiceProvider.GetRequiredService<AgroDbContext>().Database.MigrateAsync().ConfigureAwait(false);
+    await ambito.ServiceProvider.GetRequiredService<AlxorCore.Logistica.Infraestructura.LogisticaDbContext>().Database.MigrateAsync().ConfigureAwait(false);
     await ambito.ServiceProvider.GetRequiredService<MigracionDbContext>().Database.MigrateAsync().ConfigureAwait(false);
     await ambito.ServiceProvider.GetRequiredService<AlxorCore.Auditoria.Infraestructura.AuditoriaDbContext>().Database.MigrateAsync().ConfigureAwait(false);
     await ambito.ServiceProvider.GetRequiredService<AlxorCore.Divisas.Infraestructura.DivisasDbContext>().Database.MigrateAsync().ConfigureAwait(false);
@@ -308,6 +314,7 @@ app.MapearTesoreria();
 app.MapearBancos();
 app.MapearAnalisis();
 app.MapearAgro();
+app.MapearLogistica();
 app.MapearMigracion();
 app.MapearCobranza();
 app.MapearLiquidacionesPagos();

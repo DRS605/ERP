@@ -10,11 +10,11 @@ public sealed record ComponentePlanDto(Guid ComponenteId, string Nombre, decimal
 
 public sealed record OrdenFabricacionDto(Guid Id, int Ejercicio, int Numero, Guid ProductoId, string ProductoNombre,
     decimal Cantidad, Guid AlmacenId, DateOnly Fecha, string Estado, DateTimeOffset CreadoEn, DateTimeOffset? TerminadaEn,
-    IReadOnlyList<ComponentePlanDto> Componentes)
+    IReadOnlyList<ComponentePlanDto> Componentes, string? Lote = null, DateOnly? FechaCaducidad = null)
 {
     public static OrdenFabricacionDto Desde(OrdenFabricacion o) => new(o.Id, o.Ejercicio, o.Numero, o.ProductoId, o.ProductoNombre,
         o.Cantidad, o.AlmacenId, o.Fecha, o.Estado.ToString(), o.CreadoEn, o.TerminadaEn,
-        o.Componentes.Select(c => new ComponentePlanDto(c.ComponenteId, c.Nombre, c.CantidadUnitaria, c.CantidadTotal)).ToList());
+        o.Componentes.Select(c => new ComponentePlanDto(c.ComponenteId, c.Nombre, c.CantidadUnitaria, c.CantidadTotal)).ToList(), o.Lote, o.FechaCaducidad);
 }
 
 // ---------------------------------------------------------------------------- Puertos
@@ -39,10 +39,14 @@ public interface IConsultaListaMateriales
 /// <summary>Ejecuta el montaje real en Inventario (consume componentes y produce el compuesto).</summary>
 public interface IMontajeProduccion
 {
-    Task<Resultado> MontarAsync(Guid empresaId, Guid productoId, decimal cantidad, Guid almacenId, CancellationToken ct = default);
+    Task<Resultado> MontarAsync(Guid empresaId, Guid productoId, decimal cantidad, Guid almacenId, string? lote = null, DateOnly? caducidad = null,
+        CancellationToken ct = default);
 }
 
 // ---------------------------------------------------------------------------- Comandos
+/// <summary>Al terminar: el lote con que entra lo fabricado y su caducidad (para la trazabilidad y el paletizado).</summary>
+public sealed record TerminarOrdenComando(string? Lote = null, DateOnly? FechaCaducidad = null);
+
 public sealed record CrearOrdenComando(Guid ProductoId, decimal Cantidad, Guid AlmacenId, DateOnly? Fecha = null);
 
 // ---------------------------------------------------------------------------- Casos de uso
@@ -115,8 +119,17 @@ public sealed class DecidirOrden
     }
 
     /// <summary>Termina la orden: consume componentes y produce el artículo (montaje), y marca la orden terminada.</summary>
-    public async Task<Resultado<OrdenFabricacionDto>> TerminarAsync(Guid empresaId, Guid id, CancellationToken ct = default)
+    public async Task<Resultado<OrdenFabricacionDto>> TerminarAsync(Guid empresaId, Guid id, CancellationToken ct = default) =>
+        await TerminarAsync(empresaId, id, null, ct).ConfigureAwait(false);
+
+    public async Task<Resultado<OrdenFabricacionDto>> TerminarAsync(Guid empresaId, Guid id, TerminarOrdenComando? comando, CancellationToken ct = default)
     {
+        var lote = string.IsNullOrWhiteSpace(comando?.Lote) ? null : comando.Lote.Trim();
+        if (lote is { Length: > 60 })
+        {
+            return Resultado.Fallo<OrdenFabricacionDto>(Error.Validacion("orden.lote", "El lote tiene hasta 60 caracteres."));
+        }
+
         var orden = await _ordenes.ObtenerPorIdAsync(id, ct).ConfigureAwait(false);
         if (orden is null)
         {
@@ -133,13 +146,13 @@ public sealed class DecidirOrden
             return Resultado.Fallo<OrdenFabricacionDto>(Error.Conflicto("orden.cancelada", "No se puede terminar una orden cancelada."));
         }
 
-        var montaje = await _montaje.MontarAsync(empresaId, orden.ProductoId, orden.Cantidad, orden.AlmacenId, ct).ConfigureAwait(false);
+        var montaje = await _montaje.MontarAsync(empresaId, orden.ProductoId, orden.Cantidad, orden.AlmacenId, lote, comando?.FechaCaducidad, ct).ConfigureAwait(false);
         if (montaje.EsFallo)
         {
             return Resultado.Fallo<OrdenFabricacionDto>(montaje.Error);
         }
 
-        var terminar = orden.Terminar(_reloj.AhoraUtc);
+        var terminar = orden.Terminar(_reloj.AhoraUtc, lote, comando?.FechaCaducidad);
         if (terminar.EsFallo)
         {
             return Resultado.Fallo<OrdenFabricacionDto>(terminar.Error);

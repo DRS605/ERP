@@ -18,7 +18,7 @@ auditoría e importación de datos.
 | Gestión | `gestion` | Pyme comercial o de servicios | Ventas, Compras, Inventario, Divisas, Aprobaciones, Integraciones |
 | Finanzas | `finanzas` | Empresas con contabilidad propia, asesorías | Contabilidad, Inmovilizado, Analítica y presupuestos, Tesorería avanzada |
 | Gestión y finanzas | `gestion_finanzas` | Pyme completa | Gestión + Finanzas |
-| Completa | `completa` | Industria y proyectos | Todos los generalistas, incluidos Producción, Personal y Proyectos |
+| Completa | `completa` | Industria y proyectos | Todos los generalistas, incluidos Producción, Logística, Personal y Proyectos |
 
 Cualquier módulo se puede añadir suelto sobre una edición (por ejemplo, Start + Contabilidad).
 
@@ -33,6 +33,7 @@ generalista no debe ver menús de otro sector. Se contratan aparte (por ejemplo,
 | Compras (solicitudes, pedidos, albaranes) | `compras` | — |
 | Inventario | `inventario` | — |
 | Producción | `produccion` | Inventario |
+| Logística: fichas GTIN, paletizado, palés SSCC, terminal de pistola/móvil — [logistica.md](logistica.md) | `logistica` | Inventario |
 | Personal (tarifa por hora para imputar mano de obra) | `personal` | — |
 | Proyectos | `proyectos` | Personal |
 | Contabilidad | `contabilidad` | — |

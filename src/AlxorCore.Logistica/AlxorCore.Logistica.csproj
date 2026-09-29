@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AlxorCore.Logistica</RootNamespace>
+    <AssemblyName>AlxorCore.Logistica</AssemblyName>
+  </PropertyGroup>
+
+  <!-- Logística genérica (paletización, unidades logísticas SSCC y, más adelante, preparación y carga): trabaja sobre
+       artículos, lotes y existencias por puertos; no depende de ningún sector. -->
+  <ItemGroup>
+    <ProjectReference Include="..\AlxorCore.Nucleo\AlxorCore.Nucleo.csproj" />
+  </ItemGroup>
+
+</Project>
