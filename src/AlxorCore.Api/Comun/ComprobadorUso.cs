@@ -99,6 +99,7 @@ public static class ReferenciasRegistros
                 ("agro.rendimiento_confeccion.envase_producto_id", "rendimientos de confección"),
                 ("agro.plantilla_pale.envase_producto_id", "plantillas de palé (como caja)"),
                 ("agro.plantilla_pale.pale_producto_id", "plantillas de palé (como palé)"),
+                ("agro.declaracion_articulo.producto_id", "declaración de certificación del artículo"),
                 ("logistica.ficha_logistica.producto_id", "ficha logística"),
                 ("logistica.plantilla_paletizado.producto_id", "plantillas de paletizado"),
                 ("logistica.linea_unidad_logistica.producto_id", "contenido de palés y unidades logísticas"),
@@ -173,12 +174,14 @@ public static class ReferenciasRegistros
                 ("agro.linea_recepcion.parcela_id", "recepciones"),
                 ("agro.tratamiento_parcela.parcela_id", "tratamientos en el cuaderno de campo"),
                 ("agro.partida.parcela_id", "partidas"),
+                ("agro.certificado_agro.parcela_id", "certificados de la parcela"),
             ],
             [TiposRegistro.Agricultor] =
             [
                 ("agro.recepcion.agricultor_id", "recepciones"),
                 ("agro.autoevaluacion.agricultor_id", "autoevaluaciones (GlobalG.A.P.)"),
                 ("agro.partida.agricultor_id", "partidas"),
+                ("agro.certificado_agro.agricultor_id", "certificados (ecológico, GlobalG.A.P.)"),
                 ("agro.liquidacion.agricultor_id", "liquidaciones"),
                 ("agro.movimiento_envase.agricultor_id", "movimientos de envases"),
             ],

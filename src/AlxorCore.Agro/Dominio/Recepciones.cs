@@ -296,7 +296,7 @@ public sealed class Recepcion : RaizAgregadoEmpresa<Guid>
 
 public sealed record DatosLineaRecepcion(
     Guid ProductoId, string ProductoNombre, Guid? ParcelaId = null, DateOnly? FechaRecoleccion = null, Guid? EnvaseProductoId = null,
-    decimal? PrecioEstimadoKg = null, string? Calibre = null);
+    decimal? PrecioEstimadoKg = null, string? Calibre = null, string? MotivoDescalificacion = null);
 
 /// <summary>Línea de una recepción: un producto de una parcela.</summary>
 public sealed class LineaRecepcion : EntidadBase<Guid>
@@ -318,7 +318,11 @@ public sealed class LineaRecepcion : EntidadBase<Guid>
         EnvaseProductoId = d.EnvaseProductoId;
         PrecioEstimadoKg = d.PrecioEstimadoKg;
         Calibre = string.IsNullOrWhiteSpace(d.Calibre) ? null : d.Calibre.Trim();
+        MotivoDescalificacion = string.IsNullOrWhiteSpace(d.MotivoDescalificacion) ? null : d.MotivoDescalificacion.Trim();
     }
+
+    /// <summary>Motivo para recibir fruta ecológica con un artículo convencional (descalificación explícita).</summary>
+    public string? MotivoDescalificacion { get; private set; }
 
     public int NumeroLinea { get; private set; }
 

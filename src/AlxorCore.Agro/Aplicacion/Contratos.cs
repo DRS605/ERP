@@ -59,6 +59,13 @@ public interface IRepositorioAgro
     Task<bool> ExisteAgricultorAsync(Guid empresaId, Guid proveedorId, CancellationToken ct = default);
     Task<IReadOnlyList<Parcela>> ParcelasAsync(Guid empresaId, Guid? agricultorId, CancellationToken ct = default);
     Task<Parcela?> ParcelaAsync(Guid id, CancellationToken ct = default);
+
+    // Certificaciones
+    Task<IReadOnlyList<CertificadoAgro>> CertificadosAsync(Guid empresaId, Guid? agricultorId, CancellationToken ct = default);
+    Task<CertificadoAgro?> CertificadoAsync(Guid id, CancellationToken ct = default);
+    Task<IReadOnlyList<DeclaracionArticulo>> DeclaracionesAsync(Guid empresaId, CancellationToken ct = default);
+    Task<DeclaracionArticulo?> DeclaracionAsync(Guid empresaId, Guid productoId, CancellationToken ct = default);
+    Task<IReadOnlyList<DescalificacionPartida>> DescalificacionesAsync(IReadOnlyCollection<Guid> partidaIds, CancellationToken ct = default);
     Task<IReadOnlyList<Categoria>> CategoriasAsync(Guid empresaId, CancellationToken ct = default);
     Task<Categoria?> CategoriaAsync(Guid id, CancellationToken ct = default);
     Task<IReadOnlyList<ArticuloCampana>> ArticulosCampanaAsync(Guid campanaId, CancellationToken ct = default);

@@ -5,6 +5,11 @@ entrega → factura**. Vive en el módulo **Facturación** y reutiliza toda la m
 facturas (numeración correlativa, VeriFactu, salida de existencias, vencimientos y contabilización).
 Multiempresa (RLS sobre `pedido_venta` y `albaran_venta`).
 
+**Numeración de albaranes.** El número de un albarán (de venta o de compra) se toma bajo un bloqueo que dura hasta
+guardar, así que dos albaranes creados a la vez no reciben el mismo número. Además, la base de datos lo exige con un
+índice único por empresa, año y número (`ux_albaran_venta_numero` y `ux_albaran_compra_numero`). Los albaranes no se
+borran, se anulan, así que un número nunca se reutiliza.
+
 ## Pedido de venta
 
 Segundo eslabón. Se crea directamente o **desde un presupuesto** (copia sus líneas), congela el

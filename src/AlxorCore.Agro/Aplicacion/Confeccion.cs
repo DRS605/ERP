@@ -18,7 +18,7 @@ public sealed record EntradaMaquina(string? Descripcion, string Categoria, decim
 public sealed record EntradaMaterial(Guid ProductoId, decimal Cantidad);
 
 public sealed record EntradaSalida(Guid ProductoId, decimal Kilos, decimal Factor = 1m, string? Calibre = null, Guid? CategoriaId = null, Guid? PaleId = null,
-    int? Cajas = null, Guid? EnvaseProductoId = null);
+    int? Cajas = null, Guid? EnvaseProductoId = null, string? MotivoDescalificacion = null);
 
 public sealed record DatosParteConfeccion(
     DateOnly Fecha, Guid? CampanaId = null, string? Descripcion = null, Guid? CentroAnaliticoId = null, decimal PorcentajeIndirectos = 0m,
@@ -35,7 +35,7 @@ public sealed record MaquinaDto(string Descripcion, string Categoria, decimal Ho
 public sealed record MaterialDto(Guid ProductoId, string Nombre, decimal Cantidad, decimal CosteUnitario, decimal Coste);
 
 public sealed record SalidaDto(int NumeroLinea, Guid ProductoId, string Nombre, decimal Kilos, decimal Factor, string? Calibre, Guid? CategoriaId, Guid? PaleId, Guid? PartidaId, decimal Coste, decimal CosteKg,
-    int? Cajas = null, Guid? EnvaseProductoId = null, decimal? SegundosTeoricos = null, decimal CosteConfeccion = 0m);
+    int? Cajas = null, Guid? EnvaseProductoId = null, decimal? SegundosTeoricos = null, decimal CosteConfeccion = 0m, string? MotivoDescalificacion = null);
 
 public sealed record ParteDto(
     Guid Id, string? Numero, DateOnly Fecha, Guid? CampanaId, string? Descripcion, Guid? CentroAnaliticoId, decimal PorcentajeIndirectos, string Reparto,
@@ -211,17 +211,27 @@ public sealed class ConfeccionAgro
 
         var partidas = new Dictionary<Guid, Guid>();
         var consumidas = parte.Consumos.GroupBy(c => c.PartidaId).Select(g => (Partida: g.Key, Kilos: g.Sum(c => c.Kilos))).ToList();
+        var certificaciones = await CertificacionesSalidasAsync(parte, await _repo.PartidasAsync(consumidas.Select(c => c.Partida).ToList(), ct).ConfigureAwait(false), ct)
+            .ConfigureAwait(false);
         foreach (var s in parte.Salidas)
         {
-            var p = Partida.DeConfeccion(empresaId, $"{codigo}/{s.NumeroLinea}", s.ProductoId, parte.Fecha, s.Kilos, parte.Id, parte.CampanaId, s.Calibre, s.CosteKg, _reloj);
+            var (certs, quitadas) = certificaciones[s.Id].Valor;
+            var p = Partida.DeConfeccion(empresaId, $"{codigo}/{s.NumeroLinea}", s.ProductoId, parte.Fecha, s.Kilos, parte.Id, parte.CampanaId, s.Calibre, s.CosteKg, _reloj,
+                certs);
             _repo.Agregar(p);
+            if (quitadas != Certificaciones.Ninguna)
+            {
+                _repo.Agregar(DescalificacionPartida.Crear(empresaId, p.Id, quitadas, s.MotivoDescalificacion!, "ParteConfeccion", parte.Id, null, _reloj.AhoraUtc));
+            }
+
             partidas[s.Id] = p.Id;
             _repo.Agregar(MovimientoPartida.Crear(empresaId, p.Id, parte.Fecha, TipoMovimientoPartida.Entrada, s.Kilos, s.PaleId, "ParteConfeccion", parte.Id,
                 $"Confección {codigo}", _reloj).Valor);
-            foreach (var (origen, kilos) in consumidas)
-            {
-                _repo.Agregar(Genealogia.Crear(empresaId, parte.Id, origen, p.Id, kilos));
-            }
+        }
+
+        foreach (var (origen, destino, kilos) in Genealogia.Repartir(consumidas, parte.Salidas.Select(s => (partidas[s.Id], s.Kilos)).ToList()))
+        {
+            _repo.Agregar(Genealogia.Crear(empresaId, parte.Id, origen, destino, kilos));
         }
 
         var validado = parte.Validar(numero, partidas, _reloj);
@@ -303,7 +313,7 @@ public sealed class ConfeccionAgro
                 return Resultado.Fallo(Error.Validacion("parte.unidad", $"{p.Nombre} se mide en «{p.Unidad}»: las salidas de confección van en kilos."));
             }
 
-            salidas.Add(new DatosSalida(p.Id, p.Nombre, s.Kilos, s.Factor, s.Calibre, s.CategoriaId, s.PaleId, s.Cajas, s.EnvaseProductoId));
+            salidas.Add(new DatosSalida(p.Id, p.Nombre, s.Kilos, s.Factor, s.Calibre, s.CategoriaId, s.PaleId, s.Cajas, s.EnvaseProductoId, s.MotivoDescalificacion));
         }
 
         if ((datos.ManoObra ?? []).Any(m => string.IsNullOrWhiteSpace(m.Categoria)) || (datos.Maquinas ?? []).Any(m => string.IsNullOrWhiteSpace(m.Categoria)))
@@ -319,6 +329,25 @@ public sealed class ConfeccionAgro
     }
 
     /// <summary>Valora el parte y comprueba partidas, saldos y palés. Devuelve todos los errores.</summary>
+    /// <summary>
+    /// Certificaciones de cada salida: las comunes a las partidas consumidas (ecológico con convencional da convencional),
+    /// ajustadas a lo que declara el artículo que sale (ver <see cref="ReglasCertificacion.Aplicar"/>).
+    /// </summary>
+    private async Task<Dictionary<Guid, Resultado<(Certificaciones Resultado, Certificaciones Quitadas)>>> CertificacionesSalidasAsync(ParteConfeccion parte,
+        IEnumerable<Partida> consumidas, CancellationToken ct)
+    {
+        var comunes = ReglasCertificacion.Comunes(consumidas.Select(p => p.Certificaciones));
+        var resultado = new Dictionary<Guid, Resultado<(Certificaciones, Certificaciones)>>();
+        foreach (var s in parte.Salidas)
+        {
+            var declaracion = await _repo.DeclaracionAsync(parte.EmpresaId, s.ProductoId, ct).ConfigureAwait(false);
+            var r = ReglasCertificacion.Aplicar(comunes, declaracion?.Exige, s.MotivoDescalificacion, s.Nombre);
+            resultado[s.Id] = r.EsFallo ? Resultado.Fallo<(Certificaciones, Certificaciones)>(Error.Conflicto(r.Error.Codigo, $"Salida {s.NumeroLinea}: {r.Error.Mensaje}")) : r;
+        }
+
+        return resultado;
+    }
+
     private async Task<IReadOnlyList<Error>> ComprobarAsync(ParteConfeccion parte, CancellationToken ct)
     {
         var errores = new List<Error>();
@@ -332,11 +361,24 @@ public sealed class ConfeccionAgro
                 continue;
             }
 
+            if (parte.Fecha < p.Fecha)
+            {
+                errores.Add(Error.Conflicto("parte.fecha_anterior", $"La partida {p.Codigo} entró el {p.Fecha:dd/MM/yyyy}: no se puede consumir el {parte.Fecha:dd/MM/yyyy}."));
+            }
+
             var disponible = saldos.Where(s => s.PartidaId == p.Id && s.PaleId == g.Key.PaleId).Sum(s => s.Kilos);
             var pedido = g.Sum(c => c.Kilos);
             if (pedido > disponible)
             {
                 errores.Add(Error.Conflicto("parte.saldo_insuficiente", $"La partida {p.Codigo} solo tiene {Redondeo.Formatear(disponible, 3)} kg {(g.Key.PaleId is null ? "sueltos" : "en ese palé")} y se consumen {Redondeo.Formatear(pedido, 3)}."));
+            }
+        }
+
+        foreach (var c in await CertificacionesSalidasAsync(parte, partidas.Values, ct).ConfigureAwait(false))
+        {
+            if (c.Value.EsFallo)
+            {
+                errores.Add(c.Value.Error);
             }
         }
 
@@ -385,7 +427,7 @@ public sealed class ConfeccionAgro
             p.Maquinas.Select(m => new MaquinaDto(m.Descripcion, m.Categoria, m.Horas, m.TarifaId, m.CosteUnitario, m.Coste)).ToList(),
             p.Materiales.Select(m => new MaterialDto(m.ProductoId, m.Nombre, m.Cantidad, m.CosteUnitario, m.Coste)).ToList(),
             p.Salidas.OrderBy(s => s.NumeroLinea).Select(s => new SalidaDto(s.NumeroLinea, s.ProductoId, s.Nombre, s.Kilos, s.Factor, s.Calibre, s.CategoriaId, s.PaleId,
-                s.PartidaId, s.Coste, s.CosteKg, s.Cajas, s.EnvaseProductoId, s.SegundosTeoricos, s.CosteConfeccion)).ToList(),
+                s.PartidaId, s.Coste, s.CosteKg, s.Cajas, s.EnvaseProductoId, s.SegundosTeoricos, s.CosteConfeccion, s.MotivoDescalificacion)).ToList(),
             errores.Select(e => new ErrorDto(e.Codigo, e.Mensaje)).ToList());
     }
 
@@ -958,13 +1000,31 @@ public sealed class PalesAgro
 
         foreach (var pale in pales)
         {
+            // Nada sale antes de haber entrado, y cada partida sale con las certificaciones que exige su artículo.
+            var contenido = (await _repo.ContenidoPaleAsync(pale.Id, ct).ConfigureAwait(false)).Where(c => c.Kilos > 0m).ToList();
+            foreach (var partida in await _repo.PartidasAsync(contenido.Select(c => c.PartidaId).Distinct().ToList(), ct).ConfigureAwait(false))
+            {
+                if (fecha < partida.Fecha)
+                {
+                    return Resultado.Fallo<IReadOnlyList<PaleDto>>(Error.Conflicto("expedicion.fecha_anterior",
+                        $"{pale.Sscc}: la partida {partida.Codigo} es del {partida.Fecha:dd/MM/yyyy} y no puede salir el {fecha:dd/MM/yyyy}."));
+                }
+
+                if (await _repo.DeclaracionAsync(empresaId, partida.ProductoId, ct).ConfigureAwait(false) is { } declaracion
+                    && (declaracion.Exige & ~partida.Certificaciones) is var falta and not Certificaciones.Ninguna)
+                {
+                    return Resultado.Fallo<IReadOnlyList<PaleDto>>(Error.Conflicto("certificacion.falta",
+                        $"{pale.Sscc}: la partida {partida.Codigo} no es {ReglasCertificacion.Texto(falta)} y su artículo se vende como tal."));
+                }
+            }
+
             var r = pale.Expedir(datos.ClienteId, fecha, datos.Referencia);
             if (r.EsFallo)
             {
                 return Resultado.Fallo<IReadOnlyList<PaleDto>>(Error.Conflicto(r.Error.Codigo, $"{pale.Sscc}: {r.Error.Mensaje}"));
             }
 
-            foreach (var c in (await _repo.ContenidoPaleAsync(pale.Id, ct).ConfigureAwait(false)).Where(c => c.Kilos > 0m))
+            foreach (var c in contenido)
             {
                 _repo.Agregar(MovimientoPartida.Crear(empresaId, c.PartidaId, fecha, TipoMovimientoPartida.Expedicion, -c.Kilos, pale.Id, "Expedicion", pale.Id,
                     $"Expedición {datos.Referencia}".Trim(), _reloj, c.Cajas > 0 ? -c.Cajas : 0).Valor);

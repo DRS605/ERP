@@ -69,9 +69,16 @@ public sealed class Partida : RaizAgregadoEmpresa<Guid>
     /// <summary>Anulada con su recepción: ya no se puede usar.</summary>
     public bool Anulada { get; private set; }
 
+    /// <summary>
+    /// Certificaciones de la fruta (ecológico, GlobalG.A.P., GRASP): las vigentes en la finca al recibirla, o las comunes a
+    /// las partidas de las que se confeccionó. Solo se pierden con una descalificación registrada, nunca se ganan.
+    /// </summary>
+    public Certificaciones Certificaciones { get; private set; }
+
     public DateTimeOffset CreadoEn { get; private set; }
 
-    public static Partida DeRecepcion(Guid empresaId, Recepcion recepcion, LineaRecepcion linea, decimal kilos, IReloj reloj)
+    public static Partida DeRecepcion(Guid empresaId, Recepcion recepcion, LineaRecepcion linea, decimal kilos, IReloj reloj,
+        Certificaciones certificaciones = Certificaciones.Ninguna)
     {
         ArgumentNullException.ThrowIfNull(recepcion);
         ArgumentNullException.ThrowIfNull(linea);
@@ -84,10 +91,12 @@ public sealed class Partida : RaizAgregadoEmpresa<Guid>
             ParcelaId = linea.ParcelaId,
             CampanaId = recepcion.CampanaId,
             Calibre = linea.Calibre,
+            Certificaciones = certificaciones,
         };
     }
 
-    public static Partida DeConfeccion(Guid empresaId, string codigo, Guid productoId, DateOnly fecha, decimal kilos, Guid parteId, Guid? campanaId, string? calibre, decimal costeKg, IReloj reloj)
+    public static Partida DeConfeccion(Guid empresaId, string codigo, Guid productoId, DateOnly fecha, decimal kilos, Guid parteId, Guid? campanaId, string? calibre, decimal costeKg, IReloj reloj,
+        Certificaciones certificaciones = Certificaciones.Ninguna)
     {
         ArgumentNullException.ThrowIfNull(reloj);
         return new Partida(Guid.NewGuid(), empresaId, codigo, productoId, OrigenPartida.Confeccion, fecha, kilos, reloj.AhoraUtc)
@@ -96,6 +105,7 @@ public sealed class Partida : RaizAgregadoEmpresa<Guid>
             CampanaId = campanaId,
             Calibre = calibre,
             CosteKg = costeKg,
+            Certificaciones = certificaciones,
         };
     }
 
@@ -103,6 +113,26 @@ public sealed class Partida : RaizAgregadoEmpresa<Guid>
     public void AsignarCodigo(string codigo) => Codigo = codigo;
 
     public void Anular() => Anulada = true;
+
+    /// <summary>Quita certificaciones (nunca añade). Devuelve el registro que lo justifica, que hay que guardar con la partida.</summary>
+    public Resultado<DescalificacionPartida> Descalificar(Certificaciones quitar, string? motivo, string? documentoTipo, Guid? documentoId, Guid? usuarioId, IReloj reloj)
+    {
+        ArgumentNullException.ThrowIfNull(reloj);
+        var quitadas = Certificaciones & quitar;
+        if (quitadas == Certificaciones.Ninguna)
+        {
+            return Resultado.Fallo<DescalificacionPartida>(Error.Validacion("certificacion.nada_que_quitar",
+                $"La partida {Codigo} no tiene {ReglasCertificacion.Texto(quitar)}."));
+        }
+
+        if (string.IsNullOrWhiteSpace(motivo))
+        {
+            return Resultado.Fallo<DescalificacionPartida>(Error.Validacion("certificacion.motivo", "Indica el motivo de la descalificación."));
+        }
+
+        Certificaciones &= ~quitadas;
+        return Resultado.Ok(DescalificacionPartida.Crear(EmpresaId, Id, quitadas, motivo, documentoTipo, documentoId, usuarioId, reloj.AhoraUtc));
+    }
 
     public void FijarCoste(decimal? costeKg) => CosteKg = costeKg;
 }

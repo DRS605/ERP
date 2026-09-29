@@ -408,9 +408,50 @@ saltándose la aplicación:
     - los totales cuadran: base, cuota, retención, total y a pagar;
     - emitir exige la autofacturación autorizada;
   - **parte:** el coste de cada línea cuadra y el total se reparte entero entre las salidas;
-  - **genealogía:** coherente con el parte.
+  - **genealogía:** coherente con el parte y **completa**: lo consumido de cada partida se reparte entre las salidas en
+    proporción a sus kilos, y las aristas de cada origen suman exactamente lo consumido;
+- **Fechas:** ningún movimiento es anterior al alta de su partida, y el saldo **día a día** (suelto y en cada palé)
+  nunca es negativo: no se expide, consume ni mueve nada con una fecha en la que aún no había entrado;
+- **Certificaciones:** una partida no gana certificaciones, y solo pierde una con su descalificación registrada en la
+  misma transacción (motivo, usuario, documento), que es de solo inserción.
 - **Valores:** SSCC con dígito de control GS1, SIGPAC, pesadas (bruto > tara ≥ 0), régimen coherente con el
   impuesto, y precios y tarifas sin solapes.
+
+## Certificaciones (ecológico, GlobalG.A.P., GRASP)
+
+La certificación viaja con la partida desde la finca hasta el cliente.
+
+- **Certificados** (`/agro/certificados`):
+  - Son de un agricultor (todas sus parcelas) o de una parcela.
+  - Cada uno tiene tipo, número (operador ecológico, GGN), organismo y vigencia.
+  - Se editan con `PUT`. Si se retiran o suspenden, se dan de baja (`/baja`, `/alta`); no se borran, porque son la
+    historia de lo recibido.
+- **Cómo se vende cada artículo** (`/agro/declaraciones/{productoId}`):
+  - Indica lo que el artículo exige a su fruta, por ejemplo «Pimiento verde ecológico» → `Ecologico`.
+  - Un artículo declarado con `Ninguna` es **convencional**.
+  - Un artículo sin declaración no se comprueba. Conviene declarar todos los ecológicos y sus equivalentes
+    convencionales.
+- **Recepción.** La partida lleva las certificaciones vigentes el día de la recepción para el agricultor o esa parcela.
+  Al confirmar:
+  - si el artículo exige algo que la fruta no tiene, se rechaza (`certificacion.falta`);
+  - si la fruta es ecológica y el artículo convencional, se rechaza salvo que la línea lleve `MotivoDescalificacion`
+    (`certificacion.descalificar`). Con motivo, la partida entra sin el ecológico y la descalificación queda registrada.
+- **Confección.** La salida tiene las certificaciones **comunes** a todas las partidas consumidas: ecológico con
+  convencional da convencional. Se aplica la misma regla del artículo, y la salida puede llevar su
+  `MotivoDescalificacion`.
+- **Descalificación manual** (`POST /agro/partidas/{id}/descalificar`, con `Quitar` y `Motivo`). Sirve, por ejemplo,
+  cuando se retira el certificado o aparece un residuo en un análisis.
+  - Las descalificaciones de una partida se consultan en `GET /agro/partidas/{id}/descalificaciones`.
+  - Nunca se gana una certificación.
+- **Expedición.** Un palé no sale si alguna de sus partidas no tiene lo que exige su artículo.
+
+## Coherencia de fechas
+
+- Un parte no consume una partida con fecha anterior a su entrada (`parte.fecha_anterior`).
+- Un palé no se expide con fecha anterior a la de sus partidas (`expedicion.fecha_anterior`).
+- La base de datos comprueba el saldo **día a día**: no se puede expedir el 12 un palé que se llenó el 15, aunque
+  al final los kilos cuadren (`partida.saldo_fecha`).
+- En el núcleo de logística, una unidad no se expide antes de montarse y cerrarse (`unidad.fecha_anterior`).
 
 ## Órdenes de carga
 

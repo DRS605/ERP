@@ -275,6 +275,8 @@ internal sealed class RepositorioAlbaranes : IRepositorioAlbaranes
 
     public async Task<int> SiguienteNumeroAsync(Guid empresaId, int ejercicio, CancellationToken ct = default)
     {
+        // Bloqueo hasta guardar: dos albaranes a la vez no toman el mismo número (y la base de datos lo impide con ux_albaran_compra_numero).
+        await _contexto.BloquearAsync($"compras.albaran_compra.{empresaId}.{ejercicio}", ct).ConfigureAwait(false);
         var desde = new DateOnly(ejercicio, 1, 1);
         var hasta = new DateOnly(ejercicio, 12, 31);
         var max = await _contexto.Albaranes.AsNoTracking()

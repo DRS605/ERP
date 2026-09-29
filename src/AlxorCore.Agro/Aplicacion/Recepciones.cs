@@ -10,7 +10,7 @@ public sealed record PesadaDto(Guid Id, Guid LineaId, int Secuencia, decimal Bru
 
 public sealed record LineaRecepcionDto(
     Guid Id, int NumeroLinea, Guid ProductoId, string ProductoNombre, Guid? ParcelaId, DateOnly? FechaRecoleccion, Guid? EnvaseProductoId,
-    decimal? PrecioEstimadoKg, string? Calibre, decimal NetoKg, int Envases, Guid? PartidaId);
+    decimal? PrecioEstimadoKg, string? Calibre, decimal NetoKg, int Envases, Guid? PartidaId, string? MotivoDescalificacion = null);
 
 public sealed record RecepcionDto(
     Guid Id, string? Numero, DateOnly Fecha, Guid AgricultorId, string? AgricultorNombre, Guid CampanaId, string? Matricula, string? Conductor,
@@ -20,7 +20,8 @@ public sealed record RecepcionDto(
         r.Id, r.NumeroCompleto, r.Fecha, r.AgricultorId, agricultor, r.CampanaId, r.Matricula, r.Conductor, r.Observaciones, r.Estado.ToString(),
         r.MotivoAnulacion, r.NetoKg,
         r.Lineas.OrderBy(l => l.NumeroLinea).Select(l => new LineaRecepcionDto(l.Id, l.NumeroLinea, l.ProductoId, l.ProductoNombre, l.ParcelaId,
-            l.FechaRecoleccion, l.EnvaseProductoId, l.PrecioEstimadoKg, l.Calibre, l.NetoKg ?? r.NetoDe(l.Id), l.Envases ?? r.EnvasesDe(l.Id), l.PartidaId)).ToList(),
+            l.FechaRecoleccion, l.EnvaseProductoId, l.PrecioEstimadoKg, l.Calibre, l.NetoKg ?? r.NetoDe(l.Id), l.Envases ?? r.EnvasesDe(l.Id), l.PartidaId,
+            l.MotivoDescalificacion)).ToList(),
         r.Pesadas.OrderBy(p => p.Secuencia).Select(p => new PesadaDto(p.Id, p.LineaId, p.Secuencia, p.BrutoKg, p.TaraKg, p.NetoKg, p.Envases, p.Bascula)).ToList());
 }
 
@@ -28,7 +29,7 @@ public sealed record RecepcionResumenDto(Guid Id, string? Numero, DateOnly Fecha
 
 public sealed record PartidaDto(
     Guid Id, string Codigo, Guid ProductoId, string Origen, DateOnly Fecha, decimal KilosIniciales, decimal Saldo, Guid? AgricultorId, Guid? ParcelaId,
-    Guid? CampanaId, string? Calibre, decimal? CosteKg, bool Anulada, Guid? RecepcionId, Guid? ParteConfeccionId);
+    Guid? CampanaId, string? Calibre, decimal? CosteKg, bool Anulada, Guid? RecepcionId, Guid? ParteConfeccionId, string Certificaciones = "Ninguna");
 
 public sealed record MovimientoPartidaDto(Guid Id, Guid PartidaId, DateOnly Fecha, string Tipo, decimal Kilos, Guid? PaleId, string? DocumentoTipo, Guid? DocumentoId, string? Concepto);
 
@@ -38,7 +39,8 @@ public sealed record MovimientoEnvaseDto(Guid Id, Guid EnvaseProductoId, DateOnl
 
 public sealed record DatosRecepcion(Guid AgricultorId, DateOnly Fecha, Guid? CampanaId = null, string? Matricula = null, string? Conductor = null, string? Observaciones = null);
 
-public sealed record DatosLinea(Guid ProductoId, Guid? ParcelaId = null, DateOnly? FechaRecoleccion = null, Guid? EnvaseProductoId = null, decimal? PrecioEstimadoKg = null, string? Calibre = null);
+public sealed record DatosLinea(Guid ProductoId, Guid? ParcelaId = null, DateOnly? FechaRecoleccion = null, Guid? EnvaseProductoId = null, decimal? PrecioEstimadoKg = null, string? Calibre = null,
+    string? MotivoDescalificacion = null);
 
 public sealed record DatosPesada(decimal BrutoKg, decimal TaraKg, int Envases = 0, string? Bascula = null);
 
@@ -150,7 +152,7 @@ public sealed class RecepcionesAgro
         }
 
         var linea = r.AgregarLinea(new DatosLineaRecepcion(producto.Id, producto.Nombre, datos.ParcelaId, datos.FechaRecoleccion, datos.EnvaseProductoId,
-            datos.PrecioEstimadoKg, datos.Calibre));
+            datos.PrecioEstimadoKg, datos.Calibre, datos.MotivoDescalificacion));
         return await GuardarAsync(r, linea.EsFallo ? Resultado.Fallo(linea.Error) : Resultado.Ok(), ct).ConfigureAwait(false);
     }
 
@@ -230,6 +232,25 @@ public sealed class RecepcionesAgro
             errores.AddRange(await _cuaderno.ComprobarPlazosAsync(r, ct).ConfigureAwait(false));
         }
 
+        // Certificaciones: las vigentes el día de la recepción para el agricultor (o esa parcela), ajustadas al artículo.
+        var certificados = await _repo.CertificadosAsync(r.EmpresaId, r.AgricultorId, ct).ConfigureAwait(false);
+        var certificaciones = new Dictionary<Guid, (Certificaciones Resultado, Certificaciones Quitadas)>();
+        foreach (var l in r.Lineas)
+        {
+            var vigentes = certificados.Where(c => c.VigenteEl(r.Fecha) && (c.ParcelaId is null || c.ParcelaId == l.ParcelaId))
+                .Aggregate(Certificaciones.Ninguna, (a, c) => a | c.Tipo);
+            var declaracion = await _repo.DeclaracionAsync(r.EmpresaId, l.ProductoId, ct).ConfigureAwait(false);
+            var c = ReglasCertificacion.Aplicar(vigentes, declaracion?.Exige, l.MotivoDescalificacion, l.ProductoNombre);
+            if (c.EsFallo)
+            {
+                errores.Add(Error.Conflicto(c.Error.Codigo, $"Línea {l.NumeroLinea}: {c.Error.Mensaje}"));
+            }
+            else
+            {
+                certificaciones[l.Id] = c.Valor;
+            }
+        }
+
         if (errores.Count > 0)
         {
             return Resultado.Fallo<RecepcionDto>(Valoracion.Resumen(errores));
@@ -243,9 +264,15 @@ public sealed class RecepcionesAgro
         foreach (var l in r.Lineas)
         {
             var kilos = r.NetoDe(l.Id);
-            var partida = Partida.DeRecepcion(r.EmpresaId, r, l, kilos, _reloj);
+            var (certs, quitadas) = certificaciones[l.Id];
+            var partida = Partida.DeRecepcion(r.EmpresaId, r, l, kilos, _reloj, certs);
             partida.AsignarCodigo($"{codigo}/{l.NumeroLinea}");
             _repo.Agregar(partida);
+            if (quitadas != Certificaciones.Ninguna)
+            {
+                _repo.Agregar(DescalificacionPartida.Crear(r.EmpresaId, partida.Id, quitadas, l.MotivoDescalificacion!, "Recepcion", r.Id, null, _reloj.AhoraUtc));
+            }
+
             partidas[l.Id] = partida.Id;
             _repo.Agregar(MovimientoPartida.Crear(r.EmpresaId, partida.Id, r.Fecha, TipoMovimientoPartida.Entrada, kilos, null, "Recepcion", r.Id,
                 $"Recepción {codigo}", _reloj).Valor);
@@ -427,7 +454,7 @@ public sealed class RecepcionesAgro
 
     internal static PartidaDto PartidaDe(Partida p, decimal saldo) => new(
         p.Id, p.Codigo, p.ProductoId, p.Origen.ToString(), p.Fecha, p.KilosIniciales, saldo, p.AgricultorId, p.ParcelaId, p.CampanaId, p.Calibre,
-        p.CosteKg, p.Anulada, p.RecepcionId, p.ParteConfeccionId);
+        p.CosteKg, p.Anulada, p.RecepcionId, p.ParteConfeccionId, p.Certificaciones.ToString());
 
     internal static bool EsKilo(string? unidad) =>
         string.Equals(unidad?.Trim(), "kg", StringComparison.OrdinalIgnoreCase) || string.Equals(unidad?.Trim(), "kilo", StringComparison.OrdinalIgnoreCase);

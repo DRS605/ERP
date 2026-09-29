@@ -22,6 +22,9 @@ public sealed class AgroDbContext : DbContextEmpresaBase, IUnidadDeTrabajoAgro
 
     /// <summary>Tablas raíz del módulo (las líneas caen en cascada con su cabecera).</summary>
     private const string SqlBorradoEmpresa = """
+        DELETE FROM agro.descalificacion_partida WHERE empresa_id = {0};
+        DELETE FROM agro.certificado_agro WHERE empresa_id = {0};
+        DELETE FROM agro.declaracion_articulo WHERE empresa_id = {0};
         DELETE FROM agro.genealogia WHERE empresa_id = {0};
         DELETE FROM agro.movimiento_partida WHERE empresa_id = {0};
         DELETE FROM agro.movimiento_envase WHERE empresa_id = {0};
@@ -273,6 +276,7 @@ internal sealed class ConfiguracionRecepcion : IEntityTypeConfiguration<Recepcio
             l.Property(x => x.EnvaseProductoId).HasColumnName("envase_producto_id");
             l.Property(x => x.PrecioEstimadoKg).HasColumnName("precio_estimado_kg").HasColumnType(Columnas.PrecioKg);
             l.Property(x => x.Calibre).HasColumnName("calibre").HasMaxLength(30);
+            l.Property(x => x.MotivoDescalificacion).HasColumnName("motivo_descalificacion").HasMaxLength(300);
             l.Property(x => x.PartidaId).HasColumnName("partida_id");
             l.Property(x => x.NetoKg).HasColumnName("neto_kg").HasColumnType(Columnas.Kilos);
             l.Property(x => x.Envases).HasColumnName("envases");
@@ -321,6 +325,7 @@ internal sealed class ConfiguracionPartida : IEntityTypeConfiguration<Partida>
         b.Property(x => x.ParteConfeccionId).HasColumnName("parte_confeccion_id");
         b.Property(x => x.CosteKg).HasColumnName("coste_kg").HasColumnType("numeric(14,6)");
         b.Property(x => x.Anulada).HasColumnName("anulada").IsRequired();
+        b.Property(x => x.Certificaciones).HasColumnName("certificaciones").HasConversion<int>().HasDefaultValue(Certificaciones.Ninguna).IsRequired();
         b.Property(x => x.CreadoEn).HasColumnName("creado_en").IsRequired();
         b.HasIndex(x => new { x.EmpresaId, x.Codigo }).IsUnique().HasDatabaseName("ux_partida_codigo");
         b.HasIndex(x => x.RecepcionId).HasDatabaseName("ix_partida_recepcion");
@@ -836,6 +841,7 @@ internal sealed class ConfiguracionParte : IEntityTypeConfiguration<ParteConfecc
             s.Property(x => x.Kilos).HasColumnName("kilos").HasColumnType(Columnas.Kilos).IsRequired();
             s.Property(x => x.Factor).HasColumnName("factor").HasColumnType("numeric(8,4)").IsRequired();
             s.Property(x => x.Calibre).HasColumnName("calibre").HasMaxLength(30);
+            s.Property(x => x.MotivoDescalificacion).HasColumnName("motivo_descalificacion").HasMaxLength(300);
             s.Property(x => x.CategoriaId).HasColumnName("categoria_id");
             s.Property(x => x.PaleId).HasColumnName("pale_id");
             s.Property(x => x.PartidaId).HasColumnName("partida_id");
@@ -854,6 +860,54 @@ internal sealed class ConfiguracionParte : IEntityTypeConfiguration<ParteConfecc
         {
             b.Navigation(nav).UsePropertyAccessMode(PropertyAccessMode.Field);
         }
+    }
+}
+
+internal sealed class ConfiguracionCertificado : IEntityTypeConfiguration<CertificadoAgro>
+{
+    public void Configure(EntityTypeBuilder<CertificadoAgro> b)
+    {
+        Columnas.Base(b, "certificado_agro");
+        b.Property(x => x.AgricultorId).HasColumnName("agricultor_id").IsRequired();
+        b.Property(x => x.ParcelaId).HasColumnName("parcela_id");
+        b.Property(x => x.Tipo).HasColumnName("tipo").HasConversion<int>().IsRequired();
+        b.Property(x => x.Codigo).HasColumnName("codigo").HasMaxLength(40).IsRequired();
+        b.Property(x => x.Organismo).HasColumnName("organismo").HasMaxLength(100);
+        b.Property(x => x.Desde).HasColumnName("desde").IsRequired();
+        b.Property(x => x.Hasta).HasColumnName("hasta");
+        b.Property(x => x.Baja).HasColumnName("baja").IsRequired();
+        b.HasIndex(x => new { x.EmpresaId, x.AgricultorId }).HasDatabaseName("ix_certificado_agro_agricultor");
+        b.HasIndex(x => x.AgricultorId).HasDatabaseName("ix_certificado_agro_agricultor_id");
+        b.HasIndex(x => x.ParcelaId).HasDatabaseName("ix_certificado_agro_parcela");
+    }
+}
+
+internal sealed class ConfiguracionDeclaracionArticulo : IEntityTypeConfiguration<DeclaracionArticulo>
+{
+    public void Configure(EntityTypeBuilder<DeclaracionArticulo> b)
+    {
+        Columnas.Base(b, "declaracion_articulo");
+        b.Property(x => x.ProductoId).HasColumnName("producto_id").IsRequired();
+        b.Property(x => x.Exige).HasColumnName("exige").HasConversion<int>().IsRequired();
+        b.HasIndex(x => new { x.EmpresaId, x.ProductoId }).IsUnique().HasDatabaseName("ux_declaracion_articulo_producto");
+        b.HasIndex(x => x.ProductoId).HasDatabaseName("ix_declaracion_articulo_producto");
+    }
+}
+
+internal sealed class ConfiguracionDescalificacion : IEntityTypeConfiguration<DescalificacionPartida>
+{
+    public void Configure(EntityTypeBuilder<DescalificacionPartida> b)
+    {
+        Columnas.Base(b, "descalificacion_partida");
+        b.Property(x => x.PartidaId).HasColumnName("partida_id").IsRequired();
+        b.Property(x => x.Quitadas).HasColumnName("quitadas").HasConversion<int>().IsRequired();
+        b.Property(x => x.Motivo).HasColumnName("motivo").HasMaxLength(300).IsRequired();
+        b.Property(x => x.DocumentoTipo).HasColumnName("documento_tipo").HasMaxLength(30);
+        b.Property(x => x.DocumentoId).HasColumnName("documento_id");
+        b.Property(x => x.UsuarioId).HasColumnName("usuario_id");
+        b.Property(x => x.En).HasColumnName("en").IsRequired();
+        b.HasIndex(x => x.PartidaId).HasDatabaseName("ix_descalificacion_partida_partida");
+        b.HasIndex(x => x.UsuarioId).HasDatabaseName("ix_descalificacion_partida_usuario");
     }
 }
 
@@ -900,6 +954,22 @@ internal sealed class RepositorioAgro : IRepositorioAgro
         await _ctx.Set<Parcela>().Where(x => x.EmpresaId == empresaId && (agricultorId == null || x.AgricultorId == agricultorId)).ToListAsync(ct).ConfigureAwait(false);
 
     public Task<Parcela?> ParcelaAsync(Guid id, CancellationToken ct = default) => _ctx.Set<Parcela>().SingleOrDefaultAsync(x => x.Id == id, ct);
+
+    public async Task<IReadOnlyList<CertificadoAgro>> CertificadosAsync(Guid empresaId, Guid? agricultorId, CancellationToken ct = default) =>
+        await _ctx.Set<CertificadoAgro>().Where(c => c.EmpresaId == empresaId && (agricultorId == null || c.AgricultorId == agricultorId))
+            .OrderBy(c => c.AgricultorId).ThenBy(c => c.Tipo).ThenByDescending(c => c.Desde).ToListAsync(ct).ConfigureAwait(false);
+
+    public Task<CertificadoAgro?> CertificadoAsync(Guid id, CancellationToken ct = default) => _ctx.Set<CertificadoAgro>().SingleOrDefaultAsync(x => x.Id == id, ct);
+
+    public async Task<IReadOnlyList<DeclaracionArticulo>> DeclaracionesAsync(Guid empresaId, CancellationToken ct = default) =>
+        await _ctx.Set<DeclaracionArticulo>().Where(d => d.EmpresaId == empresaId).ToListAsync(ct).ConfigureAwait(false);
+
+    public async Task<DeclaracionArticulo?> DeclaracionAsync(Guid empresaId, Guid productoId, CancellationToken ct = default) =>
+        _ctx.Set<DeclaracionArticulo>().Local.FirstOrDefault(d => d.EmpresaId == empresaId && d.ProductoId == productoId)
+        ?? await _ctx.Set<DeclaracionArticulo>().SingleOrDefaultAsync(d => d.EmpresaId == empresaId && d.ProductoId == productoId, ct).ConfigureAwait(false);
+
+    public async Task<IReadOnlyList<DescalificacionPartida>> DescalificacionesAsync(IReadOnlyCollection<Guid> partidaIds, CancellationToken ct = default) =>
+        await _ctx.Set<DescalificacionPartida>().Where(d => partidaIds.Contains(d.PartidaId)).ToListAsync(ct).ConfigureAwait(false);
 
     public async Task<IReadOnlyList<Categoria>> CategoriasAsync(Guid empresaId, CancellationToken ct = default) =>
         await _ctx.Set<Categoria>().Where(x => x.EmpresaId == empresaId).ToListAsync(ct).ConfigureAwait(false);

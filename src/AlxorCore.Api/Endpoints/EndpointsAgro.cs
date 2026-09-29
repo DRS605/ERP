@@ -274,6 +274,36 @@ public static class EndpointsAgro
         g.MapPut("/parcelas/{id:guid}", async (Guid id, DatosParcela d, MaestrosAgro m, CancellationToken ct) => (await m.ActualizarParcelaAsync(id, d, ct).ConfigureAwait(false)).AOk())
             .WithSummary("Modifica una parcela.").RequierePermiso(Permisos.AgroGestionar);
 
+        // Certificaciones: certificados de agricultores y parcelas, cómo se vende cada artículo y descalificaciones.
+        g.MapGet("/certificados", (Guid? agricultorId, IContextoEmpresa c, CertificacionesAgro m, CancellationToken ct) =>
+                ConEmpresa(c, async e => Results.Ok(await m.CertificadosAsync(e, agricultorId, ct).ConfigureAwait(false))))
+            .WithSummary("Certificados (ecológico, GlobalG.A.P., GRASP) de los agricultores o de uno.").RequierePermiso(Permisos.AgroLeer);
+        g.MapPost("/certificados", (DatosCertificado d, IContextoEmpresa c, CertificacionesAgro m, CancellationToken ct) =>
+                ConEmpresa(c, async e => Creado(await m.CrearCertificadoAsync(e, d, ct).ConfigureAwait(false), "certificados")))
+            .WithSummary("Da de alta un certificado del agricultor (o de una parcela) con su número y vigencia.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapPut("/certificados/{id:guid}", async (Guid id, DatosCertificado d, CertificacionesAgro m, CancellationToken ct) =>
+                (await m.ActualizarCertificadoAsync(id, d, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Cambia el número, el organismo o la vigencia del certificado.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapPost("/certificados/{id:guid}/baja", async (Guid id, CertificacionesAgro m, CancellationToken ct) => (await m.BajaCertificadoAsync(id, true, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Da de baja el certificado (retirado o suspendido): deja de certificar lo que se reciba.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapPost("/certificados/{id:guid}/alta", async (Guid id, CertificacionesAgro m, CancellationToken ct) => (await m.BajaCertificadoAsync(id, false, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Vuelve a dar de alta el certificado.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapGet("/declaraciones", (IContextoEmpresa c, CertificacionesAgro m, CancellationToken ct) =>
+                ConEmpresa(c, async e => Results.Ok(await m.DeclaracionesAsync(e, ct).ConfigureAwait(false))))
+            .WithSummary("Cómo se vende cada artículo: las certificaciones que exige a su fruta.").RequierePermiso(Permisos.AgroLeer);
+        g.MapPut("/declaraciones/{productoId:guid}", (Guid productoId, DatosDeclaracion d, IContextoEmpresa c, CertificacionesAgro m, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await m.DeclararAsync(e, productoId, d, ct).ConfigureAwait(false)).AOk()))
+            .WithSummary("Declara el artículo como ecológico, GlobalG.A.P., GRASP o convencional (Ninguna).").RequierePermiso(Permisos.AgroGestionar);
+        g.MapDelete("/declaraciones/{productoId:guid}", (Guid productoId, IContextoEmpresa c, CertificacionesAgro m, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await m.QuitarDeclaracionAsync(e, productoId, ct).ConfigureAwait(false)).ASinContenido()))
+            .WithSummary("Quita la declaración del artículo (deja de comprobarse).").RequierePermiso(Permisos.AgroGestionar);
+        g.MapGet("/partidas/{id:guid}/descalificaciones", async (Guid id, CertificacionesAgro m, CancellationToken ct) =>
+                Results.Ok(await m.DescalificacionesAsync(id, ct).ConfigureAwait(false)))
+            .WithSummary("Descalificaciones de la partida: qué perdió, por qué, quién y en qué documento.").RequierePermiso(Permisos.AgroLeer);
+        g.MapPost("/partidas/{id:guid}/descalificar", async (Guid id, DatosDescalificacion d, HttpContext http, CertificacionesAgro m, CancellationToken ct) =>
+                (await m.DescalificarAsync(id, d, http.User.ObtenerUsuarioId(), ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Quita a la partida una certificación (p. ej. el ecológico), con motivo; queda registrado.").RequierePermiso(Permisos.AgroGestionar);
+
         g.MapGet("/categorias", (IContextoEmpresa c, MaestrosAgro m, CancellationToken ct) => ConEmpresa(c, async e => Results.Ok(await m.CategoriasAsync(e, ct).ConfigureAwait(false))))
             .WithSummary("Categorías de clasificación.").RequierePermiso(Permisos.AgroLeer);
         g.MapPost("/categorias", (DatosCategoria d, IContextoEmpresa c, MaestrosAgro m, CancellationToken ct) => ConEmpresa(c, async e => Creado(await m.CrearCategoriaAsync(e, d, ct).ConfigureAwait(false), "categorias")))

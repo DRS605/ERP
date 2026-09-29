@@ -343,6 +343,13 @@ public sealed class UnidadLogistica : RaizAgregadoEmpresa<Guid>
             return Resultado.Fallo(Error.Conflicto("unidad.no_cerrada", $"Solo se expide una unidad cerrada ({Sscc} está {Estado.ToString().ToLowerInvariant()})."));
         }
 
+        // Nada sale antes de existir: ni antes de montar la unidad ni antes de que se cerrara.
+        var desde = DateOnly.FromDateTime((CerradaEn ?? CreadaEn).UtcDateTime);
+        if (fecha < desde)
+        {
+            return Resultado.Fallo(Error.Conflicto("unidad.fecha_anterior", $"La unidad {Sscc} se montó el {desde:dd/MM/yyyy}: no puede salir el {fecha:dd/MM/yyyy}."));
+        }
+
         Estado = EstadoUnidadLogistica.Expedida;
         FechaExpedicion = fecha;
         ReferenciaExpedicion = string.IsNullOrWhiteSpace(referencia) ? null : referencia.Trim()[..Math.Min(referencia.Trim().Length, 60)];

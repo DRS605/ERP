@@ -162,7 +162,7 @@ public sealed class ParteConfeccion : RaizAgregadoEmpresa<Guid>
         _materiales.Clear();
         _materiales.AddRange(datos.Materiales.Select(m => new MaterialParte(Guid.NewGuid(), m.ProductoId, m.Nombre, m.Cantidad)));
         _salidas.Clear();
-        _salidas.AddRange(datos.Salidas.Select((s, i) => new SalidaParte(Guid.NewGuid(), i + 1, s.ProductoId, s.Nombre, s.Kilos, s.Factor, s.Calibre, s.CategoriaId, s.PaleId, s.Cajas, s.EnvaseProductoId)));
+        _salidas.AddRange(datos.Salidas.Select((s, i) => new SalidaParte(Guid.NewGuid(), i + 1, s.ProductoId, s.Nombre, s.Kilos, s.Factor, s.Calibre, s.CategoriaId, s.PaleId, s.Cajas, s.EnvaseProductoId, s.MotivoDescalificacion)));
         return Resultado.Ok();
     }
 
@@ -370,7 +370,7 @@ public sealed record DatosMaquina(string Descripcion, string Categoria, decimal 
 public sealed record DatosMaterial(Guid ProductoId, string Nombre, decimal Cantidad);
 
 public sealed record DatosSalida(Guid ProductoId, string Nombre, decimal Kilos, decimal Factor = 1m, string? Calibre = null, Guid? CategoriaId = null, Guid? PaleId = null,
-    int? Cajas = null, Guid? EnvaseProductoId = null);
+    int? Cajas = null, Guid? EnvaseProductoId = null, string? MotivoDescalificacion = null);
 
 public sealed class ConsumoParte : EntidadBase<Guid>
 {
@@ -533,9 +533,10 @@ public sealed class SalidaParte : EntidadBase<Guid>
     }
 
     internal SalidaParte(Guid id, int numeroLinea, Guid productoId, string nombre, decimal kilos, decimal factor, string? calibre, Guid? categoriaId, Guid? paleId,
-        int? cajas = null, Guid? envaseProductoId = null)
+        int? cajas = null, Guid? envaseProductoId = null, string? motivoDescalificacion = null)
         : base(id)
     {
+        MotivoDescalificacion = string.IsNullOrWhiteSpace(motivoDescalificacion) ? null : motivoDescalificacion.Trim();
         Cajas = cajas;
         EnvaseProductoId = envaseProductoId;
         NumeroLinea = numeroLinea;
@@ -565,6 +566,9 @@ public sealed class SalidaParte : EntidadBase<Guid>
 
     /// <summary>Palé en el que se deja directamente el producto obtenido.</summary>
     public Guid? PaleId { get; private set; }
+
+    /// <summary>Motivo para confeccionar un artículo convencional con fruta ecológica (descalificación explícita).</summary>
+    public string? MotivoDescalificacion { get; private set; }
 
     public Guid? PartidaId { get; private set; }
 
@@ -617,9 +621,46 @@ public sealed class Genealogia : RaizAgregadoEmpresa<Guid>
 
     public Guid DestinoId { get; private set; }
 
-    /// <summary>Kilos de la partida de origen consumidos en el parte.</summary>
+    /// <summary>
+    /// Kilos de la partida de origen que fueron a la de destino. Lo consumido de cada origen se reparte entre las
+    /// salidas en proporción a sus kilos, así que las aristas de un origen suman exactamente lo que se consumió de él.
+    /// </summary>
     public decimal KilosOrigen { get; private set; }
 
     public static Genealogia Crear(Guid empresaId, Guid parteId, Guid origenId, Guid destinoId, decimal kilosOrigen) =>
         new(Guid.NewGuid(), empresaId, parteId, origenId, destinoId, kilosOrigen);
+
+    /// <summary>
+    /// Reparte lo consumido de cada partida de origen entre las salidas, en proporción a los kilos de cada salida
+    /// (a gramos; la última salida se lleva el redondeo). Cada origen suma lo que se consumió de él y cada salida
+    /// recibe de todos los orígenes: la merma queda repartida igual.
+    /// </summary>
+    public static IReadOnlyList<(Guid Origen, Guid Destino, decimal Kilos)> Repartir(IReadOnlyList<(Guid Origen, decimal Kilos)> consumidas,
+        IReadOnlyList<(Guid Destino, decimal Kilos)> salidas)
+    {
+        ArgumentNullException.ThrowIfNull(consumidas);
+        ArgumentNullException.ThrowIfNull(salidas);
+        var total = salidas.Sum(s => s.Kilos);
+        var aristas = new List<(Guid, Guid, decimal)>();
+        if (total <= 0m)
+        {
+            return aristas;
+        }
+
+        foreach (var (origen, kilos) in consumidas)
+        {
+            var resto = kilos;
+            for (var i = 0; i < salidas.Count; i++)
+            {
+                var parte = i == salidas.Count - 1 ? resto : Math.Round(kilos * salidas[i].Kilos / total, 3, MidpointRounding.AwayFromZero);
+                resto -= parte;
+                if (parte > 0m)
+                {
+                    aristas.Add((origen, salidas[i].Destino, parte));
+                }
+            }
+        }
+
+        return aristas;
+    }
 }
