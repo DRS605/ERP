@@ -58,7 +58,8 @@ public interface IUnidadDeTrabajoRecepcion : IUnidadDeTrabajo;
 /// <summary>Datos con los que se contabiliza una factura de proveedor.</summary>
 public sealed record DatosContabilizacion(
     Guid? ProveedorId, string? ProveedorTexto, string Concepto, DateOnly Fecha,
-    decimal BaseImponible, string CodigoIva, decimal PorcentajeIrpf, string? NumeroFactura = null, DateOnly? FechaFactura = null);
+    decimal BaseImponible, string CodigoIva, decimal PorcentajeIrpf, string? NumeroFactura = null, DateOnly? FechaFactura = null,
+    IReadOnlyList<(decimal Base, string? Cuenta, string? Descripcion)>? Lineas = null);
 
 /// <summary>Resultado de contabilizar: el gasto generado (y, en el futuro, el asiento).</summary>
 public sealed record ResultadoContabilizacion(Guid GastoId, Guid? AsientoId = null);

@@ -175,7 +175,14 @@ public sealed class EmitirFactura
             return Resultado.Fallo<FacturaDto>(conConceptos.Error);
         }
 
-        var lineas = conConceptos.Valor;
+        var separadas = await ResolucionLineasFactura.SepararImpuestoPropioAsync(conConceptos.Valor, _productos, comando.RecargoEquivalencia, empresaId, _resolverIva,
+            impuesto, ct).ConfigureAwait(false);
+        if (separadas.EsFallo)
+        {
+            return Resultado.Fallo<FacturaDto>(separadas.Error);
+        }
+
+        var lineas = separadas.Valor;
 
         // Anticipos facturados que se descuentan: líneas negativas con su base e impuesto (cuenta 438), como mucho la base de la factura.
         if (comando.DescontarAnticipos is { Count: > 0 } descontar)
@@ -484,6 +491,45 @@ internal static class ResolucionLineasFactura
         }
 
         return Resultado.Ok(resueltas);
+    }
+
+    /// <summary>
+    /// Saca a una línea propia cada concepto que lleva su propio impuesto (portes al 21 % en fruta al 4 %…): la línea del
+    /// artículo se queda sin él y la nueva, justo detrás, lleva su importe, su tipo y su cuenta. Así cada base paga su tipo
+    /// y la base de datos sigue comprobando base × tipo línea a línea.
+    /// </summary>
+    public static async Task<Resultado<List<NuevaLinea>>> SepararImpuestoPropioAsync(List<NuevaLinea> lineas, IConsultaProductos productos,
+        bool recargoEquivalencia, Guid empresaId, IResolverIvaEmpresa? resolverIva, TipoImpuesto impuesto, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(lineas);
+        static bool Propio(ConceptoAplicado c) => c.Efecto == EfectoConcepto.Precio && !string.IsNullOrWhiteSpace(c.CodigoIva) && c.Importe > 0m;
+        if (!lineas.Any(l => (l.Conceptos ?? []).Any(Propio)))
+        {
+            return Resultado.Ok(lineas);
+        }
+
+        var resultado = new List<NuevaLinea>();
+        foreach (var l in lineas)
+        {
+            var propios = (l.Conceptos ?? []).Where(c => Propio(c) && !string.Equals(c.CodigoIva, l.CodigoIva, StringComparison.OrdinalIgnoreCase)).ToList();
+            resultado.Add(propios.Count == 0 ? l : l with { Conceptos = (l.Conceptos ?? []).Except(propios).ToList() });
+            if (propios.Count == 0)
+            {
+                continue;
+            }
+
+            var comandos = propios.Select(c => new LineaComando(1m, c.Nombre, c.Importe, c.CodigoIva, CuentaContable: c.CuentaContable, AlbaranVentaId: l.AlbaranVentaId,
+                SinSalidaStock: true)).ToList();
+            var nuevas = await ResolverAsync(comandos, productos, ct, recargoEquivalencia, empresaId, resolverIva, null, impuesto).ConfigureAwait(false);
+            if (nuevas.EsFallo)
+            {
+                return Resultado.Fallo<List<NuevaLinea>>(nuevas.Error);
+            }
+
+            resultado.AddRange(nuevas.Valor);
+        }
+
+        return Resultado.Ok(resultado);
     }
 
     /// <summary>

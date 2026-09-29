@@ -251,4 +251,33 @@ public sealed class CargosAbonosTests : IClassFixture<FabricaApiPruebas>
         var pdf = await api.GetAsync($"/facturas/{f.Id}/pdf");
         pdf.StatusCode.Should().Be(HttpStatusCode.OK);
     }
+
+    private sealed record LineaIvaResp(string Descripcion, decimal Base, string CodigoIva, decimal CuotaIva);
+    private sealed record FacturaIvaResp(decimal BaseImponible, decimal CuotaIva, List<LineaIvaResp> Lineas);
+
+    [Fact]
+    public async Task Un_concepto_con_impuesto_propio_sale_en_su_linea_con_su_tipo()
+    {
+        var (api, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+        (await api.GetAsync(new Uri("/tipos-iva", UriKind.Relative))).EnsureSuccessStatusCode();
+        var cliente = await IdAsync(api, "/clientes", new { Nombre = "Frutería Centro" });
+        var coste = await api.PostAsJsonAsync("/conceptos-linea", new
+        {
+            Codigo = "MAL", Datos = new { Nombre = "mal", Ambito = "Ventas", Efecto = "Coste", Sentido = "Suma", Calculo = "Importe", Valor = 1m, CodigoIva = "IVA21" },
+        });
+        (await coste.Content.ReadFromJsonAsync<ProblemaResp>())!.Codigo.Should().Be("concepto.impuesto_propio");
+        await IdAsync(api, "/conceptos-linea", new
+        {
+            Codigo = "PORTES", Datos = new { Nombre = "Portes", Ambito = "Ventas", Efecto = "Precio", Sentido = "Suma", Calculo = "Importe", Valor = 10m,
+                CodigoIva = "IVA21", Asignaciones = new[] { new { } } },
+        });
+
+        var f = (await (await api.PostAsJsonAsync("/facturas", new { ClienteId = cliente, Lineas = new[] { new { Descripcion = "Naranjas", Cantidad = 100m, PrecioUnitario = 1m, CodigoIva = "IVA4" } } }))
+            .Content.ReadFromJsonAsync<FacturaIvaResp>())!;
+        f.Lineas.Should().HaveCount(2);
+        f.Lineas[0].Should().Match<LineaIvaResp>(l => l.Descripcion == "Naranjas" && l.Base == 100m && l.CodigoIva == "IVA4" && l.CuotaIva == 4m);
+        f.Lineas[1].Should().Match<LineaIvaResp>(l => l.Descripcion == "Portes" && l.Base == 10m && l.CodigoIva == "IVA21" && l.CuotaIva == 2.10m);
+        f.BaseImponible.Should().Be(110m);
+        f.CuotaIva.Should().Be(6.10m);
+    }
 }

@@ -1875,6 +1875,7 @@
         <div class="grid2"><div><label>Valor por defecto</label><input id="cl_val" type="number" step="0.0001" value="${c?c.valor:0}"/></div><div><label>Importe fijo en el documento: reparto</label>${sel("cl_rep","Reparto",c?c.reparto:"PorImporte")}</div></div>
         <div class="grid2"><div><label>Orden de aplicación</label><input id="cl_ord" type="number" step="1" value="${c?c.orden:0}"/></div><div><label>Un porcentaje va sobre</label><select id="cl_bas"><option value="Linea"${!c||c.basePorcentaje!=="Cascada"?" selected":""}>la línea</option><option value="Cascada"${c&&c.basePorcentaje==="Cascada"?" selected":""}>la línea y los cargos anteriores (cascada)</option></select></div></div>
         <div class="grid2"><div><label>Acreedor (a quien se paga: transportista, comisionista…)</label><select id="cl_acr"><option value="">Ninguno</option>${(window._concProvs||[]).map(p=>`<option value="${p.id}"${c&&c.acreedorId===p.id?" selected":""}>${agEsc(p.nombre)}</option>`).join("")}</select></div><div><label>Cuenta contable propia (vacío: la de la línea)</label><input id="cl_cta" value="${c&&c.cuentaContable?c.cuentaContable:""}" placeholder="7590"/></div></div>
+        <div class="grid2"><div><label>Impuesto propio (vacío: el de la línea; solo importe que suma)</label><input id="cl_iva" value="${c&&c.codigoIva?c.codigoIva:""}" placeholder="IVA21"/></div><div></div></div>
         ${c?`<label style="display:flex;gap:8px;align-items:center;margin-top:8px"><input id="cl_act" type="checkbox" style="width:auto" ${c.activo?"checked":""}/> Activo</label>`:""}
         <label style="margin-top:12px">Se pone solo <span class="muted" style="font-weight:400;font-size:12px">— cada regla: cliente o proveedor, tipo de tercero o cualquiera · artículo, familia o todos · valor · vigencia · acreedor. Manda la del tercero y, dentro, la del artículo. Sin reglas, solo se pone a mano.</span></label>
         <div id="cl_asig">${(c?c.asignaciones:[]).map(lineaAsignacionHtml).join("")}</div>
@@ -1884,7 +1885,7 @@
             return {terceroId:tt==="t"?tv:null,tipoTercero:tt==="k"?tv:null,productoId:tipo==="p"?oid:null,familiaId:tipo==="f"?oid:null,valor:v===""?null:Number(v),
               desde:r.querySelector('.ca-des').value||null,hasta:r.querySelector('.ca-has').value||null,acreedorId:r.querySelector('.ca-acr').value||null}; });
           const datos={nombre:val("cl_nom"),textoDocumento:val("cl_txt")||null,ambito:val("cl_amb"),efecto:val("cl_efe"),sentido:val("cl_sen"),calculo:val("cl_cal"),valor:Number(val("cl_val")||0),reparto:val("cl_rep"),asignaciones,
-            orden:Number(val("cl_ord")||0),basePorcentaje:val("cl_bas"),acreedorId:val("cl_acr")||null,cuentaContable:val("cl_cta")||null};
+            orden:Number(val("cl_ord")||0),basePorcentaje:val("cl_bas"),acreedorId:val("cl_acr")||null,cuentaContable:val("cl_cta")||null,codigoIva:val("cl_iva")||null};
           if(c) await api("/conceptos-linea/"+c.id,{method:"PUT",body:JSON.stringify({datos,activo:document.getElementById("cl_act").checked})});
           else await api("/conceptos-linea",{method:"POST",body:JSON.stringify({codigo:val("cl_cod"),datos})});
           toast(c?"Concepto guardado.":"Concepto creado.","ok"); vConceptosLinea(); });

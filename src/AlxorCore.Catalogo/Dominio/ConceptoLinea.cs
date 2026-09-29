@@ -184,6 +184,12 @@ public sealed class ConceptoLinea : RaizAgregadoGrupo<Guid>
     /// <summary>Cuenta propia del concepto en la contabilidad de la factura (si es null, va a la cuenta de la línea).</summary>
     public string? CuentaContable { get; private set; }
 
+    /// <summary>
+    /// Impuesto propio (código de IVA o IGIC) si no es el de la línea: en la factura el concepto sale como una línea
+    /// aparte con su tipo (por ejemplo, portes al 21 % en una venta de fruta al 4 %).
+    /// </summary>
+    public string? CodigoIva { get; private set; }
+
     public bool Activo { get; private set; }
 
     public IReadOnlyList<AsignacionConcepto> Asignaciones => _asignaciones;
@@ -231,6 +237,11 @@ public sealed class ConceptoLinea : RaizAgregadoGrupo<Guid>
             || !Enum.IsDefined(datos.BasePorcentaje))
         {
             return Resultado.Fallo(Error.Validacion("concepto.tipo", "El ámbito, el efecto, el sentido, el cálculo o el reparto no son válidos."));
+        }
+
+        if (!string.IsNullOrWhiteSpace(datos.CodigoIva) && (datos.Efecto != EfectoConcepto.Precio || datos.Sentido != SentidoConcepto.Suma))
+        {
+            return Resultado.Fallo(Error.Validacion("concepto.impuesto_propio", "Solo un concepto que suma al importe puede llevar su propio impuesto."));
         }
 
         if (datos.Efecto == EfectoConcepto.Suplido
@@ -286,6 +297,7 @@ public sealed class ConceptoLinea : RaizAgregadoGrupo<Guid>
         BasePorcentaje = datos.BasePorcentaje;
         AcreedorId = datos.AcreedorId;
         CuentaContable = cuenta;
+        CodigoIva = string.IsNullOrWhiteSpace(datos.CodigoIva) ? null : datos.CodigoIva.Trim().ToUpperInvariant();
         Activo = activo;
         _asignaciones.Clear();
         _asignaciones.AddRange(asignaciones);
@@ -335,4 +347,5 @@ public sealed record DatosConcepto(
     int Orden = 0,
     BasePorcentajeConcepto BasePorcentaje = BasePorcentajeConcepto.Linea,
     Guid? AcreedorId = null,
-    string? CuentaContable = null);
+    string? CuentaContable = null,
+    string? CodigoIva = null);

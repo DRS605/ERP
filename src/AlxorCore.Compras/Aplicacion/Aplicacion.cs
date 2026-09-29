@@ -809,9 +809,21 @@ public sealed class FacturarPedido
         }
 
         var concepto = $"Compra a {pedido.ProveedorTexto}";
+        // Los conceptos con cuenta propia (portes pagados a la 624, por ejemplo) van en su propia línea de la factura
+        // recibida, a su cuenta; el resto de la línea, a la cuenta de compras.
+        static bool Propio(ConceptoAplicado c) => c.Efecto == EfectoConcepto.Precio && !string.IsNullOrWhiteSpace(c.CuentaContable);
+        IReadOnlyList<(decimal Base, string? Cuenta, string? Descripcion)>? lineas = null;
+        if (pedido.Lineas.Any(l => l.Conceptos.Any(Propio)))
+        {
+            var propios = pedido.Lineas.SelectMany(l => l.Conceptos.Where(Propio)).GroupBy(c => (c.CuentaContable, c.Nombre))
+                .Select(g => (Redondeo.Dos(g.Sum(c => c.Importe)), (string?)g.Key.CuentaContable, (string?)g.Key.Nombre)).ToList();
+            var resto = Redondeo.Dos(facturado.Valor - propios.Sum(p => p.Item1));
+            lineas = [(resto, null, concepto), .. propios];
+        }
+
         var datos = new DatosContabilizacion(pedido.ProveedorId, pedido.ProveedorTexto, concepto,
             DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime), facturado.Valor,
-            string.IsNullOrWhiteSpace(comando.CodigoIva) ? "IVA21" : comando.CodigoIva!, comando.PorcentajeIrpf, comando.NumeroFactura, comando.FechaFactura);
+            string.IsNullOrWhiteSpace(comando.CodigoIva) ? "IVA21" : comando.CodigoIva!, comando.PorcentajeIrpf, comando.NumeroFactura, comando.FechaFactura, lineas);
 
         var contabilizado = await _contabilizador.ContabilizarAsync(empresaId, datos, ct).ConfigureAwait(false);
         if (contabilizado.EsFallo)

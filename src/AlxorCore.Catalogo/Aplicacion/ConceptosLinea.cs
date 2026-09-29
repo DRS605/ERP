@@ -12,12 +12,12 @@ public sealed record AsignacionConceptoDto(Guid? TerceroId, Guid? FamiliaId, Gui
 public sealed record ConceptoLineaDto(
     Guid Id, string Codigo, string Nombre, string? TextoDocumento, string Ambito, string Efecto, string Sentido, string Calculo, decimal Valor, string Reparto,
     bool Activo, IReadOnlyList<AsignacionConceptoDto> Asignaciones, int Orden = 0, string BasePorcentaje = "Linea", Guid? AcreedorId = null,
-    string? CuentaContable = null)
+    string? CuentaContable = null, string? CodigoIva = null)
 {
     public static ConceptoLineaDto Desde(ConceptoLinea c) => new(c.Id, c.Codigo, c.Nombre, c.TextoDocumento, c.Ambito.ToString(), c.Efecto.ToString(),
         c.Sentido.ToString(), c.Calculo.ToString(), c.Valor, c.Reparto.ToString(), c.Activo,
         c.Asignaciones.Select(a => new AsignacionConceptoDto(a.TerceroId, a.FamiliaId, a.ProductoId, a.Valor, a.TipoTercero, a.Desde, a.Hasta, a.AcreedorId)).ToList(),
-        c.Orden, c.BasePorcentaje.ToString(), c.AcreedorId, c.CuentaContable);
+        c.Orden, c.BasePorcentaje.ToString(), c.AcreedorId, c.CuentaContable, c.CodigoIva);
 }
 
 /// <summary>Alta de un concepto de línea.</summary>
@@ -392,7 +392,8 @@ public sealed class ResolverConceptos : IResolverConceptos
         var baseConcepto = cascada ? baseLinea + ConceptosLinea.SumaPrecio(anteriores) : baseLinea;
         var logisticas = ConceptosLinea.PorUnidadesLogisticas(c.Calculo) ? unidades ?? 0m : (decimal?)null;
         return new(c.Id, c.Codigo, c.TextoDocumento ?? c.Nombre, c.Efecto, c.Sentido, c.Calculo, valor,
-            ConceptosLinea.Calcular(c.Calculo, c.Sentido, valor, baseConcepto, cantidad, kilos, logisticas), repartido, cascada, acreedor, c.CuentaContable, logisticas);
+            ConceptosLinea.Calcular(c.Calculo, c.Sentido, valor, baseConcepto, cantidad, kilos, logisticas), repartido, cascada, acreedor, c.CuentaContable, logisticas,
+            c.CodigoIva);
     }
 
     private static Resultado<ConceptoLinea> Buscar(Dictionary<Guid, ConceptoLinea> todos, Guid id, AmbitoConcepto ambito)

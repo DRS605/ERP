@@ -562,6 +562,7 @@ internal sealed class ConfiguracionConceptoLinea : IEntityTypeConfiguration<Conc
         builder.Property(c => c.BasePorcentaje).HasColumnName("base_porcentaje").HasConversion<string>().HasMaxLength(10).HasDefaultValue(BasePorcentajeConcepto.Linea).IsRequired();
         builder.Property(c => c.AcreedorId).HasColumnName("acreedor_id");
         builder.Property(c => c.CuentaContable).HasColumnName("cuenta_contable").HasMaxLength(20);
+        builder.Property(c => c.CodigoIva).HasColumnName("codigo_iva").HasMaxLength(10);
         builder.Property(c => c.Activo).HasColumnName("activo").IsRequired();
         builder.Property(c => c.CreadoEn).HasColumnName("creado_en").IsRequired();
         builder.Property(c => c.ActualizadoEn).HasColumnName("actualizado_en").IsRequired();

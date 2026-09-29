@@ -171,6 +171,18 @@ Un concepto de importe con **cuenta contable** se contabiliza en ella en el asie
 ejemplo, con 100 € de mercancía y 20 € de portes a la 7590, el haber lleva 70x 100 € y 7590 20 €. El resto de la línea
 va a su cuenta o a la de ventas.
 
+En las **compras** pasa lo mismo: al facturar un pedido de compra, cada concepto de importe con cuenta propia sale en
+su propia línea del gasto (con su cuenta de gasto; por ejemplo, 30 € de portes a la 624) y el resto va a la cuenta de
+compras.
+
+## Impuesto propio
+
+Un concepto de importe (efecto precio, sentido suma) puede llevar un **código de IVA/IGIC propio**, distinto del de la
+línea. Por ejemplo, fruta al 4 % con portes al 21 %. Al emitir la factura, el concepto sale de su línea y va a una línea
+aparte con su tipo, su cuenta y el mismo albarán, sin mover existencias. Con 100 € de fruta al 4 % y 10 € de portes al
+21 %, la base es 110 € y la cuota 6,10 €. Un concepto de otro efecto o de resta con impuesto propio se rechaza con
+`concepto.impuesto_propio`.
+
 ## API
 
 Todos los endpoints de escritura piden el permiso `producto.gestionar`.
@@ -206,13 +218,11 @@ revés) y `concepto.linea_negativa`.
 
 ## Pendiente
 
-- Conceptos con un **impuesto propio** distinto del de la línea.
 - Suplidos en compras (hoy solo en ventas) y en el total de presupuestos y pedidos (se muestran en la línea, pero su
   total solo suma en la factura).
 - Reglas por **envase** en las ventas.
 - La provisión contable del cargo de coste con acreedor en el documento (hoy el coste se contabiliza al registrar la
   factura del acreedor).
-- La cuenta propia en las compras.
 - Conceptos en tickets, facturas periódicas con reglas propias, rectificativas por diferencias y buzón de facturas
   recibidas.
 - El informe de conceptos del periodo aún no incluye los albaranes sin facturar.

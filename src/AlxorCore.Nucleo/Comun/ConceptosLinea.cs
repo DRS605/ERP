@@ -89,7 +89,8 @@ public sealed record ConceptoAplicado(
     bool Cascada = false,
     Guid? AcreedorId = null,
     string? CuentaContable = null,
-    decimal? Unidades = null);
+    decimal? Unidades = null,
+    string? CodigoIva = null);
 
 /// <summary>Cálculo, reparto y serialización de los conceptos de línea (común a ventas y compras).</summary>
 public static class ConceptosLinea

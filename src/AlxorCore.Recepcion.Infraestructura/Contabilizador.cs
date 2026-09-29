@@ -29,7 +29,10 @@ internal sealed class ContabilizadorGastos : IContabilizador
             PorcentajeIrpf: datos.PorcentajeIrpf,
             Fecha: datos.Fecha,
             NumeroFactura: datos.NumeroFactura,
-            FechaFactura: datos.FechaFactura);
+            FechaFactura: datos.FechaFactura,
+            Lineas: datos.Lineas is { Count: > 0 } l
+                ? l.Select(x => new LineaGastoComando(x.Base, datos.CodigoIva, x.Descripcion, CuentaGasto: x.Cuenta)).ToList()
+                : null);
 
         var resultado = await _registrarGasto.EjecutarAsync(empresaId, comando, ct).ConfigureAwait(false);
         return resultado.EsFallo

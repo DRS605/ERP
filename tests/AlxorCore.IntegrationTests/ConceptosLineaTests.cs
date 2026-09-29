@@ -198,4 +198,29 @@ public sealed class ConceptosLineaTests : IClassFixture<FabricaApiPruebas>
         baja.Should().Be(new BajaResp(false, false), "ya está en una factura: se da de baja y la factura conserva su copia");
         (await api.GetFromJsonAsync<ConceptoMaestroResp>($"/conceptos-linea/{id}"))!.Activo.Should().BeFalse();
     }
+
+    private sealed record LineaGastoResp(decimal Base, string? CuentaGasto);
+    private sealed record GastoConLineasResp(Guid Id, decimal BaseImponible, List<LineaGastoResp> Lineas);
+
+    [Fact]
+    public async Task Un_concepto_de_compra_con_cuenta_propia_va_a_su_linea_del_gasto()
+    {
+        var (api, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+        var proveedor = await IdAsync(api, "/proveedores", new { Nombre = "Suministros Norte SL" });
+        await IdAsync(api, "/conceptos-linea", new
+        {
+            Codigo = "PORTESP", Datos = new { Nombre = "Portes pagados", Ambito = "Compras", Efecto = "Precio", Sentido = "Suma", Calculo = "Importe", Valor = 30m,
+                CuentaContable = "624", Asignaciones = new[] { new { TerceroId = proveedor } } },
+        });
+        var r = await api.PostAsJsonAsync("/compras/pedidos", new { ProveedorId = proveedor, Lineas = new[] { new { Descripcion = "Material", Cantidad = 10m, PrecioUnitario = 10m } } });
+        var pedido = (await r.Content.ReadFromJsonAsync<PedidoResp>())!;
+        pedido.Total.Should().Be(130m);
+        (await api.PostAsync(new Uri($"/compras/pedidos/{pedido.Id}/confirmar", UriKind.Relative), null)).EnsureSuccessStatusCode();
+        var f = await api.PostAsJsonAsync($"/compras/pedidos/{pedido.Id}/facturar", new { CodigoIva = "IVA21" });
+        f.IsSuccessStatusCode.Should().BeTrue(await f.Content.ReadAsStringAsync());
+
+        var gasto = (await api.GetFromJsonAsync<List<GastoConLineasResp>>("/gastos"))!.Single(g => g.BaseImponible == 130m);
+        gasto.Lineas.Should().ContainSingle(l => l.CuentaGasto == "624" && l.Base == 30m);
+        gasto.Lineas.Should().ContainSingle(l => l.CuentaGasto == null && l.Base == 100m);
+    }
 }
