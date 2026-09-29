@@ -19,6 +19,14 @@ public static class EndpointsAgro
 
     public sealed record PeticionActivo(bool Activo);
 
+    public sealed record PeticionEficacia(EficaciaTratamiento Eficacia);
+
+    private static readonly System.Text.Json.JsonSerializerOptions OpcionesJsonSiex = new(System.Text.Json.JsonSerializerDefaults.Web)
+    {
+        WriteIndented = true,
+        Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() },
+    };
+
     public static IEndpointRouteBuilder MapearAgro(this IEndpointRouteBuilder rutas)
     {
         ArgumentNullException.ThrowIfNull(rutas);
@@ -175,6 +183,56 @@ public static class EndpointsAgro
         g.MapPost("/tratamientos/{id:guid}/anular", async (Guid id, AnularPeticionEnvases? p, CuadernoCampoAgro q, CancellationToken ct) =>
                 (await q.AnularAsync(id, p?.Motivo, ct).ConfigureAwait(false)).AOk())
             .WithSummary("Anula un tratamiento (no se borra).").RequiereAlgunPermiso(Permisos.AgroGestionar, Permisos.AgroCampo);
+        g.MapPost("/tratamientos/{id:guid}/eficacia", async (Guid id, PeticionEficacia p, CuadernoCampoAgro q, CancellationToken ct) =>
+                (await q.EvaluarEficaciaAsync(id, p.Eficacia, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Anota la eficacia observada de un tratamiento fitosanitario (Buena, Regular o Mala).").RequiereAlgunPermiso(Permisos.AgroGestionar, Permisos.AgroCampo);
+
+        // ---------------------------------------------------------------- Cuaderno digital (SIEX)
+        g.MapGet("/siex/explotaciones/{agricultorId:guid}", (Guid agricultorId, IContextoEmpresa c, SiexAgro q, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await q.ExplotacionAsync(e, agricultorId, ct).ConfigureAwait(false)).AOk()))
+            .WithSummary("Datos SIEX de la explotación: REGEPA, asesor, aplicador y equipo habituales, y si tiene plan de abonado obligatorio.").RequierePermiso(Permisos.AgroLeer);
+        g.MapPut("/siex/explotaciones/{agricultorId:guid}", (Guid agricultorId, DatosExplotacionSiex d, IContextoEmpresa c, SiexAgro q, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await q.FijarExplotacionAsync(e, agricultorId, d, ct).ConfigureAwait(false)).AOk()))
+            .WithSummary("Fija los datos SIEX de la explotación.").RequiereAlgunPermiso(Permisos.AgroGestionar, Permisos.AgroCampo);
+        g.MapGet("/siex/analisis", (Guid? agricultorId, Guid? parcelaId, IContextoEmpresa c, SiexAgro q, CancellationToken ct) =>
+                ConEmpresa(c, async e => Results.Ok(await q.AnalisisAsync(e, agricultorId, parcelaId, ct).ConfigureAwait(false))))
+            .WithSummary("Análisis de suelo, agua, hoja, residuos o abono de las parcelas.").RequierePermiso(Permisos.AgroLeer);
+        g.MapPost("/siex/analisis", (DatosNuevoAnalisis d, IContextoEmpresa c, SiexAgro q, CancellationToken ct) =>
+                ConEmpresa(c, async e => Creado(await q.CrearAnalisisAsync(e, d, ct).ConfigureAwait(false), "siex/analisis")))
+            .WithSummary("Registra un análisis de una parcela.").RequiereAlgunPermiso(Permisos.AgroGestionar, Permisos.AgroCampo);
+        g.MapPut("/siex/analisis/{id:guid}", async (Guid id, DatosAnalisis d, SiexAgro q, CancellationToken ct) =>
+                (await q.CambiarAnalisisAsync(id, d, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Cambia un análisis.").RequiereAlgunPermiso(Permisos.AgroGestionar, Permisos.AgroCampo);
+        g.MapDelete("/siex/analisis/{id:guid}", async (Guid id, SiexAgro q, CancellationToken ct) =>
+                (await q.EliminarAnalisisAsync(id, ct).ConfigureAwait(false)).ASinContenido())
+            .WithSummary("Elimina un análisis.").RequiereAlgunPermiso(Permisos.AgroGestionar, Permisos.AgroCampo);
+        g.MapGet("/siex/planes-abonado", (Guid agricultorId, int anio, IContextoEmpresa c, SiexAgro q, CancellationToken ct) =>
+                ConEmpresa(c, async e => Results.Ok(await q.BalanceAsync(e, agricultorId, anio, ct).ConfigureAwait(false))))
+            .WithSummary("Plan de abonado de cada parcela del agricultor en el año frente a lo aportado en sus abonados (N, P₂O₅, K₂O).").RequierePermiso(Permisos.AgroLeer);
+        g.MapPut("/siex/planes-abonado", (DatosPlanAbonadoParcela d, IContextoEmpresa c, SiexAgro q, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await q.FijarPlanAbonadoAsync(e, d, ct).ConfigureAwait(false)).AOk()))
+            .WithSummary("Crea o cambia el plan de abonado de una parcela en un año.").RequiereAlgunPermiso(Permisos.AgroGestionar, Permisos.AgroCampo);
+        g.MapDelete("/siex/planes-abonado/{id:guid}", async (Guid id, SiexAgro q, CancellationToken ct) =>
+                (await q.EliminarPlanAbonadoAsync(id, ct).ConfigureAwait(false)).ASinContenido())
+            .WithSummary("Elimina un plan de abonado.").RequiereAlgunPermiso(Permisos.AgroGestionar, Permisos.AgroCampo);
+        g.MapGet("/siex/validacion", (Guid agricultorId, int anio, IContextoEmpresa c, SiexAgro q, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await q.ValidarAsync(e, agricultorId, anio, ct).ConfigureAwait(false)).AOk()))
+            .WithSummary("Lo que falta para que el cuaderno digital del año esté completo (errores) y lo que conviene revisar (avisos).").RequierePermiso(Permisos.AgroLeer);
+        g.MapGet("/siex/cuaderno", (Guid agricultorId, int anio, bool? descargar, IContextoEmpresa c, SiexAgro q, CancellationToken ct) =>
+                ConEmpresa(c, async e =>
+                {
+                    var r = await q.CuadernoAsync(e, agricultorId, anio, ct).ConfigureAwait(false);
+                    if (r.EsFallo || descargar != true)
+                    {
+                        return r.AOk();
+                    }
+
+                    var json = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(r.Valor, OpcionesJsonSiex);
+                    var nif = string.Concat((r.Valor.Explotacion.Nif ?? "sin-nif").Where(char.IsLetterOrDigit));
+                    return Results.File(json, "application/json", $"cuaderno-digital-{nif}-{anio}.json");
+                }))
+            .WithSummary("Cuaderno digital de explotación del año (explotación, recintos, tratamientos, fertilización, riego, labores, cosecha, análisis y plan de abonado) con sus incidencias.")
+            .RequierePermiso(Permisos.AgroLeer);
         g.MapGet("/fitosanitarios", (string? buscar, IContextoEmpresa c, RegistroFitosanitarios q, CancellationToken ct) =>
                 ConEmpresa(c, async e => Results.Ok(await q.ListarAsync(e, buscar, ct).ConfigureAwait(false))))
             .WithSummary("Productos del Registro Oficial de Productos Fitosanitarios (busca por nombre, número o materia activa).").RequierePermiso(Permisos.AgroLeer);

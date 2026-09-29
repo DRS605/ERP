@@ -20,10 +20,10 @@ public sealed record AgricultorDto(
 
 public sealed record ParcelaDto(
     Guid Id, Guid AgricultorId, string Codigo, string Nombre, string? ReferenciaSigpac, decimal? SuperficieHa, Guid? ProductoId,
-    string? Variedad, Guid? CentroAnaliticoId, bool Activa)
+    string? Variedad, Guid? CentroAnaliticoId, bool Activa, SistemaCultivo? Sistema = null, ModoCultivo? Modo = null, TipoProduccion Produccion = TipoProduccion.Convencional)
 {
     public static ParcelaDto De(Parcela p) => new(p.Id, p.AgricultorId, p.Codigo, p.Nombre, p.ReferenciaSigpac, p.SuperficieHa, p.ProductoId,
-        p.Variedad, p.CentroAnaliticoId, p.Activa);
+        p.Variedad, p.CentroAnaliticoId, p.Activa, p.Sistema, p.Modo, p.Produccion);
 }
 
 public sealed record CategoriaDto(Guid Id, string Codigo, string Nombre, bool EsDestrio, int Orden)

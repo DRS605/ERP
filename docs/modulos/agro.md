@@ -767,6 +767,74 @@ que la de la parcela), **plazo de seguridad** en días, aplicador y observacione
 - **Pantalla:** Agro → **Cuaderno de campo**. **API:** `GET/POST /agro/tratamientos` (filtros por agricultor,
   parcela y fechas).
 
+## Cuaderno digital de explotación (SIEX)
+
+El cuaderno digital de explotación agrícola (RD 1054/2022, SIEX) parte del cuaderno de campo y le añade lo que pide el
+registro oficial. Pantalla: Agro → **Cuaderno digital (SIEX)**, con las pestañas estado del cuaderno, explotación,
+plan de abonado y análisis.
+
+**Datos añadidos**
+
+- **Explotación** (`agro.explotacion_siex`, `GET/PUT /agro/siex/explotaciones/{agricultorId}`), una por agricultor:
+  - código **REGEPA**;
+  - asesor en gestión integrada de plagas y su ROPO;
+  - carné de aplicador (ROPO) y equipo (ROMA) habituales;
+  - si está obligada al **plan de abonado** (RD 1051/2022).
+
+  Una labor sin aplicador, equipo o asesor propios toma los habituales de la explotación.
+- **Recinto** (parcela):
+  - **sistema:** secano o regadío;
+  - **modo:** aire libre, invernadero o malla;
+  - **producción:** convencional, integrada o ecológica.
+- **Labor:**
+  - en un fitosanitario, el **carné de aplicador (ROPO)**, el **equipo (ROMA)**, el **asesor** y la **eficacia**
+    (buena, regular o mala). La eficacia se puede anotar después: `POST /agro/tratamientos/{id}/eficacia`;
+  - en un abonado, el **tipo de fertilizante** (mineral, orgánico, organomineral, estiércol o purín, enmienda), el
+    método de aplicación y el equipo;
+  - en un riego, el método.
+- **Análisis** (`agro.analisis_agro`, `/agro/siex/analisis`): de suelo, agua, hoja, residuos o abono orgánico. Lleva el
+  laboratorio, el boletín, el nitrógeno disponible, la materia orgánica, el pH, si los residuos superan los límites y
+  las conclusiones.
+- **Plan de abonado** (`agro.plan_abonado`, `PUT /agro/siex/planes-abonado`): uno por parcela y año, con las necesidades
+  de N, P₂O₅ y K₂O (kg/ha) y la producción esperada. `GET /agro/siex/planes-abonado?agricultorId=&anio=` lo compara con
+  lo aportado en los abonados del año.
+
+**Validación** (`GET /agro/siex/validacion?agricultorId=&anio=`)
+
+Los **errores** impiden dar el cuaderno por completo; los **avisos**, no. Por bloques:
+
+| Bloque | Error | Aviso |
+|---|---|---|
+| Explotación | Sin REGEPA; titular sin NIF. | — |
+| Recinto | Sin SIGPAC, superficie o cultivo. | Sin sistema (secano o regadío). |
+| Fitosanitario | Sin número de registro, plaga, dosis con unidad, superficie tratada o carné de aplicador. | Sin equipo ROMA; sin asesor; sin eficacia pasados 15 días. |
+| Abonado | Sin tipo de fertilizante o sin cantidad. | Sin unidades fertilizantes; sin método. |
+| Riego | Sin volumen. | — |
+| Cosecha | Recolectada dentro del plazo de seguridad. | — |
+| Plan de abonado | Explotación obligada sin plan del año. | Nitrógeno aportado más de un 10 % por encima del plan. |
+| Análisis | — | Residuos por encima del límite. |
+
+**Exportación** (`GET /agro/siex/cuaderno?agricultorId=&anio=`, con `&descargar=true` en fichero JSON)
+
+El fichero está en el formato `ALXOR-CUE` versión 1 y sigue los bloques del real decreto:
+
+- la explotación;
+- los recintos, con la referencia SIGPAC separada en provincia, municipio, agregado, zona, polígono, parcela y recinto;
+- los tratamientos fitosanitarios, la fertilización, los riegos y las otras labores;
+- la cosecha, que son las entregas de sus parcelas;
+- los análisis y el plan de abonado con su balance;
+- las incidencias pendientes.
+
+Es la base para entregarlo por la vía de la comunidad autónoma. La correspondencia con el esquema oficial del SIEX
+(códigos de cultivo, de producto y de plaga del catálogo del ministerio) se hará cuando se fije la interfaz de envío.
+
+**Garantías en la base de datos**
+
+- RLS en las tablas nuevas y comprobaciones de valores (tipos, pH, porcentajes, años).
+- Los datos del aplicador y la eficacia solo caben en un fitosanitario, y el tipo de fertilizante solo en un abonado.
+- **El cuaderno es un registro** (`tratamiento.inmutable`): una labor no se borra ni se cambia. Solo se anula, sin
+  vuelta atrás, o se anota su eficacia.
+
 ## Registro Oficial de Productos Fitosanitarios
 
 `agro.fitosanitario`, con sus tablas `fitosanitario_materia_activa` y `fitosanitario_uso`, guarda cada producto:

@@ -37,6 +37,12 @@ internal sealed class ConfiguracionTratamientoParcela : IEntityTypeConfiguration
         b.Property(x => x.AlmacenId).HasColumnName("almacen_id");
         b.Property(x => x.Lote).HasColumnName("lote").HasMaxLength(60);
         b.Property(x => x.CantidadConsumida).HasColumnName("cantidad_consumida").HasColumnType("numeric(14,4)");
+        b.Property(x => x.CarneAplicador).HasColumnName("carne_aplicador").HasMaxLength(30);
+        b.Property(x => x.EquipoRoma).HasColumnName("equipo_roma").HasMaxLength(30);
+        b.Property(x => x.Asesor).HasColumnName("asesor").HasMaxLength(TratamientoParcela.LongitudTexto);
+        b.Property(x => x.Eficacia).HasColumnName("eficacia").HasMaxLength(30).HasConversion<string>();
+        b.Property(x => x.MetodoAplicacion).HasColumnName("metodo_aplicacion").HasMaxLength(60);
+        b.Property(x => x.TipoFertilizante).HasColumnName("tipo_fertilizante").HasMaxLength(30).HasConversion<string>();
         b.HasIndex(x => x.FitosanitarioId).HasDatabaseName("ix_tratamiento_parcela_fitosanitario");
         b.HasIndex(x => new { x.ArticuloId, x.Lote }).HasDatabaseName("ix_tratamiento_parcela_lote");
         b.HasIndex(x => new { x.ParcelaId, x.Fecha }).HasDatabaseName("ix_tratamiento_parcela_fecha");

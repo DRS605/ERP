@@ -19,6 +19,32 @@ public enum TipoLabor
     Otra,
 }
 
+/// <summary>Tipo de fertilizante de un abonado (RD 1051/2022 de nutrición sostenible).</summary>
+public enum TipoFertilizante
+{
+    Mineral = 1,
+    Organico = 2,
+    OrganoMineral = 3,
+
+    /// <summary>Estiércol, purín u otro subproducto ganadero.</summary>
+    Estiercol = 4,
+
+    /// <summary>Enmienda (caliza, yeso, orgánica…).</summary>
+    Enmienda = 5,
+}
+
+/// <summary>Eficacia observada del tratamiento (se anota después de aplicarlo).</summary>
+public enum EficaciaTratamiento
+{
+    Buena = 1,
+    Regular = 2,
+    Mala = 3,
+}
+
+/// <summary>Datos de la labor que pide el cuaderno digital de explotación (SIEX).</summary>
+public sealed record DatosSiexLabor(string? CarneAplicador = null, string? EquipoRoma = null, string? Asesor = null, EficaciaTratamiento? Eficacia = null,
+    string? MetodoAplicacion = null, TipoFertilizante? TipoFertilizante = null);
+
 /// <summary>
 /// Labor del cuaderno de campo de una parcela; la principal, el tratamiento fitosanitario: el registro del cuaderno de campo (RD 1311/2012) que piden GlobalG.A.P. y
 /// los clientes. El plazo de seguridad son los días que deben pasar desde el tratamiento hasta la recolección: una
@@ -163,6 +189,54 @@ public sealed class TratamientoParcela : RaizAgregadoEmpresa<Guid>
 
     /// <summary>Cantidad del artículo que salió del almacén.</summary>
     public decimal? CantidadConsumida { get; private set; }
+
+    /// <summary>Número del carné de aplicador (ROPO) de quien aplicó el fitosanitario.</summary>
+    public string? CarneAplicador { get; private set; }
+
+    /// <summary>Número del equipo de aplicación en el ROMA (con su inspección técnica).</summary>
+    public string? EquipoRoma { get; private set; }
+
+    /// <summary>Asesor en gestión integrada de plagas que recomendó el tratamiento (nombre y ROPO).</summary>
+    public string? Asesor { get; private set; }
+
+    public EficaciaTratamiento? Eficacia { get; private set; }
+
+    /// <summary>Abonado: cómo se aplicó (fertirrigación, a voleo, localizado, foliar…).</summary>
+    public string? MetodoAplicacion { get; private set; }
+
+    public TipoFertilizante? TipoFertilizante { get; private set; }
+
+    /// <summary>Anota los datos SIEX de la labor (los del fitosanitario solo en un tratamiento; los del abono, en un abonado).</summary>
+    public Resultado CompletarSiex(DatosSiexLabor d)
+    {
+        ArgumentNullException.ThrowIfNull(d);
+        if ((d.Eficacia is { } e && !Enum.IsDefined(e)) || (d.TipoFertilizante is { } f && !Enum.IsDefined(f)))
+        {
+            return Resultado.Fallo(Error.Validacion("tratamiento.siex", "Eficacia (buena, regular o mala) o tipo de fertilizante no válidos."));
+        }
+
+        static string? T(string? t, int max) => string.IsNullOrWhiteSpace(t) ? null : t.Trim()[..Math.Min(t.Trim().Length, max)];
+        var fito = Tipo == TipoLabor.Fitosanitario;
+        CarneAplicador = fito ? T(d.CarneAplicador, 30) : null;
+        EquipoRoma = fito || Tipo == TipoLabor.Abonado ? T(d.EquipoRoma, 30) : null;
+        Asesor = fito ? T(d.Asesor, LongitudTexto) : null;
+        Eficacia = fito ? d.Eficacia : null;
+        MetodoAplicacion = Tipo == TipoLabor.Abonado || Tipo == TipoLabor.Riego ? T(d.MetodoAplicacion, 60) : null;
+        TipoFertilizante = Tipo == TipoLabor.Abonado ? d.TipoFertilizante : null;
+        return Resultado.Ok();
+    }
+
+    /// <summary>Anota la eficacia observada de un tratamiento fitosanitario.</summary>
+    public Resultado EvaluarEficacia(EficaciaTratamiento eficacia)
+    {
+        if (Tipo != TipoLabor.Fitosanitario || Anulado || !Enum.IsDefined(eficacia))
+        {
+            return Resultado.Fallo(Error.Validacion("tratamiento.eficacia", "La eficacia se anota en un tratamiento fitosanitario no anulado (buena, regular o mala)."));
+        }
+
+        Eficacia = eficacia;
+        return Resultado.Ok();
+    }
 
     /// <summary>Enlaza el tratamiento con el producto del registro y el uso autorizado.</summary>
     public void EnlazarRegistro(ProductoFitosanitario producto, string? cultivo)

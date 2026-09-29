@@ -16,13 +16,16 @@ public interface IRepositorioCuaderno
 public sealed record DatosTratamiento(Guid ParcelaId, DateOnly Fecha, string? Producto, int PlazoSeguridadDias, string? NumeroRegistro = null, string? MateriaActiva = null,
     string? Motivo = null, decimal? Dosis = null, string? UnidadDosis = null, decimal? SuperficieTratadaHa = null, string? Aplicador = null, string? Observaciones = null,
     TipoLabor Tipo = TipoLabor.Fitosanitario, decimal? NitrogenoKgHa = null, decimal? FosforoKgHa = null, decimal? PotasioKgHa = null, decimal? VolumenM3 = null,
-    Guid? FitosanitarioId = null, string? Cultivo = null, Guid? ArticuloId = null, Guid? AlmacenId = null, string? Lote = null, decimal? CantidadConsumida = null);
+    Guid? FitosanitarioId = null, string? Cultivo = null, Guid? ArticuloId = null, Guid? AlmacenId = null, string? Lote = null, decimal? CantidadConsumida = null,
+    string? CarneAplicador = null, string? EquipoRoma = null, string? Asesor = null, EficaciaTratamiento? Eficacia = null, string? MetodoAplicacion = null,
+    TipoFertilizante? TipoFertilizante = null);
 
 public sealed record TratamientoDto(Guid Id, Guid ParcelaId, string Parcela, Guid AgricultorId, DateOnly Fecha, string Producto, string? NumeroRegistro, string? MateriaActiva,
     string? Motivo, decimal? Dosis, string? UnidadDosis, decimal? SuperficieTratadaHa, int PlazoSeguridadDias, DateOnly RecolectableDesde, string? Aplicador,
     string? Observaciones, bool Anulado, string? MotivoAnulacion, string Tipo = "Fitosanitario", decimal? NitrogenoKgHa = null, decimal? FosforoKgHa = null,
     decimal? PotasioKgHa = null, decimal? VolumenM3 = null, Guid? FitosanitarioId = null, string? Cultivo = null, Guid? ArticuloId = null, Guid? AlmacenId = null,
-    string? Lote = null, decimal? CantidadConsumida = null);
+    string? Lote = null, decimal? CantidadConsumida = null, string? CarneAplicador = null, string? EquipoRoma = null, string? Asesor = null,
+    EficaciaTratamiento? Eficacia = null, string? MetodoAplicacion = null, TipoFertilizante? TipoFertilizante = null);
 
 /// <summary>Resumen de una parcela en el cuaderno: unidades fertilizantes aportadas (kg/ha) y agua de riego.</summary>
 public sealed record ResumenParcelaCuadernoDto(Guid ParcelaId, string Parcela, int Tratamientos, decimal NitrogenoKgHa, decimal FosforoKgHa, decimal PotasioKgHa,
@@ -49,10 +52,12 @@ public sealed class CuadernoCampoAgro
 
     private readonly IRepositorioFitosanitarios? _registro;
     private readonly IInventarioAgro? _inventario;
+    private readonly IRepositorioSiex? _siex;
 
     public CuadernoCampoAgro(IRepositorioCuaderno cuaderno, IRepositorioAgro agro, IUnidadDeTrabajoAgro unidad, IReloj reloj, IRepositorioFitosanitarios? registro = null,
-        IInventarioAgro? inventario = null)
+        IInventarioAgro? inventario = null, IRepositorioSiex? siex = null)
     {
+        _siex = siex;
         _cuaderno = cuaderno;
         _agro = agro;
         _unidad = unidad;
@@ -106,6 +111,16 @@ public sealed class CuadernoCampoAgro
         if (fito is not null)
         {
             t.Valor.EnlazarRegistro(fito, datos.Cultivo);
+        }
+
+        // Datos SIEX: sin aplicador, equipo o asesor, los habituales de la explotación.
+        var explotacion = _siex is null ? null : await _siex.ExplotacionAsync(parcela.AgricultorId, ct).ConfigureAwait(false);
+        var asesorHabitual = explotacion?.AsesorNombre is { } an ? explotacion.AsesorRopo is { } ar ? $"{an} ({ar})" : an : null;
+        var siex = t.Valor.CompletarSiex(new DatosSiexLabor(datos.CarneAplicador ?? explotacion?.CarneAplicador, datos.EquipoRoma ?? explotacion?.EquipoRoma,
+            datos.Asesor ?? asesorHabitual, datos.Eficacia, datos.MetodoAplicacion, datos.TipoFertilizante));
+        if (siex.EsFallo)
+        {
+            return Resultado.Fallo<TratamientoDto>(siex.Error);
         }
 
         // Consumo del almacén: el artículo (el del registro si no se indica) sale del almacén, del lote aplicado, si no está caducado.
@@ -287,8 +302,27 @@ public sealed class CuadernoCampoAgro
         return errores;
     }
 
-    private static TratamientoDto Dto(TratamientoParcela t, Parcela? p) => new(t.Id, t.ParcelaId, p?.Codigo ?? "?", p?.AgricultorId ?? Guid.Empty, t.Fecha, t.Producto,
+    /// <summary>Anota la eficacia observada de un tratamiento fitosanitario (después de aplicarlo).</summary>
+    public async Task<Resultado<TratamientoDto>> EvaluarEficaciaAsync(Guid id, EficaciaTratamiento eficacia, CancellationToken ct = default)
+    {
+        var t = await _cuaderno.ObtenerAsync(id, ct).ConfigureAwait(false);
+        if (t is null)
+        {
+            return Resultado.Fallo<TratamientoDto>(Error.NoEncontrado("tratamiento.no_encontrado", "El tratamiento no existe."));
+        }
+
+        var r = t.EvaluarEficacia(eficacia);
+        if (r.EsFallo)
+        {
+            return Resultado.Fallo<TratamientoDto>(r.Error);
+        }
+
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(Dto(t, await _agro.ParcelaAsync(t.ParcelaId, ct).ConfigureAwait(false)));
+    }
+
+    internal static TratamientoDto Dto(TratamientoParcela t, Parcela? p) => new(t.Id, t.ParcelaId, p?.Codigo ?? "?", p?.AgricultorId ?? Guid.Empty, t.Fecha, t.Producto,
         t.NumeroRegistro, t.MateriaActiva, t.Motivo, t.Dosis, t.UnidadDosis, t.SuperficieTratadaHa, t.PlazoSeguridadDias, t.RecolectableDesde, t.Aplicador,
         t.Observaciones, t.Anulado, t.MotivoAnulacion, t.Tipo.ToString(), t.NitrogenoKgHa, t.FosforoKgHa, t.PotasioKgHa, t.VolumenM3, t.FitosanitarioId, t.Cultivo,
-        t.ArticuloId, t.AlmacenId, t.Lote, t.CantidadConsumida);
+        t.ArticuloId, t.AlmacenId, t.Lote, t.CantidadConsumida, t.CarneAplicador, t.EquipoRoma, t.Asesor, t.Eficacia, t.MetodoAplicacion, t.TipoFertilizante);
 }

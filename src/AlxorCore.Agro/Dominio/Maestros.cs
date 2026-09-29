@@ -275,6 +275,29 @@ public sealed class Agricultor : RaizAgregadoEmpresa<Guid>
     }
 }
 
+/// <summary>Secano o regadío (dato del recinto en el cuaderno digital, SIEX).</summary>
+public enum SistemaCultivo
+{
+    Secano = 1,
+    Regadio = 2,
+}
+
+/// <summary>Al aire libre o protegido.</summary>
+public enum ModoCultivo
+{
+    AireLibre = 1,
+    Invernadero = 2,
+    Malla = 3,
+}
+
+/// <summary>Sistema de producción del recinto.</summary>
+public enum TipoProduccion
+{
+    Convencional = 1,
+    Integrada = 2,
+    Ecologica = 3,
+}
+
 /// <summary>Parcela de un agricultor, identificada en SIGPAC. Puede apuntar a un centro analítico (coste por kilo).</summary>
 public sealed class Parcela : RaizAgregadoEmpresa<Guid>
 {
@@ -315,6 +338,12 @@ public sealed class Parcela : RaizAgregadoEmpresa<Guid>
 
     public bool Activa { get; private set; }
 
+    public SistemaCultivo? Sistema { get; private set; }
+
+    public ModoCultivo? Modo { get; private set; }
+
+    public TipoProduccion Produccion { get; private set; } = TipoProduccion.Convencional;
+
     public static Resultado<Parcela> Crear(Guid empresaId, Guid agricultorId, DatosParcela datos)
     {
         ArgumentNullException.ThrowIfNull(datos);
@@ -344,6 +373,11 @@ public sealed class Parcela : RaizAgregadoEmpresa<Guid>
             return Resultado.Fallo(Error.Validacion("parcela.superficie", "La superficie debe ser positiva."));
         }
 
+        if ((datos.Sistema is { } si && !Enum.IsDefined(si)) || (datos.Modo is { } mo && !Enum.IsDefined(mo)) || (datos.Produccion is { } pr && !Enum.IsDefined(pr)))
+        {
+            return Resultado.Fallo(Error.Validacion("parcela.cultivo", "Sistema (secano o regadío), modo (aire libre, invernadero o malla) o producción (convencional, integrada o ecológica) no válidos."));
+        }
+
         var nombre = datos.Nombre?.Trim();
         if (!string.IsNullOrWhiteSpace(nombre))
         {
@@ -356,13 +390,17 @@ public sealed class Parcela : RaizAgregadoEmpresa<Guid>
         Variedad = string.IsNullOrWhiteSpace(datos.Variedad) ? null : datos.Variedad.Trim();
         CentroAnaliticoId = datos.CentroAnaliticoId;
         Activa = datos.Activa;
+        Sistema = datos.Sistema;
+        Modo = datos.Modo;
+        Produccion = datos.Produccion ?? TipoProduccion.Convencional;
         return Resultado.Ok();
     }
 }
 
 public sealed record DatosParcela(
     string? Codigo, string? Nombre, string? ReferenciaSigpac = null, decimal? SuperficieHa = null, Guid? ProductoId = null,
-    string? Variedad = null, Guid? CentroAnaliticoId = null, bool Activa = true);
+    string? Variedad = null, Guid? CentroAnaliticoId = null, bool Activa = true, SistemaCultivo? Sistema = null, ModoCultivo? Modo = null,
+    TipoProduccion? Produccion = null);
 
 /// <summary>Categoría de clasificación de la fruta (Extra, 1ª, 2ª, destrío…).</summary>
 public sealed class Categoria : RaizAgregadoEmpresa<Guid>

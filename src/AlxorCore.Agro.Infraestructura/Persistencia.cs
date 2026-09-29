@@ -55,6 +55,9 @@ public sealed class AgroDbContext : DbContextEmpresaBase, IUnidadDeTrabajoAgro
         DELETE FROM agro.concepto_liquidacion WHERE empresa_id = {0};
         DELETE FROM agro.tarifa_coste WHERE empresa_id = {0};
         DELETE FROM agro.tratamiento_parcela WHERE empresa_id = {0};
+        DELETE FROM agro.analisis_agro WHERE empresa_id = {0};
+        DELETE FROM agro.plan_abonado WHERE empresa_id = {0};
+        DELETE FROM agro.explotacion_siex WHERE empresa_id = {0};
         DELETE FROM agro.parcela WHERE empresa_id = {0};
         DELETE FROM agro.agricultor WHERE empresa_id = {0};
         DELETE FROM agro.categoria WHERE empresa_id = {0};
@@ -140,6 +143,9 @@ internal sealed class ConfiguracionParcela : IEntityTypeConfiguration<Parcela>
         b.Property(x => x.Variedad).HasColumnName("variedad").HasMaxLength(80);
         b.Property(x => x.CentroAnaliticoId).HasColumnName("centro_analitico_id");
         b.Property(x => x.Activa).HasColumnName("activa").IsRequired();
+        b.Property(x => x.Sistema).HasColumnName("sistema").HasMaxLength(30).HasConversion<string>();
+        b.Property(x => x.Modo).HasColumnName("modo").HasMaxLength(30).HasConversion<string>();
+        Columnas.Enum(b.Property(x => x.Produccion), "produccion").HasDefaultValue(TipoProduccion.Convencional);
         b.HasIndex(x => new { x.EmpresaId, x.Codigo }).IsUnique().HasDatabaseName("ux_parcela_codigo");
         b.HasIndex(x => x.AgricultorId).HasDatabaseName("ix_parcela_agricultor");
     }

@@ -184,6 +184,8 @@ public static class ReferenciasRegistros
                 ("agro.tratamiento_parcela.parcela_id", "tratamientos en el cuaderno de campo"),
                 ("agro.partida.parcela_id", "partidas"),
                 ("agro.certificado_agro.parcela_id", "certificados de la parcela"),
+                ("agro.analisis_agro.parcela_id", "análisis (suelo, agua, foliar…)"),
+                ("agro.plan_abonado.parcela_id", "planes de abonado"),
             ],
             [TiposRegistro.Agricultor] =
             [
@@ -193,6 +195,7 @@ public static class ReferenciasRegistros
                 ("agro.certificado_agro.agricultor_id", "certificados (ecológico, GlobalG.A.P.)"),
                 ("agro.liquidacion.agricultor_id", "liquidaciones"),
                 ("agro.movimiento_envase.agricultor_id", "movimientos de envases"),
+                ("agro.explotacion_siex.agricultor_id", "datos de la explotación en el cuaderno digital (SIEX)"),
             ],
             [TiposRegistro.TarifaCoste] =
             [
