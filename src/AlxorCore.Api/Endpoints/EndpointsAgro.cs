@@ -175,6 +175,40 @@ public static class EndpointsAgro
         g.MapPost("/tratamientos/{id:guid}/anular", async (Guid id, AnularPeticionEnvases? p, CuadernoCampoAgro q, CancellationToken ct) =>
                 (await q.AnularAsync(id, p?.Motivo, ct).ConfigureAwait(false)).AOk())
             .WithSummary("Anula un tratamiento (no se borra).").RequierePermiso(Permisos.AgroGestionar);
+        g.MapGet("/listas-control", (IContextoEmpresa c, AutoevaluacionesAgro q, CancellationToken ct) =>
+                ConEmpresa(c, async e => Results.Ok(await q.ListasAsync(e, ct).ConfigureAwait(false))))
+            .WithSummary("Listas de puntos de control (GlobalG.A.P. u otras normas).").RequierePermiso(Permisos.AgroLeer);
+        g.MapPost("/listas-control", (DatosListaControl d, IContextoEmpresa c, AutoevaluacionesAgro q, CancellationToken ct) =>
+                ConEmpresa(c, async e => Creado(await q.CrearListaAsync(e, d, ct).ConfigureAwait(false), "listas-control")))
+            .WithSummary("Crea una lista de puntos de control con su nivel (Mayor, Menor, Recomendacion).").RequierePermiso(Permisos.AgroGestionar);
+        g.MapPut("/listas-control/{id:guid}", async (Guid id, DatosListaControl d, AutoevaluacionesAgro q, CancellationToken ct) =>
+                (await q.ActualizarListaAsync(id, d, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Modifica la lista (las evaluaciones ya abiertas conservan sus puntos).").RequierePermiso(Permisos.AgroGestionar);
+        g.MapDelete("/listas-control/{id:guid}", async (Guid id, AutoevaluacionesAgro q, CancellationToken ct) =>
+            {
+                var r = await q.EliminarListaAsync(id, ct).ConfigureAwait(false);
+                return r.EsCorrecto ? Results.Ok(new { eliminado = r.Valor }) : ResultadosHttp.AProblema(r.Error);
+            })
+            .WithSummary("Elimina la lista si no tiene evaluaciones; si las tiene, la da de baja.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapGet("/autoevaluaciones", (Guid? agricultorId, int? anio, IContextoEmpresa c, AutoevaluacionesAgro q, CancellationToken ct) =>
+                ConEmpresa(c, async e => Results.Ok(await q.ListarAsync(e, agricultorId, anio, ct).ConfigureAwait(false))))
+            .WithSummary("Autoevaluaciones y auditorías internas de GlobalG.A.P.").RequierePermiso(Permisos.AgroLeer);
+        g.MapGet("/autoevaluaciones/{id:guid}", async (Guid id, AutoevaluacionesAgro q, CancellationToken ct) =>
+                Encontrado(await q.ObtenerAsync(id, ct).ConfigureAwait(false), "autoevaluacion"))
+            .WithSummary("Una evaluación con sus respuestas y su resultado.").RequierePermiso(Permisos.AgroLeer);
+        g.MapPost("/autoevaluaciones", (DatosAutoevaluacion d, IContextoEmpresa c, AutoevaluacionesAgro q, CancellationToken ct) =>
+                ConEmpresa(c, async e => Creado(await q.AbrirAsync(e, d, ct).ConfigureAwait(false), "autoevaluaciones")))
+            .WithSummary("Abre una autoevaluación o auditoría interna con los puntos de la lista.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapPut("/autoevaluaciones/{id:guid}", async (Guid id, DatosRespuestas d, AutoevaluacionesAgro q, CancellationToken ct) =>
+                (await q.ResponderAsync(id, d, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Responde puntos de una evaluación abierta (cumple, no cumple con su acción correctiva, no aplica con su justificación).")
+            .RequierePermiso(Permisos.AgroGestionar);
+        g.MapPost("/autoevaluaciones/{id:guid}/cerrar", async (Guid id, AutoevaluacionesAgro q, CancellationToken ct) =>
+                (await q.CerrarAsync(id, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Cierra la evaluación: todo respondido; después no cambia.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapDelete("/autoevaluaciones/{id:guid}", async (Guid id, AutoevaluacionesAgro q, CancellationToken ct) =>
+                (await q.EliminarAsync(id, ct).ConfigureAwait(false)).ASinContenido())
+            .WithSummary("Elimina una evaluación abierta (una cerrada no se borra).").RequierePermiso(Permisos.AgroGestionar);
         g.MapGet("/agricultores/{id:guid}/cuaderno", (Guid id, DateOnly? desde, DateOnly? hasta, IContextoEmpresa c, CuadernoCampoAgro q, CancellationToken ct) =>
                 ConEmpresa(c, async e => (await q.CuadernoAsync(e, id, desde, hasta, ct).ConfigureAwait(false)).AOk()))
             .WithSummary("Cuaderno de campo del agricultor: tratamientos, recolecciones e incidencias de plazo de seguridad.").RequierePermiso(Permisos.AgroLeer);

@@ -477,6 +477,30 @@ que la de la parcela), **plazo de seguridad** en días, aplicador y observacione
 - **Pantalla:** Agro → **Cuaderno de campo**. **API:** `GET/POST /agro/tratamientos` (filtros por agricultor,
   parcela y fechas).
 
+## Autoevaluaciones y auditorías internas (GlobalG.A.P.)
+
+- **Listas de control** (`agro.lista_control` y `agro.punto_control`): la de la norma en su versión (por ejemplo, IFA
+  v6) o una propia. Cada punto lleva su código, su texto y su nivel: **obligación mayor**, **menor** o
+  **recomendación**. En la pantalla se pegan los puntos, uno por línea, con el formato `código;nivel;texto`. Una lista
+  con evaluaciones no se borra: queda de baja y ya no abre otras.
+- **Evaluación** (`agro.autoevaluacion` y `agro.respuesta_autoevaluacion`): es una **autoevaluación** o una
+  **auditoría interna**, del productor (un agricultor) o de la empresa, con su fecha y su auditor. Al abrirse copia los
+  puntos de la lista, así que cambiar la lista no altera las evaluaciones ya abiertas.
+- **Respuestas:** cada punto se marca como «cumple», «no cumple» o «no aplica». Para cerrar la evaluación:
+  - todos los puntos tienen que estar respondidos;
+  - un «no aplica» necesita su justificación;
+  - un «no cumple» de una obligación necesita su acción correctiva (y, opcionalmente, una fecha límite).
+- **Cierre:** cerrada, la evaluación no se modifica ni se borra. Un trigger lo impide también en la base de datos.
+- **Resultado:** la evaluación se supera con el 100 % de las obligaciones mayores y al menos el 95 % de las menores,
+  contando solo los puntos que aplican.
+- **Borrado del agricultor:** un agricultor con evaluaciones no se borra.
+- **Pantalla:** Agro → **GlobalG.A.P.**
+- **API:**
+  - `GET/POST /agro/listas-control`, `PUT/DELETE /agro/listas-control/{id}`
+  - `GET/POST /agro/autoevaluaciones?agricultorId=&anio=`
+  - `GET/PUT/DELETE /agro/autoevaluaciones/{id}`
+  - `POST /agro/autoevaluaciones/{id}/cerrar`
+
 ## Básculas
 
 El **agente de báscula** (`src/AlxorCore.AgenteBascula`, ver su README) es un servicio local del puesto de la báscula:
@@ -515,5 +539,4 @@ Al anular la expedición de un palé que salió con un albarán del pedido:
 
 ## 11. Pendiente
 
-- **Operativa:**
-  - las auditorías internas de GlobalG.A.P. (el cuaderno ya lleva tratamientos, abonados, riegos y otras labores).
+No queda nada pendiente de lo analizado en Hispatec para este módulo.

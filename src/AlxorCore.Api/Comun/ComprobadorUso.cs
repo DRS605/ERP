@@ -165,6 +165,7 @@ public static class ReferenciasRegistros
             [TiposRegistro.Agricultor] =
             [
                 ("agro.recepcion.agricultor_id", "recepciones"),
+                ("agro.autoevaluacion.agricultor_id", "autoevaluaciones (GlobalG.A.P.)"),
                 ("agro.partida.agricultor_id", "partidas"),
                 ("agro.liquidacion.agricultor_id", "liquidaciones"),
                 ("agro.movimiento_envase.agricultor_id", "movimientos de envases"),
