@@ -55,6 +55,9 @@ public static class Permisos
     public const string AgroGestionar = "agro.gestionar";
     public const string AgroLiquidar = "agro.liquidar";
 
+    /// <summary>Corregir lo ya hecho: rectificar entradas, anular o corregir expediciones, aprobar mermas y descalificar partidas.</summary>
+    public const string AgroCorregir = "agro.corregir";
+
     // Terceros y catálogo
     public const string ClienteGestionar = "cliente.gestionar";
     public const string ProductoGestionar = "producto.gestionar";
@@ -93,7 +96,7 @@ public static class Permisos
         ProduccionLeer, ProduccionGestionar,
         PersonalLeer, PersonalGestionar,
         ProyectoLeer, ProyectoGestionar,
-        AgroLeer, AgroGestionar, AgroLiquidar,
+        AgroLeer, AgroGestionar, AgroLiquidar, AgroCorregir,
         ClienteGestionar, ProductoGestionar,
         InformeLeer, DatosExportar,
         AprobacionConfigurar, AprobacionAprobar,

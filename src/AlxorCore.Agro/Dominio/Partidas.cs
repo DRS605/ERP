@@ -289,6 +289,26 @@ public sealed class Pale : RaizAgregadoEmpresa<Guid>
     /// <summary>Plantilla con que se monta (cajas por palé, kilos por caja, mosaico…); null en un palé a granel.</summary>
     public Guid? PlantillaId { get; private set; }
 
+    /// <summary>Cajas de este palé, si no son las de su plantilla: cada palé puede llevar un número de cajas distinto.</summary>
+    public int? CajasPorPale { get; private set; }
+
+    /// <summary>Cambia las cajas que lleva este palé (null: las de la plantilla). Solo con el palé abierto.</summary>
+    public Resultado FijarCajasPorPale(int? cajas)
+    {
+        if (Estado != EstadoPale.Abierto)
+        {
+            return Resultado.Fallo(Error.Conflicto("pale.no_abierto", "El palé no está abierto."));
+        }
+
+        if (cajas is < 1 or > PlantillaPale.MaximoCajas)
+        {
+            return Resultado.Fallo(Error.Validacion("pale.cajas_por_pale", $"Un palé lleva de 1 a {PlantillaPale.MaximoCajas} cajas."));
+        }
+
+        CajasPorPale = cajas;
+        return Resultado.Ok();
+    }
+
     /// <summary>Carta de porte que se emitió al expedirlo.</summary>
     public Guid? CartaPorteId { get; private set; }
 
@@ -368,6 +388,25 @@ public sealed class Pale : RaizAgregadoEmpresa<Guid>
         Estado = EstadoPale.Expedido;
         ClienteId = clienteId;
         FechaExpedicion = fecha;
+        ReferenciaExpedicion = string.IsNullOrWhiteSpace(referencia) ? null : referencia.Trim();
+        return Resultado.Ok();
+    }
+
+    /// <summary>Corrige el cliente o la referencia de un palé ya expedido (sin albarán: con albarán se anula y se vuelve a expedir).</summary>
+    public Resultado CorregirExpedicion(Guid? clienteId, string? referencia)
+    {
+        if (Estado != EstadoPale.Expedido)
+        {
+            return Resultado.Fallo(Error.Conflicto("pale.no_expedido", "El palé no está expedido."));
+        }
+
+        if (AlbaranId is not null || CartaPorteId is not null)
+        {
+            return Resultado.Fallo(Error.Conflicto("expedicion.con_documentos",
+                "El palé salió con albarán o carta de porte: anula la expedición y vuelve a expedirlo con los datos correctos."));
+        }
+
+        ClienteId = clienteId;
         ReferenciaExpedicion = string.IsNullOrWhiteSpace(referencia) ? null : referencia.Trim();
         return Resultado.Ok();
     }

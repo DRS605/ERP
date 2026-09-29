@@ -247,8 +247,11 @@ public sealed class Recepcion : RaizAgregadoEmpresa<Guid>
             return borrador;
         }
 
-        _envasesPesadas.RemoveAll(e => e.PesadaId == pesadaId);
-        return _pesadas.RemoveAll(p => p.Id == pesadaId) == 0
+        // La pesada de un camión repartida entre líneas se quita entera: por separado ya no sumaría el bruto de la báscula.
+        var grupo = _pesadas.FirstOrDefault(p => p.Id == pesadaId)?.GrupoCamion;
+        var quitar = _pesadas.Where(p => p.Id == pesadaId || (grupo is not null && p.GrupoCamion == grupo)).Select(p => p.Id).ToHashSet();
+        _envasesPesadas.RemoveAll(e => quitar.Contains(e.PesadaId));
+        return _pesadas.RemoveAll(p => quitar.Contains(p.Id)) == 0
             ? Resultado.Fallo(Error.NoEncontrado("pesada.no_encontrada", "La pesada no existe."))
             : Resultado.Ok();
     }
@@ -283,6 +286,76 @@ public sealed class Recepcion : RaizAgregadoEmpresa<Guid>
         pesada.Valor.Desglosar(taraCamionKg, taraEnvases);
         _envasesPesadas.AddRange(envases.Select(e => new EnvasePesada(Guid.NewGuid(), pesada.Valor.Id, e.EnvaseProductoId, e.Cantidad, e.TaraUnitariaKg, e.TaraEnvaseId)));
         return pesada;
+    }
+
+    /// <summary>
+    /// Pesada del camión entero con varias líneas (productos o parcelas): un solo bruto y una tara de camión, y los envases
+    /// contados de cada línea. El neto total (bruto − camión − envases) se reparte entre las líneas en proporción a sus
+    /// envases de fruta (los de su envase; si la línea no tiene envase, todos los suyos), y la tara del camión igual. Cada
+    /// línea queda con su pesada, todas con el mismo grupo, y sus brutos suman el bruto de la báscula.
+    /// </summary>
+    public Resultado<IReadOnlyList<Pesada>> AgregarPesadaCamion(decimal brutoKg, decimal taraCamionKg, IReadOnlyList<(Guid LineaId, IReadOnlyList<EnvaseContado> Envases)> lineas,
+        string? bascula)
+    {
+        ArgumentNullException.ThrowIfNull(lineas);
+        var borrador = SoloBorrador();
+        if (borrador.EsFallo)
+        {
+            return Resultado.Fallo<IReadOnlyList<Pesada>>(borrador.Error);
+        }
+
+        if (lineas.Count < 2 || lineas.Select(l => l.LineaId).Distinct().Count() != lineas.Count || lineas.Any(l => _lineas.All(x => x.Id != l.LineaId)))
+        {
+            return Resultado.Fallo<IReadOnlyList<Pesada>>(Error.Validacion("pesada_camion.lineas", "La pesada del camión reparte entre dos o más líneas distintas de la recepción."));
+        }
+
+        if (taraCamionKg < 0m || decimal.Round(brutoKg, 3) != brutoKg || decimal.Round(taraCamionKg, 3) != taraCamionKg)
+        {
+            return Resultado.Fallo<IReadOnlyList<Pesada>>(Error.Validacion("pesada.kilos", "Los kilos admiten hasta 3 decimales y la tara del camión no puede ser negativa."));
+        }
+
+        var fruta = lineas.Select(l =>
+        {
+            var envaseLinea = _lineas.First(x => x.Id == l.LineaId).EnvaseProductoId;
+            return envaseLinea is { } e ? l.Envases.Where(x => x.EnvaseProductoId == e).Sum(x => x.Cantidad) : l.Envases.Sum(x => x.Cantidad);
+        }).ToList();
+        if (fruta.Any(f => f <= 0))
+        {
+            return Resultado.Fallo<IReadOnlyList<Pesada>>(Error.Validacion("pesada_camion.envases", "Cuenta los envases de fruta de cada línea: el neto se reparte en proporción a ellos."));
+        }
+
+        var taraEnvases = lineas.Sum(l => l.Envases.Sum(e => e.Cantidad * e.TaraUnitariaKg));
+        var neto = brutoKg - taraCamionKg - taraEnvases;
+        if (neto <= 0m)
+        {
+            return Resultado.Fallo<IReadOnlyList<Pesada>>(Error.Validacion("pesada.kilos", "El bruto no llega a la tara del camión más la de los envases."));
+        }
+
+        var total = fruta.Sum();
+        var grupo = Guid.NewGuid();
+        var pesadas = new List<Pesada>();
+        decimal restoNeto = neto, restoCamion = taraCamionKg;
+        for (var i = 0; i < lineas.Count; i++)
+        {
+            var ultima = i == lineas.Count - 1;
+            var netoLinea = ultima ? restoNeto : Math.Round(neto * fruta[i] / total, 3, MidpointRounding.AwayFromZero);
+            var camionLinea = ultima ? restoCamion : Math.Round(taraCamionKg * fruta[i] / total, 3, MidpointRounding.AwayFromZero);
+            restoNeto -= netoLinea;
+            restoCamion -= camionLinea;
+            var taraLinea = lineas[i].Envases.Sum(e => e.Cantidad * e.TaraUnitariaKg);
+            var p = AgregarPesadaCompleta(lineas[i].LineaId, netoLinea + camionLinea + taraLinea, camionLinea, lineas[i].Envases, bascula);
+            if (p.EsFallo)
+            {
+                _pesadas.RemoveAll(x => pesadas.Contains(x));
+                _envasesPesadas.RemoveAll(x => pesadas.Any(y => y.Id == x.PesadaId));
+                return Resultado.Fallo<IReadOnlyList<Pesada>>(p.Error);
+            }
+
+            p.Valor.AgruparEn(grupo, brutoKg);
+            pesadas.Add(p.Valor);
+        }
+
+        return Resultado.Ok<IReadOnlyList<Pesada>>(pesadas);
     }
 
     /// <summary>
@@ -648,6 +721,18 @@ public sealed class Pesada : EntidadBase<Guid>
 
     /// <summary>Tara de los envases contados (cantidad × tara vigente de cada tipo).</summary>
     public decimal TaraEnvasesKg { get; private set; }
+
+    /// <summary>Pesada del camión entero repartida entre varias líneas: todas las del reparto llevan el mismo grupo.</summary>
+    public Guid? GrupoCamion { get; private set; }
+
+    /// <summary>Bruto de la báscula del camión entero (el de esta línea es su parte).</summary>
+    public decimal? BrutoCamionKg { get; private set; }
+
+    internal void AgruparEn(Guid grupo, decimal brutoCamion)
+    {
+        GrupoCamion = grupo;
+        BrutoCamionKg = brutoCamion;
+    }
 
     internal void Desglosar(decimal taraCamion, decimal taraEnvases)
     {

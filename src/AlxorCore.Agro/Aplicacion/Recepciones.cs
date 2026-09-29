@@ -7,7 +7,7 @@ using AlxorCore.Nucleo.Tiempo;
 namespace AlxorCore.Agro.Aplicacion;
 
 public sealed record PesadaDto(Guid Id, Guid LineaId, int Secuencia, decimal BrutoKg, decimal TaraKg, decimal NetoKg, int Envases, string? Bascula, decimal? TaraCamionKg = null,
-    decimal TaraEnvasesKg = 0m);
+    decimal TaraEnvasesKg = 0m, Guid? GrupoCamion = null, decimal? BrutoCamionKg = null);
 
 public sealed record LineaRecepcionDto(
     Guid Id, int NumeroLinea, Guid ProductoId, string ProductoNombre, Guid? ParcelaId, DateOnly? FechaRecoleccion, Guid? EnvaseProductoId,
@@ -26,7 +26,7 @@ public sealed record RecepcionDto(
             l.FechaRecoleccion, l.EnvaseProductoId, l.PrecioEstimadoKg, l.Calibre, l.NetoKg ?? r.NetoDe(l.Id), l.Envases ?? r.EnvasesDe(l.Id), l.PartidaId,
             l.MotivoDescalificacion, l.KilosLiquidacion, l.MotivoKilosLiquidacion, r.PalesEntrada.Count(p => p.LineaId == l.Id))).ToList(),
         r.Pesadas.OrderBy(p => p.Secuencia).Select(p => new PesadaDto(p.Id, p.LineaId, p.Secuencia, p.BrutoKg, p.TaraKg, p.NetoKg, p.Envases, p.Bascula, p.TaraCamionKg,
-            p.TaraEnvasesKg)).ToList(),
+            p.TaraEnvasesKg, p.GrupoCamion, p.BrutoCamionKg)).ToList(),
         r.EnvasesPesadas.Select(e => new EnvasePesadaDto(e.Id, e.PesadaId, e.EnvaseProductoId, e.Cantidad, e.TaraUnitariaKg, e.TaraKg, e.TaraEnvaseId)).ToList(),
         r.PalesEntrada.OrderBy(p => p.LineaId).ThenBy(p => p.Numero).Select(p => new PaleEntradaDto(p.Id, p.LineaId, p.Numero, p.SerieOrigen, p.EnvaseProductoId, p.Envases,
             p.KilosNetos, p.PaleId, p.KilosAsignados)).ToList(),
@@ -61,7 +61,16 @@ public sealed record DatosEnvasePesada(Guid EnvaseProductoId, int Cantidad, deci
 public sealed record DatosPesada(decimal BrutoKg, decimal TaraKg = 0m, int Envases = 0, string? Bascula = null, decimal? TaraCamionKg = null,
     IReadOnlyList<DatosEnvasePesada>? EnvasesPorTipo = null);
 
+/// <summary>Pesada del camión entero: un bruto, la tara del camión y los envases contados de cada línea.</summary>
+public sealed record DatosPesadaCamion(decimal BrutoKg, decimal TaraCamionKg, IReadOnlyList<DatosLineaPesadaCamion> Lineas, string? Bascula = null);
+
+public sealed record DatosLineaPesadaCamion(Guid LineaId, IReadOnlyList<DatosEnvasePesada> EnvasesPorTipo);
+
 public sealed record DatosPaleEntrada(string? SerieOrigen = null, Guid? EnvaseProductoId = null, int Envases = 0, decimal? KilosNetos = null);
+
+public sealed record DatosEtiquetasCampo(Guid AgricultorId, int Cantidad, Guid? ParcelaId = null);
+
+public sealed record EtiquetaCampoDto(Guid Id, string Sscc, Guid AgricultorId, Guid? ParcelaId, DateTimeOffset EmitidaEn, Guid? PaleId);
 
 public sealed record DatosKilosLiquidacion(decimal? Kilos, string? Motivo);
 
@@ -303,27 +312,13 @@ public sealed class RecepcionesAgro
                 return Resultado.Fallo<RecepcionDto>(Error.Validacion("pesada.tara_camion", "En la pesada completa indica la tara del camión (pesado vacío)."));
             }
 
-            var contados = new List<EnvaseContado>();
-            foreach (var t in tipos)
+            var contados = await ContarEnvasesAsync(r, tipos, ct).ConfigureAwait(false);
+            if (contados.EsFallo)
             {
-                if (t.TaraUnitariaKg is { } manual)
-                {
-                    contados.Add(new EnvaseContado(t.EnvaseProductoId, t.Cantidad, manual, null));
-                    continue;
-                }
-
-                var vigente = _taras is null ? null : await _taras.VigenteAsync(r.EmpresaId, t.EnvaseProductoId, r.Fecha, ct).ConfigureAwait(false);
-                if (vigente is null)
-                {
-                    var nombre = (await _productos.ObtenerAsync(t.EnvaseProductoId, ct).ConfigureAwait(false))?.Nombre ?? "el envase";
-                    return Resultado.Fallo<RecepcionDto>(Error.Validacion("tara.falta",
-                        $"No hay tara de {nombre} vigente el {r.Fecha:dd/MM/yyyy}: dala de alta en las taras de envases (o indica la tara unitaria)."));
-                }
-
-                contados.Add(new EnvaseContado(t.EnvaseProductoId, t.Cantidad, vigente.TaraKg, vigente.Id));
+                return Resultado.Fallo<RecepcionDto>(contados.Error);
             }
 
-            p = r.AgregarPesadaCompleta(lineaId, datos.BrutoKg, taraCamion, contados, datos.Bascula);
+            p = r.AgregarPesadaCompleta(lineaId, datos.BrutoKg, taraCamion, contados.Valor, datos.Bascula);
         }
         else
         {
@@ -331,6 +326,58 @@ public sealed class RecepcionesAgro
         }
 
         return await GuardarAsync(r, p.EsFallo ? Resultado.Fallo(p.Error) : Resultado.Ok(), ct).ConfigureAwait(false);
+    }
+
+    /// <summary>Pesada del camión entero con varios productos: el neto se reparte entre las líneas en proporción a sus envases.</summary>
+    public async Task<Resultado<RecepcionDto>> AgregarPesadaCamionAsync(Guid recepcionId, DatosPesadaCamion datos, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(datos);
+        var r = await _repo.RecepcionAsync(recepcionId, ct).ConfigureAwait(false);
+        if (r is null)
+        {
+            return NoEncontrada<RecepcionDto>();
+        }
+
+        var lineas = new List<(Guid, IReadOnlyList<EnvaseContado>)>();
+        foreach (var l in datos.Lineas ?? [])
+        {
+            var contados = await ContarEnvasesAsync(r, l.EnvasesPorTipo ?? [], ct).ConfigureAwait(false);
+            if (contados.EsFallo)
+            {
+                return Resultado.Fallo<RecepcionDto>(contados.Error);
+            }
+
+            lineas.Add((l.LineaId, contados.Valor));
+        }
+
+        var p = r.AgregarPesadaCamion(datos.BrutoKg, datos.TaraCamionKg, lineas, datos.Bascula);
+        return await GuardarAsync(r, p.EsFallo ? Resultado.Fallo(p.Error) : Resultado.Ok(), ct).ConfigureAwait(false);
+    }
+
+    /// <summary>Los envases contados con su tara: la indicada a mano o la vigente el día de la recepción.</summary>
+    private async Task<Resultado<IReadOnlyList<EnvaseContado>>> ContarEnvasesAsync(Recepcion r, IReadOnlyList<DatosEnvasePesada> tipos, CancellationToken ct)
+    {
+        var contados = new List<EnvaseContado>();
+        foreach (var t in tipos)
+        {
+            if (t.TaraUnitariaKg is { } manual)
+            {
+                contados.Add(new EnvaseContado(t.EnvaseProductoId, t.Cantidad, manual, null));
+                continue;
+            }
+
+            var vigente = _taras is null ? null : await _taras.VigenteAsync(r.EmpresaId, t.EnvaseProductoId, r.Fecha, ct).ConfigureAwait(false);
+            if (vigente is null)
+            {
+                var nombre = (await _productos.ObtenerAsync(t.EnvaseProductoId, ct).ConfigureAwait(false))?.Nombre ?? "el envase";
+                return Resultado.Fallo<IReadOnlyList<EnvaseContado>>(Error.Validacion("tara.falta",
+                    $"No hay tara de {nombre} vigente el {r.Fecha:dd/MM/yyyy}: dala de alta en las taras de envases (o indica la tara unitaria)."));
+            }
+
+            contados.Add(new EnvaseContado(t.EnvaseProductoId, t.Cantidad, vigente.TaraKg, vigente.Id));
+        }
+
+        return Resultado.Ok<IReadOnlyList<EnvaseContado>>(contados);
     }
 
     public async Task<Resultado<RecepcionDto>> AgregarPaleEntradaAsync(Guid recepcionId, Guid lineaId, DatosPaleEntrada datos, CancellationToken ct = default)
@@ -342,9 +389,92 @@ public sealed class RecepcionesAgro
             return NoEncontrada<RecepcionDto>();
         }
 
-        var p = r.AgregarPaleEntrada(lineaId, datos.SerieOrigen, datos.EnvaseProductoId, datos.Envases, datos.KilosNetos);
+        // Si la serie leída es una etiqueta de campo nuestra, se guarda su SSCC: tiene que ser de este agricultor (y de la
+        // parcela de la línea, si la etiqueta es de una parcela) y no estar usada.
+        var serie = datos.SerieOrigen;
+        if (EtiquetaCampo.SsccDeLectura(serie) is { } sscc && await _repo.EtiquetaCampoAsync(r.EmpresaId, sscc, ct).ConfigureAwait(false) is { } etiqueta)
+        {
+            var linea = r.Lineas.FirstOrDefault(l => l.Id == lineaId);
+            if (etiqueta.AgricultorId != r.AgricultorId || (etiqueta.ParcelaId is { } parcela && linea is not null && linea.ParcelaId != parcela))
+            {
+                return Resultado.Fallo<RecepcionDto>(Error.Conflicto("etiqueta_campo.otro_origen",
+                    $"La etiqueta {sscc} se emitió para otro agricultor o parcela: no puede entrar en esta línea."));
+            }
+
+            if (etiqueta.Usada)
+            {
+                return Resultado.Fallo<RecepcionDto>(Error.Conflicto("etiqueta_campo.usada", $"La etiqueta {sscc} ya se usó en otra recepción."));
+            }
+
+            serie = sscc;
+        }
+
+        var p = r.AgregarPaleEntrada(lineaId, serie, datos.EnvaseProductoId, datos.Envases, datos.KilosNetos);
         return await GuardarAsync(r, p.EsFallo ? Resultado.Fallo(p.Error) : Resultado.Ok(), ct).ConfigureAwait(false);
     }
+
+    public async Task<IReadOnlyList<EtiquetaCampoDto>> EtiquetasCampoAsync(Guid empresaId, Guid? agricultorId, bool soloLibres, CancellationToken ct = default) =>
+        (await _repo.EtiquetasCampoAsync(empresaId, agricultorId, soloLibres, ct).ConfigureAwait(false)).Select(DtoEtiqueta).ToList();
+
+    /// <summary>
+    /// Emite etiquetas SSCC para un agricultor (y parcela) antes de que llegue la fruta, para imprimirlas en la finca. Salen
+    /// del mismo contador que los palés, así que nunca coinciden con otro SSCC.
+    /// </summary>
+    public async Task<Resultado<IReadOnlyList<EtiquetaCampoDto>>> EmitirEtiquetasCampoAsync(Guid empresaId, DatosEtiquetasCampo datos, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(datos);
+        if (datos.Cantidad is < 1 or > 500)
+        {
+            return Resultado.Fallo<IReadOnlyList<EtiquetaCampoDto>>(Error.Validacion("etiqueta_campo.cantidad", "Se emiten de 1 a 500 etiquetas de una vez."));
+        }
+
+        var agricultor = await _repo.AgricultorAsync(datos.AgricultorId, ct).ConfigureAwait(false);
+        if (agricultor is null || agricultor.EmpresaId != empresaId)
+        {
+            return Resultado.Fallo<IReadOnlyList<EtiquetaCampoDto>>(Error.NoEncontrado("agricultor.no_encontrado", "El agricultor no existe."));
+        }
+
+        if (datos.ParcelaId is { } pid && (await _repo.ParcelaAsync(pid, ct).ConfigureAwait(false))?.AgricultorId != agricultor.Id)
+        {
+            return Resultado.Fallo<IReadOnlyList<EtiquetaCampoDto>>(Error.Validacion("etiqueta_campo.parcela", "La parcela no es de ese agricultor."));
+        }
+
+        await _unidad.BloquearAsync(ClaveNumeracion(empresaId, "SSCC"), ct).ConfigureAwait(false);
+        var config = await _repo.ConfiguracionAsync(empresaId, ct).ConfigureAwait(false) ?? ConfiguracionAgro.Crear(empresaId);
+        var serie = await _repo.PalesCreadosAsync(empresaId, ct).ConfigureAwait(false);
+        var lista = new List<EtiquetaCampo>();
+        for (var i = 1; i <= datos.Cantidad; i++)
+        {
+            var sscc = config.Sscc(serie + i);
+            var etiqueta = sscc.EsFallo ? Resultado.Fallo<EtiquetaCampo>(sscc.Error) : EtiquetaCampo.Emitir(empresaId, sscc.Valor, agricultor.Id, datos.ParcelaId, _reloj.AhoraUtc);
+            if (etiqueta.EsFallo)
+            {
+                return Resultado.Fallo<IReadOnlyList<EtiquetaCampoDto>>(etiqueta.Error);
+            }
+
+            _repo.Agregar(etiqueta.Valor);
+            lista.Add(etiqueta.Valor);
+        }
+
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok<IReadOnlyList<EtiquetaCampoDto>>(lista.Select(DtoEtiqueta).ToList());
+    }
+
+    /// <summary>Lo que se imprime en las etiquetas de campo indicadas: el SSCC y el origen (agricultor y parcela).</summary>
+    public async Task<IReadOnlyList<(string Sscc, string Origen, DateOnly Fecha)>> ImpresionEtiquetasCampoAsync(Guid empresaId, IReadOnlyCollection<Guid> ids, CancellationToken ct = default)
+    {
+        var lista = new List<(string, string, DateOnly)>();
+        foreach (var e in (await _repo.EtiquetasCampoPorIdAsync(ids, ct).ConfigureAwait(false)).Where(e => e.EmpresaId == empresaId))
+        {
+            var agricultor = await _repo.AgricultorAsync(e.AgricultorId, ct).ConfigureAwait(false);
+            var parcela = e.ParcelaId is { } pid ? await _repo.ParcelaAsync(pid, ct).ConfigureAwait(false) : null;
+            lista.Add((e.Sscc, agricultor?.Nombre + (parcela is null ? "" : $" · {parcela.Codigo} {parcela.Nombre}"), DateOnly.FromDateTime(e.EmitidaEn.UtcDateTime)));
+        }
+
+        return lista;
+    }
+
+    private static EtiquetaCampoDto DtoEtiqueta(EtiquetaCampo e) => new(e.Id, e.Sscc, e.AgricultorId, e.ParcelaId, e.EmitidaEn, e.PaleId);
 
     public async Task<Resultado<RecepcionDto>> QuitarPaleEntradaAsync(Guid recepcionId, Guid paleEntradaId, CancellationToken ct = default)
     {
@@ -438,6 +568,14 @@ public sealed class RecepcionesAgro
             var vigentes = certificados.Where(c => c.VigenteEl(r.Fecha) && (c.ParcelaId is null || c.ParcelaId == l.ParcelaId))
                 .Aggregate(Certificaciones.Ninguna, (a, c) => a | c.Tipo);
             var declaracion = await _repo.DeclaracionAsync(r.EmpresaId, l.ProductoId, ct).ConfigureAwait(false);
+            // La certificación va por parcela: lo que se vende certificado tiene que saber de qué parcela viene.
+            if (declaracion is { Exige: not Certificaciones.Ninguna } && l.ParcelaId is null)
+            {
+                errores.Add(Error.Validacion("recepcion.parcela_certificada",
+                    $"Línea {l.NumeroLinea}: «{l.ProductoNombre}» se vende como {ReglasCertificacion.Texto(declaracion.Exige)}: indica la parcela de la que viene."));
+                continue;
+            }
+
             var c = ReglasCertificacion.Aplicar(vigentes, declaracion?.Exige, l.MotivoDescalificacion, l.ProductoNombre);
             if (c.EsFallo)
             {
@@ -482,18 +620,50 @@ public sealed class RecepcionesAgro
             }
             else
             {
-                var nuevos = await PalesAgro.NuevosPalesAsync(_repo, _unidad, _reloj, r.EmpresaId, palesLinea.Count, "Entrada", null, ct,
-                    (sscc, i) => Pale.DeEntrada(r.EmpresaId, sscc, l.Id, palesLinea[i].Pale.SerieOrigen, "Entrada", _reloj)).ConfigureAwait(false);
+                // Los que llegan con etiqueta de campo conservan su SSCC; al resto se le da uno nuevo (se etiqueta en la báscula).
+                var etiquetas = new Dictionary<Guid, EtiquetaCampo>();
+                foreach (var (entrada, _) in palesLinea)
+                {
+                    if (EtiquetaCampo.SsccDeLectura(entrada.SerieOrigen) is { } ssccCampo
+                        && await _repo.EtiquetaCampoAsync(r.EmpresaId, ssccCampo, ct).ConfigureAwait(false) is { } etiqueta && etiqueta.AgricultorId == r.AgricultorId)
+                    {
+                        etiquetas[entrada.Id] = etiqueta;
+                    }
+                }
+
+                var sinEtiqueta = palesLinea.Where(x => !etiquetas.ContainsKey(x.Pale.Id)).ToList();
+                var nuevos = await PalesAgro.NuevosPalesAsync(_repo, _unidad, _reloj, r.EmpresaId, sinEtiqueta.Count, "Entrada", null, ct,
+                    (sscc, i) => Pale.DeEntrada(r.EmpresaId, sscc, l.Id, sinEtiqueta[i].Pale.SerieOrigen, "Entrada", _reloj)).ConfigureAwait(false);
                 if (nuevos.EsFallo)
                 {
                     return Resultado.Fallo<RecepcionDto>(nuevos.Error);
                 }
 
+                var palePorEntrada = new Dictionary<Guid, Pale>();
+                for (var i = 0; i < sinEtiqueta.Count; i++)
+                {
+                    palePorEntrada[sinEtiqueta[i].Pale.Id] = nuevos.Valor[i];
+                }
+
+                foreach (var (entradaId, etiqueta) in etiquetas)
+                {
+                    var pale = Pale.DeEntrada(r.EmpresaId, etiqueta.Sscc, l.Id, etiqueta.Sscc, "Entrada", _reloj);
+                    var usada = pale.EsFallo ? Resultado.Fallo(pale.Error) : etiqueta.Usar(pale.Valor.Id);
+                    if (usada.EsFallo)
+                    {
+                        return Resultado.Fallo<RecepcionDto>(usada.Error);
+                    }
+
+                    _repo.Agregar(pale.Valor);
+                    palePorEntrada[entradaId] = pale.Valor;
+                }
+
                 for (var i = 0; i < palesLinea.Count; i++)
                 {
                     var (entrada, kilosPale) = palesLinea[i];
-                    palesEntrada[entrada.Id] = nuevos.Valor[i].Id;
-                    _repo.Agregar(MovimientoPartida.Crear(r.EmpresaId, partida.Id, r.Fecha, TipoMovimientoPartida.Entrada, kilosPale, nuevos.Valor[i].Id, "Recepcion", r.Id,
+                    var paleEntrada = palePorEntrada[entrada.Id];
+                    palesEntrada[entrada.Id] = paleEntrada.Id;
+                    _repo.Agregar(MovimientoPartida.Crear(r.EmpresaId, partida.Id, r.Fecha, TipoMovimientoPartida.Entrada, kilosPale, paleEntrada.Id, "Recepcion", r.Id,
                         $"Recepción {codigo} · palé {entrada.SerieOrigen ?? entrada.Numero.ToString(System.Globalization.CultureInfo.InvariantCulture)}", _reloj,
                         entrada.Envases).Valor);
                 }

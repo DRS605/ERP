@@ -314,7 +314,7 @@ public static class EndpointsAgro
             .WithSummary("Descalificaciones de la partida: qué perdió, por qué, quién y en qué documento.").RequierePermiso(Permisos.AgroLeer);
         g.MapPost("/partidas/{id:guid}/descalificar", async (Guid id, DatosDescalificacion d, HttpContext http, CertificacionesAgro m, CancellationToken ct) =>
                 (await m.DescalificarAsync(id, d, http.User.ObtenerUsuarioId(), ct).ConfigureAwait(false)).AOk())
-            .WithSummary("Quita a la partida una certificación (p. ej. el ecológico), con motivo; queda registrado.").RequierePermiso(Permisos.AgroGestionar);
+            .WithSummary("Quita a la partida una certificación (p. ej. el ecológico), con motivo; queda registrado.").RequierePermiso(Permisos.AgroCorregir);
 
         g.MapGet("/categorias", (IContextoEmpresa c, MaestrosAgro m, CancellationToken ct) => ConEmpresa(c, async e => Results.Ok(await m.CategoriasAsync(e, ct).ConfigureAwait(false))))
             .WithSummary("Categorías de clasificación.").RequierePermiso(Permisos.AgroLeer);
@@ -354,10 +354,36 @@ public static class EndpointsAgro
         g.MapPost("/recepciones/{id:guid}/lineas/{lineaId:guid}/pesadas", async (Guid id, Guid lineaId, DatosPesada d, RecepcionesAgro r, CancellationToken ct) =>
                 (await r.AgregarPesadaAsync(id, lineaId, d, ct).ConfigureAwait(false)).AOk())
             .WithSummary("Añade una pesada de báscula (bruto, tara, envases).").RequierePermiso(Permisos.AgroGestionar);
+        g.MapPost("/recepciones/{id:guid}/pesada-camion", async (Guid id, DatosPesadaCamion d, RecepcionesAgro r, CancellationToken ct) =>
+                (await r.AgregarPesadaCamionAsync(id, d, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Pesada del camión entero con varios productos: el neto se reparte entre las líneas en proporción a sus envases.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapGet("/etiquetas-campo", (Guid? agricultorId, bool? libres, IContextoEmpresa c, RecepcionesAgro r, CancellationToken ct) =>
+                ConEmpresa(c, async e => Results.Ok(await r.EtiquetasCampoAsync(e, agricultorId, libres ?? false, ct).ConfigureAwait(false))))
+            .WithSummary("Etiquetas SSCC emitidas para poner en la finca (libres o ya usadas en un palé de entrada).").RequierePermiso(Permisos.AgroLeer);
+        g.MapPost("/etiquetas-campo", (DatosEtiquetasCampo d, IContextoEmpresa c, RecepcionesAgro r, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await r.EmitirEtiquetasCampoAsync(e, d, ct).ConfigureAwait(false)).AOk()))
+            .WithSummary("Emite etiquetas SSCC para un agricultor (y parcela), del mismo contador que los palés, para imprimirlas en la finca.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapGet("/etiquetas-campo/pdf", (string ids, IContextoEmpresa c, RecepcionesAgro r, IConsultaEmpresas empresas, IGeneradorEtiquetaLogistica generador, CancellationToken ct) =>
+                ConEmpresa(c, async e =>
+                {
+                    var lista = ids.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(x => Guid.TryParse(x, out var g) ? g : Guid.Empty)
+                        .Where(x => x != Guid.Empty).Distinct().ToList();
+                    var impresion = await r.ImpresionEtiquetasCampoAsync(e, lista, ct).ConfigureAwait(false);
+                    var empresa = await empresas.ObtenerAsync(e, ct).ConfigureAwait(false);
+                    if (impresion.Count == 0 || empresa is null)
+                    {
+                        return ResultadosHttp.AProblema(Error.NoEncontrado("etiqueta_campo.no_encontrada", "No se encontró ninguna de las etiquetas."));
+                    }
+
+                    var pdf = generador.GenerarVarias(impresion.Select(x => new EtiquetaLogistica(x.Sscc, "Etiqueta de campo", null, "Entrada", 0, 0m, null, x.Fecha, null, Origen: x.Origen))
+                        .ToList(), empresa);
+                    return Results.File(pdf, "application/pdf", "etiquetas-campo.pdf");
+                }))
+            .WithSummary("PDF con las etiquetas de campo indicadas (?ids=a,b,c), una por página A6.").RequierePermiso(Permisos.AgroLeer);
         g.MapPost("/recepciones/{id:guid}/lineas/{lineaId:guid}/rectificar", async (Guid id, Guid lineaId, DatosRectificacion d, HttpContext http, RecepcionesAgro r,
                 CancellationToken ct) => (await r.RectificarAsync(id, lineaId, d, http.User.ObtenerUsuarioId(), ct).ConfigureAwait(false)).AOk())
             .WithSummary("Rectifica una línea confirmada (neto real y/o kilos de liquidación) sobre la misma partida, con motivo; no se borra ni se rehace nada.")
-            .RequierePermiso(Permisos.AgroGestionar);
+            .RequierePermiso(Permisos.AgroCorregir);
         g.MapPost("/recepciones/{id:guid}/lineas/{lineaId:guid}/pales", async (Guid id, Guid lineaId, DatosPaleEntrada d, RecepcionesAgro r, CancellationToken ct) =>
                 (await r.AgregarPaleEntradaAsync(id, lineaId, d, ct).ConfigureAwait(false)).AOk())
             .WithSummary("Registra un palé o palot que llega en la línea (serie de su etiqueta, envases reales, kilos si se pesó solo).").RequierePermiso(Permisos.AgroGestionar);
@@ -447,7 +473,7 @@ public static class EndpointsAgro
                 var yo = http.User.ObtenerIdentidad();
                 return (await p.AprobarMermaAsync(id, m?.Motivo, yo?.Id, string.IsNullOrWhiteSpace(yo?.Nombre) ? yo?.Email : yo.Nombre, ct).ConfigureAwait(false)).AOk();
             })
-            .WithSummary("Aprueba (con motivo, a nombre del usuario) una merma por encima de la tolerancia en un parte en borrador.").RequierePermiso(Permisos.AgroGestionar);
+            .WithSummary("Aprueba (con motivo, a nombre del usuario) una merma por encima de la tolerancia en un parte en borrador.").RequierePermiso(Permisos.AgroCorregir);
         g.MapGet("/transformaciones", (IContextoEmpresa c, TransformacionesAgro t, CancellationToken ct) => ConEmpresa(c, async e => Results.Ok(await t.ReglasAsync(e, ct).ConfigureAwait(false))))
             .WithSummary("Qué producto puede salir de cuál en la confección, con su merma máxima.").RequierePermiso(Permisos.AgroLeer);
         g.MapPost("/transformaciones", (DatosReglaTransformacion d, IContextoEmpresa c, TransformacionesAgro t, CancellationToken ct) =>
@@ -458,6 +484,15 @@ public static class EndpointsAgro
             .WithSummary("Cambia la merma máxima de una transformación.").RequierePermiso(Permisos.AgroGestionar);
         g.MapDelete("/transformaciones/{id:guid}", async (Guid id, TransformacionesAgro t, CancellationToken ct) => (await t.EliminarReglaAsync(id, ct).ConfigureAwait(false)).ASinContenido())
             .WithSummary("Quita una transformación permitida.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapGet("/tolerancias-merma", (IContextoEmpresa c, TransformacionesAgro t, CancellationToken ct) =>
+                ConEmpresa(c, async e => Results.Ok(await t.ToleranciasAsync(e, ct).ConfigureAwait(false))))
+            .WithSummary("Merma máxima de la confección por familia de artículos.").RequierePermiso(Permisos.AgroLeer);
+        g.MapPut("/tolerancias-merma/{familiaId:guid}", (Guid familiaId, DatosToleranciaMerma d, IContextoEmpresa c, TransformacionesAgro t, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await t.FijarToleranciaAsync(e, familiaId, d, ct).ConfigureAwait(false)).AOk()))
+            .WithSummary("Fija la merma máxima de una familia (pimiento, sandía, melón…).").RequierePermiso(Permisos.AgroGestionar);
+        g.MapDelete("/tolerancias-merma/{familiaId:guid}", (Guid familiaId, IContextoEmpresa c, TransformacionesAgro t, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await t.QuitarToleranciaAsync(e, familiaId, ct).ConfigureAwait(false)).ASinContenido()))
+            .WithSummary("Quita la merma máxima propia de una familia (vuelve a la general).").RequierePermiso(Permisos.AgroGestionar);
         g.MapGet("/repaletizados", (Guid? paleId, IContextoEmpresa c, TransformacionesAgro t, CancellationToken ct) =>
                 ConEmpresa(c, async e => Results.Ok(await t.RepaletizadosAsync(e, paleId, ct).ConfigureAwait(false))))
             .WithSummary("Repaletizados (de todos o de un palé): qué pasó de qué palé a cuál.").RequierePermiso(Permisos.AgroLeer);
@@ -482,6 +517,8 @@ public static class EndpointsAgro
         g.MapPost("/pales/{id:guid}/lecturas", (Guid id, LecturaCaja d, IContextoEmpresa c, PalesAgro p, CancellationToken ct) =>
                 ConEmpresa(c, async e => (await p.LeerCajaAsync(e, id, d, ct).ConfigureAwait(false)).AOk()))
             .WithSummary("Escáner del punto de paletizado: añade al palé la caja leída (lote GS1 AI 10 = código de la partida).").RequierePermiso(Permisos.AgroGestionar);
+        g.MapPut("/pales/{id:guid}/cajas-por-pale", async (Guid id, DatosCajasPorPale d, PalesAgro p, CancellationToken ct) => (await p.CambiarCajasPorPaleAsync(id, d, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Cambia las cajas que lleva este palé (cada palé puede llevar las suyas; null vuelve a las de la plantilla).").RequierePermiso(Permisos.AgroGestionar);
         g.MapPost("/pales/{id:guid}/cajas", async (Guid id, DatosCajas d, PalesAgro p, CancellationToken ct) => (await p.CajasAsync(id, d, ct).ConfigureAwait(false)).AOk())
             .WithSummary("Pone cajas de una partida en un palé con plantilla (o las saca, en negativo); se cierra solo al completarse.").RequierePermiso(Permisos.AgroGestionar);
         g.MapGet("/pales/{idOSscc}/etiqueta", (string idOSscc, IContextoEmpresa c, PalesAgro p, IConsultaEmpresas empresas, IGeneradorEtiquetaLogistica generador, CancellationToken ct) =>
@@ -522,8 +559,15 @@ public static class EndpointsAgro
             .WithSummary("Cierra el palé (listo para expedir).").RequierePermiso(Permisos.AgroGestionar);
         g.MapPost("/pales/{id:guid}/reabrir", async (Guid id, PalesAgro p, CancellationToken ct) => (await p.ReabrirAsync(id, ct).ConfigureAwait(false)).AOk())
             .WithSummary("Reabre un palé cerrado que no ha salido.").RequierePermiso(Permisos.AgroGestionar);
-        g.MapPost("/pales/{id:guid}/anular-expedicion", (Guid id, IContextoEmpresa c, PalesAgro p, CancellationToken ct) => ConEmpresa(c, async e => (await p.AnularExpedicionAsync(e, id, ct).ConfigureAwait(false)).AOk()))
-            .WithSummary("Anula la expedición de un palé (salió por error o volvió): queda cerrado con su contenido.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapPost("/pales/{id:guid}/anular-expedicion", (Guid id, PeticionMotivo? m, HttpContext http, IContextoEmpresa c, PalesAgro p, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await p.AnularExpedicionAsync(e, id, m?.Motivo, http.User.ObtenerUsuarioId(), ct).ConfigureAwait(false)).AOk()))
+            .WithSummary("Anula la expedición de un palé (salió por error o volvió): queda cerrado con su contenido. Queda registrada con el motivo.")
+            .RequierePermiso(Permisos.AgroCorregir);
+        g.MapPost("/pales/{id:guid}/corregir-expedicion", (Guid id, DatosCorreccionExpedicion d, HttpContext http, IContextoEmpresa c, PalesAgro p, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await p.CorregirExpedicionAsync(e, id, d, http.User.ObtenerUsuarioId(), ct).ConfigureAwait(false)).AOk()))
+            .WithSummary("Corrige el cliente o la referencia de un palé expedido sin albarán, con motivo (queda el antes y el después).").RequierePermiso(Permisos.AgroCorregir);
+        g.MapGet("/pales/{id:guid}/correcciones", async (Guid id, PalesAgro p, CancellationToken ct) => Results.Ok(await p.CorreccionesExpedicionAsync(id, ct).ConfigureAwait(false)))
+            .WithSummary("Correcciones de la expedición del palé (anulaciones y cambios de datos).").RequierePermiso(Permisos.AgroLeer);
         g.MapPost("/expediciones", (DatosExpedicion d, IContextoEmpresa c, PalesAgro p, CancellationToken ct) => ConEmpresa(c, async e => (await p.ExpedirAsync(e, d, ct).ConfigureAwait(false)).AOk()))
             .WithSummary("Expide palés cerrados a un cliente (con CartaPorte = true emite además la carta de porte).").RequierePermiso(Permisos.AgroGestionar);
 

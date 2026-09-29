@@ -23,6 +23,9 @@ public sealed class AgroDbContext : DbContextEmpresaBase, IUnidadDeTrabajoAgro
     /// <summary>Tablas raíz del módulo (las líneas caen en cascada con su cabecera).</summary>
     private const string SqlBorradoEmpresa = """
         DELETE FROM agro.rectificacion_recepcion WHERE empresa_id = {0};
+        DELETE FROM agro.etiqueta_campo WHERE empresa_id = {0};
+        DELETE FROM agro.correccion_expedicion WHERE empresa_id = {0};
+        DELETE FROM agro.tolerancia_merma_familia WHERE empresa_id = {0};
         DELETE FROM agro.repaletizado WHERE empresa_id = {0};
         DELETE FROM agro.regla_transformacion WHERE empresa_id = {0};
         DELETE FROM agro.descalificacion_partida WHERE empresa_id = {0};
@@ -307,6 +310,8 @@ internal sealed class ConfiguracionRecepcion : IEntityTypeConfiguration<Recepcio
             p.Property(x => x.Bascula).HasColumnName("bascula").HasMaxLength(60);
             p.Property(x => x.TaraCamionKg).HasColumnName("tara_camion_kg").HasColumnType(Columnas.Kilos);
             p.Property(x => x.TaraEnvasesKg).HasColumnName("tara_envases_kg").HasColumnType(Columnas.Kilos).HasDefaultValue(0m).IsRequired();
+            p.Property(x => x.GrupoCamion).HasColumnName("grupo_camion");
+            p.Property(x => x.BrutoCamionKg).HasColumnName("bruto_camion_kg").HasColumnType(Columnas.Kilos);
             p.Ignore(x => x.NetoKg);
             p.HasIndex("recepcion_id").HasDatabaseName("ix_pesada_recepcion");
             p.HasIndex(x => new { x.LineaId, x.Secuencia }).IsUnique().HasDatabaseName("ux_pesada_secuencia");
@@ -356,6 +361,24 @@ internal sealed class ConfiguracionRecepcion : IEntityTypeConfiguration<Recepcio
     }
 }
 
+internal sealed class ConfiguracionEtiquetaCampo : IEntityTypeConfiguration<EtiquetaCampo>
+{
+    public void Configure(EntityTypeBuilder<EtiquetaCampo> b)
+    {
+        Columnas.Base(b, "etiqueta_campo");
+        b.Property(x => x.Sscc).HasColumnName("sscc").HasMaxLength(18).IsRequired();
+        b.Property(x => x.AgricultorId).HasColumnName("agricultor_id").IsRequired();
+        b.Property(x => x.ParcelaId).HasColumnName("parcela_id");
+        b.Property(x => x.EmitidaEn).HasColumnName("emitida_en").IsRequired();
+        b.Property(x => x.PaleId).HasColumnName("pale_id");
+        b.Ignore(x => x.Usada);
+        b.HasIndex(x => new { x.EmpresaId, x.Sscc }).IsUnique().HasDatabaseName("ux_etiqueta_campo_sscc");
+        b.HasIndex(x => x.AgricultorId).HasDatabaseName("ix_etiqueta_campo_agricultor");
+        b.HasIndex(x => x.ParcelaId).HasDatabaseName("ix_etiqueta_campo_parcela");
+        b.HasIndex(x => x.PaleId).IsUnique().HasDatabaseName("ux_etiqueta_campo_pale");
+    }
+}
+
 internal sealed class ConfiguracionRectificacion : IEntityTypeConfiguration<RectificacionRecepcion>
 {
     public void Configure(EntityTypeBuilder<RectificacionRecepcion> b)
@@ -378,6 +401,39 @@ internal sealed class ConfiguracionRectificacion : IEntityTypeConfiguration<Rect
         b.HasIndex(x => x.LineaRecepcionId).HasDatabaseName("ix_rectificacion_recepcion_linea");
         b.HasIndex(x => x.PartidaId).HasDatabaseName("ix_rectificacion_recepcion_partida");
         b.HasIndex(x => x.UsuarioId).HasDatabaseName("ix_rectificacion_recepcion_usuario");
+    }
+}
+
+internal sealed class ConfiguracionCorreccionExpedicion : IEntityTypeConfiguration<CorreccionExpedicion>
+{
+    public void Configure(EntityTypeBuilder<CorreccionExpedicion> b)
+    {
+        Columnas.Base(b, "correccion_expedicion");
+        b.Property(x => x.PaleId).HasColumnName("pale_id").IsRequired();
+        b.Property(x => x.Tipo).HasColumnName("tipo").HasMaxLength(20).IsRequired();
+        b.Property(x => x.ClienteAnteriorId).HasColumnName("cliente_anterior_id");
+        b.Property(x => x.ClienteNuevoId).HasColumnName("cliente_nuevo_id");
+        b.Property(x => x.ReferenciaAnterior).HasColumnName("referencia_anterior").HasMaxLength(80);
+        b.Property(x => x.ReferenciaNueva).HasColumnName("referencia_nueva").HasMaxLength(80);
+        b.Property(x => x.Motivo).HasColumnName("motivo").HasMaxLength(300);
+        b.Property(x => x.UsuarioId).HasColumnName("usuario_id");
+        b.Property(x => x.En).HasColumnName("en").IsRequired();
+        b.HasIndex(x => x.PaleId).HasDatabaseName("ix_correccion_expedicion_pale");
+        b.HasIndex(x => x.ClienteAnteriorId).HasDatabaseName("ix_correccion_expedicion_cliente_anterior");
+        b.HasIndex(x => x.ClienteNuevoId).HasDatabaseName("ix_correccion_expedicion_cliente_nuevo");
+        b.HasIndex(x => x.UsuarioId).HasDatabaseName("ix_correccion_expedicion_usuario");
+    }
+}
+
+internal sealed class ConfiguracionToleranciaMerma : IEntityTypeConfiguration<ToleranciaMermaFamilia>
+{
+    public void Configure(EntityTypeBuilder<ToleranciaMermaFamilia> b)
+    {
+        Columnas.Base(b, "tolerancia_merma_familia");
+        b.Property(x => x.FamiliaId).HasColumnName("familia_id").IsRequired();
+        b.Property(x => x.MermaMaximaPct).HasColumnName("merma_maxima_pct").HasColumnType("numeric(5,2)").IsRequired();
+        b.HasIndex(x => new { x.EmpresaId, x.FamiliaId }).IsUnique().HasDatabaseName("ux_tolerancia_merma_familia");
+        b.HasIndex(x => x.FamiliaId).HasDatabaseName("ix_tolerancia_merma_familia_familia");
     }
 }
 
@@ -507,6 +563,7 @@ internal sealed class ConfiguracionPale : IEntityTypeConfiguration<Pale>
         b.Property(x => x.AlbaranId).HasColumnName("albaran_id");
         b.Property(x => x.LineaRecepcionId).HasColumnName("linea_recepcion_id");
         b.Property(x => x.SerieOrigen).HasColumnName("serie_origen").HasMaxLength(60);
+        b.Property(x => x.CajasPorPale).HasColumnName("cajas_por_pale");
         b.Property(x => x.CreadoEn).HasColumnName("creado_en").IsRequired();
         b.HasIndex(x => new { x.EmpresaId, x.Sscc }).IsUnique().HasDatabaseName("ux_pale_sscc");
         b.HasIndex(x => x.LineaRecepcionId).HasDatabaseName("ix_pale_linea_recepcion");
@@ -898,6 +955,7 @@ internal sealed class ConfiguracionParte : IEntityTypeConfiguration<ParteConfecc
         b.Property(x => x.MotivoMerma).HasColumnName("motivo_merma").HasMaxLength(300);
         b.Property(x => x.MermaAprobadaEn).HasColumnName("merma_aprobada_en");
         b.Property(x => x.MermaAprobadaPct).HasColumnName("merma_aprobada_pct").HasColumnType("numeric(7,2)");
+        b.Property(x => x.ToleranciaMermaPct).HasColumnName("tolerancia_merma_pct").HasColumnType("numeric(5,2)");
         b.Ignore(x => x.PorcentajeMerma);
         b.Ignore(x => x.MermaAprobada);
         b.HasIndex(x => x.MermaAprobadaPorId).HasDatabaseName("ix_parte_confeccion_aprobador");
@@ -1103,6 +1161,12 @@ internal sealed class RepositorioAgro : IRepositorioAgro
     public async Task<IReadOnlyList<RectificacionRecepcion>> RectificacionesAsync(IReadOnlyCollection<Guid> lineaRecepcionIds, CancellationToken ct = default) =>
         await _ctx.Set<RectificacionRecepcion>().Where(r => lineaRecepcionIds.Contains(r.LineaRecepcionId)).OrderBy(r => r.CreadaEn).ToListAsync(ct).ConfigureAwait(false);
 
+    public async Task<IReadOnlyList<CorreccionExpedicion>> CorreccionesExpedicionAsync(Guid paleId, CancellationToken ct = default) =>
+        await _ctx.Set<CorreccionExpedicion>().Where(x => x.PaleId == paleId).OrderBy(x => x.En).ToListAsync(ct).ConfigureAwait(false);
+
+    public async Task<IReadOnlyList<ToleranciaMermaFamilia>> ToleranciasMermaAsync(Guid empresaId, CancellationToken ct = default) =>
+        await _ctx.Set<ToleranciaMermaFamilia>().Where(t => t.EmpresaId == empresaId).ToListAsync(ct).ConfigureAwait(false);
+
     public async Task<IReadOnlyList<ReglaTransformacion>> ReglasTransformacionAsync(Guid empresaId, CancellationToken ct = default) =>
         await _ctx.Set<ReglaTransformacion>().Where(r => r.EmpresaId == empresaId).ToListAsync(ct).ConfigureAwait(false);
 
@@ -1259,9 +1323,22 @@ internal sealed class RepositorioAgro : IRepositorioAgro
         ids.Count == 0 ? [] : await _ctx.Set<Pale>().Where(x => ids.Contains(x.Id)).ToListAsync(ct).ConfigureAwait(false);
 
     /// <summary>Palés de la empresa, contando los dados de alta en esta unidad de trabajo y aún sin guardar (para numerar el SSCC).</summary>
+    /// <summary>SSCC ya dados: los palés y las etiquetas de campo aún sin palé (las usadas ya cuentan como palé).</summary>
     public async Task<int> PalesCreadosAsync(Guid empresaId, CancellationToken ct = default) =>
         await _ctx.Set<Pale>().CountAsync(x => x.EmpresaId == empresaId, ct).ConfigureAwait(false)
-        + _ctx.ChangeTracker.Entries<Pale>().Count(e => e.State == EntityState.Added && e.Entity.EmpresaId == empresaId);
+        + _ctx.ChangeTracker.Entries<Pale>().Count(e => e.State == EntityState.Added && e.Entity.EmpresaId == empresaId)
+        + await _ctx.Set<EtiquetaCampo>().CountAsync(x => x.EmpresaId == empresaId && x.PaleId == null, ct).ConfigureAwait(false)
+        + _ctx.ChangeTracker.Entries<EtiquetaCampo>().Count(e => e.State == EntityState.Added && e.Entity.EmpresaId == empresaId);
+
+    public async Task<IReadOnlyList<EtiquetaCampo>> EtiquetasCampoAsync(Guid empresaId, Guid? agricultorId, bool soloLibres, CancellationToken ct = default) =>
+        await _ctx.Set<EtiquetaCampo>().Where(x => x.EmpresaId == empresaId && (agricultorId == null || x.AgricultorId == agricultorId) && (!soloLibres || x.PaleId == null))
+            .OrderByDescending(x => x.EmitidaEn).ThenBy(x => x.Sscc).Take(2000).ToListAsync(ct).ConfigureAwait(false);
+
+    public Task<EtiquetaCampo?> EtiquetaCampoAsync(Guid empresaId, string sscc, CancellationToken ct = default) =>
+        _ctx.Set<EtiquetaCampo>().SingleOrDefaultAsync(x => x.EmpresaId == empresaId && x.Sscc == sscc, ct);
+
+    public async Task<IReadOnlyList<EtiquetaCampo>> EtiquetasCampoPorIdAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default) =>
+        await _ctx.Set<EtiquetaCampo>().Where(x => ids.Contains(x.Id)).OrderBy(x => x.Sscc).ToListAsync(ct).ConfigureAwait(false);
 
     public async Task<IReadOnlyList<Pale>> PalesDeCartaPorteAsync(Guid cartaPorteId, CancellationToken ct = default) =>
         await _ctx.Set<Pale>().Where(x => x.CartaPorteId == cartaPorteId).ToListAsync(ct).ConfigureAwait(false);

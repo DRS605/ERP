@@ -128,4 +128,41 @@ public sealed class RecepcionCompletaTests
         r.NetoDe(l.Id).Should().Be(11_100m, "el neto es el de la báscula");
         l.KilosLiquidacion.Should().Be(19_760m);
     }
+
+    [Fact]
+    public void La_pesada_del_camion_reparte_neto_y_tara_por_los_envases_de_fruta_y_suma_el_bruto()
+    {
+        var (r, pimiento) = Borrador();
+        var melon = r.AgregarLinea(new DatosLineaRecepcion(Guid.NewGuid(), "Melón", EnvaseProductoId: Box)).Valor;
+        var madera = Guid.NewGuid();
+        var p = r.AgregarPesadaCamion(10_001m, 3_000m,
+        [
+            (pimiento.Id, [new EnvaseContado(Box, 2, 1m, null), new EnvaseContado(madera, 1, 20m, null)]),
+            (melon.Id, [new EnvaseContado(Box, 1, 1m, null)]),
+        ], "T-1").Valor;
+
+        // Neto 10.001 − 3.000 − 23 = 6.978 kg, 2/3 y 1/3; los palés de madera no cuentan para el reparto.
+        p.Sum(x => x.BrutoKg).Should().Be(10_001m);
+        r.NetoDe(pimiento.Id).Should().Be(4_652m);
+        r.NetoDe(melon.Id).Should().Be(2_326m);
+        p.Should().OnlyContain(x => x.GrupoCamion == p[0].GrupoCamion && x.BrutoCamionKg == 10_001m);
+
+        r.QuitarPesada(p[1].Id).EsCorrecto.Should().BeTrue();
+        r.Pesadas.Should().BeEmpty("la pesada del camión se quita entera");
+        r.AgregarPesadaCamion(10_000m, 3_000m, [(pimiento.Id, [new EnvaseContado(Box, 2, 1m, null)]), (melon.Id, [])], null).Error.Codigo
+            .Should().Be("pesada_camion.envases");
+    }
+}
+
+public sealed class EtiquetaCampoTests
+{
+    [Theory]
+    [InlineData("384000000000000018", "384000000000000018")]
+    [InlineData("(00)384000000000000018", "384000000000000018")]
+    [InlineData("]C100384000000000000018", "384000000000000018")]
+    [InlineData("00384000000000000018(02)08400000000017", "384000000000000018")]
+    [InlineData("384000000000000019", null)]
+    [InlineData("FV-0001", null)]
+    public void Reconoce_el_SSCC_leido_con_la_pistola(string lectura, string? sscc) =>
+        EtiquetaCampo.SsccDeLectura(lectura).Should().Be(sscc);
 }

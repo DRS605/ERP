@@ -146,6 +146,94 @@ public sealed class ReglaTransformacion : RaizAgregadoEmpresa<Guid>
 }
 
 /// <summary>
+/// Registro de una corrección de expedición: su anulación (el palé vuelve) o el cambio del cliente o la referencia de un
+/// palé ya expedido. Guarda el antes y el después, el motivo y quién. Es de solo inserción.
+/// </summary>
+public sealed class CorreccionExpedicion : RaizAgregadoEmpresa<Guid>
+{
+    public const string Anulacion = "Anulacion";
+    public const string Datos = "Datos";
+
+    private CorreccionExpedicion(Guid id)
+        : base(id, Guid.Empty)
+    {
+        Tipo = null!;
+    }
+
+    private CorreccionExpedicion(Guid id, Guid empresaId)
+        : base(id, empresaId)
+    {
+        Tipo = null!;
+    }
+
+    public Guid PaleId { get; private set; }
+
+    public string Tipo { get; private set; }
+
+    public Guid? ClienteAnteriorId { get; private set; }
+
+    public Guid? ClienteNuevoId { get; private set; }
+
+    public string? ReferenciaAnterior { get; private set; }
+
+    public string? ReferenciaNueva { get; private set; }
+
+    public string? Motivo { get; private set; }
+
+    public Guid? UsuarioId { get; private set; }
+
+    public DateTimeOffset En { get; private set; }
+
+    public static CorreccionExpedicion Crear(Guid empresaId, Guid paleId, string tipo, Guid? clienteAnterior, Guid? clienteNuevo, string? referenciaAnterior,
+        string? referenciaNueva, string? motivo, Guid? usuarioId, DateTimeOffset en) => new(Guid.NewGuid(), empresaId)
+    {
+        PaleId = paleId, Tipo = tipo, ClienteAnteriorId = clienteAnterior, ClienteNuevoId = clienteNuevo, ReferenciaAnterior = referenciaAnterior,
+        ReferenciaNueva = referenciaNueva, Motivo = string.IsNullOrWhiteSpace(motivo) ? null : motivo.Trim().Length > 300 ? motivo.Trim()[..300] : motivo.Trim(),
+        UsuarioId = usuarioId, En = en,
+    };
+}
+
+/// <summary>
+/// Merma máxima de la confección para una familia de artículos (pimiento, sandía, melón…): cada familia merma distinto. Se
+/// aplica a lo consumido de sus artículos, salvo que una transformación permitida fije una más estricta; sin familia, la
+/// general de la configuración.
+/// </summary>
+public sealed class ToleranciaMermaFamilia : RaizAgregadoEmpresa<Guid>
+{
+    private ToleranciaMermaFamilia(Guid id)
+        : base(id, Guid.Empty)
+    {
+    }
+
+    private ToleranciaMermaFamilia(Guid id, Guid empresaId)
+        : base(id, empresaId)
+    {
+    }
+
+    public Guid FamiliaId { get; private set; }
+
+    public decimal MermaMaximaPct { get; private set; }
+
+    public static Resultado<ToleranciaMermaFamilia> Crear(Guid empresaId, Guid familiaId, decimal mermaMaxima)
+    {
+        var t = new ToleranciaMermaFamilia(Guid.NewGuid(), empresaId) { FamiliaId = familiaId };
+        var c = t.Cambiar(mermaMaxima);
+        return c.EsFallo ? Resultado.Fallo<ToleranciaMermaFamilia>(c.Error) : Resultado.Ok(t);
+    }
+
+    public Resultado Cambiar(decimal mermaMaxima)
+    {
+        if (mermaMaxima is < 0m or > 100m || decimal.Round(mermaMaxima, 2) != mermaMaxima)
+        {
+            return Resultado.Fallo(Error.Validacion("tolerancia.merma", "La merma máxima va de 0 a 100 % (hasta 2 decimales)."));
+        }
+
+        MermaMaximaPct = mermaMaxima;
+        return Resultado.Ok();
+    }
+}
+
+/// <summary>
 /// Repaletizado: pasar kilos (o palés enteros) de unos palés a otro, sin cambiar de producto ni de partida, en una sola
 /// operación registrada con sus aristas palé de origen → palé de destino. Es de solo inserción.
 /// </summary>

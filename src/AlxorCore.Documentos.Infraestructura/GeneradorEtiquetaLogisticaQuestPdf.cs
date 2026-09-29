@@ -21,10 +21,33 @@ internal sealed class GeneradorEtiquetaLogisticaQuestPdf : IGeneradorEtiquetaLog
     public byte[] Generar(EtiquetaLogistica etiqueta, EmpresaDto emisor)
     {
         ArgumentNullException.ThrowIfNull(etiqueta);
+        return GenerarVarias([etiqueta], emisor);
+    }
+
+    public byte[] GenerarVarias(IReadOnlyList<EtiquetaLogistica> etiquetas, EmpresaDto emisor)
+    {
+        ArgumentNullException.ThrowIfNull(etiquetas);
         ArgumentNullException.ThrowIfNull(emisor);
+        if (etiquetas.Count == 0)
+        {
+            throw new ArgumentException("Indica al menos una etiqueta.", nameof(etiquetas));
+        }
+
+        return Document.Create(c =>
+        {
+            foreach (var etiqueta in etiquetas)
+            {
+                Pagina(c, etiqueta, emisor);
+            }
+        }).GeneratePdf();
+    }
+
+    private static void Pagina(IDocumentContainer c, EtiquetaLogistica etiqueta, EmpresaDto emisor)
+    {
 
         var sscc = new List<(string, string)> { ("00", etiqueta.Sscc) };
-        var contenido = new List<(string, string)> { Gs1128.PesoNeto(etiqueta.KilosNetos) };
+        // Sin kilos (una etiqueta de campo, antes de pesar) no se codifica el peso.
+        var contenido = etiqueta.KilosNetos > 0m ? new List<(string, string)> { Gs1128.PesoNeto(etiqueta.KilosNetos) } : [];
         List<(string, string)>? articulo = null;
         if (etiqueta.Gtin is { Length: 14 } gtin)
         {
@@ -49,7 +72,7 @@ internal sealed class GeneradorEtiquetaLogisticaQuestPdf : IGeneradorEtiquetaLog
             contenido.Add(("10", etiqueta.Lote!));
         }
 
-        var documento = Document.Create(c => c.Page(pagina =>
+        c.Page(pagina =>
         {
             pagina.Size(PageSizes.A6);
             pagina.Margin(5, Unit.Millimetre);
@@ -66,7 +89,7 @@ internal sealed class GeneradorEtiquetaLogisticaQuestPdf : IGeneradorEtiquetaLog
                 col.Item().Row(f =>
                 {
                     f.RelativeItem().Column(x => Campo(x, "Cajas", etiqueta.Cajas > 0 ? etiqueta.Cajas.ToString(CultureInfo.InvariantCulture) : null));
-                    f.RelativeItem().Column(x => Campo(x, "Peso neto", Redondeo.Formatear(etiqueta.KilosNetos, 3) + " kg"));
+                    f.RelativeItem().Column(x => Campo(x, "Peso neto", etiqueta.KilosNetos > 0m ? Redondeo.Formatear(etiqueta.KilosNetos, 3) + " kg" : null));
                 });
                 col.Item().Row(f =>
                 {
@@ -84,6 +107,7 @@ internal sealed class GeneradorEtiquetaLogisticaQuestPdf : IGeneradorEtiquetaLog
                 }
 
                 Campo(col, "Tipo de palé", etiqueta.TipoPale);
+                Campo(col, "Origen", etiqueta.Origen);
                 Campo(col, "Destinatario", etiqueta.Destinatario);
                 col.Item().LineHorizontal(1);
                 if (articulo is not null)
@@ -91,11 +115,14 @@ internal sealed class GeneradorEtiquetaLogisticaQuestPdf : IGeneradorEtiquetaLog
                     Codigo(col, articulo);
                 }
 
-                Codigo(col, contenido);
+                if (contenido.Count > 0)
+                {
+                    Codigo(col, contenido);
+                }
+
                 Codigo(col, sscc);
             });
-        }));
-        return documento.GeneratePdf();
+        });
     }
 
     /// <summary>El IA 10 admite hasta 20 caracteres del juego GS1 (se omite en el código si el lote no cumple).</summary>

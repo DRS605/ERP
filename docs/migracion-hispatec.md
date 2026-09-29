@@ -121,6 +121,8 @@ Son las reglas que la base de datos de Hispatec no garantiza (ver los hallazgos 
 
 ## 6. Pendiente
 
+- **Histórico:** como mucho el **último año** antes del corte (decisión del cliente), solo para consulta, traza y
+  comparativas, sin rehacer documentos.
 - **Existencias:** partidas y palés abiertos a la fecha de corte (`ArticulosPartida`, `NumerosSeriePartida`),
   como partidas de entrada en el módulo agro, y stock del inventario general.
 - **Datos:** tarifas de precios (`TarifasVenta`, `PreciosVenta`) y campos definidos por el usuario.

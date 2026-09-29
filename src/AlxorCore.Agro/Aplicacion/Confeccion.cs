@@ -42,7 +42,7 @@ public sealed record ParteDto(
     string Estado, decimal KilosConsumidos, decimal KilosObtenidos, decimal Merma, decimal CosteFruta, decimal CosteMateriales, decimal CosteManoObra,
     decimal CosteMaquinaria, decimal CosteIndirectos, decimal CosteTotal, IReadOnlyList<ConsumoDto> Consumos, IReadOnlyList<ManoObraDto> ManoObra,
     IReadOnlyList<MaquinaDto> Maquinas, IReadOnlyList<MaterialDto> Materiales, IReadOnlyList<SalidaDto> Salidas, IReadOnlyList<ErrorDto> Errores,
-    decimal PorcentajeMerma = 0m, string? MermaAprobadaPor = null, string? MotivoMerma = null, decimal? MermaAprobadaPct = null);
+    decimal PorcentajeMerma = 0m, string? MermaAprobadaPor = null, string? MotivoMerma = null, decimal? MermaAprobadaPct = null, decimal? ToleranciaMermaPct = null);
 
 public sealed record ParteResumenDto(Guid Id, string? Numero, DateOnly Fecha, string? Descripcion, string Estado, decimal KilosConsumidos, decimal KilosObtenidos, decimal CosteTotal);
 
@@ -52,7 +52,10 @@ public sealed record PaleDto(
 
 public sealed record ContenidoPaleDto(Guid PartidaId, string? Partida, Guid ProductoId, decimal Kilos, int Cajas = 0);
 
-public sealed record DatosPale(string? Tipo = null, Guid? PlantillaId = null);
+/// <summary>Palé nuevo; <paramref name="CajasPorPale"/>, si este palé lleva otras cajas que las de su plantilla.</summary>
+public sealed record DatosPale(string? Tipo = null, Guid? PlantillaId = null, int? CajasPorPale = null);
+
+public sealed record DatosCajasPorPale(int? CajasPorPale);
 
 public sealed record DatosMoverKilos(Guid PartidaId, decimal Kilos, Guid? DesdePaleId = null, DateOnly? Fecha = null);
 
@@ -67,7 +70,8 @@ public sealed record LecturaCaja(string Codigo, int Cajas = 1);
 /// <see cref="Cajas"/> cajas (el último palé queda abierto si no se completa). Sin ninguno de los dos, monta todos los
 /// palés completos que dan los kilos sueltos de la partida.
 /// </summary>
-public sealed record DatosMontaje(Guid PlantillaId, Guid PartidaId, int? NumeroPales = null, int? Cajas = null, DateOnly? Fecha = null);
+/// <summary>Montaje con plantilla; <paramref name="CajasPorPale"/> cambia las cajas de cada palé de este montaje.</summary>
+public sealed record DatosMontaje(Guid PlantillaId, Guid PartidaId, int? NumeroPales = null, int? Cajas = null, DateOnly? Fecha = null, int? CajasPorPale = null);
 
 /// <summary>
 /// Expedición de palés cerrados. Con <see cref="CartaPorte"/> se emite además la carta de porte (una línea por producto,
@@ -75,7 +79,16 @@ public sealed record DatosMontaje(Guid PlantillaId, Guid PartidaId, int? NumeroP
 /// </summary>
 public sealed record DatosExpedicion(IReadOnlyList<Guid> PaleIds, Guid? ClienteId = null, DateOnly? Fecha = null, string? Referencia = null,
     bool CartaPorte = false, string? Transportista = null, string? Matricula = null, string? LugarOrigen = null, string? LugarDestino = null, string? Observaciones = null,
-    Guid? PedidoVentaId = null, Guid? TransportistaId = null, Guid? VehiculoId = null, decimal? TemperaturaConsigna = null, string? Termografo = null);
+    Guid? PedidoVentaId = null, Guid? TransportistaId = null, Guid? VehiculoId = null, decimal? TemperaturaConsigna = null, string? Termografo = null,
+    IReadOnlyList<DatosSalidaSuelta>? Sueltas = null);
+
+public sealed record DatosCorreccionExpedicion(Guid? ClienteId, string? Referencia, string? Motivo);
+
+public sealed record CorreccionExpedicionDto(Guid Id, Guid PaleId, string Tipo, Guid? ClienteAnteriorId, Guid? ClienteNuevoId, string? ReferenciaAnterior, string? ReferenciaNueva,
+    string? Motivo, Guid? UsuarioId, DateTimeOffset En);
+
+/// <summary>Cajas sueltas que se venden sacándolas de un palé: salen juntas en su propio bulto con SSCC (tipo «Cajas sueltas»).</summary>
+public sealed record DatosSalidaSuelta(Guid OrigenPaleId, Guid PartidaId, int Cajas);
 
 /// <summary>Lo que se imprime en la etiqueta del palé.</summary>
 public sealed record EtiquetaPaleDto(string Sscc, string? Producto, string? Marca, string? TipoPale, int Cajas, decimal Kilos, string? Lote, DateOnly Fecha, string? Destinatario);
@@ -334,8 +347,8 @@ public sealed class ConfeccionAgro
     /// Balance de masas y reglas de transformación:
     /// <list type="bullet">
     /// <item>si un producto consumido tiene reglas, cada salida tiene que ser uno de sus destinos permitidos;</item>
-    /// <item>la merma (lo consumido que no sale) no pasa de la tolerancia: la de la regla más estricta que se aplica o, si no
-    /// hay, la general de la configuración. Por encima, hace falta aprobarla con motivo.</item>
+    /// <item>la merma (lo consumido que no sale) no pasa de la tolerancia: la de la regla más estricta que se aplica, la de la
+    /// familia de lo consumido o, si no hay, la general de la configuración. Por encima, hace falta aprobarla con motivo.</item>
     /// </list>
     /// </summary>
     private async Task<IReadOnlyList<Error>> BalanceAsync(ParteConfeccion parte, IEnumerable<Partida> consumidas, CancellationToken ct)
@@ -361,8 +374,24 @@ public sealed class ConfeccionAgro
             }
         }
 
+        // Tolerancia: la de la transformación más estricta que se aplica; si no, la más estricta de las familias de lo
+        // consumido; si no, la general.
         var config = await _repo.ConfiguracionAsync(parte.EmpresaId, ct).ConfigureAwait(false);
-        var tolerancia = aplicadas.Where(r => r.MermaMaximaPct is not null).Select(r => r.MermaMaximaPct).Min() ?? config?.ToleranciaMermaPct;
+        var porFamilia = (await _repo.ToleranciasMermaAsync(parte.EmpresaId, ct).ConfigureAwait(false)).ToDictionary(t => t.FamiliaId, t => t.MermaMaximaPct);
+        decimal? deFamilia = null;
+        if (porFamilia.Count > 0)
+        {
+            foreach (var origen in origenes)
+            {
+                if ((await _productos.ObtenerAsync(origen, ct).ConfigureAwait(false))?.FamiliaId is { } familia && porFamilia.TryGetValue(familia, out var t))
+                {
+                    deFamilia = deFamilia is { } d ? Math.Min(d, t) : t;
+                }
+            }
+        }
+
+        var tolerancia = aplicadas.Where(r => r.MermaMaximaPct is not null).Select(r => r.MermaMaximaPct).Min() ?? deFamilia ?? config?.ToleranciaMermaPct;
+        parte.FijarToleranciaMerma(tolerancia);
         if (tolerancia is { } maximo && parte.PorcentajeMerma > maximo && !parte.MermaAprobada)
         {
             errores.Add(Error.Conflicto("parte.merma_excesiva",
@@ -492,7 +521,7 @@ public sealed class ConfeccionAgro
             p.Materiales.Select(m => new MaterialDto(m.ProductoId, m.Nombre, m.Cantidad, m.CosteUnitario, m.Coste)).ToList(),
             p.Salidas.OrderBy(s => s.NumeroLinea).Select(s => new SalidaDto(s.NumeroLinea, s.ProductoId, s.Nombre, s.Kilos, s.Factor, s.Calibre, s.CategoriaId, s.PaleId,
                 s.PartidaId, s.Coste, s.CosteKg, s.Cajas, s.EnvaseProductoId, s.SegundosTeoricos, s.CosteConfeccion, s.MotivoDescalificacion)).ToList(),
-            errores.Select(e => new ErrorDto(e.Codigo, e.Mensaje)).ToList(), p.PorcentajeMerma, p.MermaAprobadaPor, p.MotivoMerma, p.MermaAprobadaPct);
+            errores.Select(e => new ErrorDto(e.Codigo, e.Mensaje)).ToList(), p.PorcentajeMerma, p.MermaAprobadaPor, p.MotivoMerma, p.MermaAprobadaPct, p.ToleranciaMermaPct);
     }
 
     private static Resultado<T> NoEncontrado<T>() => Resultado.Fallo<T>(Error.NoEncontrado("parte.no_encontrado", "El parte no existe."));
@@ -566,6 +595,11 @@ public sealed class PalesAgro
         if (pales.EsFallo)
         {
             return Resultado.Fallo<PaleDto>(pales.Error);
+        }
+
+        if (datos.CajasPorPale is not null && pales.Valor[0].FijarCajasPorPale(datos.CajasPorPale) is { EsFallo: true } cajasMal)
+        {
+            return Resultado.Fallo<PaleDto>(cajasMal.Error);
         }
 
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
@@ -782,6 +816,32 @@ public sealed class PalesAgro
         return c;
     }
 
+    /// <summary>Cambia las cajas que lleva un palé abierto (cada palé puede llevar las suyas); con las que ya lleva, se cierra.</summary>
+    public async Task<Resultado<PaleDto>> CambiarCajasPorPaleAsync(Guid paleId, DatosCajasPorPale datos, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(datos);
+        var pale = await _repo.PaleAsync(paleId, ct).ConfigureAwait(false);
+        if (pale is null)
+        {
+            return NoEncontrado<PaleDto>();
+        }
+
+        var llevadas = (await _repo.ContenidoPaleAsync(pale.Id, ct).ConfigureAwait(false)).Sum(c => c.Cajas);
+        if (datos.CajasPorPale is { } nuevas && nuevas < llevadas)
+        {
+            return Resultado.Fallo<PaleDto>(Error.Conflicto("pale.cajas_por_pale", $"El palé ya lleva {llevadas} cajas: no puede llevar menos."));
+        }
+
+        var r = pale.FijarCajasPorPale(datos.CajasPorPale);
+        if (r.EsFallo)
+        {
+            return Resultado.Fallo<PaleDto>(r.Error);
+        }
+
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(await DtoAsync(pale, ct).ConfigureAwait(false));
+    }
+
     public async Task<Resultado<PaleDto>> CajasAsync(Guid paleId, DatosCajas datos, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(datos);
@@ -809,10 +869,11 @@ public sealed class PalesAgro
 
         var contenido = await _repo.ContenidoPaleAsync(pale.Id, ct).ConfigureAwait(false);
         var llevadas = contenido.Sum(c => c.Cajas);
-        if (datos.Cajas > 0 && llevadas + datos.Cajas > plantilla.CajasPorPale)
+        var tope = pale.CajasPorPale ?? plantilla.CajasPorPale;
+        if (datos.Cajas > 0 && llevadas + datos.Cajas > tope)
         {
             return Resultado.Fallo<PaleDto>(Error.Conflicto("pale.completo",
-                $"El palé lleva {llevadas} de {plantilla.CajasPorPale} cajas: caben {plantilla.CajasPorPale - llevadas} más."));
+                $"El palé lleva {llevadas} de {tope} cajas: caben {tope - llevadas} más (cambia las cajas del palé si este lleva más)."));
         }
 
         if (datos.Cajas < 0 && -datos.Cajas > contenido.Where(c => c.PartidaId == datos.PartidaId).Sum(c => c.Cajas))
@@ -829,7 +890,7 @@ public sealed class PalesAgro
             return Resultado.Fallo<PaleDto>(r.Error);
         }
 
-        if (llevadas + datos.Cajas == plantilla.CajasPorPale)
+        if (llevadas + datos.Cajas == tope)
         {
             pale.Cerrar();
             await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
@@ -864,13 +925,20 @@ public sealed class PalesAgro
             return Resultado.Fallo<IReadOnlyList<PaleDto>>(Error.Validacion("montaje.cantidad", "Indica el número de palés o las cajas (una de las dos, positiva)."));
         }
 
+        if (datos.CajasPorPale is < 1 or > PlantillaPale.MaximoCajas)
+        {
+            return Resultado.Fallo<IReadOnlyList<PaleDto>>(Error.Validacion("pale.cajas_por_pale", $"Un palé lleva de 1 a {PlantillaPale.MaximoCajas} cajas."));
+        }
+
+        var porPale = datos.CajasPorPale ?? plantilla.CajasPorPale;
+        var kilosPorPale = porPale * plantilla.KilosPorCaja;
         var sueltos = (await _repo.SaldosAsync([partida.Id], ct).ConfigureAwait(false)).Where(x => x.PaleId is null).Sum(x => x.Kilos);
-        var cajas = datos.Cajas ?? (datos.NumeroPales * plantilla.CajasPorPale)
-            ?? (int)Math.Floor(sueltos / plantilla.KilosPorPale) * plantilla.CajasPorPale;
+        var cajas = datos.Cajas ?? (datos.NumeroPales * porPale)
+            ?? (int)Math.Floor(sueltos / kilosPorPale) * porPale;
         if (cajas == 0)
         {
             return Resultado.Fallo<IReadOnlyList<PaleDto>>(Error.Conflicto("montaje.sin_kilos",
-                $"La partida {partida.Codigo} tiene {Redondeo.Formatear(sueltos, 3)} kg sueltos: no llega a un palé completo ({Redondeo.Formatear(plantilla.KilosPorPale, 3)} kg)."));
+                $"La partida {partida.Codigo} tiene {Redondeo.Formatear(sueltos, 3)} kg sueltos: no llega a un palé completo ({Redondeo.Formatear(kilosPorPale, 3)} kg)."));
         }
 
         var kilos = cajas * plantilla.KilosPorCaja;
@@ -880,7 +948,7 @@ public sealed class PalesAgro
                 $"{cajas} cajas son {Redondeo.Formatear(kilos, 3)} kg y la partida {partida.Codigo} solo tiene {Redondeo.Formatear(sueltos, 3)} kg sueltos."));
         }
 
-        var numero = (cajas + plantilla.CajasPorPale - 1) / plantilla.CajasPorPale;
+        var numero = (cajas + porPale - 1) / porPale;
         if (numero > MaximoPalesMontaje)
         {
             return Resultado.Fallo<IReadOnlyList<PaleDto>>(Error.Validacion("montaje.maximo", $"Se montan como mucho {MaximoPalesMontaje} palés de una vez."));
@@ -896,7 +964,12 @@ public sealed class PalesAgro
         var restantes = cajas;
         foreach (var pale in pales.Valor)
         {
-            var enEste = Math.Min(restantes, plantilla.CajasPorPale);
+            if (datos.CajasPorPale is not null)
+            {
+                pale.FijarCajasPorPale(porPale);
+            }
+
+            var enEste = Math.Min(restantes, porPale);
             restantes -= enEste;
             var kg = enEste * plantilla.KilosPorCaja;
             _repo.Agregar(MovimientoPartida.Crear(empresaId, partida.Id, dia, TipoMovimientoPartida.Paletizado, -kg, null, "Pale", pale.Id, null, _reloj, -enEste).Valor);
@@ -906,7 +979,7 @@ public sealed class PalesAgro
         // La base de datos comprueba al confirmar que se paletiza en palés abiertos: primero se montan y después se
         // cierran los completos (si el cierre fallase, quedan montados y abiertos, listos para cerrar).
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
-        var completos = pales.Valor.Take(cajas / plantilla.CajasPorPale).ToList();
+        var completos = pales.Valor.Take(cajas / porPale).ToList();
         foreach (var pale in completos)
         {
             pale.Cerrar();
@@ -1011,13 +1084,20 @@ public sealed class PalesAgro
         return Resultado.Ok(await DtoAsync(pale, ct).ConfigureAwait(false));
     }
 
-    /// <summary>Expide palés cerrados a un cliente: da salida a todo su contenido y quedan como expedidos.</summary>
+    /// <summary>Tipo del bulto con SSCC en que salen las cajas sueltas vendidas.</summary>
+    public const string TipoCajasSueltas = "Cajas sueltas";
+
+    /// <summary>
+    /// Expide palés cerrados (o palots) a un cliente: da salida a todo su contenido y quedan como expedidos. También vende
+    /// cajas sueltas de un palé: se sacan a su propio bulto con SSCC, que sale con el resto.
+    /// </summary>
     public async Task<Resultado<IReadOnlyList<PaleDto>>> ExpedirAsync(Guid empresaId, DatosExpedicion datos, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(datos);
-        if (datos.PaleIds is null || datos.PaleIds.Count == 0)
+        var paleIds = (datos.PaleIds ?? []).Distinct().ToList();
+        if (paleIds.Count == 0 && (datos.Sueltas is null || datos.Sueltas.Count == 0))
         {
-            return Resultado.Fallo<IReadOnlyList<PaleDto>>(Error.Validacion("expedicion.sin_pales", "Indica los palés que salen."));
+            return Resultado.Fallo<IReadOnlyList<PaleDto>>(Error.Validacion("expedicion.sin_pales", "Indica los palés (o las cajas sueltas) que salen."));
         }
 
         // Con pedido de venta, el cliente es el del pedido.
@@ -1049,10 +1129,44 @@ public sealed class PalesAgro
 
         var fecha = datos.Fecha ?? Hoy;
         var cargado = new List<(Guid PaleId, SaldoPartida Contenido)>();
-        var pales = await _repo.PalesAsync(datos.PaleIds.Distinct().ToList(), ct).ConfigureAwait(false);
-        if (pales.Count != datos.PaleIds.Distinct().Count())
+        var pales = (await _repo.PalesAsync(paleIds, ct).ConfigureAwait(false)).ToList();
+        if (pales.Count != paleIds.Count)
         {
             return Resultado.Fallo<IReadOnlyList<PaleDto>>(Error.NoEncontrado("pale.no_encontrado", "Algún palé no existe."));
+        }
+
+        // Cajas sueltas: se sacan de sus palés a un bulto propio (repaletizado registrado, sin cambiar de partida), que sale
+        // con los palés. Así llevan SSCC, albarán y traza como cualquier palé.
+        var contenidoConocido = new Dictionary<Guid, List<SaldoPartida>>();
+        Pale? bultoSuelto = null;
+        Guid? envaseSueltas = null;
+        if (datos.Sueltas is { Count: > 0 } sueltas)
+        {
+            if (sueltas.Any(x => paleIds.Contains(x.OrigenPaleId)))
+            {
+                return Resultado.Fallo<IReadOnlyList<PaleDto>>(Error.Validacion("expedicion.sueltas_de_pale_expedido", "No se sacan cajas sueltas de un palé que sale entero."));
+            }
+
+            var preparado = await TransformacionesAgro.PrepararAsync(_repo, _unidad, _reloj, empresaId,
+                new DatosRepaletizado(sueltas.Select(x => new DatosLineaRepaletizado(x.OrigenPaleId, x.PartidaId, null, x.Cajas)).ToList(), null, TipoCajasSueltas, fecha,
+                    $"Venta de cajas sueltas {datos.Referencia}".Trim(), CerrarDestino: true), null, ct).ConfigureAwait(false);
+            if (preparado.EsFallo)
+            {
+                return Resultado.Fallo<IReadOnlyList<PaleDto>>(preparado.Error);
+            }
+
+            bultoSuelto = preparado.Valor.Destino;
+            contenidoConocido[bultoSuelto.Id] = preparado.Valor.Repaletizado.Lineas.GroupBy(l => l.PartidaId)
+                .Select(g => new SaldoPartida(g.Key, bultoSuelto.Id, g.Sum(l => l.Kilos), g.Sum(l => l.Cajas))).ToList();
+            pales.Add(bultoSuelto);
+            foreach (var origenId in sueltas.Select(x => x.OrigenPaleId).Distinct())
+            {
+                if ((await _repo.PaleAsync(origenId, ct).ConfigureAwait(false))?.PlantillaId is { } pid
+                    && (await _repo.PlantillaPaleAsync(pid, ct).ConfigureAwait(false))?.EnvaseProductoId is { } envase)
+                {
+                    envaseSueltas ??= envase;
+                }
+            }
         }
 
         // Un palé reservado solo sale con su pedido; con él, la reserva queda consumida.
@@ -1073,7 +1187,9 @@ public sealed class PalesAgro
         foreach (var pale in pales)
         {
             // Nada sale antes de haber entrado, y cada partida sale con las certificaciones que exige su artículo.
-            var contenido = (await _repo.ContenidoPaleAsync(pale.Id, ct).ConfigureAwait(false)).Where(c => c.Kilos > 0m).ToList();
+            var contenido = contenidoConocido.TryGetValue(pale.Id, out var conocido)
+                ? conocido
+                : (await _repo.ContenidoPaleAsync(pale.Id, ct).ConfigureAwait(false)).Where(c => c.Kilos > 0m).ToList();
             if (contenido.Count == 0)
             {
                 return Resultado.Fallo<IReadOnlyList<PaleDto>>(Error.Conflicto("expedicion.pale_vacio", $"{pale.Sscc} está vacío: no lleva kilos que expedir."));
@@ -1120,8 +1236,9 @@ public sealed class PalesAgro
             var costeKg = cargado.GroupBy(c => partidasCargadas.GetValueOrDefault(c.Contenido.PartidaId)?.ProductoId ?? Guid.Empty)
                 .Where(g => g.All(c => partidasCargadas.GetValueOrDefault(c.Contenido.PartidaId)?.CosteKg is not null) && g.Sum(c => c.Contenido.Kilos) > 0m)
                 .ToDictionary(g => g.Key, g => decimal.Round(g.Sum(c => c.Contenido.Kilos * partidasCargadas[c.Contenido.PartidaId].CosteKg!.Value) / g.Sum(c => c.Contenido.Kilos), 6));
+            // El bulto de cajas sueltas no cuenta como palé.
             var palesPorProducto = cargado.GroupBy(c => partidasCargadas.GetValueOrDefault(c.Contenido.PartidaId)?.ProductoId ?? Guid.Empty)
-                .ToDictionary(g => g.Key, g => g.Select(c => c.PaleId).Distinct().Count());
+                .ToDictionary(g => g.Key, g => g.Select(c => c.PaleId).Where(id => id != bultoSuelto?.Id).Distinct().Count());
             var albaran = await _documentos!.EmitirAlbaranAsync(empresaId, new AlbaranExpedicion(pedido, fecha, datos.Referencia, lineas, costeKg, palesPorProducto), ct)
                 .ConfigureAwait(false);
             if (albaran.EsFallo)
@@ -1161,6 +1278,17 @@ public sealed class PalesAgro
                 var entregas = new List<(Guid, Guid?, int, Guid?)>();
                 foreach (var pale in pales)
                 {
+                    if (pale == bultoSuelto)
+                    {
+                        // Las cajas sueltas se entregan en su envase (el de la plantilla de su palé de origen), sin palé.
+                        if (envaseSueltas is not null)
+                        {
+                            entregas.Add((pale.Id, envaseSueltas, cargado.Where(c => c.PaleId == pale.Id).Sum(c => Math.Max(c.Contenido.Cajas, 0)), null));
+                        }
+
+                        continue;
+                    }
+
                     var plantilla = pale.PlantillaId is { } pid ? await _repo.PlantillaPaleAsync(pid, ct).ConfigureAwait(false) : null;
                     if (plantilla is { EnvaseProductoId: not null } or { PaleProductoId: not null })
                     {
@@ -1195,13 +1323,59 @@ public sealed class PalesAgro
         return Resultado.Ok<IReadOnlyList<PaleDto>>(lista);
     }
 
+    /// <summary>
+    /// Corrige el cliente o la referencia de un palé expedido sin albarán ni carta de porte (con documentos, se anula y se
+    /// vuelve a expedir). Queda registrado el antes y el después, con el motivo y quién.
+    /// </summary>
+    public async Task<Resultado<PaleDto>> CorregirExpedicionAsync(Guid empresaId, Guid paleId, DatosCorreccionExpedicion d, Guid? usuarioId, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(d);
+        if (string.IsNullOrWhiteSpace(d.Motivo))
+        {
+            return Resultado.Fallo<PaleDto>(Error.Validacion("correccion.motivo", "Indica el motivo de la corrección."));
+        }
+
+        var pale = await _repo.PaleAsync(paleId, ct).ConfigureAwait(false);
+        if (pale is null)
+        {
+            return Resultado.Fallo<PaleDto>(Error.NoEncontrado("pale.no_encontrado", "El palé no existe."));
+        }
+
+        if (d.ClienteId is { } clienteId && await _clientes.ObtenerAsync(clienteId, ct).ConfigureAwait(false) is null)
+        {
+            return Resultado.Fallo<PaleDto>(Error.NoEncontrado("cliente.no_encontrado", "El cliente no existe."));
+        }
+
+        var (clienteAntes, referenciaAntes) = (pale.ClienteId, pale.ReferenciaExpedicion);
+        var r = pale.CorregirExpedicion(d.ClienteId, d.Referencia);
+        if (r.EsFallo)
+        {
+            return Resultado.Fallo<PaleDto>(r.Error);
+        }
+
+        _repo.Agregar(CorreccionExpedicion.Crear(empresaId, pale.Id, CorreccionExpedicion.Datos, clienteAntes, pale.ClienteId, referenciaAntes, pale.ReferenciaExpedicion,
+            d.Motivo, usuarioId, _reloj.AhoraUtc));
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(await DtoAsync(pale, ct).ConfigureAwait(false));
+    }
+
+    public async Task<IReadOnlyList<CorreccionExpedicionDto>> CorreccionesExpedicionAsync(Guid paleId, CancellationToken ct = default) =>
+        (await _repo.CorreccionesExpedicionAsync(paleId, ct).ConfigureAwait(false)).Select(x => new CorreccionExpedicionDto(x.Id, x.PaleId, x.Tipo, x.ClienteAnteriorId,
+            x.ClienteNuevoId, x.ReferenciaAnterior, x.ReferenciaNueva, x.Motivo, x.UsuarioId, x.En)).ToList();
+
     /// <summary>Anula la expedición de un palé: devuelve sus kilos a las partidas (dentro del palé) y lo deja cerrado.</summary>
-    public async Task<Resultado<PaleDto>> AnularExpedicionAsync(Guid empresaId, Guid paleId, CancellationToken ct = default)
+    public async Task<Resultado<PaleDto>> AnularExpedicionAsync(Guid empresaId, Guid paleId, string? motivo = null, Guid? usuarioId = null, CancellationToken ct = default)
     {
         var pale = await _repo.PaleAsync(paleId, ct).ConfigureAwait(false);
         if (pale is null)
         {
             return Resultado.Fallo<PaleDto>(Error.NoEncontrado("pale.no_encontrado", "El palé no existe."));
+        }
+
+        if (pale.Estado == EstadoPale.Expedido)
+        {
+            _repo.Agregar(CorreccionExpedicion.Crear(empresaId, pale.Id, CorreccionExpedicion.Anulacion, pale.ClienteId, null, pale.ReferenciaExpedicion, null, motivo, usuarioId,
+                _reloj.AhoraUtc));
         }
 
         var salida = (await _repo.MovimientosDePaleAsync(paleId, ct).ConfigureAwait(false))
@@ -1384,7 +1558,7 @@ public sealed class PalesAgro
                 Math.Max(c.Cajas, 0)))
             .ToList();
         return new PaleDto(p.Id, p.Sscc, p.Tipo, p.Estado.ToString(), p.ClienteId, p.FechaExpedicion, p.ReferenciaExpedicion, lineas.Sum(l => l.Kilos), lineas,
-            p.PlantillaId, lineas.Sum(l => l.Cajas), plantilla?.CajasPorPale, p.CartaPorteId, p.AlbaranId);
+            p.PlantillaId, lineas.Sum(l => l.Cajas), p.CajasPorPale ?? plantilla?.CajasPorPale, p.CartaPorteId, p.AlbaranId);
     }
 
     private static Resultado<T> NoEncontrado<T>() => Resultado.Fallo<T>(Error.NoEncontrado("pale.no_encontrado", "El palé no existe."));

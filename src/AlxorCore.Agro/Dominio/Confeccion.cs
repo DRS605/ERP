@@ -135,6 +135,17 @@ public sealed class ParteConfeccion : RaizAgregadoEmpresa<Guid>
 
     public bool MermaAprobada => MermaAprobadaPct is { } a && PorcentajeMerma <= a;
 
+    /// <summary>Tolerancia de merma aplicada al valorar el parte (la de su transformación, su familia o la general).</summary>
+    public decimal? ToleranciaMermaPct { get; private set; }
+
+    public void FijarToleranciaMerma(decimal? tolerancia)
+    {
+        if (Estado == EstadoParte.Borrador)
+        {
+            ToleranciaMermaPct = tolerancia;
+        }
+    }
+
     /// <summary>Aprueba la merma actual del borrador (por encima de la tolerancia), con motivo.</summary>
     public Resultado AprobarMerma(Guid? usuarioId, string? usuario, string? motivo, DateTimeOffset ahora)
     {

@@ -87,6 +87,7 @@ public sealed class OperacionesRegistrosTests : IClassFixture<FabricaApiPruebas>
         ["/productos/composiciones/buscar"] = "consulta (compuestos con la misma lista de materiales)",
         ["/productos/composiciones/recalcular-precios"] = "recalcula precios (se corrigen en la ficha de cada artículo)",
         ["/agro/repaletizados"] = "operación de palés: se deshace con otro repaletizado en sentido contrario",
+        ["/agro/etiquetas-campo"] = "números SSCC emitidos: como los de los palés, no se reutilizan; la que no se usa se queda libre",
         ["/logistica/paletizar"] = "monta palés de una vez: cada uno se corrige con /logistica/unidades/{id}/contenido o se desmonta con /logistica/unidades/{id}/anular",
         ["/logistica/paletizar-fabricacion"] = "monta palés de una vez: cada uno se corrige con /logistica/unidades/{id}/contenido o se desmonta con /logistica/unidades/{id}/anular",
         ["/agro/pales/montar"] = "monta palés de una vez: cada uno se corrige con /agro/pales/{id}/cajas (reabriéndolo si está cerrado)",

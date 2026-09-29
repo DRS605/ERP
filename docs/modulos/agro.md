@@ -457,6 +457,39 @@ etiqueta (del proveedor o de la finca), el envase, los **envases reales** y, si 
   - los palés de la línea lleven exactamente su neto, cada uno con su palé y su entrada;
   - en un palé de entrada solo entren los kilos de su propia línea.
 
+## Etiquetas de campo
+
+Si en la finca hay impresora, los palés o palots pueden salir del campo ya etiquetados.
+
+- **Emisión** (`POST /agro/etiquetas-campo` con agricultor, parcela opcional y cantidad; *Recepciones → Etiquetas de
+  campo*). Da SSCC del mismo contador que los palés, así que nunca coinciden con otro. El PDF para imprimir, una
+  etiqueta A6 por página, está en `GET /agro/etiquetas-campo/pdf?ids=`.
+- **En la báscula** se lee la etiqueta en *+ Palés*. Vale el SSCC de 18 dígitos, con `(00)` o el código GS1-128
+  completo.
+  - Al confirmar, el palé de entrada se queda con ese SSCC, y la traza empieza en la parcela.
+  - Los palés que llegan sin etiqueta reciben un SSCC nuevo y se etiquetan en la báscula.
+- **Reglas:**
+  - Una etiqueta solo se usa una vez (`etiqueta_campo.usada`).
+  - Tiene que ser del agricultor de la recepción y, si se emitió para una parcela, de esa parcela
+    (`etiqueta_campo.otro_origen`).
+- **Base de datos:**
+  - El SSCC, el agricultor y la parcela de una etiqueta no cambian.
+  - Una etiqueta usada no se borra.
+  - Ningún otro palé puede llevar el SSCC de una etiqueta.
+
+## Pesada del camión entero
+
+Cuando un camión trae varios productos o parcelas y se pesa entero
+(`POST /agro/recepciones/{id}/pesada-camion`; botón *Pesada del camión* en el borrador):
+
+- Se indica un bruto, la tara del camión y los envases contados de cada línea, incluidos los palés de madera con su
+  tara.
+- El neto (bruto − camión − envases) y la tara del camión se reparten entre las líneas **en proporción a sus envases
+  de fruta**. Los palés de madera no cuentan para el reparto.
+- Cada línea queda con su pesada. Todas llevan el mismo grupo y sus brutos suman el bruto de la báscula; la base de
+  datos lo exige (`pesada_camion.no_cuadra`).
+- Si se quita una pesada del grupo, se quitan todas.
+
 ## Kilos de liquidación
 
 Una línea puede liquidarse por **kilos de liquidación** distintos del neto pesado, por ejemplo una cantidad teórica
@@ -490,12 +523,17 @@ Una recepción confirmada **no se borra ni se rehace**. Si ya se ha confeccionad
 
 ## Balance de masas en la confección
 
-- **Tolerancia de merma.** En la configuración se fija la merma máxima sin aprobación, en % de lo consumido
-  (`toleranciaMermaPct`; vacía, sin límite).
+- **Tolerancia de merma.** Se toma la primera que exista:
+  1. la de la transformación permitida más estricta que se aplica;
+  2. la de la **familia** de lo consumido (`PUT /agro/tolerancias-merma/{familiaId}`; pimiento, sandía y melón merman
+     distinto), la más estricta si hay varias;
+  3. la general de la configuración (`toleranciaMermaPct`). Si está vacía, no hay límite.
+
+  El parte guarda la tolerancia aplicada. La base de datos comprueba que no sea mayor que todas las configuradas.
   - Un parte que la supera no se valida (`parte.merma_excesiva`) hasta que alguien **aprueba la merma** con motivo
     (`POST /agro/partes/{id}/aprobar-merma`). Queda registrado quién, cuándo, por qué y qué porcentaje aprobó.
   - Si el parte cambia y la merma sube por encima de lo aprobado, hay que volver a aprobarla.
-  - Por ahora puede aprobar cualquier usuario con `agro.gestionar`. El permiso propio llegará con los roles.
+  - Aprobar requiere el permiso `agro.corregir` (ver [Correcciones](#correcciones-y-permiso-agrocorregir)).
 - **Transformaciones permitidas** (`/agro/transformaciones`). Indican qué producto puede salir de cuál, con una merma
   máxima opcional.
   - Si un producto consumido tiene transformaciones, solo puede salir de él lo que dicen
@@ -516,6 +554,38 @@ nuevo), **sin cambiar de partida**.
   tenga su documento.
 - La lista de repaletizados, por palé, se consulta en `GET /agro/repaletizados?paleId=`.
 
+## Venta de palés, palots y cajas sueltas
+
+- **Palés y palots** se expiden enteros. Un palot es un palé de tipo «Palot».
+- **Cajas por palé.** Cada palé puede llevar un número de cajas distinto del de su plantilla:
+  - al crearlo (`cajasPorPale`);
+  - en un montaje (`cajasPorPale` en `/agro/pales/montar`);
+  - con el palé abierto (`PUT /agro/pales/{id}/cajas-por-pale`).
+
+  Se cierra solo al llegar a sus cajas, y se puede cerrar antes a mano.
+- **Cajas sueltas** (`sueltas` en `POST /agro/expediciones`, con palé de origen, partida y cajas):
+  - Las cajas se sacan del palé a un bulto propio con SSCC, de tipo «Cajas sueltas», con sus kilos en proporción a
+    las cajas. Se registra como repaletizado y la partida no cambia.
+  - El bulto sale con el resto de la expedición: albarán, carta de porte y traza como cualquier palé.
+  - Las cajas se entregan en su envase (el de la plantilla del palé de origen), sin palé.
+  - El bulto no cuenta como palé en los conceptos por palé.
+
+## Correcciones y permiso `agro.corregir`
+
+Corregir lo ya hecho requiere el permiso `agro.corregir`. Hoy solo lo tiene el rol Propietario; con los roles de la
+fase 4 se podrá dar a quien corresponda, por ejemplo al jefe de almacén. Cubre:
+
+- rectificar una entrada;
+- anular la salida de un palé (con motivo);
+- corregir el cliente o la referencia de un palé expedido sin albarán ni carta de porte
+  (`POST /agro/pales/{id}/corregir-expedicion`, con motivo). Con documentos, se anula la salida y se vuelve a expedir;
+- aprobar una merma;
+- descalificar una partida.
+
+Cada corrección de expedición queda en `GET /agro/pales/{id}/correcciones` con el antes, el después, el motivo y el
+usuario. Es de solo inserción, y la base de datos no deja cambiar el cliente de un palé expedido sin su corrección
+registrada.
+
 ## Certificaciones (ecológico, GlobalG.A.P., GRASP)
 
 La certificación viaja con la partida desde la finca hasta el cliente.
@@ -530,6 +600,8 @@ La certificación viaja con la partida desde la finca hasta el cliente.
   - Un artículo declarado con `Ninguna` es **convencional**.
   - Un artículo sin declaración no se comprueba. Conviene declarar todos los ecológicos y sus equivalentes
     convencionales.
+- **Por parcela.** La línea de un artículo que exige certificación tiene que indicar su parcela
+  (`recepcion.parcela_certificada`).
 - **Recepción.** La partida lleva las certificaciones vigentes el día de la recepción para el agricultor o esa parcela.
   Al confirmar:
   - si el artículo exige algo que la fruta no tiene, se rechaza (`certificacion.falta`);

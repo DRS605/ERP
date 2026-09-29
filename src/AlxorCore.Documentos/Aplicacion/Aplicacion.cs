@@ -29,12 +29,15 @@ public interface IGeneradorPdfCartaPorte
 /// <summary>Datos de la etiqueta logística GS1 de un palé (SSCC).</summary>
 /// <remarks>Con <see cref="Gtin"/> (unidad de un solo artículo), el contenido va en dos códigos: (02) GTIN, (17) caducidad y (37) cajas; y (310n) peso neto y (10) lote.</remarks>
 public sealed record EtiquetaLogistica(string Sscc, string? Producto, string? Marca, string? TipoPale, int Cajas, decimal KilosNetos, string? Lote,
-    DateOnly Fecha, string? Destinatario, string? Gtin = null, DateOnly? FechaCaducidad = null, decimal? KilosBrutos = null);
+    DateOnly Fecha, string? Destinatario, string? Gtin = null, DateOnly? FechaCaducidad = null, decimal? KilosBrutos = null, string? Origen = null);
 
 /// <summary>Puerto de generación de la etiqueta logística (PDF, formato A6) de un palé.</summary>
 public interface IGeneradorEtiquetaLogistica
 {
     byte[] Generar(EtiquetaLogistica etiqueta, EmpresaDto emisor);
+
+    /// <summary>Varias etiquetas, una por página (para imprimir de una vez, por ejemplo las etiquetas de campo).</summary>
+    byte[] GenerarVarias(IReadOnlyList<EtiquetaLogistica> etiquetas, EmpresaDto emisor);
 }
 
 /// <summary>Mensaje de correo con un adjunto.</summary>
