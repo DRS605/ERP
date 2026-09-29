@@ -505,6 +505,27 @@ public static class EndpointsAgro
         g.MapPost("/muestreos/{id:guid}/anular", async (Guid id, PeticionMotivo m, CalidadAgro q, CancellationToken ct) =>
                 (await q.AnularMuestreoAsync(id, m.Motivo, ct).ConfigureAwait(false)).AOk())
             .WithSummary("Anula un muestreo con motivo (el definitivo, si la entrega no está liquidada).").RequiereAlgunPermiso(Permisos.AgroCorregir, Permisos.AgroCalidad);
+        g.MapGet("/planes", (Guid? campanaId, TipoPlan? tipo, IContextoEmpresa c, PlanificacionAgro q, CancellationToken ct) =>
+                ConEmpresa(c, async e => Results.Ok(await q.ListarAsync(e, campanaId, tipo, ct).ConfigureAwait(false))))
+            .WithSummary("Planes de la campaña (comercial, de producción y de entradas), con sus versiones.").RequierePermiso(Permisos.AgroLeer);
+        g.MapGet("/planes/{id:guid}", async (Guid id, PlanificacionAgro q, CancellationToken ct) => Encontrado(await q.ObtenerAsync(id, ct).ConfigureAwait(false), "plan"))
+            .WithSummary("Un plan con sus líneas.").RequierePermiso(Permisos.AgroLeer);
+        g.MapPost("/planes", (DatosPlan d, IContextoEmpresa c, PlanificacionAgro q, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await q.CrearAsync(e, d, ct).ConfigureAwait(false)).ACreado("/agro/planes")))
+            .WithSummary("Crea un plan en borrador (comercial, de producción o de entradas).").RequiereAlgunPermiso(Permisos.AgroGestionar, Permisos.AgroPlanificar);
+        g.MapPut("/planes/{id:guid}", async (Guid id, DatosCambioPlan d, PlanificacionAgro q, CancellationToken ct) => (await q.CambiarAsync(id, d, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Cambia el nombre y las líneas de un plan en borrador.").RequiereAlgunPermiso(Permisos.AgroGestionar, Permisos.AgroPlanificar);
+        g.MapPost("/planes/{id:guid}/aprobar", async (Guid id, PlanificacionAgro q, CancellationToken ct) => (await q.AprobarAsync(id, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Aprueba el plan (el aprobado anterior del mismo tipo y campaña queda cerrado).").RequiereAlgunPermiso(Permisos.AgroGestionar, Permisos.AgroPlanificar);
+        g.MapPost("/planes/{id:guid}/nueva-version", async (Guid id, PlanificacionAgro q, CancellationToken ct) => (await q.NuevaVersionAsync(id, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Copia el plan como versión nueva en borrador, para replanificar.").RequiereAlgunPermiso(Permisos.AgroGestionar, Permisos.AgroPlanificar);
+        g.MapDelete("/planes/{id:guid}", async (Guid id, PlanificacionAgro q, CancellationToken ct) => (await q.EliminarAsync(id, ct).ConfigureAwait(false)).ASinContenido())
+            .WithSummary("Borra un plan en borrador.").RequiereAlgunPermiso(Permisos.AgroGestionar, Permisos.AgroPlanificar);
+        g.MapGet("/planes/{id:guid}/seguimiento", async (Guid id, PlanificacionAgro q, CancellationToken ct) => (await q.SeguimientoAsync(id, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Plan frente a realidad: cada línea con lo real que le toca, desviación y cumplimiento, y lo real fuera de plan.").RequierePermiso(Permisos.AgroLeer);
+        g.MapGet("/planificacion/cuadro", (Guid campanaId, Guid? comercialId, Guid? produccionId, Guid? entradasId, IContextoEmpresa c, PlanificacionAgro q, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await q.CuadroAsync(e, campanaId, comercialId, produccionId, entradasId, ct).ConfigureAwait(false)).AOk()))
+            .WithSummary("Cuadro semanal por producto: entradas, producción y ventas, previstas y reales, y lo disponible.").RequierePermiso(Permisos.AgroLeer);
         g.MapGet("/tolerancias-merma", (IContextoEmpresa c, TransformacionesAgro t, CancellationToken ct) =>
                 ConEmpresa(c, async e => Results.Ok(await t.ToleranciasAsync(e, ct).ConfigureAwait(false))))
             .WithSummary("Merma máxima de la confección por familia de artículos.").RequierePermiso(Permisos.AgroLeer);
@@ -627,6 +648,18 @@ public static class EndpointsAgro
                 (await o.AnularAsync(id, p?.Motivo, ct).ConfigureAwait(false)).AOk())
             .WithSummary("Anula una orden sin nada expedido.").RequiereAlgunPermiso(Permisos.AgroGestionar, Permisos.AgroExpedir);
 
+        g.MapGet("/trazabilidad/composicion", (string? sscc, Guid? albaranId, Guid? clienteId, DateOnly? desde, DateOnly? hasta, Guid? partidaId, IContextoEmpresa c,
+                TrazaCompraVentaAgro t, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await t.ComposicionAsync(e, sscc, albaranId, clienteId, desde, hasta, partidaId, ct).ConfigureAwait(false)).AOk()))
+            .WithSummary("Hacia atrás con kilos: de qué compras (agricultor, parcela, recepción) salieron un palé, un albarán, lo vendido a un cliente o una partida.")
+            .RequierePermiso(Permisos.AgroLeer);
+        g.MapGet("/trazabilidad/balance", (Guid? partidaId, Guid? recepcionId, IContextoEmpresa c, TrazaCompraVentaAgro t, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await t.BalanceAsync(e, partidaId, recepcionId, ct).ConfigureAwait(false)).AOk()))
+            .WithSummary("Hacia delante con kilos: a qué clientes se vendió cada compra, cuánto queda, cuánto se mermó y si el balance cierra.")
+            .RequierePermiso(Permisos.AgroLeer);
+        g.MapGet("/trazabilidad/descuadres", (Guid campanaId, IContextoEmpresa c, TrazaCompraVentaAgro t, CancellationToken ct) =>
+                ConEmpresa(c, async e => Results.Ok(await t.DescuadresAsync(e, campanaId, ct).ConfigureAwait(false))))
+            .WithSummary("Compras de la campaña cuyo balance de masas no cierra (para revisar datos migrados).").RequierePermiso(Permisos.AgroLeer);
         g.MapGet("/trazabilidad/atras", (Guid? partidaId, string? sscc, IContextoEmpresa c, TrazabilidadAgro t, CancellationToken ct) =>
                 ConEmpresa(c, async e => (await t.HaciaAtrasAsync(e, partidaId, sscc, ct).ConfigureAwait(false)).AOk()))
             .WithSummary("De un palé (SSCC) o una partida hasta el agricultor, la parcela y la recepción.").RequierePermiso(Permisos.AgroLeer);

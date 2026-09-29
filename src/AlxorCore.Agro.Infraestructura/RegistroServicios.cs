@@ -44,6 +44,8 @@ public static class RegistroServicios
         servicios.AddScoped<TarasAgro>();
         servicios.AddScoped<TransformacionesAgro>();
         servicios.AddScoped<CalidadAgro>();
+        servicios.AddScoped<TrazaCompraVentaAgro>();
+        servicios.AddScoped<PlanificacionAgro>();
         servicios.AddScoped<PalesAgro>();
         servicios.AddScoped<IRepositorioOrdenesCarga, RepositorioOrdenesCarga>();
         servicios.AddScoped<OrdenesCargaAgro>();

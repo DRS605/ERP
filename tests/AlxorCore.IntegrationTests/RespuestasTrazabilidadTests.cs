@@ -370,4 +370,158 @@ public sealed class RespuestasTrazabilidadTests : IClassFixture<FabricaApiPrueba
         (await RechazoAsync(e.Empresa, $"UPDATE agro.muestreo_calidad SET descuento_pct = 0 WHERE id = '{definitivo.Id}'")).Hint.Should().Be("muestreo.inmutable");
         (await RechazoAsync(e.Empresa, $"UPDATE agro.resultado_muestreo SET kilos = 0 WHERE muestreo_id = '{definitivo.Id}'")).Hint.Should().Be("muestreo.inmutable");
     }
+
+    private sealed record SalidaTrazaResp(Guid? PartidaId, decimal Kilos);
+    private sealed record ParteTrazaResp(Guid Id, List<SalidaTrazaResp> Salidas);
+    private sealed record CompraKilosResp(Guid PartidaId, string? Agricultor, decimal Kilos, decimal Porcentaje);
+    private sealed record ComposicionResp(decimal Kilos, List<CompraKilosResp> Compras);
+    private sealed record VentaKilosResp(Guid PaleId, Guid? ClienteId, decimal Kilos);
+    private sealed record BalanceResp(Guid PartidaId, decimal Entrados, decimal Expedidos, decimal Existencias, decimal Merma, decimal Ajustes, decimal Descuadre, List<VentaKilosResp> Ventas);
+
+    private static async Task<Guid> CompraAsync(Escenario e, Guid agricultor, decimal neto)
+    {
+        var (rec, linea) = await BorradorAsync(e, agricultor, null, e.Pimiento);
+        (await e.Api.PostAsJsonAsync($"/agro/recepciones/{rec}/lineas/{linea}/pesadas", new { BrutoKg = neto + 1_000m, TaraKg = 1_000m, Envases = 10 })).EnsureSuccessStatusCode();
+        return (await OkAsync<RecepcionResp>(await ConfirmarAsync(e, rec))).Lineas.Single().PartidaId!.Value;
+    }
+
+    private static async Task<PaleResp> PaleExpedidoAsync(Escenario e, Guid partida, decimal kilos, Guid cliente)
+    {
+        var pale = await OkAsync<PaleResp>(await e.Api.PostAsJsonAsync("/agro/pales", new { }));
+        await OkAsync<PaleResp>(await e.Api.PostAsJsonAsync($"/agro/pales/{pale.Id}/paletizar", new { PartidaId = partida, Kilos = kilos, Fecha = Dia.AddDays(1) }));
+        (await e.Api.PostAsync(new Uri($"/agro/pales/{pale.Id}/cerrar", UriKind.Relative), null)).EnsureSuccessStatusCode();
+        await OkAsync<List<PaleResp>>(await e.Api.PostAsJsonAsync("/agro/expediciones", new { PaleIds = new[] { pale.Id }, ClienteId = cliente, Fecha = Dia.AddDays(2) }));
+        return pale;
+    }
+
+    [Fact]
+    public async Task La_traza_dice_en_kilos_de_que_compras_sale_cada_venta_y_a_donde_fue_cada_compra()
+    {
+        var e = await EscenarioAsync();
+        var otro = await AgricultorAsync(e.Api, "Finca El Llano");
+        var cliente = await IdAsync(e.Api, "/clientes", new { Nombre = "Frutas del Norte", NifFiscal = Ayudas.GenerarNif() });
+        var a = await CompraAsync(e, e.Agricultor, 1_000m);
+        var b = await CompraAsync(e, otro, 500m);
+
+        // Se confeccionan 600 kg de A y 400 de B en 900 kg (100 de merma), y 200 kg de A se venden sin confeccionar.
+        var parte = await OkAsync<ParteTrazaResp>(await e.Api.PostAsJsonAsync("/agro/partes", new
+        {
+            Fecha = Dia.AddDays(1), CampanaId = e.Campana, Consumos = new object[] { new { PartidaId = a, Kilos = 600m }, new { PartidaId = b, Kilos = 400m } },
+            Salidas = new object[] { new { ProductoId = e.Pimiento, Kilos = 900m } },
+        }));
+        var validado = await OkAsync<ParteTrazaResp>(await e.Api.PostAsync(new Uri($"/agro/partes/{parte.Id}/validar", UriKind.Relative), null));
+        var confeccionada = validado.Salidas.Single().PartidaId!.Value;
+        var p1 = await PaleExpedidoAsync(e, confeccionada, 900m, cliente);
+        var p2 = await PaleExpedidoAsync(e, a, 200m, cliente);
+
+        // Hacia atrás: el palé confeccionado lleva 540 kg de A y 360 de B; al cliente le llegaron 740 de A y 360 de B.
+        var palet = await OkAsync<ComposicionResp>(await e.Api.GetAsync(new Uri($"/agro/trazabilidad/composicion?sscc={p1.Sscc}", UriKind.Relative)));
+        palet.Kilos.Should().Be(900m);
+        palet.Compras.Should().BeEquivalentTo([new CompraKilosResp(a, "Finca La Vega", 540m, 60m), new CompraKilosResp(b, "Finca El Llano", 360m, 40m)]);
+        var alCliente = await OkAsync<ComposicionResp>(await e.Api.GetAsync(new Uri($"/agro/trazabilidad/composicion?clienteId={cliente}", UriKind.Relative)));
+        alCliente.Compras.Single(x => x.PartidaId == a).Kilos.Should().Be(740m);
+        alCliente.Compras.Single(x => x.PartidaId == b).Kilos.Should().Be(360m);
+
+        // Hacia delante: cada compra cierra su balance (entrados = expedidos + existencias + merma + ajustes).
+        var balanceA = (await OkAsync<List<BalanceResp>>(await e.Api.GetAsync(new Uri($"/agro/trazabilidad/balance?partidaId={a}", UriKind.Relative)))).Single();
+        balanceA.Should().Match<BalanceResp>(x => x.Entrados == 1_000m && x.Expedidos == 740m && x.Existencias == 200m && x.Merma == 60m && x.Ajustes == 0m && x.Descuadre == 0m);
+        balanceA.Ventas.Should().OnlyContain(v => v.ClienteId == cliente).And.Contain(v => v.PaleId == p2.Id && v.Kilos == 200m).And.Contain(v => v.PaleId == p1.Id && v.Kilos == 540m);
+        var balanceB = (await OkAsync<List<BalanceResp>>(await e.Api.GetAsync(new Uri($"/agro/trazabilidad/balance?partidaId={b}", UriKind.Relative)))).Single();
+        balanceB.Should().Match<BalanceResp>(x => x.Entrados == 500m && x.Expedidos == 360m && x.Existencias == 100m && x.Merma == 40m && x.Descuadre == 0m);
+
+        // Una expedición anulada vuelve a existencias y el balance sigue cerrando.
+        await OkAsync<PaleResp>(await e.Api.PostAsJsonAsync($"/agro/pales/{p2.Id}/anular-expedicion", new { Motivo = "Devuelto" }));
+        (await OkAsync<List<BalanceResp>>(await e.Api.GetAsync(new Uri($"/agro/trazabilidad/balance?partidaId={a}", UriKind.Relative)))).Single()
+            .Should().Match<BalanceResp>(x => x.Expedidos == 540m && x.Existencias == 400m && x.Descuadre == 0m);
+        (await e.Api.GetFromJsonAsync<List<object>>($"/agro/trazabilidad/descuadres?campanaId={e.Campana}"))!.Should().BeEmpty();
+    }
+
+    private sealed record PlanResp(Guid Id, string Tipo, int Version, string Estado, decimal Kilos);
+    private sealed record SeguimientoLineaResp(int Numero, Guid? ClienteId, decimal KilosPrevistos, decimal KilosReales, decimal Desviacion, decimal? Cumplimiento);
+    private sealed record FueraResp(Guid ProductoId, decimal Kilos);
+    private sealed record SeguimientoResp(decimal KilosPrevistos, decimal KilosReales, decimal KilosFueraDePlan, List<SeguimientoLineaResp> Lineas, List<FueraResp> FueraDePlan);
+    private sealed record SemanaResp(Guid ProductoId, decimal EntradasPrevistas, decimal EntradasReales, decimal ProduccionPrevista, decimal ProduccionReal, decimal VentasPrevistas,
+        decimal VentasReales, decimal DisponibleReal);
+    private sealed record CuadroResp(Guid? PlanComercialId, List<SemanaResp> Semanas);
+
+    [Fact]
+    public async Task Los_planes_comercial_de_produccion_y_de_entradas_se_siguen_contra_lo_real()
+    {
+        var e = await EscenarioAsync();
+        var cliente = await IdAsync(e.Api, "/clientes", new { Nombre = "Frutas del Norte", NifFiscal = Ayudas.GenerarNif() });
+        var semana = new { Desde = Dia, Hasta = Dia.AddDays(6) };
+
+        // Plan comercial: 1.000 kg a Frutas del Norte a 0,80 €/kg y 500 kg más a cualquier cliente, esa semana.
+        var comercial = await OkAsync<PlanResp>(await e.Api.PostAsJsonAsync("/agro/planes", new
+        {
+            Tipo = "Comercial", CampanaId = e.Campana, Nombre = "Ventas enero",
+            Lineas = new object[]
+            {
+                new { semana.Desde, semana.Hasta, ProductoId = e.Pimiento, Kilos = 1_000m, ClienteId = cliente, PrecioKg = 0.80m },
+                new { semana.Desde, semana.Hasta, ProductoId = e.Pimiento, Kilos = 500m },
+            },
+        }));
+        comercial.Should().Match<PlanResp>(p => p.Version == 1 && p.Estado == "Borrador" && p.Kilos == 1_500m);
+        (await ProblemaAsync(await e.Api.PostAsJsonAsync("/agro/planes", new
+        {
+            Tipo = "Comercial", CampanaId = e.Campana, Nombre = "Mal", Lineas = new object[] { new { semana.Desde, semana.Hasta, ProductoId = e.Pimiento, Kilos = 1m, AgricultorId = e.Agricultor } },
+        }))).Codigo.Should().Be("plan.dimension");
+        await OkAsync<PlanResp>(await e.Api.PostAsync(new Uri($"/agro/planes/{comercial.Id}/aprobar", UriKind.Relative), null));
+
+        // Entradas y producción previstas.
+        var entradas = await OkAsync<PlanResp>(await e.Api.PostAsJsonAsync("/agro/planes", new
+        {
+            Tipo = "Entradas", CampanaId = e.Campana, Nombre = "Aforo enero",
+            Lineas = new object[] { new { semana.Desde, semana.Hasta, ProductoId = e.Pimiento, Kilos = 12_000m, AgricultorId = e.Agricultor, ParcelaId = e.Parcela } },
+        }));
+        await OkAsync<PlanResp>(await e.Api.PostAsync(new Uri($"/agro/planes/{entradas.Id}/aprobar", UriKind.Relative), null));
+        var produccion = await OkAsync<PlanResp>(await e.Api.PostAsJsonAsync("/agro/planes", new
+        {
+            Tipo = "Produccion", CampanaId = e.Campana, Nombre = "Línea 1",
+            Lineas = new object[] { new { Desde = Dia.AddDays(1), Hasta = Dia.AddDays(1), ProductoId = e.Pimiento, Kilos = 800m, LineaConfeccion = "L1" } },
+        }));
+        await OkAsync<PlanResp>(await e.Api.PostAsync(new Uri($"/agro/planes/{produccion.Id}/aprobar", UriKind.Relative), null));
+
+        // Lo real: 10.000 kg recibidos, 900 confeccionados, 900 vendidos a Frutas del Norte y 300 sin cliente.
+        var partida = await PartidaConKilosAsync(e);
+        var parte = await OkAsync<ParteTrazaResp>(await e.Api.PostAsJsonAsync("/agro/partes", new
+        {
+            Fecha = Dia.AddDays(1), CampanaId = e.Campana, Consumos = new object[] { new { PartidaId = partida, Kilos = 1_000m } },
+            Salidas = new object[] { new { ProductoId = e.Pimiento, Kilos = 900m } },
+        }));
+        var confeccionada = (await OkAsync<ParteTrazaResp>(await e.Api.PostAsync(new Uri($"/agro/partes/{parte.Id}/validar", UriKind.Relative), null))).Salidas.Single().PartidaId!.Value;
+        await PaleExpedidoAsync(e, confeccionada, 900m, cliente);
+        var suelto = await OkAsync<PaleResp>(await e.Api.PostAsJsonAsync("/agro/pales", new { }));
+        await OkAsync<PaleResp>(await e.Api.PostAsJsonAsync($"/agro/pales/{suelto.Id}/paletizar", new { PartidaId = partida, Kilos = 300m, Fecha = Dia.AddDays(1) }));
+        (await e.Api.PostAsync(new Uri($"/agro/pales/{suelto.Id}/cerrar", UriKind.Relative), null)).EnsureSuccessStatusCode();
+        await OkAsync<List<PaleResp>>(await e.Api.PostAsJsonAsync("/agro/expediciones", new { PaleIds = new[] { suelto.Id }, Fecha = Dia.AddDays(3) }));
+
+        // Cada venta va a la línea más concreta: la del cliente se lleva los 900 y la general los 300.
+        var seg = await OkAsync<SeguimientoResp>(await e.Api.GetAsync(new Uri($"/agro/planes/{comercial.Id}/seguimiento", UriKind.Relative)));
+        seg.Lineas.Single(l => l.ClienteId == cliente).Should().Match<SeguimientoLineaResp>(l => l.KilosReales == 900m && l.Desviacion == -100m && l.Cumplimiento == 90m);
+        seg.Lineas.Single(l => l.ClienteId == null).KilosReales.Should().Be(300m);
+        seg.Should().Match<SeguimientoResp>(x => x.KilosPrevistos == 1_500m && x.KilosReales == 1_200m && x.KilosFueraDePlan == 0m);
+        (await OkAsync<SeguimientoResp>(await e.Api.GetAsync(new Uri($"/agro/planes/{produccion.Id}/seguimiento", UriKind.Relative)))).KilosReales.Should().Be(900m);
+        (await OkAsync<SeguimientoResp>(await e.Api.GetAsync(new Uri($"/agro/planes/{entradas.Id}/seguimiento", UriKind.Relative)))).KilosReales.Should().Be(10_000m);
+
+        // El cuadro semanal suma lo mismo, y lo disponible real es lo recibido menos lo vendido.
+        var cuadro = await OkAsync<CuadroResp>(await e.Api.GetAsync(new Uri($"/agro/planificacion/cuadro?campanaId={e.Campana}", UriKind.Relative)));
+        cuadro.PlanComercialId.Should().Be(comercial.Id);
+        var pim = cuadro.Semanas.Where(x => x.ProductoId == e.Pimiento).ToList();
+        pim.Sum(x => x.VentasPrevistas).Should().BeApproximately(1_500m, 0.01m);
+        pim.Sum(x => x.VentasReales).Should().Be(1_200m);
+        pim.Sum(x => x.EntradasPrevistas).Should().BeApproximately(12_000m, 0.01m);
+        pim.Sum(x => x.EntradasReales).Should().Be(10_000m);
+        pim.Sum(x => x.ProduccionReal).Should().Be(900m);
+        pim[^1].DisponibleReal.Should().Be(8_800m);
+
+        // Replanificar: una versión nueva en borrador; al aprobarla, la anterior queda cerrada. Lo aprobado no se toca.
+        (await ProblemaAsync(await e.Api.PutAsJsonAsync($"/agro/planes/{comercial.Id}", new { Nombre = "Otro", Lineas = Array.Empty<object>() }))).Codigo.Should().Be("plan.no_borrador");
+        var v2 = await OkAsync<PlanResp>(await e.Api.PostAsync(new Uri($"/agro/planes/{comercial.Id}/nueva-version", UriKind.Relative), null));
+        v2.Version.Should().Be(2);
+        await OkAsync<PlanResp>(await e.Api.PostAsync(new Uri($"/agro/planes/{v2.Id}/aprobar", UriKind.Relative), null));
+        (await e.Api.GetFromJsonAsync<List<PlanResp>>($"/agro/planes?campanaId={e.Campana}&tipo=Comercial"))!.Single(p => p.Id == comercial.Id).Estado.Should().Be("Cerrado");
+        (await RechazoAsync(e.Empresa, $"UPDATE agro.linea_plan SET kilos = 1 WHERE plan_id = '{v2.Id}'")).Hint.Should().Be("plan.no_borrador");
+        (await RechazoAsync(e.Empresa, $"DELETE FROM agro.plan WHERE id = '{v2.Id}'")).Hint.Should().Be("plan.no_borrador");
+    }
 }

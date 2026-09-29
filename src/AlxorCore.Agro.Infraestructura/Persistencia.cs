@@ -24,6 +24,7 @@ public sealed class AgroDbContext : DbContextEmpresaBase, IUnidadDeTrabajoAgro
     private const string SqlBorradoEmpresa = """
         DELETE FROM agro.rectificacion_recepcion WHERE empresa_id = {0};
         DELETE FROM agro.etiqueta_campo WHERE empresa_id = {0};
+        DELETE FROM agro.plan WHERE empresa_id = {0};
         DELETE FROM agro.muestreo_calidad WHERE empresa_id = {0};
         DELETE FROM agro.plantilla_calidad WHERE empresa_id = {0};
         DELETE FROM agro.correccion_expedicion WHERE empresa_id = {0};
@@ -361,6 +362,51 @@ internal sealed class ConfiguracionRecepcion : IEntityTypeConfiguration<Recepcio
         b.Navigation(x => x.Pesadas).UsePropertyAccessMode(PropertyAccessMode.Field);
         b.Navigation(x => x.EnvasesPesadas).UsePropertyAccessMode(PropertyAccessMode.Field);
         b.Navigation(x => x.PalesEntrada).UsePropertyAccessMode(PropertyAccessMode.Field);
+    }
+}
+
+internal sealed class ConfiguracionPlan : IEntityTypeConfiguration<Plan>
+{
+    public void Configure(EntityTypeBuilder<Plan> b)
+    {
+        Columnas.Base(b, "plan");
+        Columnas.Enum(b.Property(x => x.Tipo), "tipo");
+        b.Property(x => x.CampanaId).HasColumnName("campana_id").IsRequired();
+        b.Property(x => x.Nombre).HasColumnName("nombre").HasMaxLength(120).IsRequired();
+        b.Property(x => x.Version).HasColumnName("version").IsRequired();
+        Columnas.Enum(b.Property(x => x.Estado), "estado");
+        b.Property(x => x.CreadoEn).HasColumnName("creado_en").IsRequired();
+        b.Property(x => x.AprobadoEn).HasColumnName("aprobado_en");
+        b.Ignore(x => x.Kilos);
+        b.HasIndex(x => new { x.EmpresaId, x.Tipo, x.CampanaId, x.Version }).IsUnique().HasDatabaseName("ux_plan_version");
+        b.HasIndex(x => new { x.EmpresaId, x.Tipo, x.CampanaId }).HasDatabaseName("ix_plan_tipo_campana");
+        b.HasIndex(x => x.CampanaId).HasDatabaseName("ix_plan_campana");
+        b.OwnsMany(x => x.Lineas, l =>
+        {
+            l.ToTable("linea_plan");
+            l.WithOwner().HasForeignKey("plan_id");
+            l.HasKey(x => x.Id);
+            l.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+            l.Property<Guid>("plan_id").HasColumnName("plan_id");
+            l.Property(x => x.Numero).HasColumnName("numero").IsRequired();
+            l.Property(x => x.Desde).HasColumnName("desde").IsRequired();
+            l.Property(x => x.Hasta).HasColumnName("hasta").IsRequired();
+            l.Property(x => x.ProductoId).HasColumnName("producto_id").IsRequired();
+            l.Property(x => x.Kilos).HasColumnName("kilos").HasColumnType(Columnas.Kilos).IsRequired();
+            l.Property(x => x.ClienteId).HasColumnName("cliente_id");
+            l.Property(x => x.AgricultorId).HasColumnName("agricultor_id");
+            l.Property(x => x.ParcelaId).HasColumnName("parcela_id");
+            l.Property(x => x.LineaConfeccion).HasColumnName("linea_confeccion").HasMaxLength(40);
+            l.Property(x => x.Cajas).HasColumnName("cajas");
+            l.Property(x => x.PrecioKg).HasColumnName("precio_kg").HasColumnType(Columnas.PrecioKg);
+            l.Property(x => x.Notas).HasColumnName("notas").HasMaxLength(200);
+            l.HasIndex("plan_id").HasDatabaseName("ix_linea_plan_plan");
+            l.HasIndex(x => x.ProductoId).HasDatabaseName("ix_linea_plan_producto");
+            l.HasIndex(x => x.ClienteId).HasDatabaseName("ix_linea_plan_cliente");
+            l.HasIndex(x => x.AgricultorId).HasDatabaseName("ix_linea_plan_agricultor");
+            l.HasIndex(x => x.ParcelaId).HasDatabaseName("ix_linea_plan_parcela");
+        });
+        b.Navigation(x => x.Lineas).UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }
 
@@ -1346,6 +1392,18 @@ internal sealed class RepositorioAgro : IRepositorioAgro
     }
 
     public Task<Partida?> PartidaAsync(Guid id, CancellationToken ct = default) => _ctx.Set<Partida>().SingleOrDefaultAsync(x => x.Id == id, ct);
+
+    public async Task<IReadOnlyList<Plan>> PlanesAsync(Guid empresaId, CancellationToken ct = default) =>
+        await _ctx.Set<Plan>().Where(p => p.EmpresaId == empresaId).ToListAsync(ct).ConfigureAwait(false);
+
+    public Task<Plan?> PlanAsync(Guid id, CancellationToken ct = default) => _ctx.Set<Plan>().SingleOrDefaultAsync(p => p.Id == id, ct);
+
+    public async Task<IReadOnlyList<MovimientoPartida>> MovimientosPorTipoAsync(Guid empresaId, IReadOnlyCollection<TipoMovimientoPartida> tipos, DateOnly desde, DateOnly hasta,
+        CancellationToken ct = default) =>
+        await _ctx.Set<MovimientoPartida>().Where(m => m.EmpresaId == empresaId && tipos.Contains(m.Tipo) && m.Fecha >= desde && m.Fecha <= hasta).ToListAsync(ct).ConfigureAwait(false);
+
+    public async Task<IReadOnlyList<Partida>> PartidasDeCampanaAsync(Guid empresaId, Guid campanaId, CancellationToken ct = default) =>
+        await _ctx.Set<Partida>().Where(p => p.EmpresaId == empresaId && p.CampanaId == campanaId).ToListAsync(ct).ConfigureAwait(false);
 
     public async Task<IReadOnlyList<Partida>> PartidasAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default) =>
         ids.Count == 0 ? [] : await _ctx.Set<Partida>().Where(x => ids.Contains(x.Id)).ToListAsync(ct).ConfigureAwait(false);

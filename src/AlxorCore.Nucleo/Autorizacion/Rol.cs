@@ -31,7 +31,7 @@ public sealed class Rol
             Permisos.PersonalLeer, Permisos.PersonalGestionar,
             Permisos.ProyectoLeer, Permisos.ProyectoGestionar,
             Permisos.AgroLeer, Permisos.AgroGestionar, Permisos.AgroLiquidar,
-            Permisos.AgroRecepcionar, Permisos.AgroConfeccionar, Permisos.AgroExpedir, Permisos.AgroCalidad, Permisos.AgroCampo,
+            Permisos.AgroRecepcionar, Permisos.AgroConfeccionar, Permisos.AgroExpedir, Permisos.AgroCalidad, Permisos.AgroCampo, Permisos.AgroPlanificar,
             Permisos.CobroRegistrar, Permisos.PagoRegistrar,
             Permisos.ClienteGestionar, Permisos.ProductoGestionar,
             Permisos.InformeLeer, Permisos.DatosExportar,

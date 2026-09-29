@@ -63,6 +63,7 @@ public static class Permisos
     public const string AgroExpedir = "agro.expedir";
     public const string AgroCalidad = "agro.calidad";
     public const string AgroCampo = "agro.campo";
+    public const string AgroPlanificar = "agro.planificar";
 
     // Terceros y catálogo
     public const string ClienteGestionar = "cliente.gestionar";
@@ -102,7 +103,7 @@ public static class Permisos
         ProduccionLeer, ProduccionGestionar,
         PersonalLeer, PersonalGestionar,
         ProyectoLeer, ProyectoGestionar,
-        AgroLeer, AgroGestionar, AgroLiquidar, AgroCorregir, AgroRecepcionar, AgroConfeccionar, AgroExpedir, AgroCalidad, AgroCampo,
+        AgroLeer, AgroGestionar, AgroLiquidar, AgroCorregir, AgroRecepcionar, AgroConfeccionar, AgroExpedir, AgroCalidad, AgroCampo, AgroPlanificar,
         ClienteGestionar, ProductoGestionar,
         InformeLeer, DatosExportar,
         AprobacionConfigurar, AprobacionAprobar,

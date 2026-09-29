@@ -109,6 +109,12 @@ public interface IRepositorioAgro
     Task<int> UltimoNumeroAsync(Guid empresaId, string serie, int ejercicio, CancellationToken ct = default);
     Task<Partida?> PartidaAsync(Guid id, CancellationToken ct = default);
     Task<IReadOnlyList<Partida>> PartidasAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default);
+    // Planificación
+    Task<IReadOnlyList<Plan>> PlanesAsync(Guid empresaId, CancellationToken ct = default);
+    Task<Plan?> PlanAsync(Guid id, CancellationToken ct = default);
+    Task<IReadOnlyList<MovimientoPartida>> MovimientosPorTipoAsync(Guid empresaId, IReadOnlyCollection<TipoMovimientoPartida> tipos, DateOnly desde, DateOnly hasta,
+        CancellationToken ct = default);
+    Task<IReadOnlyList<Partida>> PartidasDeCampanaAsync(Guid empresaId, Guid campanaId, CancellationToken ct = default);
     Task<IReadOnlyList<Partida>> PartidasDeRecepcionAsync(Guid recepcionId, CancellationToken ct = default);
     Task<IReadOnlyList<Partida>> PartidasConSaldoAsync(Guid empresaId, CancellationToken ct = default);
     Task<IReadOnlyList<SaldoPartida>> SaldosAsync(IReadOnlyCollection<Guid> partidaIds, CancellationToken ct = default);

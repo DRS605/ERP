@@ -361,6 +361,58 @@ entera, a cualquier profundidad.
 - **Hacia delante**, desde una recepción o una partida: las partidas confeccionadas y los **palés**,
   expedidos (cliente, fecha, albarán) o todavía en almacén.
 
+### Traza en kilos: compra ↔ venta
+
+La traza de arriba dice **qué** partidas hay detrás. Esta dice **cuántos kilos** de cada compra (partida de
+recepción) lleva cada venta, y a dónde fue cada kilo de cada compra. Se calcula en cada consulta sobre el libro de
+movimientos y la genealogía, así que siempre está al día.
+
+- **Cómo reparte.** Lo consumido de un origen se reparte entre las salidas del parte, así que una partida
+  confeccionada es la mezcla de sus orígenes en la proporción de lo que se consumió de cada uno. Su merma también se
+  reparte igual. Funciona a cualquier profundidad de confección.
+- **Hacia atrás** (`GET /agro/trazabilidad/composicion`): de qué compras salieron un palé (`sscc`), un albarán
+  (`albaranId`), lo vendido a un cliente en un periodo (`clienteId`, `desde`, `hasta`) o una partida
+  (`partidaId`). Da los kilos y el % por agricultor, parcela (con SIGPAC) y recepción. De un palé expedido cuenta lo
+  que salió en él.
+- **Hacia delante** (`GET /agro/trazabilidad/balance?partidaId=` o `?recepcionId=`): de cada compra, lo **vendido**
+  (cliente, fecha, albarán, palé), lo que queda **en existencias** (por palé), la **merma** de confección (por
+  parte) y los **ajustes**.
+  - Entrados = vendido + existencias + merma + ajustes. `descuadre` es la diferencia y tiene que ser 0.
+  - Una expedición anulada vuelve a existencias. Un parte anulado no cuenta.
+- **Descuadres** (`GET /agro/trazabilidad/descuadres?campanaId=`): compras cuyo balance no cierra y genealogías que no
+  reparten lo consumido. Con los datos de ALXOR sale vacío, porque la base de datos lo impide; sirve para revisar
+  datos migrados.
+- **Interfaz:** *Trazabilidad → Traza en kilos*.
+
+## Planificación y seguimiento de la realidad
+
+Tres tipos de plan por campaña (`/agro/planes`; *Agro → Planificación*), cada uno comparado con lo real:
+
+| Plan | Qué se planifica | Qué es lo real |
+|---|---|---|
+| **Comercial** | Kilos por periodo, producto y (opcional) cliente, con precio €/kg | Lo expedido (neto de expediciones anuladas) |
+| **Producción** | Kilos de confección por día o periodo, producto y línea | Las salidas de los partes validados |
+| **Entradas** (aforo de cosecha) | Kilos por periodo, producto, agricultor y parcela | Lo recibido en recepciones confirmadas |
+
+- **Versiones.** Un plan nace en borrador y se edita entero como una hoja (`PUT /agro/planes/{id}`). En la pantalla
+  se generan las líneas por semanas.
+  - Al aprobarlo (`/aprobar`) pasa a ser el que se sigue, y el aprobado anterior del mismo tipo y campaña queda
+    cerrado.
+  - Para replanificar se hace una versión nueva (`/nueva-version`). Lo aprobado no se toca.
+- **Seguimiento** (`GET /agro/planes/{id}/seguimiento`). Cada hecho real va a la línea **más concreta** que le toca:
+  la del cliente, agricultor o parcela antes que la general y, a igualdad, la de periodo más corto.
+  - Por línea: previsto, real, desviación, % de cumplimiento e importe previsto.
+  - Aparte, lo real que no encaja en ninguna línea (**fuera de plan**).
+- **Cuadro semanal** (`GET /agro/planificacion/cuadro?campanaId=`): por semana ISO y producto, las entradas, la
+  producción y las ventas, previstas y reales, y lo **disponible** acumulado (entradas − ventas), previsto y real.
+  - Usa el último plan aprobado de cada tipo, o el que se indique.
+  - Una línea de varios días se reparte por igual entre sus días.
+- **Permiso** `agro.planificar`, incluido en las plantillas de Comercial y Jefe de almacén.
+- **Base de datos:**
+  - Un solo plan aprobado por tipo y campaña (restricción diferida).
+  - Transiciones borrador → aprobado → cerrado. Solo se borra un plan en borrador.
+  - Las líneas solo cambian en borrador, dentro de la campaña y con los datos de su tipo.
+
 ## 8. Informe de campaña
 
 `GET /agro/informes/campana/{id}`:
