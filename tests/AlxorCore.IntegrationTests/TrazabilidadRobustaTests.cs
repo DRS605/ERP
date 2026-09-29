@@ -29,6 +29,14 @@ public sealed class TrazabilidadRobustaTests : IClassFixture<FabricaApiPruebas>
     private sealed record PaleResp(Guid Id, string Sscc, string Estado, decimal Kilos);
     private sealed record DescalificacionResp(string Quitadas, string Motivo, string? DocumentoTipo);
     private sealed record CertificadoResp(Guid Id, string Tipo, bool VigenteHoy, bool Baja);
+    private sealed record PesadaResp(Guid Id, decimal BrutoKg, decimal TaraKg, decimal NetoKg, int Envases, decimal? TaraCamionKg, decimal TaraEnvasesKg);
+    private sealed record EnvasePesadaResp(Guid EnvaseProductoId, int Cantidad, decimal TaraUnitariaKg, Guid? TaraEnvaseId);
+    private sealed record PaleEntradaResp(Guid Id, string? SerieOrigen, int Envases, Guid? PaleId, decimal? KilosAsignados);
+    private sealed record LineaCompletaResp(Guid Id, Guid? PartidaId, decimal NetoKg, decimal? KilosLiquidacion, int Pales);
+    private sealed record RecepcionCompletaResp(Guid Id, string Estado, decimal NetoKg, List<LineaCompletaResp> Lineas, List<PesadaResp> Pesadas,
+        List<EnvasePesadaResp> EnvasesPesadas, List<PaleEntradaResp> PalesEntrada);
+    private sealed record TaraResp(Guid Id, decimal TaraKg, DateOnly Desde, DateOnly? Hasta, bool Usada);
+    private sealed record LiquidacionResp(Guid Id, decimal Kilos, decimal Bruto);
 
     private static readonly int Anio = DateTime.UtcNow.Year;
     private static readonly DateOnly Dia = new(Anio, 1, 10);
@@ -258,5 +266,171 @@ public sealed class TrazabilidadRobustaTests : IClassFixture<FabricaApiPruebas>
         (await RechazoAsync(e.Empresa, $"UPDATE agro.partida SET certificaciones = 1 WHERE id = '{descalificada}'")).Hint.Should().Be("partida.certificacion");
         (await RechazoAsync(e.Empresa, $"UPDATE agro.partida SET certificaciones = 0 WHERE id = '{eco}'")).Hint.Should().Be("partida.descalificacion");
         (await RechazoAsync(e.Empresa, $"DELETE FROM agro.descalificacion_partida WHERE partida_id = '{descalificada}'")).Hint.Should().Be("descalificacion.inmutable");
+    }
+
+    private static async Task<RecepcionCompletaResp> RecepcionAsync(Escenario e, Guid rec) =>
+        (await e.Api.GetFromJsonAsync<RecepcionCompletaResp>($"/agro/recepciones/{rec}"))!;
+
+    private static async Task<(Guid Recepcion, Guid Linea)> BorradorSinPesadaAsync(Escenario e, Guid envase, DateOnly fecha, object? extra = null)
+    {
+        var rec = await IdAsync(e.Api, "/agro/recepciones", new { AgricultorId = e.Agricultor, Fecha = fecha });
+        var r = await OkAsync<RecepcionCompletaResp>(await e.Api.PostAsJsonAsync($"/agro/recepciones/{rec}/lineas",
+            extra ?? new { ProductoId = e.Pimiento, ParcelaId = e.Parcela, EnvaseProductoId = envase, PrecioEstimadoKg = 0.5m }));
+        return (rec, r.Lineas.Single().Id);
+    }
+
+    [Fact]
+    public async Task Fallo3_la_cantidad_de_liquidacion_nunca_se_graba_como_neto()
+    {
+        var e = await EscenarioAsync();
+        var box = await IdAsync(e.Api, "/productos", new { Nombre = "Box", PrecioUnitario = 0m, Tipo = "Bien", Unidad = "ud" });
+        var rec = await IdAsync(e.Api, "/agro/recepciones", new { AgricultorId = e.Agricultor, Fecha = Dia });
+
+        // Kilos teóricos sin motivo: no.
+        (await ProblemaAsync(await e.Api.PostAsJsonAsync($"/agro/recepciones/{rec}/lineas", new { ProductoId = e.Pimiento, EnvaseProductoId = box, KilosLiquidacion = 19_760m })))
+            .Codigo.Should().Be("recepcion.kilos_liquidacion");
+
+        // 104 box × 190 kg de contrato = 19.760 kg a liquidar; la báscula dice 11.100 kg netos.
+        var r = await OkAsync<RecepcionCompletaResp>(await e.Api.PostAsJsonAsync($"/agro/recepciones/{rec}/lineas", new
+        {
+            ProductoId = e.Pimiento, ParcelaId = e.Parcela, EnvaseProductoId = box, KilosLiquidacion = 19_760m, MotivoKilosLiquidacion = "Contrato: 190 kg por box",
+        }));
+        var linea = r.Lineas.Single().Id;
+        (await e.Api.PostAsJsonAsync($"/agro/recepciones/{rec}/lineas/{linea}/pesadas", new { BrutoKg = 16_100m, TaraKg = 5_000m, Envases = 104 })).EnsureSuccessStatusCode();
+        var confirmada = await OkAsync<RecepcionCompletaResp>(await ConfirmarAsync(e, rec));
+        confirmada.Lineas.Single().Should().Match<LineaCompletaResp>(l => l.NetoKg == 11_100m && l.KilosLiquidacion == 19_760m);
+        (await PartidaAsync(e, confirmada.Lineas.Single().PartidaId!.Value)).Saldo.Should().Be(11_100m, "a la partida (y a la traza) van los kilos reales");
+
+        // La liquidación va por los kilos de liquidación, y la base de datos lo exige.
+        (await e.Api.PutAsJsonAsync($"/agro/agricultores/{e.Agricultor}", new { ProveedorId = await ProveedorAsync(e), Regimen = "Reagp", AutofacturacionDesde = new DateOnly(Anio, 1, 1) }))
+            .EnsureSuccessStatusCode();
+        (await e.Api.PutAsJsonAsync($"/agro/campanas/{e.Campana}/articulos", new { ProductoId = e.Pimiento, Metodo = "PorPeriodo" })).EnsureSuccessStatusCode();
+        await IdAsync(e.Api, $"/agro/campanas/{e.Campana}/precios", new { ProductoId = e.Pimiento, Desde = new DateOnly(Anio, 1, 1), Hasta = new DateOnly(Anio, 1, 31), PrecioKg = 0.30m });
+        var liq = await OkAsync<LiquidacionResp>(await e.Api.PostAsJsonAsync("/agro/liquidaciones",
+            new { AgricultorId = e.Agricultor, CampanaId = e.Campana, Desde = new DateOnly(Anio, 1, 1), Hasta = new DateOnly(Anio, 1, 31), Fecha = new DateOnly(Anio, 1, 31) }));
+        liq.Kilos.Should().Be(19_760m);
+        liq.Bruto.Should().Be(5_928m);
+        (await RechazoAsync(e.Empresa, $"UPDATE agro.linea_liquidacion SET kilos = 11100, importe = 3330 WHERE liquidacion_id = '{liq.Id}'")).Hint
+            .Should().BeOneOf("liquidacion.kilos", "liquidacion.totales");
+        (await RechazoAsync(e.Empresa, $"UPDATE agro.linea_recepcion SET kilos_liquidacion = NULL WHERE id = '{linea}'")).Hint.Should().Be("recepcion.confirmada");
+    }
+
+    private async Task<Guid> ProveedorAsync(Escenario e)
+    {
+        await using var c = await ConexionAsync(e.Empresa);
+        await using var cmd = new NpgsqlCommand($"SELECT proveedor_id FROM agro.agricultor WHERE id = '{e.Agricultor}'", c);
+        return (Guid)(await cmd.ExecuteScalarAsync())!;
+    }
+
+    [Fact]
+    public async Task Fallo4_la_tara_sale_de_los_envases_contados_con_la_version_de_su_fecha()
+    {
+        var e = await EscenarioAsync();
+        var box = await IdAsync(e.Api, "/productos", new { Nombre = "Box", PrecioUnitario = 0m, Tipo = "Bien", Unidad = "ud" });
+        var madera = await IdAsync(e.Api, "/productos", new { Nombre = "Palé de madera", PrecioUnitario = 0m, Tipo = "Bien", Unidad = "ud" });
+        var tara28 = await IdAsync(e.Api, "/agro/taras", new { EnvaseProductoId = box, TaraKg = 28m, Desde = new DateOnly(Anio, 1, 1), Observaciones = "Pesados 20 box vacíos" });
+
+        // Sin tara del palé de madera no se pesa: nada de taras a ojo.
+        var (rec, linea) = await BorradorSinPesadaAsync(e, box, Dia);
+        (await ProblemaAsync(await e.Api.PostAsJsonAsync($"/agro/recepciones/{rec}/lineas/{linea}/pesadas", new
+        {
+            BrutoKg = 18_000m, TaraCamionKg = 5_000m, EnvasesPorTipo = new object[] { new { EnvaseProductoId = box, Cantidad = 104 }, new { EnvaseProductoId = madera, Cantidad = 26 } },
+        }))).Codigo.Should().Be("tara.falta");
+        await IdAsync(e.Api, "/agro/taras", new { EnvaseProductoId = madera, TaraKg = 20m, Desde = new DateOnly(Anio, 1, 1) });
+
+        var r = await OkAsync<RecepcionCompletaResp>(await e.Api.PostAsJsonAsync($"/agro/recepciones/{rec}/lineas/{linea}/pesadas", new
+        {
+            BrutoKg = 18_000m, TaraCamionKg = 5_000m, EnvasesPorTipo = new object[] { new { EnvaseProductoId = box, Cantidad = 104 }, new { EnvaseProductoId = madera, Cantidad = 26 } },
+        }));
+        r.Pesadas.Single().Should().Match<PesadaResp>(p => p.TaraCamionKg == 5_000m && p.TaraEnvasesKg == 104 * 28m + 26 * 20m && p.NetoKg == 18_000m - 5_000m - 2_912m - 520m
+            && p.Envases == 104);
+        r.EnvasesPesadas.Single(x => x.EnvaseProductoId == box).TaraEnvaseId.Should().Be(tara28);
+        await OkAsync<RecepcionCompletaResp>(await ConfirmarAsync(e, rec));
+
+        // La tara real resulta ser otra: versión nueva desde el 1 de febrero. Lo ya pesado no cambia.
+        await IdAsync(e.Api, "/agro/taras", new { EnvaseProductoId = box, TaraKg = 33m, Desde = new DateOnly(Anio, 2, 1) });
+        var taras = (await e.Api.GetFromJsonAsync<List<TaraResp>>($"/agro/taras?envaseProductoId={box}"))!;
+        taras.Single(t => t.Id == tara28).Should().Match<TaraResp>(t => t.Hasta == new DateOnly(Anio, 1, 31) && t.Usada);
+        (await RecepcionAsync(e, rec)).Pesadas.Single().TaraEnvasesKg.Should().Be(3_432m, "la pesada guarda la tara con que se hizo");
+        (await ProblemaAsync(await e.Api.PutAsJsonAsync($"/agro/taras/{tara28}", new { EnvaseProductoId = box, TaraKg = 30m, Desde = new DateOnly(Anio, 1, 1) })))
+            .Codigo.Should().Be("tara.aplicada");
+        (await ProblemaAsync(await e.Api.PostAsJsonAsync("/agro/taras", new { EnvaseProductoId = box, TaraKg = 30m, Desde = new DateOnly(Anio, 1, 15) })))
+            .Codigo.Should().Be("tara.solapada");
+        (await RechazoAsync(e.Empresa, $"UPDATE agro.tara_envase SET tara_kg = 33 WHERE id = '{tara28}'")).Hint.Should().Be("tara.aplicada");
+        (await RechazoAsync(e.Empresa, $"UPDATE agro.pesada SET tara_kg = tara_kg + 1 WHERE recepcion_id = '{rec}'")).Hint.Should().Be("recepcion.confirmada");
+
+        // En febrero se aplica la nueva.
+        var (feb, lineaFeb) = await BorradorSinPesadaAsync(e, box, new DateOnly(Anio, 2, 5));
+        var rf = await OkAsync<RecepcionCompletaResp>(await e.Api.PostAsJsonAsync($"/agro/recepciones/{feb}/lineas/{lineaFeb}/pesadas", new
+        {
+            BrutoKg = 18_000m, TaraCamionKg = 5_000m, EnvasesPorTipo = new object[] { new { EnvaseProductoId = box, Cantidad = 104 } },
+        }));
+        rf.Pesadas.Single().NetoKg.Should().Be(18_000m - 5_000m - 104 * 33m);
+    }
+
+    [Fact]
+    public async Task Fallo5_los_pales_son_los_contados_y_llevan_exactamente_el_neto()
+    {
+        var e = await EscenarioAsync();
+        var box = await IdAsync(e.Api, "/productos", new { Nombre = "Box", PrecioUnitario = 0m, Tipo = "Bien", Unidad = "ud" });
+        var (rec, linea) = await BorradorSinPesadaAsync(e, box, Dia);
+        (await e.Api.PostAsJsonAsync($"/agro/recepciones/{rec}/lineas/{linea}/pesadas", new { BrutoKg = 16_100m, TaraKg = 5_000m, Envases = 104 })).EnsureSuccessStatusCode();
+
+        // 25 palés de 4 box = 100 box, y la pesada contó 104: no cuadra.
+        for (var i = 1; i <= 25; i++)
+        {
+            (await e.Api.PostAsJsonAsync($"/agro/recepciones/{rec}/lineas/{linea}/pales", new { SerieOrigen = $"FV-{i:D4}", EnvaseProductoId = box, Envases = 4 })).EnsureSuccessStatusCode();
+        }
+
+        (await ProblemaAsync(await ConfirmarAsync(e, rec))).Codigo.Should().Be("recepcion.pales_envases");
+        (await ProblemaAsync(await e.Api.PostAsJsonAsync($"/agro/recepciones/{rec}/lineas/{linea}/pales", new { SerieOrigen = "FV-0001", EnvaseProductoId = box, Envases = 4 })))
+            .Codigo.Should().Be("pale_entrada.repetido");
+        (await e.Api.PostAsJsonAsync($"/agro/recepciones/{rec}/lineas/{linea}/pales", new { SerieOrigen = "FV-0026", EnvaseProductoId = box, Envases = 4 })).EnsureSuccessStatusCode();
+
+        // 26 palés reales (no los 34 que saldrían de «3 box por palé»), cada uno con su SSCC y su parte del neto.
+        var r = await OkAsync<RecepcionCompletaResp>(await ConfirmarAsync(e, rec));
+        r.Lineas.Single().Pales.Should().Be(26);
+        r.PalesEntrada.Should().HaveCount(26).And.OnlyContain(p => p.PaleId != null);
+        r.PalesEntrada.Sum(p => p.KilosAsignados!.Value).Should().Be(11_100m);
+        var partida = r.Lineas.Single().PartidaId!.Value;
+        var pale = r.PalesEntrada.First(p => p.SerieOrigen == "FV-0001");
+        pale.KilosAsignados.Should().Be(426.923m);
+        var pales = (await e.Api.GetFromJsonAsync<List<PaleResp>>("/agro/pales"))!.Where(p => r.PalesEntrada.Any(x => x.PaleId == p.Id)).ToList();
+        pales.Should().HaveCount(26).And.OnlyContain(p => p.Estado == "Cerrado" && p.Kilos > 0);
+        pales.Select(p => p.Sscc).Distinct().Should().HaveCount(26);
+
+        // El palé de entrada se consume en confección sin abrirlo, y sus kilos cuadran con la partida.
+        var parte = await ParteAsync(e, Dia.AddDays(1), [new { PartidaId = partida, PaleId = pale.PaleId, Kilos = pale.KilosAsignados }],
+            [new { ProductoId = e.Pimiento, Kilos = 400m }]);
+        await OkAsync<ParteResp>(await ValidarAsync(e, parte.Id));
+        (await e.Api.GetFromJsonAsync<List<PaleResp>>("/agro/pales"))!.Single(p => p.Id == pale.PaleId).Kilos.Should().Be(0m);
+
+        // La base de datos no deja meter más kilos en un palé de entrada ni en uno de otra recepción.
+        var otra = await RecibirAsync(e, e.Pimiento, Dia);
+        (await RechazoAsync(e.Empresa, $"""
+            INSERT INTO agro.movimiento_partida (id, empresa_id, partida_id, fecha, tipo, kilos, pale_id, creado_en)
+            VALUES (gen_random_uuid(), '{e.Empresa}', '{otra}', '{Dia:yyyy-MM-dd}', 'Entrada', 10, '{r.PalesEntrada[1].PaleId}', now())
+            """)).Hint.Should().Be("pale.estado");
+    }
+
+    [Fact]
+    public async Task Una_recepcion_con_pales_de_entrada_se_anula_si_no_se_ha_usado()
+    {
+        var e = await EscenarioAsync();
+        var box = await IdAsync(e.Api, "/productos", new { Nombre = "Box", PrecioUnitario = 0m, Tipo = "Bien", Unidad = "ud" });
+        var (rec, linea) = await BorradorSinPesadaAsync(e, box, Dia);
+        (await e.Api.PostAsJsonAsync($"/agro/recepciones/{rec}/lineas/{linea}/pesadas", new { BrutoKg = 3_000m, TaraKg = 1_000m, Envases = 8 })).EnsureSuccessStatusCode();
+        (await e.Api.PostAsJsonAsync($"/agro/recepciones/{rec}/lineas/{linea}/pales", new { EnvaseProductoId = box, Envases = 4, KilosNetos = 1_200m })).EnsureSuccessStatusCode();
+        (await e.Api.PostAsJsonAsync($"/agro/recepciones/{rec}/lineas/{linea}/pales", new { EnvaseProductoId = box, Envases = 4, KilosNetos = 700m })).EnsureSuccessStatusCode();
+        (await ProblemaAsync(await ConfirmarAsync(e, rec))).Codigo.Should().Be("recepcion.pales_kilos", "pesados uno a uno suman 1.900 y el neto es 2.000");
+        var r = await RecepcionAsync(e, rec);
+        (await e.Api.DeleteAsync($"/agro/recepciones/{rec}/pales/{r.PalesEntrada[1].Id}")).EnsureSuccessStatusCode();
+        (await e.Api.PostAsJsonAsync($"/agro/recepciones/{rec}/lineas/{linea}/pales", new { EnvaseProductoId = box, Envases = 4, KilosNetos = 800m })).EnsureSuccessStatusCode();
+        var confirmada = await OkAsync<RecepcionCompletaResp>(await ConfirmarAsync(e, rec));
+        confirmada.PalesEntrada.Select(p => p.KilosAsignados).Should().BeEquivalentTo([1_200m, 800m]);
+
+        var anulada = await OkAsync<RecepcionCompletaResp>(await e.Api.PostAsJsonAsync($"/agro/recepciones/{rec}/anular", new { Motivo = "Recepción duplicada" }));
+        anulada.Estado.Should().Be("Anulada");
+        (await e.Api.GetFromJsonAsync<List<PaleResp>>("/agro/pales"))!.Where(p => confirmada.PalesEntrada.Any(x => x.PaleId == p.Id)).Should().OnlyContain(p => p.Kilos == 0m);
     }
 }

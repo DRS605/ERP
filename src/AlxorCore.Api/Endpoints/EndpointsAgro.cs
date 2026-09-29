@@ -274,6 +274,18 @@ public static class EndpointsAgro
         g.MapPut("/parcelas/{id:guid}", async (Guid id, DatosParcela d, MaestrosAgro m, CancellationToken ct) => (await m.ActualizarParcelaAsync(id, d, ct).ConfigureAwait(false)).AOk())
             .WithSummary("Modifica una parcela.").RequierePermiso(Permisos.AgroGestionar);
 
+        // Taras de envases, versionadas por fecha.
+        g.MapGet("/taras", (Guid? envaseProductoId, IContextoEmpresa c, TarasAgro t, CancellationToken ct) =>
+                ConEmpresa(c, async e => Results.Ok(await t.ListarAsync(e, envaseProductoId, ct).ConfigureAwait(false))))
+            .WithSummary("Taras de los envases (palot, box, caja, palé…) con su vigencia.").RequierePermiso(Permisos.AgroLeer);
+        g.MapPost("/taras", (DatosTara d, IContextoEmpresa c, TarasAgro t, CancellationToken ct) =>
+                ConEmpresa(c, async e => Creado(await t.CrearAsync(e, d, ct).ConfigureAwait(false), "taras")))
+            .WithSummary("Nueva versión de la tara de un envase desde una fecha (cierra la anterior el día antes).").RequierePermiso(Permisos.AgroGestionar);
+        g.MapPut("/taras/{id:guid}", async (Guid id, DatosTara d, TarasAgro t, CancellationToken ct) => (await t.ActualizarAsync(id, d, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Corrige una tara que aún no se ha aplicado en ninguna pesada.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapDelete("/taras/{id:guid}", async (Guid id, TarasAgro t, CancellationToken ct) => (await t.EliminarAsync(id, ct).ConfigureAwait(false)).ASinContenido())
+            .WithSummary("Elimina una tara que aún no se ha aplicado.").RequierePermiso(Permisos.AgroGestionar);
+
         // Certificaciones: certificados de agricultores y parcelas, cómo se vende cada artículo y descalificaciones.
         g.MapGet("/certificados", (Guid? agricultorId, IContextoEmpresa c, CertificacionesAgro m, CancellationToken ct) =>
                 ConEmpresa(c, async e => Results.Ok(await m.CertificadosAsync(e, agricultorId, ct).ConfigureAwait(false))))
@@ -342,6 +354,16 @@ public static class EndpointsAgro
         g.MapPost("/recepciones/{id:guid}/lineas/{lineaId:guid}/pesadas", async (Guid id, Guid lineaId, DatosPesada d, RecepcionesAgro r, CancellationToken ct) =>
                 (await r.AgregarPesadaAsync(id, lineaId, d, ct).ConfigureAwait(false)).AOk())
             .WithSummary("Añade una pesada de báscula (bruto, tara, envases).").RequierePermiso(Permisos.AgroGestionar);
+        g.MapPost("/recepciones/{id:guid}/lineas/{lineaId:guid}/pales", async (Guid id, Guid lineaId, DatosPaleEntrada d, RecepcionesAgro r, CancellationToken ct) =>
+                (await r.AgregarPaleEntradaAsync(id, lineaId, d, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Registra un palé o palot que llega en la línea (serie de su etiqueta, envases reales, kilos si se pesó solo).").RequierePermiso(Permisos.AgroGestionar);
+        g.MapDelete("/recepciones/{id:guid}/pales/{paleEntradaId:guid}", async (Guid id, Guid paleEntradaId, RecepcionesAgro r, CancellationToken ct) =>
+                (await r.QuitarPaleEntradaAsync(id, paleEntradaId, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Quita un palé de entrada (en borrador).").RequierePermiso(Permisos.AgroGestionar);
+        g.MapPut("/recepciones/{id:guid}/lineas/{lineaId:guid}/kilos-liquidacion", async (Guid id, Guid lineaId, DatosKilosLiquidacion d, RecepcionesAgro r, CancellationToken ct) =>
+                (await r.FijarKilosLiquidacionAsync(id, lineaId, d, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Kilos por los que se liquida la línea si no son los netos (con motivo); null los quita. Nunca cambian el neto.")
+            .RequierePermiso(Permisos.AgroGestionar);
         g.MapDelete("/recepciones/{id:guid}/pesadas/{pesadaId:guid}", async (Guid id, Guid pesadaId, RecepcionesAgro r, CancellationToken ct) =>
                 (await r.QuitarPesadaAsync(id, pesadaId, ct).ConfigureAwait(false)).AOk())
             .WithSummary("Quita una pesada del borrador.").RequierePermiso(Permisos.AgroGestionar);

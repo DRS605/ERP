@@ -6,23 +6,30 @@ using AlxorCore.Nucleo.Tiempo;
 
 namespace AlxorCore.Agro.Aplicacion;
 
-public sealed record PesadaDto(Guid Id, Guid LineaId, int Secuencia, decimal BrutoKg, decimal TaraKg, decimal NetoKg, int Envases, string? Bascula);
+public sealed record PesadaDto(Guid Id, Guid LineaId, int Secuencia, decimal BrutoKg, decimal TaraKg, decimal NetoKg, int Envases, string? Bascula, decimal? TaraCamionKg = null,
+    decimal TaraEnvasesKg = 0m);
 
 public sealed record LineaRecepcionDto(
     Guid Id, int NumeroLinea, Guid ProductoId, string ProductoNombre, Guid? ParcelaId, DateOnly? FechaRecoleccion, Guid? EnvaseProductoId,
-    decimal? PrecioEstimadoKg, string? Calibre, decimal NetoKg, int Envases, Guid? PartidaId, string? MotivoDescalificacion = null);
+    decimal? PrecioEstimadoKg, string? Calibre, decimal NetoKg, int Envases, Guid? PartidaId, string? MotivoDescalificacion = null, decimal? KilosLiquidacion = null,
+    string? MotivoKilosLiquidacion = null, int Pales = 0);
 
 public sealed record RecepcionDto(
     Guid Id, string? Numero, DateOnly Fecha, Guid AgricultorId, string? AgricultorNombre, Guid CampanaId, string? Matricula, string? Conductor,
-    string? Observaciones, string Estado, string? MotivoAnulacion, decimal NetoKg, IReadOnlyList<LineaRecepcionDto> Lineas, IReadOnlyList<PesadaDto> Pesadas)
+    string? Observaciones, string Estado, string? MotivoAnulacion, decimal NetoKg, IReadOnlyList<LineaRecepcionDto> Lineas, IReadOnlyList<PesadaDto> Pesadas,
+    IReadOnlyList<EnvasePesadaDto> EnvasesPesadas, IReadOnlyList<PaleEntradaDto> PalesEntrada)
 {
     public static RecepcionDto De(Recepcion r, string? agricultor) => new(
         r.Id, r.NumeroCompleto, r.Fecha, r.AgricultorId, agricultor, r.CampanaId, r.Matricula, r.Conductor, r.Observaciones, r.Estado.ToString(),
         r.MotivoAnulacion, r.NetoKg,
         r.Lineas.OrderBy(l => l.NumeroLinea).Select(l => new LineaRecepcionDto(l.Id, l.NumeroLinea, l.ProductoId, l.ProductoNombre, l.ParcelaId,
             l.FechaRecoleccion, l.EnvaseProductoId, l.PrecioEstimadoKg, l.Calibre, l.NetoKg ?? r.NetoDe(l.Id), l.Envases ?? r.EnvasesDe(l.Id), l.PartidaId,
-            l.MotivoDescalificacion)).ToList(),
-        r.Pesadas.OrderBy(p => p.Secuencia).Select(p => new PesadaDto(p.Id, p.LineaId, p.Secuencia, p.BrutoKg, p.TaraKg, p.NetoKg, p.Envases, p.Bascula)).ToList());
+            l.MotivoDescalificacion, l.KilosLiquidacion, l.MotivoKilosLiquidacion, r.PalesEntrada.Count(p => p.LineaId == l.Id))).ToList(),
+        r.Pesadas.OrderBy(p => p.Secuencia).Select(p => new PesadaDto(p.Id, p.LineaId, p.Secuencia, p.BrutoKg, p.TaraKg, p.NetoKg, p.Envases, p.Bascula, p.TaraCamionKg,
+            p.TaraEnvasesKg)).ToList(),
+        r.EnvasesPesadas.Select(e => new EnvasePesadaDto(e.Id, e.PesadaId, e.EnvaseProductoId, e.Cantidad, e.TaraUnitariaKg, e.TaraKg, e.TaraEnvaseId)).ToList(),
+        r.PalesEntrada.OrderBy(p => p.LineaId).ThenBy(p => p.Numero).Select(p => new PaleEntradaDto(p.Id, p.LineaId, p.Numero, p.SerieOrigen, p.EnvaseProductoId, p.Envases,
+            p.KilosNetos, p.PaleId, p.KilosAsignados)).ToList());
 }
 
 public sealed record RecepcionResumenDto(Guid Id, string? Numero, DateOnly Fecha, Guid AgricultorId, string? AgricultorNombre, string Estado, int Lineas, decimal NetoKg);
@@ -40,9 +47,26 @@ public sealed record MovimientoEnvaseDto(Guid Id, Guid EnvaseProductoId, DateOnl
 public sealed record DatosRecepcion(Guid AgricultorId, DateOnly Fecha, Guid? CampanaId = null, string? Matricula = null, string? Conductor = null, string? Observaciones = null);
 
 public sealed record DatosLinea(Guid ProductoId, Guid? ParcelaId = null, DateOnly? FechaRecoleccion = null, Guid? EnvaseProductoId = null, decimal? PrecioEstimadoKg = null, string? Calibre = null,
-    string? MotivoDescalificacion = null);
+    string? MotivoDescalificacion = null, decimal? KilosLiquidacion = null, string? MotivoKilosLiquidacion = null);
 
-public sealed record DatosPesada(decimal BrutoKg, decimal TaraKg, int Envases = 0, string? Bascula = null);
+/// <summary>Envases de un tipo contados en la pesada; sin tara unitaria se aplica la vigente del envase en la fecha de la recepción.</summary>
+public sealed record DatosEnvasePesada(Guid EnvaseProductoId, int Cantidad, decimal? TaraUnitariaKg = null);
+
+/// <summary>
+/// Pesada de báscula. Completa (recomendada): bruto, <paramref name="TaraCamionKg"/> y <paramref name="EnvasesPorTipo"/>
+/// (la tara se calcula). Simple: bruto y tara total tecleada, con los envases del envase de la línea.
+/// </summary>
+public sealed record DatosPesada(decimal BrutoKg, decimal TaraKg = 0m, int Envases = 0, string? Bascula = null, decimal? TaraCamionKg = null,
+    IReadOnlyList<DatosEnvasePesada>? EnvasesPorTipo = null);
+
+public sealed record DatosPaleEntrada(string? SerieOrigen = null, Guid? EnvaseProductoId = null, int Envases = 0, decimal? KilosNetos = null);
+
+public sealed record DatosKilosLiquidacion(decimal? Kilos, string? Motivo);
+
+public sealed record EnvasePesadaDto(Guid Id, Guid PesadaId, Guid EnvaseProductoId, int Cantidad, decimal TaraUnitariaKg, decimal TaraKg, Guid? TaraEnvaseId);
+
+public sealed record PaleEntradaDto(Guid Id, Guid LineaId, int Numero, string? SerieOrigen, Guid? EnvaseProductoId, int Envases, decimal? KilosNetos, Guid? PaleId,
+    decimal? KilosAsignados);
 
 public sealed record DatosMovimientoEnvase(Guid EnvaseProductoId, int Cantidad, DateOnly? Fecha = null, string? Concepto = null);
 
@@ -57,10 +81,12 @@ public sealed class RecepcionesAgro
     private readonly IReloj _reloj;
     private readonly EnvasesTerceros? _envases;
     private readonly CuadernoCampoAgro? _cuaderno;
+    private readonly TarasAgro? _taras;
 
     public RecepcionesAgro(IRepositorioAgro repo, IUnidadDeTrabajoAgro unidad, IConsultaProductos productos, IReloj reloj, EnvasesTerceros? envases = null,
-        CuadernoCampoAgro? cuaderno = null)
+        CuadernoCampoAgro? cuaderno = null, TarasAgro? taras = null)
     {
+        _taras = taras;
         _cuaderno = cuaderno;
         _envases = envases;
         _repo = repo;
@@ -152,7 +178,7 @@ public sealed class RecepcionesAgro
         }
 
         var linea = r.AgregarLinea(new DatosLineaRecepcion(producto.Id, producto.Nombre, datos.ParcelaId, datos.FechaRecoleccion, datos.EnvaseProductoId,
-            datos.PrecioEstimadoKg, datos.Calibre, datos.MotivoDescalificacion));
+            datos.PrecioEstimadoKg, datos.Calibre, datos.MotivoDescalificacion, datos.KilosLiquidacion, datos.MotivoKilosLiquidacion));
         return await GuardarAsync(r, linea.EsFallo ? Resultado.Fallo(linea.Error) : Resultado.Ok(), ct).ConfigureAwait(false);
     }
 
@@ -171,8 +197,68 @@ public sealed class RecepcionesAgro
             return NoEncontrada<RecepcionDto>();
         }
 
-        var p = r.AgregarPesada(lineaId, datos.BrutoKg, datos.TaraKg, datos.Envases, datos.Bascula);
+        Resultado<Pesada> p;
+        if (datos.EnvasesPorTipo is { } tipos)
+        {
+            if (datos.TaraCamionKg is not { } taraCamion)
+            {
+                return Resultado.Fallo<RecepcionDto>(Error.Validacion("pesada.tara_camion", "En la pesada completa indica la tara del camión (pesado vacío)."));
+            }
+
+            var contados = new List<EnvaseContado>();
+            foreach (var t in tipos)
+            {
+                if (t.TaraUnitariaKg is { } manual)
+                {
+                    contados.Add(new EnvaseContado(t.EnvaseProductoId, t.Cantidad, manual, null));
+                    continue;
+                }
+
+                var vigente = _taras is null ? null : await _taras.VigenteAsync(r.EmpresaId, t.EnvaseProductoId, r.Fecha, ct).ConfigureAwait(false);
+                if (vigente is null)
+                {
+                    var nombre = (await _productos.ObtenerAsync(t.EnvaseProductoId, ct).ConfigureAwait(false))?.Nombre ?? "el envase";
+                    return Resultado.Fallo<RecepcionDto>(Error.Validacion("tara.falta",
+                        $"No hay tara de {nombre} vigente el {r.Fecha:dd/MM/yyyy}: dala de alta en las taras de envases (o indica la tara unitaria)."));
+                }
+
+                contados.Add(new EnvaseContado(t.EnvaseProductoId, t.Cantidad, vigente.TaraKg, vigente.Id));
+            }
+
+            p = r.AgregarPesadaCompleta(lineaId, datos.BrutoKg, taraCamion, contados, datos.Bascula);
+        }
+        else
+        {
+            p = r.AgregarPesada(lineaId, datos.BrutoKg, datos.TaraKg, datos.Envases, datos.Bascula);
+        }
+
         return await GuardarAsync(r, p.EsFallo ? Resultado.Fallo(p.Error) : Resultado.Ok(), ct).ConfigureAwait(false);
+    }
+
+    public async Task<Resultado<RecepcionDto>> AgregarPaleEntradaAsync(Guid recepcionId, Guid lineaId, DatosPaleEntrada datos, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(datos);
+        var r = await _repo.RecepcionAsync(recepcionId, ct).ConfigureAwait(false);
+        if (r is null)
+        {
+            return NoEncontrada<RecepcionDto>();
+        }
+
+        var p = r.AgregarPaleEntrada(lineaId, datos.SerieOrigen, datos.EnvaseProductoId, datos.Envases, datos.KilosNetos);
+        return await GuardarAsync(r, p.EsFallo ? Resultado.Fallo(p.Error) : Resultado.Ok(), ct).ConfigureAwait(false);
+    }
+
+    public async Task<Resultado<RecepcionDto>> QuitarPaleEntradaAsync(Guid recepcionId, Guid paleEntradaId, CancellationToken ct = default)
+    {
+        var r = await _repo.RecepcionAsync(recepcionId, ct).ConfigureAwait(false);
+        return r is null ? NoEncontrada<RecepcionDto>() : await GuardarAsync(r, r.QuitarPaleEntrada(paleEntradaId), ct).ConfigureAwait(false);
+    }
+
+    public async Task<Resultado<RecepcionDto>> FijarKilosLiquidacionAsync(Guid recepcionId, Guid lineaId, DatosKilosLiquidacion datos, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(datos);
+        var r = await _repo.RecepcionAsync(recepcionId, ct).ConfigureAwait(false);
+        return r is null ? NoEncontrada<RecepcionDto>() : await GuardarAsync(r, r.FijarKilosLiquidacion(lineaId, datos.Kilos, datos.Motivo), ct).ConfigureAwait(false);
     }
 
     public async Task<Resultado<RecepcionDto>> QuitarPesadaAsync(Guid recepcionId, Guid pesadaId, CancellationToken ct = default)
@@ -211,6 +297,20 @@ public sealed class RecepcionesAgro
         if (r is null)
         {
             return NoEncontrada<RecepcionDto>();
+        }
+
+        // Las taras de los envases, las vigentes en la fecha de la recepción (por si la fecha cambió en el borrador).
+        var taras = new Dictionary<Guid, (decimal, Guid)?>();
+        foreach (var envase in r.EnvasesPesadas.Where(e => e.TaraEnvaseId is not null).Select(e => e.EnvaseProductoId).Distinct())
+        {
+            var t = _taras is null ? null : await _taras.VigenteAsync(r.EmpresaId, envase, r.Fecha, ct).ConfigureAwait(false);
+            taras[envase] = t is null ? null : (t.TaraKg, t.Id);
+        }
+
+        var retaradas = r.AplicarTaras(e => taras.GetValueOrDefault(e));
+        if (retaradas.EsFallo)
+        {
+            return Resultado.Fallo<RecepcionDto>(retaradas.Error);
         }
 
         var errores = r.ErroresConfirmacion().ToList();
@@ -259,6 +359,7 @@ public sealed class RecepcionesAgro
         var numero = await _repo.UltimoNumeroAsync(r.EmpresaId, Recepcion.Serie, r.Ejercicio, ct).ConfigureAwait(false) + 1;
 
         var partidas = new Dictionary<Guid, Guid>();
+        var palesEntrada = new Dictionary<Guid, Guid>();
         var codigo = $"{Recepcion.Serie}-{r.Ejercicio}-{numero:D6}";
         var envasesRecibidos = new List<(Guid, int)>();
         foreach (var l in r.Lineas)
@@ -274,8 +375,31 @@ public sealed class RecepcionesAgro
             }
 
             partidas[l.Id] = partida.Id;
-            _repo.Agregar(MovimientoPartida.Crear(r.EmpresaId, partida.Id, r.Fecha, TipoMovimientoPartida.Entrada, kilos, null, "Recepcion", r.Id,
-                $"Recepción {codigo}", _reloj).Valor);
+            // Con palés de entrada, la fruta entra ya en sus palés (cada uno con su SSCC y la serie con que llegó); si no, suelta.
+            var palesLinea = r.KilosPalesEntrada(l.Id);
+            if (palesLinea.Count == 0)
+            {
+                _repo.Agregar(MovimientoPartida.Crear(r.EmpresaId, partida.Id, r.Fecha, TipoMovimientoPartida.Entrada, kilos, null, "Recepcion", r.Id,
+                    $"Recepción {codigo}", _reloj).Valor);
+            }
+            else
+            {
+                var nuevos = await PalesAgro.NuevosPalesAsync(_repo, _unidad, _reloj, r.EmpresaId, palesLinea.Count, "Entrada", null, ct,
+                    (sscc, i) => Pale.DeEntrada(r.EmpresaId, sscc, l.Id, palesLinea[i].Pale.SerieOrigen, "Entrada", _reloj)).ConfigureAwait(false);
+                if (nuevos.EsFallo)
+                {
+                    return Resultado.Fallo<RecepcionDto>(nuevos.Error);
+                }
+
+                for (var i = 0; i < palesLinea.Count; i++)
+                {
+                    var (entrada, kilosPale) = palesLinea[i];
+                    palesEntrada[entrada.Id] = nuevos.Valor[i].Id;
+                    _repo.Agregar(MovimientoPartida.Crear(r.EmpresaId, partida.Id, r.Fecha, TipoMovimientoPartida.Entrada, kilosPale, nuevos.Valor[i].Id, "Recepcion", r.Id,
+                        $"Recepción {codigo} · palé {entrada.SerieOrigen ?? entrada.Numero.ToString(System.Globalization.CultureInfo.InvariantCulture)}", _reloj,
+                        entrada.Envases).Valor);
+                }
+            }
 
             var envases = r.EnvasesDe(l.Id);
             if (envases > 0)
@@ -296,7 +420,7 @@ public sealed class RecepcionesAgro
             }
         }
 
-        var confirmada = r.Confirmar(numero, partidas, _reloj);
+        var confirmada = r.Confirmar(numero, partidas, _reloj, palesEntrada);
         return await GuardarAsync(r, confirmada, ct).ConfigureAwait(false);
     }
 
@@ -331,8 +455,18 @@ public sealed class RecepcionesAgro
         foreach (var p in partidas)
         {
             p.Anular();
-            _repo.Agregar(MovimientoPartida.Crear(r.EmpresaId, p.Id, hoy, TipoMovimientoPartida.Anulacion, -p.KilosIniciales, null, "Recepcion", r.Id,
-                $"Anulación de {r.NumeroCompleto}", _reloj).Valor);
+            var enPales = r.PalesEntrada.Where(e => e.LineaId == p.LineaRecepcionId && e.PaleId is not null).ToList();
+            if (enPales.Count == 0)
+            {
+                _repo.Agregar(MovimientoPartida.Crear(r.EmpresaId, p.Id, hoy, TipoMovimientoPartida.Anulacion, -p.KilosIniciales, null, "Recepcion", r.Id,
+                    $"Anulación de {r.NumeroCompleto}", _reloj).Valor);
+            }
+
+            foreach (var e in enPales)
+            {
+                _repo.Agregar(MovimientoPartida.Crear(r.EmpresaId, p.Id, hoy, TipoMovimientoPartida.Anulacion, -e.KilosAsignados!.Value, e.PaleId, "Recepcion", r.Id,
+                    $"Anulación de {r.NumeroCompleto}", _reloj, -e.Envases).Valor);
+            }
         }
 
         foreach (var l in r.Lineas.Where(l => l.Envases > 0))

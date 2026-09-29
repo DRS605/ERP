@@ -30,6 +30,8 @@ public sealed class Recepcion : RaizAgregadoEmpresa<Guid>
 
     private readonly List<LineaRecepcion> _lineas = [];
     private readonly List<Pesada> _pesadas = [];
+    private readonly List<EnvasePesada> _envasesPesadas = [];
+    private readonly List<PaleEntrada> _palesEntrada = [];
 
     private Recepcion(Guid id)
         : base(id, Guid.Empty)
@@ -79,6 +81,12 @@ public sealed class Recepcion : RaizAgregadoEmpresa<Guid>
     public IReadOnlyList<LineaRecepcion> Lineas => _lineas;
 
     public IReadOnlyList<Pesada> Pesadas => _pesadas;
+
+    /// <summary>Envases contados en cada pesada, por tipo, con la tara unitaria y la versión de tara aplicada.</summary>
+    public IReadOnlyList<EnvasePesada> EnvasesPesadas => _envasesPesadas;
+
+    /// <summary>Palés (o palots) que llegan, contados uno a uno: cada uno será un palé con su SSCC y su serie de origen.</summary>
+    public IReadOnlyList<PaleEntrada> PalesEntrada => _palesEntrada;
 
     public decimal NetoKg => _lineas.Sum(l => NetoDe(l.Id));
 
@@ -134,9 +142,44 @@ public sealed class Recepcion : RaizAgregadoEmpresa<Guid>
             return Resultado.Fallo<LineaRecepcion>(Error.Validacion("recepcion.fecha_recoleccion", "La fruta no puede recolectarse después de recibirla."));
         }
 
+        if (datos.KilosLiquidacion is { } kl && (kl <= 0m || decimal.Round(kl, 3) != kl || string.IsNullOrWhiteSpace(datos.MotivoKilosLiquidacion)))
+        {
+            return Resultado.Fallo<LineaRecepcion>(Error.Validacion("recepcion.kilos_liquidacion",
+                "Los kilos de liquidación son positivos y llevan el motivo (contrato, destrío…): nunca sustituyen al neto pesado."));
+        }
+
         var linea = new LineaRecepcion(Guid.NewGuid(), _lineas.Count == 0 ? 1 : _lineas.Max(l => l.NumeroLinea) + 1, datos);
         _lineas.Add(linea);
         return Resultado.Ok(linea);
+    }
+
+    /// <summary>Fija (o quita, con null) los kilos de liquidación de una línea, con su motivo. Solo en borrador.</summary>
+    public Resultado FijarKilosLiquidacion(Guid lineaId, decimal? kilos, string? motivo)
+    {
+        var borrador = SoloBorrador();
+        if (borrador.EsFallo)
+        {
+            return borrador;
+        }
+
+        var linea = _lineas.FirstOrDefault(l => l.Id == lineaId);
+        if (linea is null)
+        {
+            return Resultado.Fallo(Error.NoEncontrado("recepcion.linea_no_encontrada", "La línea no existe."));
+        }
+
+        if (kilos is { } k && (k <= 0m || decimal.Round(k, 3) != k))
+        {
+            return Resultado.Fallo(Error.Validacion("recepcion.kilos_liquidacion", "Los kilos de liquidación son positivos (hasta 3 decimales)."));
+        }
+
+        if (kilos is not null && string.IsNullOrWhiteSpace(motivo))
+        {
+            return Resultado.Fallo(Error.Validacion("recepcion.kilos_liquidacion_motivo", "Indica por qué se liquidan kilos distintos del neto (contrato, destrío…)."));
+        }
+
+        linea.FijarKilosLiquidacion(kilos, motivo);
+        return Resultado.Ok();
     }
 
     public Resultado QuitarLinea(Guid lineaId)
@@ -153,7 +196,10 @@ public sealed class Recepcion : RaizAgregadoEmpresa<Guid>
             return Resultado.Fallo(Error.NoEncontrado("recepcion.linea_no_encontrada", "La línea no existe."));
         }
 
+        var pesadas = _pesadas.Where(p => p.LineaId == lineaId).Select(p => p.Id).ToHashSet();
+        _envasesPesadas.RemoveAll(e => pesadas.Contains(e.PesadaId));
         _pesadas.RemoveAll(p => p.LineaId == lineaId);
+        _palesEntrada.RemoveAll(p => p.LineaId == lineaId);
         _lineas.Remove(linea);
         return Resultado.Ok();
     }
@@ -201,9 +247,160 @@ public sealed class Recepcion : RaizAgregadoEmpresa<Guid>
             return borrador;
         }
 
+        _envasesPesadas.RemoveAll(e => e.PesadaId == pesadaId);
         return _pesadas.RemoveAll(p => p.Id == pesadaId) == 0
             ? Resultado.Fallo(Error.NoEncontrado("pesada.no_encontrada", "La pesada no existe."))
             : Resultado.Ok();
+    }
+
+    /// <summary>
+    /// Pesada completa: el bruto de báscula, la tara del camión (pesado vacío) y los envases contados por tipo, con la
+    /// tara de cada uno. La tara total es la del camión más la de los envases, y el neto, bruto − tara: nada se teclea a
+    /// ojo. Los envases de la pesada (para la cuenta de envases) son los del envase de la línea.
+    /// </summary>
+    public Resultado<Pesada> AgregarPesadaCompleta(Guid lineaId, decimal brutoKg, decimal taraCamionKg, IReadOnlyList<EnvaseContado> envases, string? bascula)
+    {
+        ArgumentNullException.ThrowIfNull(envases);
+        var linea = _lineas.FirstOrDefault(l => l.Id == lineaId);
+        if (linea is null)
+        {
+            return Resultado.Fallo<Pesada>(Error.NoEncontrado("recepcion.linea_no_encontrada", "La línea no existe."));
+        }
+
+        if (taraCamionKg < 0m || envases.Any(e => e.Cantidad <= 0 || e.TaraUnitariaKg < 0m) || envases.GroupBy(e => e.EnvaseProductoId).Any(g => g.Count() > 1))
+        {
+            return Resultado.Fallo<Pesada>(Error.Validacion("pesada.envases", "Cada tipo de envase una vez, con cantidad positiva; la tara del camión no puede ser negativa."));
+        }
+
+        var taraEnvases = envases.Sum(e => e.Cantidad * e.TaraUnitariaKg);
+        var cuentan = linea.EnvaseProductoId is { } envaseLinea ? envases.Where(e => e.EnvaseProductoId == envaseLinea).Sum(e => e.Cantidad) : 0;
+        var pesada = AgregarPesada(lineaId, brutoKg, taraCamionKg + taraEnvases, cuentan, bascula);
+        if (pesada.EsFallo)
+        {
+            return pesada;
+        }
+
+        pesada.Valor.Desglosar(taraCamionKg, taraEnvases);
+        _envasesPesadas.AddRange(envases.Select(e => new EnvasePesada(Guid.NewGuid(), pesada.Valor.Id, e.EnvaseProductoId, e.Cantidad, e.TaraUnitariaKg, e.TaraEnvaseId)));
+        return pesada;
+    }
+
+    /// <summary>
+    /// Vuelve a aplicar las taras de los envases con las vigentes en la fecha de la recepción (si la fecha cambió en el
+    /// borrador). <paramref name="taraDe"/> da la tara vigente de un envase, o null si no hay.
+    /// </summary>
+    public Resultado AplicarTaras(Func<Guid, (decimal TaraKg, Guid TaraId)?> taraDe)
+    {
+        ArgumentNullException.ThrowIfNull(taraDe);
+        var borrador = SoloBorrador();
+        if (borrador.EsFallo)
+        {
+            return borrador;
+        }
+
+        foreach (var e in _envasesPesadas.Where(e => e.TaraEnvaseId is not null))
+        {
+            if (taraDe(e.EnvaseProductoId) is not { } t)
+            {
+                return Resultado.Fallo(Error.Validacion("tara.falta", $"No hay tara vigente el {Fecha:dd/MM/yyyy} para un envase de la recepción."));
+            }
+
+            e.Aplicar(t.TaraKg, t.TaraId);
+        }
+
+        foreach (var p in _pesadas.Where(p => p.TaraCamionKg is not null))
+        {
+            var taraEnvases = _envasesPesadas.Where(e => e.PesadaId == p.Id).Sum(e => e.Cantidad * e.TaraUnitariaKg);
+            if (p.BrutoKg <= p.TaraCamionKg!.Value + taraEnvases)
+            {
+                return Resultado.Fallo(Error.Validacion("pesada.kilos", $"Con las taras del {Fecha:dd/MM/yyyy}, la pesada {p.Secuencia} no tiene neto."));
+            }
+
+            p.Desglosar(p.TaraCamionKg!.Value, taraEnvases);
+        }
+
+        return Resultado.Ok();
+    }
+
+    /// <summary>
+    /// Registra un palé (o palot) que llega en la línea: su número de serie de origen (la etiqueta del proveedor o la
+    /// finca), el envase y cuántos trae, y sus kilos netos si se pesó solo. Son los palés reales: nunca se deducen de un
+    /// factor fijo del artículo.
+    /// </summary>
+    public Resultado<PaleEntrada> AgregarPaleEntrada(Guid lineaId, string? serieOrigen, Guid? envaseProductoId, int envases, decimal? kilosNetos)
+    {
+        var borrador = SoloBorrador();
+        if (borrador.EsFallo)
+        {
+            return Resultado.Fallo<PaleEntrada>(borrador.Error);
+        }
+
+        if (_lineas.All(l => l.Id != lineaId))
+        {
+            return Resultado.Fallo<PaleEntrada>(Error.NoEncontrado("recepcion.linea_no_encontrada", "La línea no existe."));
+        }
+
+        if (envases < 0 || kilosNetos is <= 0m || (kilosNetos is { } k && decimal.Round(k, 3) != k))
+        {
+            return Resultado.Fallo<PaleEntrada>(Error.Validacion("pale_entrada.valores", "Los envases no pueden ser negativos y los kilos, si se indican, son positivos (hasta 3 decimales)."));
+        }
+
+        var serie = Limpio(serieOrigen);
+        if (serie is not null && _palesEntrada.Any(p => string.Equals(p.SerieOrigen, serie, StringComparison.OrdinalIgnoreCase)))
+        {
+            return Resultado.Fallo<PaleEntrada>(Error.Conflicto("pale_entrada.repetido", $"El palé {serie} ya está en la recepción."));
+        }
+
+        var numero = _palesEntrada.Where(p => p.LineaId == lineaId).Select(p => p.Numero).DefaultIfEmpty(0).Max() + 1;
+        var pale = new PaleEntrada(Guid.NewGuid(), lineaId, numero, serie is { Length: > 60 } ? serie[..60] : serie, envaseProductoId, envases, kilosNetos);
+        _palesEntrada.Add(pale);
+        return Resultado.Ok(pale);
+    }
+
+    public Resultado QuitarPaleEntrada(Guid paleEntradaId)
+    {
+        var borrador = SoloBorrador();
+        if (borrador.EsFallo)
+        {
+            return borrador;
+        }
+
+        return _palesEntrada.RemoveAll(p => p.Id == paleEntradaId) == 0
+            ? Resultado.Fallo(Error.NoEncontrado("pale_entrada.no_encontrado", "El palé no está en la recepción."))
+            : Resultado.Ok();
+    }
+
+    /// <summary>
+    /// Kilos de cada palé de entrada de la línea: los pesados uno a uno si todos se pesaron; si no, el neto de la línea
+    /// repartido en proporción a sus envases (a partes iguales si no traen envases contados). Suman exactamente el neto.
+    /// </summary>
+    public IReadOnlyList<(PaleEntrada Pale, decimal Kilos)> KilosPalesEntrada(Guid lineaId)
+    {
+        var pales = _palesEntrada.Where(p => p.LineaId == lineaId).OrderBy(p => p.Numero).ToList();
+        if (pales.Count == 0)
+        {
+            return [];
+        }
+
+        if (pales.All(p => p.KilosNetos is not null))
+        {
+            return pales.Select(p => (p, p.KilosNetos!.Value)).ToList();
+        }
+
+        var neto = NetoDe(lineaId);
+        var envases = pales.Sum(p => p.Envases);
+        var resto = neto;
+        var resultado = new List<(PaleEntrada, decimal)>();
+        for (var i = 0; i < pales.Count; i++)
+        {
+            var kilos = i == pales.Count - 1
+                ? resto
+                : Math.Round(envases > 0 ? neto * pales[i].Envases / envases : neto / pales.Count, 3, MidpointRounding.AwayFromZero);
+            resto -= kilos;
+            resultado.Add((pales[i], kilos));
+        }
+
+        return resultado;
     }
 
     /// <summary>
@@ -240,13 +437,36 @@ public sealed class Recepcion : RaizAgregadoEmpresa<Guid>
             {
                 errores.Add(Error.Validacion("recepcion.fecha_recoleccion", $"La línea {l.NumeroLinea} se recolectó después de la fecha de la recepción."));
             }
+
+            // Los palés contados cuadran con lo pesado: los envases de la línea y, si se pesaron uno a uno, los kilos.
+            var pales = _palesEntrada.Where(p => p.LineaId == l.Id).ToList();
+            if (pales.Count > 0)
+            {
+                var envasesPales = pales.Where(p => p.EnvaseProductoId is null || p.EnvaseProductoId == l.EnvaseProductoId).Sum(p => p.Envases);
+                if (EnvasesDe(l.Id) > 0 && envasesPales != EnvasesDe(l.Id))
+                {
+                    errores.Add(Error.Validacion("recepcion.pales_envases",
+                        $"La línea {l.NumeroLinea}: los palés traen {envasesPales} envases y en las pesadas se contaron {EnvasesDe(l.Id)}."));
+                }
+
+                if (pales.Any(p => p.KilosNetos is not null) && (pales.Any(p => p.KilosNetos is null) || pales.Sum(p => p.KilosNetos!.Value) != NetoDe(l.Id)))
+                {
+                    errores.Add(Error.Validacion("recepcion.pales_kilos",
+                        $"La línea {l.NumeroLinea}: si los palés se pesan uno a uno, se pesan todos y suman el neto ({NetoDe(l.Id):0.###} kg)."));
+                }
+            }
+
+            if (l.KilosLiquidacion is not null && string.IsNullOrWhiteSpace(l.MotivoKilosLiquidacion))
+            {
+                errores.Add(Error.Validacion("recepcion.kilos_liquidacion_motivo", $"La línea {l.NumeroLinea} liquida kilos distintos del neto: indica el motivo."));
+            }
         }
 
         return errores;
     }
 
     /// <summary>Confirma con el número reservado y fija en cada línea su partida, sus kilos netos y sus envases.</summary>
-    public Resultado Confirmar(int numero, IReadOnlyDictionary<Guid, Guid> partidaPorLinea, IReloj reloj)
+    public Resultado Confirmar(int numero, IReadOnlyDictionary<Guid, Guid> partidaPorLinea, IReloj reloj, IReadOnlyDictionary<Guid, Guid>? palePorEntrada = null)
     {
         ArgumentNullException.ThrowIfNull(partidaPorLinea);
         ArgumentNullException.ThrowIfNull(reloj);
@@ -259,6 +479,14 @@ public sealed class Recepcion : RaizAgregadoEmpresa<Guid>
         foreach (var l in _lineas)
         {
             l.Fijar(partidaPorLinea[l.Id], NetoDe(l.Id), EnvasesDe(l.Id));
+        }
+
+        foreach (var l in _lineas)
+        {
+            foreach (var (pale, kilos) in KilosPalesEntrada(l.Id))
+            {
+                pale.Fijar(palePorEntrada is not null && palePorEntrada.TryGetValue(pale.Id, out var paleId) ? paleId : null, kilos);
+            }
         }
 
         Numero = numero;
@@ -296,7 +524,11 @@ public sealed class Recepcion : RaizAgregadoEmpresa<Guid>
 
 public sealed record DatosLineaRecepcion(
     Guid ProductoId, string ProductoNombre, Guid? ParcelaId = null, DateOnly? FechaRecoleccion = null, Guid? EnvaseProductoId = null,
-    decimal? PrecioEstimadoKg = null, string? Calibre = null, string? MotivoDescalificacion = null);
+    decimal? PrecioEstimadoKg = null, string? Calibre = null, string? MotivoDescalificacion = null, decimal? KilosLiquidacion = null,
+    string? MotivoKilosLiquidacion = null);
+
+/// <summary>Envases de un tipo contados en una pesada, con la tara unitaria (y la versión de tara) que se les aplica.</summary>
+public sealed record EnvaseContado(Guid EnvaseProductoId, int Cantidad, decimal TaraUnitariaKg, Guid? TaraEnvaseId);
 
 /// <summary>Línea de una recepción: un producto de una parcela.</summary>
 public sealed class LineaRecepcion : EntidadBase<Guid>
@@ -319,6 +551,25 @@ public sealed class LineaRecepcion : EntidadBase<Guid>
         PrecioEstimadoKg = d.PrecioEstimadoKg;
         Calibre = string.IsNullOrWhiteSpace(d.Calibre) ? null : d.Calibre.Trim();
         MotivoDescalificacion = string.IsNullOrWhiteSpace(d.MotivoDescalificacion) ? null : d.MotivoDescalificacion.Trim();
+        KilosLiquidacion = d.KilosLiquidacion;
+        MotivoKilosLiquidacion = string.IsNullOrWhiteSpace(d.MotivoKilosLiquidacion) ? null : d.MotivoKilosLiquidacion.Trim();
+    }
+
+    /// <summary>
+    /// Kilos por los que se liquida al agricultor si no son los netos reales (una cantidad teórica pactada, por
+    /// ejemplo). Es un dato aparte y con motivo: nunca sustituye al neto, que es lo que entra en la partida.
+    /// </summary>
+    public decimal? KilosLiquidacion { get; private set; }
+
+    public string? MotivoKilosLiquidacion { get; private set; }
+
+    /// <summary>Lo que se liquida: los kilos de liquidación si se fijaron; si no, el neto real.</summary>
+    public decimal? KilosALiquidar => KilosLiquidacion ?? NetoKg;
+
+    internal void FijarKilosLiquidacion(decimal? kilos, string? motivo)
+    {
+        KilosLiquidacion = kilos;
+        MotivoKilosLiquidacion = kilos is null ? null : motivo?.Trim();
     }
 
     /// <summary>Motivo para recibir fruta ecológica con un artículo convencional (descalificación explícita).</summary>
@@ -391,4 +642,105 @@ public sealed class Pesada : EntidadBase<Guid>
 
     /// <summary>Identificador de la báscula o del ticket de pesada.</summary>
     public string? Bascula { get; private set; }
+
+    /// <summary>Tara del camión (pesado vacío) en una pesada completa; null si la tara se tecleó entera.</summary>
+    public decimal? TaraCamionKg { get; private set; }
+
+    /// <summary>Tara de los envases contados (cantidad × tara vigente de cada tipo).</summary>
+    public decimal TaraEnvasesKg { get; private set; }
+
+    internal void Desglosar(decimal taraCamion, decimal taraEnvases)
+    {
+        TaraCamionKg = taraCamion;
+        TaraEnvasesKg = taraEnvases;
+        TaraKg = taraCamion + taraEnvases;
+    }
+}
+
+/// <summary>Envases de un tipo contados en una pesada, con la tara unitaria y la versión de tara aplicada.</summary>
+public sealed class EnvasePesada : EntidadBase<Guid>
+{
+    private EnvasePesada(Guid id)
+        : base(id)
+    {
+    }
+
+    internal EnvasePesada(Guid id, Guid pesadaId, Guid envaseProductoId, int cantidad, decimal taraUnitariaKg, Guid? taraEnvaseId)
+        : base(id)
+    {
+        PesadaId = pesadaId;
+        EnvaseProductoId = envaseProductoId;
+        Cantidad = cantidad;
+        TaraUnitariaKg = taraUnitariaKg;
+        TaraEnvaseId = taraEnvaseId;
+    }
+
+    public Guid PesadaId { get; private set; }
+
+    public Guid EnvaseProductoId { get; private set; }
+
+    public int Cantidad { get; private set; }
+
+    public decimal TaraUnitariaKg { get; private set; }
+
+    /// <summary>Versión de la tara del envase aplicada (null si la tara unitaria se indicó a mano).</summary>
+    public Guid? TaraEnvaseId { get; private set; }
+
+    public decimal TaraKg => Cantidad * TaraUnitariaKg;
+
+    internal void Aplicar(decimal taraUnitaria, Guid taraId)
+    {
+        TaraUnitariaKg = taraUnitaria;
+        TaraEnvaseId = taraId;
+    }
+}
+
+/// <summary>
+/// Palé (o palot) que llega en una línea de recepción, contado uno a uno: su serie de origen, el envase y los envases que
+/// trae y, si se pesó solo, sus kilos. Al confirmar pasa a ser un palé con SSCC que lleva sus kilos de la partida.
+/// </summary>
+public sealed class PaleEntrada : EntidadBase<Guid>
+{
+    private PaleEntrada(Guid id)
+        : base(id)
+    {
+    }
+
+    internal PaleEntrada(Guid id, Guid lineaId, int numero, string? serieOrigen, Guid? envaseProductoId, int envases, decimal? kilosNetos)
+        : base(id)
+    {
+        LineaId = lineaId;
+        Numero = numero;
+        SerieOrigen = serieOrigen;
+        EnvaseProductoId = envaseProductoId;
+        Envases = envases;
+        KilosNetos = kilosNetos;
+    }
+
+    public Guid LineaId { get; private set; }
+
+    public int Numero { get; private set; }
+
+    /// <summary>Número de serie de la etiqueta con que llega (del proveedor o de la finca).</summary>
+    public string? SerieOrigen { get; private set; }
+
+    public Guid? EnvaseProductoId { get; private set; }
+
+    /// <summary>Envases reales del palé (contados, no un factor del artículo).</summary>
+    public int Envases { get; private set; }
+
+    /// <summary>Kilos netos si el palé se pesó solo.</summary>
+    public decimal? KilosNetos { get; private set; }
+
+    /// <summary>Palé (SSCC) creado al confirmar.</summary>
+    public Guid? PaleId { get; private set; }
+
+    /// <summary>Kilos de la partida que lleva (los pesados o su parte del neto de la línea).</summary>
+    public decimal? KilosAsignados { get; private set; }
+
+    internal void Fijar(Guid? paleId, decimal kilos)
+    {
+        PaleId = paleId;
+        KilosAsignados = kilos;
+    }
 }

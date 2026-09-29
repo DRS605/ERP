@@ -23,6 +23,7 @@ public sealed class AgroDbContext : DbContextEmpresaBase, IUnidadDeTrabajoAgro
     /// <summary>Tablas raíz del módulo (las líneas caen en cascada con su cabecera).</summary>
     private const string SqlBorradoEmpresa = """
         DELETE FROM agro.descalificacion_partida WHERE empresa_id = {0};
+        DELETE FROM agro.tara_envase WHERE empresa_id = {0};
         DELETE FROM agro.certificado_agro WHERE empresa_id = {0};
         DELETE FROM agro.declaracion_articulo WHERE empresa_id = {0};
         DELETE FROM agro.genealogia WHERE empresa_id = {0};
@@ -277,6 +278,9 @@ internal sealed class ConfiguracionRecepcion : IEntityTypeConfiguration<Recepcio
             l.Property(x => x.PrecioEstimadoKg).HasColumnName("precio_estimado_kg").HasColumnType(Columnas.PrecioKg);
             l.Property(x => x.Calibre).HasColumnName("calibre").HasMaxLength(30);
             l.Property(x => x.MotivoDescalificacion).HasColumnName("motivo_descalificacion").HasMaxLength(300);
+            l.Property(x => x.KilosLiquidacion).HasColumnName("kilos_liquidacion").HasColumnType(Columnas.Kilos);
+            l.Property(x => x.MotivoKilosLiquidacion).HasColumnName("motivo_kilos_liquidacion").HasMaxLength(300);
+            l.Ignore(x => x.KilosALiquidar);
             l.Property(x => x.PartidaId).HasColumnName("partida_id");
             l.Property(x => x.NetoKg).HasColumnName("neto_kg").HasColumnType(Columnas.Kilos);
             l.Property(x => x.Envases).HasColumnName("envases");
@@ -297,12 +301,69 @@ internal sealed class ConfiguracionRecepcion : IEntityTypeConfiguration<Recepcio
             p.Property(x => x.TaraKg).HasColumnName("tara_kg").HasColumnType(Columnas.Kilos).IsRequired();
             p.Property(x => x.Envases).HasColumnName("envases").IsRequired();
             p.Property(x => x.Bascula).HasColumnName("bascula").HasMaxLength(60);
+            p.Property(x => x.TaraCamionKg).HasColumnName("tara_camion_kg").HasColumnType(Columnas.Kilos);
+            p.Property(x => x.TaraEnvasesKg).HasColumnName("tara_envases_kg").HasColumnType(Columnas.Kilos).HasDefaultValue(0m).IsRequired();
             p.Ignore(x => x.NetoKg);
             p.HasIndex("recepcion_id").HasDatabaseName("ix_pesada_recepcion");
             p.HasIndex(x => new { x.LineaId, x.Secuencia }).IsUnique().HasDatabaseName("ux_pesada_secuencia");
         });
+        b.OwnsMany(x => x.EnvasesPesadas, e =>
+        {
+            e.ToTable("pesada_envase");
+            e.WithOwner().HasForeignKey("recepcion_id");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+            e.Property<Guid>("recepcion_id").HasColumnName("recepcion_id");
+            e.Property(x => x.PesadaId).HasColumnName("pesada_id").IsRequired();
+            e.Property(x => x.EnvaseProductoId).HasColumnName("envase_producto_id").IsRequired();
+            e.Property(x => x.Cantidad).HasColumnName("cantidad").IsRequired();
+            e.Property(x => x.TaraUnitariaKg).HasColumnName("tara_unitaria_kg").HasColumnType(Columnas.Kilos).IsRequired();
+            e.Property(x => x.TaraEnvaseId).HasColumnName("tara_envase_id");
+            e.Ignore(x => x.TaraKg);
+            e.HasIndex("recepcion_id").HasDatabaseName("ix_pesada_envase_recepcion");
+            e.HasIndex(x => new { x.PesadaId, x.EnvaseProductoId }).IsUnique().HasDatabaseName("ux_pesada_envase_tipo");
+            e.HasIndex(x => x.EnvaseProductoId).HasDatabaseName("ix_pesada_envase_envase");
+            e.HasIndex(x => x.TaraEnvaseId).HasDatabaseName("ix_pesada_envase_tara");
+        });
+        b.OwnsMany(x => x.PalesEntrada, e =>
+        {
+            e.ToTable("pale_entrada");
+            e.WithOwner().HasForeignKey("recepcion_id");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+            e.Property<Guid>("recepcion_id").HasColumnName("recepcion_id");
+            e.Property(x => x.LineaId).HasColumnName("linea_id").IsRequired();
+            e.Property(x => x.Numero).HasColumnName("numero").IsRequired();
+            e.Property(x => x.SerieOrigen).HasColumnName("serie_origen").HasMaxLength(60);
+            e.Property(x => x.EnvaseProductoId).HasColumnName("envase_producto_id");
+            e.Property(x => x.Envases).HasColumnName("envases").IsRequired();
+            e.Property(x => x.KilosNetos).HasColumnName("kilos_netos").HasColumnType(Columnas.Kilos);
+            e.Property(x => x.PaleId).HasColumnName("pale_id");
+            e.Property(x => x.KilosAsignados).HasColumnName("kilos_asignados").HasColumnType(Columnas.Kilos);
+            e.HasIndex("recepcion_id").HasDatabaseName("ix_pale_entrada_recepcion");
+            e.HasIndex(x => new { x.LineaId, x.Numero }).IsUnique().HasDatabaseName("ux_pale_entrada_numero");
+            e.HasIndex(x => x.PaleId).IsUnique().HasDatabaseName("ux_pale_entrada_pale");
+            e.HasIndex(x => x.EnvaseProductoId).HasDatabaseName("ix_pale_entrada_envase");
+        });
         b.Navigation(x => x.Lineas).UsePropertyAccessMode(PropertyAccessMode.Field);
         b.Navigation(x => x.Pesadas).UsePropertyAccessMode(PropertyAccessMode.Field);
+        b.Navigation(x => x.EnvasesPesadas).UsePropertyAccessMode(PropertyAccessMode.Field);
+        b.Navigation(x => x.PalesEntrada).UsePropertyAccessMode(PropertyAccessMode.Field);
+    }
+}
+
+internal sealed class ConfiguracionTaraEnvase : IEntityTypeConfiguration<TaraEnvase>
+{
+    public void Configure(EntityTypeBuilder<TaraEnvase> b)
+    {
+        Columnas.Base(b, "tara_envase");
+        b.Property(x => x.EnvaseProductoId).HasColumnName("envase_producto_id").IsRequired();
+        b.Property(x => x.TaraKg).HasColumnName("tara_kg").HasColumnType(Columnas.Kilos).IsRequired();
+        b.Property(x => x.Desde).HasColumnName("desde").IsRequired();
+        b.Property(x => x.Hasta).HasColumnName("hasta");
+        b.Property(x => x.Observaciones).HasColumnName("observaciones").HasMaxLength(200);
+        b.HasIndex(x => new { x.EmpresaId, x.EnvaseProductoId, x.Desde }).IsUnique().HasDatabaseName("ux_tara_envase_desde");
+        b.HasIndex(x => x.EnvaseProductoId).HasDatabaseName("ix_tara_envase_envase");
     }
 }
 
@@ -371,8 +432,11 @@ internal sealed class ConfiguracionPale : IEntityTypeConfiguration<Pale>
         b.Property(x => x.PlantillaId).HasColumnName("plantilla_id");
         b.Property(x => x.CartaPorteId).HasColumnName("carta_porte_id");
         b.Property(x => x.AlbaranId).HasColumnName("albaran_id");
+        b.Property(x => x.LineaRecepcionId).HasColumnName("linea_recepcion_id");
+        b.Property(x => x.SerieOrigen).HasColumnName("serie_origen").HasMaxLength(60);
         b.Property(x => x.CreadoEn).HasColumnName("creado_en").IsRequired();
         b.HasIndex(x => new { x.EmpresaId, x.Sscc }).IsUnique().HasDatabaseName("ux_pale_sscc");
+        b.HasIndex(x => x.LineaRecepcionId).HasDatabaseName("ix_pale_linea_recepcion");
         b.HasIndex(x => x.PlantillaId).HasDatabaseName("ix_pale_plantilla");
         b.HasIndex(x => x.CartaPorteId).HasDatabaseName("ix_pale_carta_porte");
         b.HasIndex(x => x.AlbaranId).HasDatabaseName("ix_pale_albaran");
@@ -955,6 +1019,16 @@ internal sealed class RepositorioAgro : IRepositorioAgro
 
     public Task<Parcela?> ParcelaAsync(Guid id, CancellationToken ct = default) => _ctx.Set<Parcela>().SingleOrDefaultAsync(x => x.Id == id, ct);
 
+    public async Task<IReadOnlyList<TaraEnvase>> TarasAsync(Guid empresaId, Guid? envaseProductoId, CancellationToken ct = default) =>
+        await _ctx.Set<TaraEnvase>().Where(t => t.EmpresaId == empresaId && (envaseProductoId == null || t.EnvaseProductoId == envaseProductoId))
+            .OrderBy(t => t.EnvaseProductoId).ThenByDescending(t => t.Desde).ToListAsync(ct).ConfigureAwait(false);
+
+    public Task<TaraEnvase?> TaraAsync(Guid id, CancellationToken ct = default) => _ctx.Set<TaraEnvase>().SingleOrDefaultAsync(x => x.Id == id, ct);
+
+    public async Task<IReadOnlySet<Guid>> TarasUsadasAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default) =>
+        (await _ctx.Set<Recepcion>().SelectMany(r => r.EnvasesPesadas).Where(e => e.TaraEnvaseId != null && ids.Contains(e.TaraEnvaseId.Value))
+            .Select(e => e.TaraEnvaseId!.Value).Distinct().ToListAsync(ct).ConfigureAwait(false)).ToHashSet();
+
     public async Task<IReadOnlyList<CertificadoAgro>> CertificadosAsync(Guid empresaId, Guid? agricultorId, CancellationToken ct = default) =>
         await _ctx.Set<CertificadoAgro>().Where(c => c.EmpresaId == empresaId && (agricultorId == null || c.AgricultorId == agricultorId))
             .OrderBy(c => c.AgricultorId).ThenBy(c => c.Tipo).ThenByDescending(c => c.Desde).ToListAsync(ct).ConfigureAwait(false);
@@ -1091,7 +1165,10 @@ internal sealed class RepositorioAgro : IRepositorioAgro
     public async Task<IReadOnlyList<Pale>> PalesAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default) =>
         ids.Count == 0 ? [] : await _ctx.Set<Pale>().Where(x => ids.Contains(x.Id)).ToListAsync(ct).ConfigureAwait(false);
 
-    public Task<int> PalesCreadosAsync(Guid empresaId, CancellationToken ct = default) => _ctx.Set<Pale>().CountAsync(x => x.EmpresaId == empresaId, ct);
+    /// <summary>Palés de la empresa, contando los dados de alta en esta unidad de trabajo y aún sin guardar (para numerar el SSCC).</summary>
+    public async Task<int> PalesCreadosAsync(Guid empresaId, CancellationToken ct = default) =>
+        await _ctx.Set<Pale>().CountAsync(x => x.EmpresaId == empresaId, ct).ConfigureAwait(false)
+        + _ctx.ChangeTracker.Entries<Pale>().Count(e => e.State == EntityState.Added && e.Entity.EmpresaId == empresaId);
 
     public async Task<IReadOnlyList<Pale>> PalesDeCartaPorteAsync(Guid cartaPorteId, CancellationToken ct = default) =>
         await _ctx.Set<Pale>().Where(x => x.CartaPorteId == cartaPorteId).ToListAsync(ct).ConfigureAwait(false);

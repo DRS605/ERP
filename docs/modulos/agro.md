@@ -417,6 +417,55 @@ saltándose la aplicación:
 - **Valores:** SSCC con dígito de control GS1, SIGPAC, pesadas (bruto > tara ≥ 0), régimen coherente con el
   impuesto, y precios y tarifas sin solapes.
 
+## Pesada completa y taras versionadas
+
+- **Taras de envases** (`/agro/taras`). Hay una tara por tipo de envase (palot, box, caja, palé de madera…), con
+  su vigencia.
+  - Una versión nueva cierra la anterior el día antes.
+  - Una versión que ya se aplicó en alguna pesada no cambia ni se borra: lo impiden la aplicación y la base de
+    datos (`tara.aplicada`).
+  - No se admiten solapes (`tara.solapada`).
+- **Pesada completa.** `POST .../pesadas` recibe:
+  - `BrutoKg`: el bruto de báscula;
+  - `TaraCamionKg`: el camión pesado vacío;
+  - `EnvasesPorTipo`: los envases contados por tipo.
+
+  La tara de los envases es la cantidad por la tara vigente el día de la recepción. Se guarda por envase, con su
+  tara unitaria y la **versión** aplicada. Si la fecha cambia en el borrador, al confirmar se vuelven a aplicar las
+  taras. Sin tara vigente no se pesa (`tara.falta`), salvo que se indique la tara unitaria a mano. La pesada simple
+  (tara total tecleada) sigue disponible.
+- **La base de datos comprueba que:**
+  - tara = tara del camión + tara de los envases;
+  - la tara de los envases es la suma de los envases contados;
+  - cada envase lleva la tara vigente en su fecha.
+
+## Palés de entrada
+
+`POST /agro/recepciones/{id}/lineas/{lineaId}/pales` registra cada palé o palot que llega. Guarda la serie de su
+etiqueta (del proveedor o de la finca), el envase, los **envases reales** y, si se pesó solo, sus kilos.
+
+- **Al confirmar**, cada palé de entrada se convierte en un palé con **SSCC** propio. El palé queda cerrado, guarda su
+  serie de origen y ya lleva sus kilos de la partida.
+- **Reparto de kilos.** Si los palés se pesaron uno a uno, se usan esos kilos (tienen que pesarse todos y sumar el
+  neto). Si no, el neto de la línea se reparte en proporción a sus envases. Los kilos de los palés suman exactamente
+  el neto.
+- **Cuadre.** Los envases de los palés tienen que coincidir con los contados en las pesadas
+  (`recepcion.pales_envases`). Los palés nunca se deducen de un factor del artículo.
+- **Uso.** Un palé de entrada se consume en confección sin abrirlo, y se puede expedir tal cual.
+- **Anulación.** Si la recepción se anula (solo si no se ha usado), sus palés se quedan sin kilos.
+- **La base de datos exige que:**
+  - los palés de la línea lleven exactamente su neto, cada uno con su palé y su entrada;
+  - en un palé de entrada solo entren los kilos de su propia línea.
+
+## Kilos de liquidación
+
+Una línea puede liquidarse por **kilos de liquidación** distintos del neto pesado, por ejemplo una cantidad teórica
+pactada. Se indican al crear la línea o con `PUT .../kilos-liquidacion`, siempre con **motivo**.
+
+- Son un dato aparte: el neto real es lo que entra en la partida y en la traza, y nunca se sustituye.
+- La liquidación usa los kilos de liquidación si se fijaron y, si no, el neto. La base de datos lo comprueba al
+  cuadrar la liquidación.
+
 ## Certificaciones (ecológico, GlobalG.A.P., GRASP)
 
 La certificación viaja con la partida desde la finca hasta el cliente.

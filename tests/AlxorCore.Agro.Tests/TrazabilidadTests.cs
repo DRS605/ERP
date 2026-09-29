@@ -59,3 +59,73 @@ public sealed class CertificacionTests
             .Error.Codigo.Should().Be("certificado.tipo");
     }
 }
+
+public sealed class RecepcionCompletaTests
+{
+    private sealed class Reloj : AlxorCore.Nucleo.Tiempo.IReloj
+    {
+        public DateTimeOffset AhoraUtc { get; } = new(2026, 1, 10, 8, 0, 0, TimeSpan.Zero);
+    }
+
+    private static readonly Guid Box = Guid.NewGuid();
+
+    private static (Recepcion R, LineaRecepcion L) Borrador()
+    {
+        var r = Recepcion.Crear(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 1, 10), null, null, null, new Reloj()).Valor;
+        var l = r.AgregarLinea(new DatosLineaRecepcion(Guid.NewGuid(), "Pimiento", EnvaseProductoId: Box)).Valor;
+        return (r, l);
+    }
+
+    [Fact]
+    public void La_pesada_completa_calcula_la_tara_y_se_retara_con_la_version_vigente()
+    {
+        var (r, l) = Borrador();
+        var tara28 = Guid.NewGuid();
+        var p = r.AgregarPesadaCompleta(l.Id, 18_000m, 5_000m, [new EnvaseContado(Box, 104, 28m, tara28), new EnvaseContado(Guid.NewGuid(), 26, 20m, null)], "B1").Valor;
+        p.TaraKg.Should().Be(5_000m + 2_912m + 520m);
+        p.NetoKg.Should().Be(9_568m);
+        p.Envases.Should().Be(104, "cuentan los envases del envase de la línea, no los palés de madera");
+
+        var tara33 = Guid.NewGuid();
+        r.AplicarTaras(e => e == Box ? (33m, tara33) : null).EsCorrecto.Should().BeTrue("la tara indicada a mano no se retara");
+        p.TaraEnvasesKg.Should().Be(104 * 33m + 520m);
+        r.EnvasesPesadas.Single(e => e.EnvaseProductoId == Box).TaraEnvaseId.Should().Be(tara33);
+        r.AplicarTaras(_ => null).Error.Codigo.Should().Be("tara.falta");
+    }
+
+    [Fact]
+    public void Los_kilos_se_reparten_entre_los_pales_por_sus_envases_sin_perder_gramos()
+    {
+        var (r, l) = Borrador();
+        r.AgregarPesada(l.Id, 1_000m, 0m, 10, null);
+        r.AgregarPaleEntrada(l.Id, "A", Box, 3, null);
+        r.AgregarPaleEntrada(l.Id, "B", Box, 3, null);
+        r.AgregarPaleEntrada(l.Id, "C", Box, 4, null);
+        var kilos = r.KilosPalesEntrada(l.Id);
+        kilos.Select(k => k.Kilos).Should().Equal(300m, 300m, 400m);
+        r.AgregarPaleEntrada(l.Id, "a", Box, 1, null).Error.Codigo.Should().Be("pale_entrada.repetido");
+        r.ErroresConfirmacion().Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Una_version_nueva_de_tara_cierra_la_anterior_el_dia_antes()
+    {
+        var t = TaraEnvase.Crear(Guid.NewGuid(), Box, 28m, new DateOnly(2026, 1, 1), null, null).Valor;
+        t.CerrarAntesDe(new DateOnly(2026, 2, 1)).EsCorrecto.Should().BeTrue();
+        t.Hasta.Should().Be(new DateOnly(2026, 1, 31));
+        t.VigenteEl(new DateOnly(2026, 2, 1)).Should().BeFalse();
+        t.CerrarAntesDe(new DateOnly(2026, 1, 1)).Error.Codigo.Should().Be("tara.solapada");
+        TaraEnvase.Crear(Guid.NewGuid(), Box, -1m, new DateOnly(2026, 1, 1), null, null).Error.Codigo.Should().Be("tara.kilos");
+    }
+
+    [Fact]
+    public void Los_kilos_de_liquidacion_van_aparte_y_con_motivo()
+    {
+        var (r, l) = Borrador();
+        r.FijarKilosLiquidacion(l.Id, 19_760m, null).Error.Codigo.Should().Be("recepcion.kilos_liquidacion_motivo");
+        r.FijarKilosLiquidacion(l.Id, 19_760m, "Contrato").EsCorrecto.Should().BeTrue();
+        r.AgregarPesada(l.Id, 16_100m, 5_000m, 104, null);
+        r.NetoDe(l.Id).Should().Be(11_100m, "el neto es el de la báscula");
+        l.KilosLiquidacion.Should().Be(19_760m);
+    }
+}

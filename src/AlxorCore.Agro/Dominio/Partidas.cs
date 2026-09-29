@@ -289,6 +289,12 @@ public sealed class Pale : RaizAgregadoEmpresa<Guid>
     /// <summary>Carta de porte que se emitió al expedirlo.</summary>
     public Guid? CartaPorteId { get; private set; }
 
+    /// <summary>Línea de recepción con que llegó, si es un palé de entrada (el palot o palé tal como vino del campo).</summary>
+    public Guid? LineaRecepcionId { get; private set; }
+
+    /// <summary>Número de serie de la etiqueta con que llegó (del proveedor o de la finca).</summary>
+    public string? SerieOrigen { get; private set; }
+
     /// <summary>Albarán de venta (del pedido) con que salió.</summary>
     public Guid? AlbaranId { get; private set; }
 
@@ -310,6 +316,21 @@ public sealed class Pale : RaizAgregadoEmpresa<Guid>
         }
 
         return Resultado.Ok(new Pale(Guid.NewGuid(), empresaId, sscc, string.IsNullOrWhiteSpace(tipo) ? null : tipo.Trim(), plantillaId, reloj.AhoraUtc));
+    }
+
+    /// <summary>Palé de entrada: llega cerrado del campo, con su serie de origen, y lleva los kilos de su línea de recepción.</summary>
+    public static Resultado<Pale> DeEntrada(Guid empresaId, string sscc, Guid lineaRecepcionId, string? serieOrigen, string? tipo, IReloj reloj)
+    {
+        var p = Crear(empresaId, sscc, tipo, reloj);
+        if (p.EsFallo)
+        {
+            return p;
+        }
+
+        p.Valor.LineaRecepcionId = lineaRecepcionId;
+        p.Valor.SerieOrigen = serieOrigen;
+        p.Valor.Estado = EstadoPale.Cerrado;
+        return p;
     }
 
     public Resultado Cerrar()

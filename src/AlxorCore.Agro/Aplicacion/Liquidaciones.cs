@@ -416,7 +416,7 @@ public sealed class LiquidacionesAgro
             .Where(x => !ocupadas.Contains(x.l.Id) || propias.Contains(x.l.Id))
             .OrderBy(x => x.r.Fecha).ThenBy(x => x.r.Numero).ThenBy(x => x.l.NumeroLinea)
             .Select(x => new LineaALiquidar(x.l.Id, x.r.Id, x.l.PartidaId!.Value, $"{x.r.NumeroCompleto} línea {x.l.NumeroLinea} ({x.l.ProductoNombre})",
-                x.l.ProductoId, x.r.Fecha, x.l.NetoKg ?? 0m, x.l.EnvaseProductoId, x.l.Envases ?? 0))
+                x.l.ProductoId, x.r.Fecha, x.l.KilosALiquidar ?? 0m, x.l.EnvaseProductoId, x.l.Envases ?? 0))
             .ToList();
     }
 

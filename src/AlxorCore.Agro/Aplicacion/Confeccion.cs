@@ -617,11 +617,19 @@ public sealed class PalesAgro
     }
 
     /// <summary>Da de alta <paramref name="cantidad"/> palés con SSCC correlativos (sin guardar).</summary>
-    private async Task<Resultado<IReadOnlyList<Pale>>> NuevosPalesAsync(Guid empresaId, int cantidad, string? tipo, Guid? plantillaId, CancellationToken ct)
+    private Task<Resultado<IReadOnlyList<Pale>>> NuevosPalesAsync(Guid empresaId, int cantidad, string? tipo, Guid? plantillaId, CancellationToken ct) =>
+        NuevosPalesAsync(_repo, _unidad, _reloj, empresaId, cantidad, tipo, plantillaId, ct);
+
+    /// <summary>
+    /// Da de alta <paramref name="cantidad"/> palés con SSCC correlativos (sin guardar), bajo el bloqueo de la numeración.
+    /// <paramref name="crear"/> construye cada palé con su SSCC y su posición (por defecto, un palé abierto).
+    /// </summary>
+    internal static async Task<Resultado<IReadOnlyList<Pale>>> NuevosPalesAsync(IRepositorioAgro repo, IUnidadDeTrabajoAgro unidad, IReloj reloj, Guid empresaId, int cantidad,
+        string? tipo, Guid? plantillaId, CancellationToken ct, Func<string, int, Resultado<Pale>>? crear = null)
     {
-        await _unidad.BloquearAsync(RecepcionesAgro.ClaveNumeracion(empresaId, "SSCC"), ct).ConfigureAwait(false);
-        var config = await _repo.ConfiguracionAsync(empresaId, ct).ConfigureAwait(false) ?? ConfiguracionAgro.Crear(empresaId);
-        var serie = await _repo.PalesCreadosAsync(empresaId, ct).ConfigureAwait(false);
+        await unidad.BloquearAsync(RecepcionesAgro.ClaveNumeracion(empresaId, "SSCC"), ct).ConfigureAwait(false);
+        var config = await repo.ConfiguracionAsync(empresaId, ct).ConfigureAwait(false) ?? ConfiguracionAgro.Crear(empresaId);
+        var serie = await repo.PalesCreadosAsync(empresaId, ct).ConfigureAwait(false);
         var lista = new List<Pale>();
         for (var i = 1; i <= cantidad; i++)
         {
@@ -631,13 +639,13 @@ public sealed class PalesAgro
                 return Resultado.Fallo<IReadOnlyList<Pale>>(sscc.Error);
             }
 
-            var pale = Pale.Crear(empresaId, sscc.Valor, tipo, _reloj, plantillaId);
+            var pale = crear is null ? Pale.Crear(empresaId, sscc.Valor, tipo, reloj, plantillaId) : crear(sscc.Valor, i - 1);
             if (pale.EsFallo)
             {
                 return Resultado.Fallo<IReadOnlyList<Pale>>(pale.Error);
             }
 
-            _repo.Agregar(pale.Valor);
+            repo.Agregar(pale.Valor);
             lista.Add(pale.Valor);
         }
 
@@ -1002,6 +1010,11 @@ public sealed class PalesAgro
         {
             // Nada sale antes de haber entrado, y cada partida sale con las certificaciones que exige su artículo.
             var contenido = (await _repo.ContenidoPaleAsync(pale.Id, ct).ConfigureAwait(false)).Where(c => c.Kilos > 0m).ToList();
+            if (contenido.Count == 0)
+            {
+                return Resultado.Fallo<IReadOnlyList<PaleDto>>(Error.Conflicto("expedicion.pale_vacio", $"{pale.Sscc} está vacío: no lleva kilos que expedir."));
+            }
+
             foreach (var partida in await _repo.PartidasAsync(contenido.Select(c => c.PartidaId).Distinct().ToList(), ct).ConfigureAwait(false))
             {
                 if (fecha < partida.Fecha)

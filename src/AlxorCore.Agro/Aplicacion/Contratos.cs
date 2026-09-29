@@ -60,6 +60,11 @@ public interface IRepositorioAgro
     Task<IReadOnlyList<Parcela>> ParcelasAsync(Guid empresaId, Guid? agricultorId, CancellationToken ct = default);
     Task<Parcela?> ParcelaAsync(Guid id, CancellationToken ct = default);
 
+    // Taras de envases
+    Task<IReadOnlyList<TaraEnvase>> TarasAsync(Guid empresaId, Guid? envaseProductoId, CancellationToken ct = default);
+    Task<TaraEnvase?> TaraAsync(Guid id, CancellationToken ct = default);
+    Task<IReadOnlySet<Guid>> TarasUsadasAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default);
+
     // Certificaciones
     Task<IReadOnlyList<CertificadoAgro>> CertificadosAsync(Guid empresaId, Guid? agricultorId, CancellationToken ct = default);
     Task<CertificadoAgro?> CertificadoAsync(Guid id, CancellationToken ct = default);
