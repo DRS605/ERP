@@ -486,9 +486,34 @@ Cuando un camión trae varios productos o parcelas y se pesa entero
   tara.
 - El neto (bruto − camión − envases) y la tara del camión se reparten entre las líneas **en proporción a sus envases
   de fruta**. Los palés de madera no cuentan para el reparto.
+- Si en todas las líneas se indican los **kilos declarados** (por el agricultor o el albarán de campo), el reparto va
+  en proporción a esos kilos.
 - Cada línea queda con su pesada. Todas llevan el mismo grupo y sus brutos suman el bruto de la báscula; la base de
   datos lo exige (`pesada_camion.no_cuadra`).
 - Si se quita una pesada del grupo, se quitan todas.
+
+## Calidad en recepción
+
+- **Plantillas de defectos** (`/agro/calidad/plantillas`; *Maestros agro → Calidad en recepción*):
+  - Cada plantilla es de un producto, de una familia o general. Con `?productoId=` se listan las que aplican, primero
+    la más específica.
+  - Cada defecto (podrido, golpe, calibre fuera, tierra…) indica si **descuenta peso**, su **tolerancia** (a partir
+    de ahí, aviso) y su **máximo** (a partir de ahí, la fruta no es aceptable tal cual).
+  - Una plantilla con muestreos no pierde defectos: se desactiva y se crea otra.
+- **Muestreo** (`POST /agro/recepciones/{id}/lineas/{lineaId}/muestreos`; botón *Calidad* en cada línea). Se
+  registran el peso de la muestra y los kilos de cada defecto. El % se calcula sobre la muestra.
+  - **Provisional:** solo informa. Puede haber varios.
+  - **Definitivo:** uno por línea. Su descuento es la suma de los defectos que descuentan, y se aplica a los **kilos
+    a liquidar** al agricultor, salvo que la línea tenga kilos de liquidación fijados. El neto real de la partida y
+    de la traza no cambia.
+  - Se anula con motivo (`POST /agro/muestreos/{id}/anular`), pero no si la entrega ya está liquidada.
+- **Permisos:** muestrean `agro.calidad`, `agro.recepcionar` y `agro.gestionar`. Anulan `agro.calidad` y
+  `agro.corregir`.
+- **Base de datos:**
+  - Los muestreos no se modifican, solo se anulan, y sus resultados se registran con ellos.
+  - Cada % es el de sus kilos; los defectos no pesan más que la muestra y el descuento es la suma de los que
+    descuentan.
+  - El definitivo de una entrega liquidada no cambia, y la liquidación cuadra con el descuento.
 
 ## Kilos de liquidación
 
@@ -572,8 +597,8 @@ nuevo), **sin cambiar de partida**.
 
 ## Correcciones y permiso `agro.corregir`
 
-Corregir lo ya hecho requiere el permiso `agro.corregir`. Hoy solo lo tiene el rol Propietario; con los roles de la
-fase 4 se podrá dar a quien corresponda, por ejemplo al jefe de almacén. Cubre:
+Corregir lo ya hecho requiere el permiso `agro.corregir`. Lo tiene el Propietario y se puede dar con un rol propio;
+la plantilla *Jefe de almacén* lo incluye (ver [roles](organizacion.md#roles)). Cubre:
 
 - rectificar una entrada;
 - anular la salida de un palé (con motivo);
@@ -600,8 +625,9 @@ La certificación viaja con la partida desde la finca hasta el cliente.
   - Un artículo declarado con `Ninguna` es **convencional**.
   - Un artículo sin declaración no se comprueba. Conviene declarar todos los ecológicos y sus equivalentes
     convencionales.
-- **Por parcela.** La línea de un artículo que exige certificación tiene que indicar su parcela
-  (`recepcion.parcela_certificada`).
+- **Por parcela** (opción de la empresa, `certificacionPorParcela` en la configuración). Si se activa, la línea de un
+  artículo que exige certificación tiene que indicar su parcela (`recepcion.parcela_certificada`). Si no, basta con el
+  certificado del agricultor: el GGN de GlobalG.A.P. suele ir por productor.
 - **Recepción.** La partida lleva las certificaciones vigentes el día de la recepción para el agricultor o esa parcela.
   Al confirmar:
   - si el artículo exige algo que la fruta no tiene, se rechaza (`certificacion.falta`);

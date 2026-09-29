@@ -86,12 +86,32 @@ internal sealed class ConfiguracionMembresia : IEntityTypeConfiguration<Membresi
         builder.Property(m => m.Id).HasColumnName("id");
         builder.Property(m => m.UsuarioId).HasColumnName("usuario_id").IsRequired();
         builder.Property(m => m.EmpresaId).HasColumnName("empresa_id").IsRequired();
-        builder.Property(m => m.RolCodigo).HasColumnName("rol_codigo").HasMaxLength(30).IsRequired();
+        builder.Property(m => m.RolCodigo).HasColumnName("rol_codigo").HasMaxLength(40).IsRequired();
         builder.Property(m => m.Estado).HasColumnName("estado").HasMaxLength(20).HasConversion<string>().IsRequired();
         builder.Property(m => m.CreadoEn).HasColumnName("creado_en").IsRequired();
 
         builder.HasIndex(m => new { m.UsuarioId, m.EmpresaId }).IsUnique().HasDatabaseName("ux_membresia_usuario_empresa");
         builder.Ignore(m => m.EventosDominio);
+    }
+}
+
+internal sealed class ConfiguracionRolEmpresa : IEntityTypeConfiguration<RolEmpresa>
+{
+    public void Configure(EntityTypeBuilder<RolEmpresa> builder)
+    {
+        builder.ToTable("rol_empresa");
+        builder.HasKey(r => r.Id);
+        builder.Property(r => r.Id).HasColumnName("id").ValueGeneratedNever();
+        builder.Property(r => r.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        builder.Property(r => r.Nombre).HasColumnName("nombre").HasMaxLength(RolEmpresa.LongitudMaximaNombre).IsRequired();
+        builder.Property(r => r.Descripcion).HasColumnName("descripcion").HasMaxLength(300);
+        builder.Property<List<string>>("_permisos").HasColumnName("permisos").HasColumnType("text[]").IsRequired();
+        builder.Property(r => r.CreadoEn).HasColumnName("creado_en").IsRequired();
+        builder.Property(r => r.ActualizadoEn).HasColumnName("actualizado_en").IsRequired();
+        builder.Ignore(r => r.Permisos);
+        builder.Ignore(r => r.Codigo);
+        builder.HasIndex(r => new { r.EmpresaId, r.Nombre }).IsUnique().HasDatabaseName("ux_rol_empresa_nombre");
+        builder.Ignore(r => r.EventosDominio);
     }
 }
 

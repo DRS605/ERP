@@ -41,6 +41,7 @@ public static class RegistroServicios
         servicios.AddScoped<IRepositorioVisibilidad>(sp => sp.GetRequiredService<RepositorioVisibilidad>());
         servicios.AddScoped<IConsultaVisibilidad>(sp => sp.GetRequiredService<RepositorioVisibilidad>());
         servicios.AddScoped<IRepositorioMembresias, RepositorioMembresias>();
+        servicios.AddScoped<IRepositorioRolesEmpresa, RepositorioRolesEmpresa>();
         servicios.AddScoped<IRepositorioSeries, RepositorioSeries>();
         servicios.AddScoped<RepositorioAsignacionesSerie>();
         servicios.AddScoped<IRepositorioAsignacionesSerie>(sp => sp.GetRequiredService<RepositorioAsignacionesSerie>());
@@ -85,6 +86,7 @@ public static class RegistroServicios
         servicios.AddScoped<GuardarFormaPago>();
         servicios.AddScoped<EliminarFormaPago>();
         servicios.AddScoped<ListarMembresias>();
+        servicios.AddScoped<RolesEmpresa>();
         servicios.AddScoped<AgregarMembresia>();
         servicios.AddScoped<CambiarRolMembresia>();
         servicios.AddScoped<RevocarMembresia>();

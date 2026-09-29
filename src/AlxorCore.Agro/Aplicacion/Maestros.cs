@@ -55,7 +55,7 @@ public sealed record TarifaDto(Guid Id, string Recurso, string Categoria, string
 }
 
 public sealed record ConfiguracionAgroDto(string PrefijoGs1, int DigitoExtension, bool? ReflejarPartidasEnInventario = null, bool? ReflejarEnvasesEnInventario = null,
-    decimal? ToleranciaMermaPct = null);
+    decimal? ToleranciaMermaPct = null, bool? CertificacionPorParcela = null);
 
 public sealed record DatosCampana(string? Codigo, string? Nombre, DateOnly Desde, DateOnly Hasta);
 
@@ -773,7 +773,7 @@ public sealed class MaestrosAgro
     {
         var c = await _repo.ConfiguracionAsync(empresaId, ct).ConfigureAwait(false);
         return c is null ? new ConfiguracionAgroDto(ConfiguracionAgro.PrefijoPruebas, 0, false, false)
-            : new ConfiguracionAgroDto(c.PrefijoGs1, c.DigitoExtension, c.ReflejarPartidasEnInventario, c.ReflejarEnvasesEnInventario, c.ToleranciaMermaPct);
+            : new ConfiguracionAgroDto(c.PrefijoGs1, c.DigitoExtension, c.ReflejarPartidasEnInventario, c.ReflejarEnvasesEnInventario, c.ToleranciaMermaPct, c.CertificacionPorParcela);
     }
 
     public async Task<Resultado<ConfiguracionAgroDto>> ActualizarConfiguracionAsync(Guid empresaId, ConfiguracionAgroDto datos, CancellationToken ct = default)
@@ -793,6 +793,7 @@ public sealed class MaestrosAgro
         }
 
         c.FijarInventario(datos.ReflejarPartidasEnInventario ?? c.ReflejarPartidasEnInventario, datos.ReflejarEnvasesEnInventario ?? c.ReflejarEnvasesEnInventario);
+        c.FijarCertificacionPorParcela(datos.CertificacionPorParcela ?? c.CertificacionPorParcela);
         var tolerancia = c.FijarToleranciaMerma(datos.ToleranciaMermaPct);
         if (tolerancia.EsFallo)
         {
@@ -800,6 +801,6 @@ public sealed class MaestrosAgro
         }
 
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
-        return Resultado.Ok(new ConfiguracionAgroDto(c.PrefijoGs1, c.DigitoExtension, c.ReflejarPartidasEnInventario, c.ReflejarEnvasesEnInventario, c.ToleranciaMermaPct));
+        return Resultado.Ok(new ConfiguracionAgroDto(c.PrefijoGs1, c.DigitoExtension, c.ReflejarPartidasEnInventario, c.ReflejarEnvasesEnInventario, c.ToleranciaMermaPct, c.CertificacionPorParcela));
     }
 }

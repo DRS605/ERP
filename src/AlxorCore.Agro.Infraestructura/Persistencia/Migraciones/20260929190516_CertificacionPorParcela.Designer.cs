@@ -3,6 +3,7 @@ using System;
 using AlxorCore.Agro.Infraestructura;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AlxorCore.Agro.Infraestructura.Persistencia.Migraciones
 {
     [DbContext(typeof(AgroDbContext))]
-    partial class AgroDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260929190516_CertificacionPorParcela")]
+    partial class CertificacionPorParcela
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1238,85 +1241,6 @@ namespace AlxorCore.Agro.Infraestructura.Persistencia.Migraciones
                     b.ToTable("movimiento_partida", "agro");
                 });
 
-            modelBuilder.Entity("AlxorCore.Agro.Dominio.MuestreoCalidad", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<bool>("Anulado")
-                        .HasColumnType("boolean")
-                        .HasColumnName("anulado");
-
-                    b.Property<DateTimeOffset>("CreadoEn")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("creado_en");
-
-                    b.Property<bool>("Definitivo")
-                        .HasColumnType("boolean")
-                        .HasColumnName("definitivo");
-
-                    b.Property<decimal>("DescuentoPct")
-                        .HasColumnType("numeric(5,2)")
-                        .HasColumnName("descuento_pct");
-
-                    b.Property<Guid>("EmpresaId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("empresa_id");
-
-                    b.Property<DateOnly>("Fecha")
-                        .HasColumnType("date")
-                        .HasColumnName("fecha");
-
-                    b.Property<Guid>("LineaRecepcionId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("linea_recepcion_id");
-
-                    b.Property<string>("MotivoAnulacion")
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)")
-                        .HasColumnName("motivo_anulacion");
-
-                    b.Property<string>("Observaciones")
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)")
-                        .HasColumnName("observaciones");
-
-                    b.Property<decimal>("PesoMuestraKg")
-                        .HasColumnType("numeric(12,3)")
-                        .HasColumnName("peso_muestra_kg");
-
-                    b.Property<Guid>("PlantillaId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("plantilla_id");
-
-                    b.Property<Guid>("RecepcionId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("recepcion_id");
-
-                    b.Property<Guid?>("UsuarioId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("usuario_id");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("LineaRecepcionId")
-                        .IsUnique()
-                        .HasDatabaseName("ux_muestreo_calidad_definitivo")
-                        .HasFilter("definitivo AND NOT anulado");
-
-                    b.HasIndex("PlantillaId")
-                        .HasDatabaseName("ix_muestreo_calidad_plantilla");
-
-                    b.HasIndex("RecepcionId")
-                        .HasDatabaseName("ix_muestreo_calidad_recepcion");
-
-                    b.HasIndex("UsuarioId")
-                        .HasDatabaseName("ix_muestreo_calidad_usuario");
-
-                    b.ToTable("muestreo_calidad", "agro");
-                });
-
             modelBuilder.Entity("AlxorCore.Agro.Dominio.OrdenCarga", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1800,55 +1724,6 @@ namespace AlxorCore.Agro.Infraestructura.Persistencia.Migraciones
                         .HasDatabaseName("ux_partida_codigo");
 
                     b.ToTable("partida", "agro");
-                });
-
-            modelBuilder.Entity("AlxorCore.Agro.Dominio.PlantillaCalidad", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<bool>("Activa")
-                        .HasColumnType("boolean")
-                        .HasColumnName("activa");
-
-                    b.Property<string>("Codigo")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("codigo");
-
-                    b.Property<Guid>("EmpresaId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("empresa_id");
-
-                    b.Property<Guid?>("FamiliaId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("familia_id");
-
-                    b.Property<string>("Nombre")
-                        .IsRequired()
-                        .HasMaxLength(120)
-                        .HasColumnType("character varying(120)")
-                        .HasColumnName("nombre");
-
-                    b.Property<Guid?>("ProductoId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("producto_id");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("FamiliaId")
-                        .HasDatabaseName("ix_plantilla_calidad_familia");
-
-                    b.HasIndex("ProductoId")
-                        .HasDatabaseName("ix_plantilla_calidad_producto");
-
-                    b.HasIndex("EmpresaId", "Codigo")
-                        .IsUnique()
-                        .HasDatabaseName("ux_plantilla_calidad_codigo");
-
-                    b.ToTable("plantilla_calidad", "agro");
                 });
 
             modelBuilder.Entity("AlxorCore.Agro.Dominio.PlantillaPale", b =>
@@ -3040,57 +2915,6 @@ namespace AlxorCore.Agro.Infraestructura.Persistencia.Migraciones
                     b.Navigation("Lineas");
                 });
 
-            modelBuilder.Entity("AlxorCore.Agro.Dominio.MuestreoCalidad", b =>
-                {
-                    b.OwnsMany("AlxorCore.Agro.Dominio.ResultadoMuestreo", "Resultados", b1 =>
-                        {
-                            b1.Property<Guid>("Id")
-                                .HasColumnType("uuid")
-                                .HasColumnName("id");
-
-                            b1.Property<string>("Defecto")
-                                .IsRequired()
-                                .HasMaxLength(80)
-                                .HasColumnType("character varying(80)")
-                                .HasColumnName("defecto");
-
-                            b1.Property<Guid>("DefectoId")
-                                .HasColumnType("uuid")
-                                .HasColumnName("defecto_id");
-
-                            b1.Property<bool>("DescuentaPeso")
-                                .HasColumnType("boolean")
-                                .HasColumnName("descuenta_peso");
-
-                            b1.Property<decimal>("Kilos")
-                                .HasColumnType("numeric(12,3)")
-                                .HasColumnName("kilos");
-
-                            b1.Property<decimal>("Porcentaje")
-                                .HasColumnType("numeric(5,2)")
-                                .HasColumnName("porcentaje");
-
-                            b1.Property<Guid>("muestreo_id")
-                                .HasColumnType("uuid")
-                                .HasColumnName("muestreo_id");
-
-                            b1.HasKey("Id");
-
-                            b1.HasIndex("DefectoId")
-                                .HasDatabaseName("ix_resultado_muestreo_defecto");
-
-                            b1.HasIndex("muestreo_id")
-                                .HasDatabaseName("ix_resultado_muestreo_muestreo");
-
-                            b1.ToTable("resultado_muestreo", "agro");
-
-                            b1.WithOwner()
-                                .HasForeignKey("muestreo_id");
-                        });
-
-                    b.Navigation("Resultados");
-                });
-
             modelBuilder.Entity("AlxorCore.Agro.Dominio.OrdenCarga", b =>
                 {
                     b.OwnsMany("AlxorCore.Agro.Dominio.LineaOrdenCarga", "Lineas", b1 =>
@@ -3529,54 +3353,6 @@ namespace AlxorCore.Agro.Infraestructura.Persistencia.Migraciones
                     b.Navigation("Materiales");
 
                     b.Navigation("Salidas");
-                });
-
-            modelBuilder.Entity("AlxorCore.Agro.Dominio.PlantillaCalidad", b =>
-                {
-                    b.OwnsMany("AlxorCore.Agro.Dominio.DefectoCalidad", "Defectos", b1 =>
-                        {
-                            b1.Property<Guid>("Id")
-                                .HasColumnType("uuid")
-                                .HasColumnName("id");
-
-                            b1.Property<bool>("DescuentaPeso")
-                                .HasColumnType("boolean")
-                                .HasColumnName("descuenta_peso");
-
-                            b1.Property<decimal?>("MaximoPct")
-                                .HasColumnType("numeric(5,2)")
-                                .HasColumnName("maximo_pct");
-
-                            b1.Property<string>("Nombre")
-                                .IsRequired()
-                                .HasMaxLength(80)
-                                .HasColumnType("character varying(80)")
-                                .HasColumnName("nombre");
-
-                            b1.Property<int>("Orden")
-                                .HasColumnType("integer")
-                                .HasColumnName("orden");
-
-                            b1.Property<decimal?>("ToleranciaPct")
-                                .HasColumnType("numeric(5,2)")
-                                .HasColumnName("tolerancia_pct");
-
-                            b1.Property<Guid>("plantilla_id")
-                                .HasColumnType("uuid")
-                                .HasColumnName("plantilla_id");
-
-                            b1.HasKey("Id");
-
-                            b1.HasIndex("plantilla_id")
-                                .HasDatabaseName("ix_defecto_calidad_plantilla");
-
-                            b1.ToTable("defecto_calidad", "agro");
-
-                            b1.WithOwner()
-                                .HasForeignKey("plantilla_id");
-                        });
-
-                    b.Navigation("Defectos");
                 });
 
             modelBuilder.Entity("AlxorCore.Agro.Dominio.ProductoFitosanitario", b =>

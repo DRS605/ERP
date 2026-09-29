@@ -121,6 +121,22 @@ internal sealed class RepositorioMembresias : IRepositorioMembresias
         await _contexto.Membresias.Where(m => m.EmpresaId == empresaId).OrderBy(m => m.CreadoEn).ToListAsync(ct).ConfigureAwait(false);
 }
 
+internal sealed class RepositorioRolesEmpresa : IRepositorioRolesEmpresa
+{
+    private readonly OrganizacionDbContext _contexto;
+
+    public RepositorioRolesEmpresa(OrganizacionDbContext contexto) => _contexto = contexto;
+
+    public Task<RolEmpresa?> ObtenerAsync(Guid id, CancellationToken ct = default) => _contexto.RolesEmpresa.SingleOrDefaultAsync(r => r.Id == id, ct);
+
+    public async Task<IReadOnlyList<RolEmpresa>> ListarAsync(Guid empresaId, CancellationToken ct = default) =>
+        await _contexto.RolesEmpresa.Where(r => r.EmpresaId == empresaId).OrderBy(r => r.Nombre).ToListAsync(ct).ConfigureAwait(false);
+
+    public void Agregar(RolEmpresa rol) => _contexto.RolesEmpresa.Add(rol);
+
+    public void Eliminar(RolEmpresa rol) => _contexto.RolesEmpresa.Remove(rol);
+}
+
 internal sealed class RepositorioSeries : IRepositorioSeries
 {
     private readonly OrganizacionDbContext _contexto;

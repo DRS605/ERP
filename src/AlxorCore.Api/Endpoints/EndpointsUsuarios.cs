@@ -46,8 +46,34 @@ public static class EndpointsUsuarios
             .WithSummary("Revoca el acceso de un miembro a la empresa.")
             .RequierePermiso(Permisos.UsuarioGestionar);
 
+        var roles = rutas.MapGroup("/roles").WithTags("Roles de la empresa");
+        roles.MapGet("", async (IContextoEmpresa c, RolesEmpresa r, CancellationToken ct) =>
+                c.EmpresaId is { } e ? Results.Ok(await r.ListarAsync(e, ct).ConfigureAwait(false)) : SinEmpresa())
+            .WithSummary("Roles de la empresa: los fijos y los propios, con sus permisos y cuántos miembros los tienen.")
+            .RequierePermiso(Permisos.UsuarioGestionar);
+        roles.MapGet("/permisos", () => Results.Ok(CatalogoPermisos.Todos))
+            .WithSummary("Todos los permisos, con su área y lo que dejan hacer.")
+            .RequierePermiso(Permisos.UsuarioGestionar);
+        roles.MapGet("/plantillas", () => Results.Ok(CatalogoPermisos.Plantillas))
+            .WithSummary("Plantillas de roles por puesto (báscula, confección, expedición, jefe de almacén, calidad, campo, administración…).")
+            .RequierePermiso(Permisos.UsuarioGestionar);
+        roles.MapPost("", async (DatosRol d, IContextoEmpresa c, RolesEmpresa r, CancellationToken ct) =>
+                c.EmpresaId is { } e ? (await r.CrearAsync(e, d, ct).ConfigureAwait(false)).ACreado($"/roles") : SinEmpresa())
+            .WithSummary("Crea un rol propio (desde una plantilla o permiso a permiso).")
+            .RequierePermiso(Permisos.UsuarioGestionar);
+        roles.MapPut("/{id:guid}", async (Guid id, DatosRol d, IContextoEmpresa c, RolesEmpresa r, CancellationToken ct) =>
+                c.EmpresaId is { } e ? (await r.CambiarAsync(e, id, d, ct).ConfigureAwait(false)).AOk() : SinEmpresa())
+            .WithSummary("Cambia el nombre y los permisos de un rol propio (rigen al volver a entrar en la empresa).")
+            .RequierePermiso(Permisos.UsuarioGestionar);
+        roles.MapDelete("/{id:guid}", async (Guid id, IContextoEmpresa c, RolesEmpresa r, CancellationToken ct) =>
+                c.EmpresaId is { } e ? (await r.EliminarAsync(e, id, ct).ConfigureAwait(false)).ASinContenido() : SinEmpresa())
+            .WithSummary("Borra un rol propio que ningún miembro tiene.")
+            .RequierePermiso(Permisos.UsuarioGestionar);
+
         return rutas;
     }
+
+    private static IResult SinEmpresa() => ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
 
     private static async Task<IResult> ListarAsync(
         System.Security.Claims.ClaimsPrincipal principal, IContextoEmpresa contexto,

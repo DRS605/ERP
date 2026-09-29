@@ -694,6 +694,14 @@ public sealed class ConfiguracionAgro : RaizAgregadoEmpresa<Guid>
         return Resultado.Ok();
     }
 
+    /// <summary>
+    /// La certificación va por parcela: lo que se vende certificado tiene que venir de una parcela concreta (en la
+    /// recepción, la línea lleva su parcela). Si no, basta el certificado del agricultor (el GGN suele ir por productor).
+    /// </summary>
+    public bool CertificacionPorParcela { get; private set; }
+
+    public void FijarCertificacionPorParcela(bool porParcela) => CertificacionPorParcela = porParcela;
+
     public void FijarInventario(bool partidas, bool envases)
     {
         ReflejarPartidasEnInventario = partidas;

@@ -3,9 +3,9 @@ using AlxorCore.Nucleo.Resultados;
 namespace AlxorCore.Nucleo.Autorizacion;
 
 /// <summary>
-/// Rol de negocio dentro de una empresa. Un rol es un conjunto fijo de <see cref="Permisos"/>.
-/// El MVP define tres roles; la asignación de un rol a un usuario dentro de una empresa
-/// (la membresía) pertenece al módulo Organización.
+/// Rol de negocio dentro de una empresa: un conjunto de <see cref="Permisos"/>. Hay tres roles fijos y cada empresa
+/// puede crear los suyos (por puesto de trabajo, desde <see cref="CatalogoPermisos.Plantillas"/>); la asignación de un
+/// rol a un usuario dentro de una empresa (la membresía) pertenece al módulo Organización.
 /// </summary>
 public sealed class Rol
 {
@@ -31,6 +31,7 @@ public sealed class Rol
             Permisos.PersonalLeer, Permisos.PersonalGestionar,
             Permisos.ProyectoLeer, Permisos.ProyectoGestionar,
             Permisos.AgroLeer, Permisos.AgroGestionar, Permisos.AgroLiquidar,
+            Permisos.AgroRecepcionar, Permisos.AgroConfeccionar, Permisos.AgroExpedir, Permisos.AgroCalidad, Permisos.AgroCampo,
             Permisos.CobroRegistrar, Permisos.PagoRegistrar,
             Permisos.ClienteGestionar, Permisos.ProductoGestionar,
             Permisos.InformeLeer, Permisos.DatosExportar,
@@ -53,6 +54,19 @@ public sealed class Rol
         Codigo = codigo;
         Nombre = nombre;
         PermisosConcedidos = permisos;
+    }
+
+    /// <summary>Prefijo del código de los roles propios de una empresa (seguido de su identificador).</summary>
+    public const string PrefijoPropio = "rol_";
+
+    /// <summary>¿Es el código de un rol propio de la empresa (no de uno fijo)?</summary>
+    public static bool EsPropio(string? codigo) => codigo is not null && codigo.StartsWith(PrefijoPropio, StringComparison.Ordinal);
+
+    /// <summary>Un rol propio de la empresa, con los permisos que se le dieron (solo los del catálogo).</summary>
+    public static Rol Propio(string codigo, string nombre, IEnumerable<string> permisos)
+    {
+        ArgumentNullException.ThrowIfNull(permisos);
+        return new Rol(codigo, nombre, permisos.Where(Permisos.Todos.Contains).ToHashSet(StringComparer.Ordinal));
     }
 
     /// <summary>Código estable del rol (persistible, apto para el token).</summary>

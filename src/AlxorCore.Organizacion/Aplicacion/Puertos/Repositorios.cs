@@ -34,6 +34,18 @@ public interface IRepositorioMembresias
     Task<IReadOnlyList<Membresia>> ListarPorEmpresaAsync(Guid empresaId, CancellationToken ct = default);
 }
 
+/// <summary>Roles propios de las empresas.</summary>
+public interface IRepositorioRolesEmpresa
+{
+    Task<RolEmpresa?> ObtenerAsync(Guid id, CancellationToken ct = default);
+
+    Task<IReadOnlyList<RolEmpresa>> ListarAsync(Guid empresaId, CancellationToken ct = default);
+
+    void Agregar(RolEmpresa rol);
+
+    void Eliminar(RolEmpresa rol);
+}
+
 /// <summary>Repositorio de series de numeración.</summary>
 public interface IRepositorioSeries
 {

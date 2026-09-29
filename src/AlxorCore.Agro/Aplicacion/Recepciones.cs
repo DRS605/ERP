@@ -64,7 +64,8 @@ public sealed record DatosPesada(decimal BrutoKg, decimal TaraKg = 0m, int Envas
 /// <summary>Pesada del camión entero: un bruto, la tara del camión y los envases contados de cada línea.</summary>
 public sealed record DatosPesadaCamion(decimal BrutoKg, decimal TaraCamionKg, IReadOnlyList<DatosLineaPesadaCamion> Lineas, string? Bascula = null);
 
-public sealed record DatosLineaPesadaCamion(Guid LineaId, IReadOnlyList<DatosEnvasePesada> EnvasesPorTipo);
+/// <summary>Una línea en la pesada del camión: sus envases contados y, si se reparte por kilos, los kilos que se declaran de ella.</summary>
+public sealed record DatosLineaPesadaCamion(Guid LineaId, IReadOnlyList<DatosEnvasePesada> EnvasesPorTipo, decimal? KilosDeclarados = null);
 
 public sealed record DatosPaleEntrada(string? SerieOrigen = null, Guid? EnvaseProductoId = null, int Envases = 0, decimal? KilosNetos = null);
 
@@ -350,7 +351,8 @@ public sealed class RecepcionesAgro
             lineas.Add((l.LineaId, contados.Valor));
         }
 
-        var p = r.AgregarPesadaCamion(datos.BrutoKg, datos.TaraCamionKg, lineas, datos.Bascula);
+        var declarados = (datos.Lineas ?? []).Where(l => l.KilosDeclarados is not null).ToDictionary(l => l.LineaId, l => l.KilosDeclarados!.Value);
+        var p = r.AgregarPesadaCamion(datos.BrutoKg, datos.TaraCamionKg, lineas, datos.Bascula, declarados.Count > 0 ? declarados : null);
         return await GuardarAsync(r, p.EsFallo ? Resultado.Fallo(p.Error) : Resultado.Ok(), ct).ConfigureAwait(false);
     }
 
@@ -562,14 +564,15 @@ public sealed class RecepcionesAgro
 
         // Certificaciones: las vigentes el día de la recepción para el agricultor (o esa parcela), ajustadas al artículo.
         var certificados = await _repo.CertificadosAsync(r.EmpresaId, r.AgricultorId, ct).ConfigureAwait(false);
+        var porParcela = (await _repo.ConfiguracionAsync(r.EmpresaId, ct).ConfigureAwait(false))?.CertificacionPorParcela == true;
         var certificaciones = new Dictionary<Guid, (Certificaciones Resultado, Certificaciones Quitadas)>();
         foreach (var l in r.Lineas)
         {
             var vigentes = certificados.Where(c => c.VigenteEl(r.Fecha) && (c.ParcelaId is null || c.ParcelaId == l.ParcelaId))
                 .Aggregate(Certificaciones.Ninguna, (a, c) => a | c.Tipo);
             var declaracion = await _repo.DeclaracionAsync(r.EmpresaId, l.ProductoId, ct).ConfigureAwait(false);
-            // La certificación va por parcela: lo que se vende certificado tiene que saber de qué parcela viene.
-            if (declaracion is { Exige: not Certificaciones.Ninguna } && l.ParcelaId is null)
+            // Si la empresa certifica por parcela, lo que se vende certificado tiene que saber de qué parcela viene.
+            if (porParcela && declaracion is { Exige: not Certificaciones.Ninguna } && l.ParcelaId is null)
             {
                 errores.Add(Error.Validacion("recepcion.parcela_certificada",
                     $"Línea {l.NumeroLinea}: «{l.ProductoNombre}» se vende como {ReglasCertificacion.Texto(declaracion.Exige)}: indica la parcela de la que viene."));

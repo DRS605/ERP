@@ -35,6 +35,7 @@ public sealed class GarantiasBaseDatosTests : IClassFixture<FabricaApiPruebas>
         ["organizacion.grupo"] = "se lee al elegir empresa, antes de fijar el grupo activo",
         ["organizacion.empresa"] = "se lee al iniciar sesión, filtrada por las membresías del usuario",
         ["organizacion.membresia"] = "es la que dice a qué empresas puede entrar el usuario",
+        ["organizacion.rol_empresa"] = "da los permisos del rol propio al elegir empresa, junto con la membresía, antes de fijar la empresa activa",
         ["integraciones.clave_api"] = "se busca por la clave para autenticar la petición, antes de conocer la empresa",
     };
 

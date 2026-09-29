@@ -1,10 +1,9 @@
 namespace AlxorCore.Nucleo.Autorizacion;
 
 /// <summary>
-/// Catálogo de permisos granulares de ALXOR Core. Son códigos estables (no datos editables):
-/// modelarlos como constantes mantiene la autorización simple, versionada y sin una pantalla
-/// de administración que el usuario objetivo no necesita.
-/// Cada módulo futuro añadirá aquí sus permisos.
+/// Catálogo de permisos granulares de ALXOR Core. Son códigos estables: cada empresa los combina en
+/// sus roles (los fijos de <see cref="Rol"/> o los suyos propios, por puesto de trabajo).
+/// Cada módulo futuro añadirá aquí sus permisos, con su descripción en <see cref="CatalogoPermisos"/>.
 /// </summary>
 public static class Permisos
 {
@@ -58,6 +57,13 @@ public static class Permisos
     /// <summary>Corregir lo ya hecho: rectificar entradas, anular o corregir expediciones, aprobar mermas y descalificar partidas.</summary>
     public const string AgroCorregir = "agro.corregir";
 
+    // Agro por puesto: la báscula recepciona, la línea confecciona, el muelle expide; calidad y campo aparte.
+    public const string AgroRecepcionar = "agro.recepcionar";
+    public const string AgroConfeccionar = "agro.confeccionar";
+    public const string AgroExpedir = "agro.expedir";
+    public const string AgroCalidad = "agro.calidad";
+    public const string AgroCampo = "agro.campo";
+
     // Terceros y catálogo
     public const string ClienteGestionar = "cliente.gestionar";
     public const string ProductoGestionar = "producto.gestionar";
@@ -96,7 +102,7 @@ public static class Permisos
         ProduccionLeer, ProduccionGestionar,
         PersonalLeer, PersonalGestionar,
         ProyectoLeer, ProyectoGestionar,
-        AgroLeer, AgroGestionar, AgroLiquidar, AgroCorregir,
+        AgroLeer, AgroGestionar, AgroLiquidar, AgroCorregir, AgroRecepcionar, AgroConfeccionar, AgroExpedir, AgroCalidad, AgroCampo,
         ClienteGestionar, ProductoGestionar,
         InformeLeer, DatosExportar,
         AprobacionConfigurar, AprobacionAprobar,

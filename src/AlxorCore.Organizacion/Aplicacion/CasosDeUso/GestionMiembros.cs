@@ -13,19 +13,30 @@ public sealed record MembresiaDto(Guid UsuarioId, string RolCodigo, string RolNo
 public sealed class ListarMembresias
 {
     private readonly IRepositorioMembresias _membresias;
+    private readonly IRepositorioRolesEmpresa _roles;
 
-    public ListarMembresias(IRepositorioMembresias membresias) => _membresias = membresias;
+    public ListarMembresias(IRepositorioMembresias membresias, IRepositorioRolesEmpresa roles)
+    {
+        _membresias = membresias;
+        _roles = roles;
+    }
 
     public async Task<IReadOnlyList<MembresiaDto>> EjecutarAsync(Guid empresaId, CancellationToken ct = default)
     {
         var membresias = await _membresias.ListarPorEmpresaAsync(empresaId, ct).ConfigureAwait(false);
+        var propios = (await _roles.ListarAsync(empresaId, ct).ConfigureAwait(false)).ToDictionary(r => r.Codigo, r => r.Nombre, StringComparer.Ordinal);
         return membresias
-            .Select(m => new MembresiaDto(m.UsuarioId, m.RolCodigo, NombreRol(m.RolCodigo), m.Estado.ToString()))
+            .Select(m => new MembresiaDto(m.UsuarioId, m.RolCodigo, NombreRol(m.RolCodigo, propios), m.Estado.ToString()))
             .ToList();
     }
 
-    private static string NombreRol(string codigo)
+    private static string NombreRol(string codigo, Dictionary<string, string> propios)
     {
+        if (propios.TryGetValue(codigo, out var nombre))
+        {
+            return nombre;
+        }
+
         var rol = Rol.PorCodigoRol(codigo);
         return rol.EsCorrecto ? rol.Valor.Nombre : codigo;
     }
@@ -35,19 +46,21 @@ public sealed class ListarMembresias
 public sealed class AgregarMembresia
 {
     private readonly IRepositorioMembresias _membresias;
+    private readonly IRepositorioRolesEmpresa _roles;
     private readonly IUnidadDeTrabajoOrganizacion _unidadDeTrabajo;
     private readonly IReloj _reloj;
 
-    public AgregarMembresia(IRepositorioMembresias membresias, IUnidadDeTrabajoOrganizacion unidadDeTrabajo, IReloj reloj)
+    public AgregarMembresia(IRepositorioMembresias membresias, IRepositorioRolesEmpresa roles, IUnidadDeTrabajoOrganizacion unidadDeTrabajo, IReloj reloj)
     {
         _membresias = membresias;
+        _roles = roles;
         _unidadDeTrabajo = unidadDeTrabajo;
         _reloj = reloj;
     }
 
     public async Task<Resultado<MembresiaDto>> EjecutarAsync(Guid empresaId, Guid usuarioId, string? rolCodigo, CancellationToken ct = default)
     {
-        var rol = Rol.PorCodigoRol(rolCodigo);
+        var rol = await RolesEmpresa.ResolverAsync(_roles, empresaId, rolCodigo, ct).ConfigureAwait(false);
         if (rol.EsFallo)
         {
             return Resultado.Fallo<MembresiaDto>(rol.Error);
@@ -78,17 +91,19 @@ public sealed class AgregarMembresia
 public sealed class CambiarRolMembresia
 {
     private readonly IRepositorioMembresias _membresias;
+    private readonly IRepositorioRolesEmpresa _roles;
     private readonly IUnidadDeTrabajoOrganizacion _unidadDeTrabajo;
 
-    public CambiarRolMembresia(IRepositorioMembresias membresias, IUnidadDeTrabajoOrganizacion unidadDeTrabajo)
+    public CambiarRolMembresia(IRepositorioMembresias membresias, IRepositorioRolesEmpresa roles, IUnidadDeTrabajoOrganizacion unidadDeTrabajo)
     {
         _membresias = membresias;
+        _roles = roles;
         _unidadDeTrabajo = unidadDeTrabajo;
     }
 
     public async Task<Resultado> EjecutarAsync(Guid empresaId, Guid usuarioId, string? rolCodigo, CancellationToken ct = default)
     {
-        var rol = Rol.PorCodigoRol(rolCodigo);
+        var rol = await RolesEmpresa.ResolverAsync(_roles, empresaId, rolCodigo, ct).ConfigureAwait(false);
         if (rol.EsFallo)
         {
             return Resultado.Fallo(rol.Error);

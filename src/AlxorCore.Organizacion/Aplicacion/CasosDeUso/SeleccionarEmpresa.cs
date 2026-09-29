@@ -16,12 +16,14 @@ public sealed class SeleccionarEmpresa
     private readonly IRepositorioMembresias _membresias;
     private readonly IRepositorioEmpresas _empresas;
     private readonly IProveedorTokens _tokens;
+    private readonly IRepositorioRolesEmpresa _roles;
 
-    public SeleccionarEmpresa(IRepositorioMembresias membresias, IRepositorioEmpresas empresas, IProveedorTokens tokens)
+    public SeleccionarEmpresa(IRepositorioMembresias membresias, IRepositorioEmpresas empresas, IProveedorTokens tokens, IRepositorioRolesEmpresa roles)
     {
         _membresias = membresias;
         _empresas = empresas;
         _tokens = tokens;
+        _roles = roles;
     }
 
     public async Task<Resultado<ResultadoSeleccionEmpresa>> EjecutarAsync(
@@ -38,7 +40,7 @@ public sealed class SeleccionarEmpresa
                 Error.Prohibido("empresa.sin_acceso", "No tienes acceso a esa empresa."));
         }
 
-        var rol = Rol.PorCodigoRol(membresia.RolCodigo);
+        var rol = await RolesEmpresa.ResolverAsync(_roles, empresaId, membresia.RolCodigo, ct).ConfigureAwait(false);
         if (rol.EsFallo)
         {
             return Resultado.Fallo<ResultadoSeleccionEmpresa>(rol.Error);

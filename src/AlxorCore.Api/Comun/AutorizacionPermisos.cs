@@ -15,4 +15,16 @@ public static class AutorizacionPermisos
         builder.RequireAuthorization(politica => politica.RequireClaim(ClaimsAlxor.Permiso, permiso));
         return builder;
     }
+
+    /// <summary>
+    /// Exige alguno de los permisos: por ejemplo, gestionar todo agro o, solo en su puesto, recepcionar. Implica
+    /// autenticación.
+    /// </summary>
+    public static TBuilder RequiereAlgunPermiso<TBuilder>(this TBuilder builder, params string[] permisos)
+        where TBuilder : IEndpointConventionBuilder
+    {
+        ArgumentNullException.ThrowIfNull(permisos);
+        builder.RequireAuthorization(politica => politica.RequireClaim(ClaimsAlxor.Permiso, permisos));
+        return builder;
+    }
 }

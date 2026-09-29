@@ -45,4 +45,21 @@ public class RolTests
     {
         Rol.PorCodigoRol("inexistente").EsFallo.Should().BeTrue();
     }
+
+    [Fact]
+    public void El_catalogo_describe_todos_los_permisos_y_las_plantillas_solo_usan_permisos_que_existen()
+    {
+        CatalogoPermisos.Todos.Select(p => p.Codigo).Should().BeEquivalentTo(Permisos.Todos, "cada permiso necesita su descripción en la pantalla de roles");
+        CatalogoPermisos.Plantillas.SelectMany(p => p.Permisos).Should().OnlyContain(p => Permisos.Todos.Contains(p));
+        CatalogoPermisos.Plantillas.Single(p => p.Codigo == "direccion").Permisos.Should().NotContain([Permisos.UsuarioGestionar, Permisos.EmpresaAjustes]);
+    }
+
+    [Fact]
+    public void Un_rol_propio_solo_da_permisos_del_catalogo()
+    {
+        var rol = Rol.Propio("rol_" + Guid.NewGuid().ToString("N"), "Báscula", [Permisos.AgroLeer, Permisos.AgroRecepcionar, "agro.volar"]);
+        rol.PermisosConcedidos.Should().BeEquivalentTo([Permisos.AgroLeer, Permisos.AgroRecepcionar]);
+        Rol.EsPropio(rol.Codigo).Should().BeTrue();
+        Rol.EsPropio("usuario").Should().BeFalse();
+    }
 }

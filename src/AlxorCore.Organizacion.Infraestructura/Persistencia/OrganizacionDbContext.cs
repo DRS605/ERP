@@ -29,6 +29,8 @@ public sealed class OrganizacionDbContext : DbContextEmpresaBase, AlxorCore.Orga
 
     public DbSet<Membresia> Membresias => Set<Membresia>();
 
+    public DbSet<RolEmpresa> RolesEmpresa => Set<RolEmpresa>();
+
     public DbSet<SerieNumeracion> Series => Set<SerieNumeracion>();
 
     public DbSet<AsignacionSerie> AsignacionesSerie => Set<AsignacionSerie>();

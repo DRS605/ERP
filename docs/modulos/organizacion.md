@@ -69,12 +69,36 @@ su propio contador. Lo consume Facturación: al emitir una factura se puede eleg
 Los endpoints `/usuarios` (en `EndpointsUsuarios`) **orquestan** Identidad y Organización: listar los
 miembros de la empresa activa (membresía + datos del usuario), **invitar** (si el correo no existe se
 crea el usuario con una contraseña aleatoria y un token de restablecimiento para que fije la suya),
-**cambiar el rol** y **revocar** el acceso. Los roles son Propietario, Usuario y Solo lectura
-(`AlxorCore.Nucleo.Autorizacion.Rol`). No puedes revocarte a ti mismo.
+**cambiar el rol** y **revocar** el acceso. No puedes revocarte a ti mismo.
+
+## Roles
+
+Hay tres roles fijos, Propietario, Usuario y Solo lectura (`AlxorCore.Nucleo.Autorizacion.Rol`). Además, cada
+empresa puede crear **roles propios por puesto de trabajo** (`/roles`, permiso `usuario.gestionar`; *Ajustes →
+Roles*).
+
+- **Plantillas** (`GET /roles/plantillas`): Báscula, Confección, Expedición, Jefe de almacén, Calidad, Técnico de
+  campo, Administración, Comercial y Dirección. Se crea el rol desde una plantilla (`{ plantilla: "bascula" }`) y
+  luego se ajustan sus permisos.
+- **Permisos** (`GET /roles/permisos`): el catálogo completo con su área y lo que deja hacer
+  (`CatalogoPermisos`). Una prueba exige que cada permiso tenga descripción.
+- **Código del rol:** `rol_` + su identificador. Se asigna a los miembros como un rol fijo. Al elegir la empresa,
+  el token lleva los permisos del rol, y un cambio de permisos rige cuando la persona vuelve a entrar.
+- **Reglas:**
+  - No se repite el nombre del rol en una empresa.
+  - Solo se admiten permisos del catálogo.
+  - Un rol con miembros activos no se borra (`rol.en_uso`).
+- **Base de datos:**
+  - Un miembro solo puede tener un rol fijo o uno propio de **su** empresa (`rol.desconocido`).
+  - Un rol propio con miembros activos no se borra.
+- **Permisos de agro por puesto:** `agro.recepcionar`, `agro.confeccionar`, `agro.expedir`, `agro.calidad` y
+  `agro.campo`. Cada operación acepta el suyo o `agro.gestionar`, que sigue dándolo todo, así que los roles de
+  antes no cambian. `agro.corregir` es aparte: rectificar, anular o corregir salidas y aprobar mermas.
+- La tabla `rol_empresa` no tiene RLS: se lee al elegir empresa, como la membresía, y siempre se filtra por empresa.
 
 ## Modelo y persistencia
 
-- Esquema **`organizacion`**: `empresa`, `membresia`, `serie_numeracion`.
+- Esquema **`organizacion`**: `empresa`, `membresia`, `rol_empresa`, `serie_numeracion`.
 - `Nif` (value object) valida DNI, NIE y CIF con su dígito/letra de control.
 - Índices únicos: `empresa.nif`, `(membresia.usuario_id, empresa_id)`,
   `(serie.empresa_id, tipo_documento, ejercicio, prefijo)`.
@@ -84,7 +108,7 @@ crea el usuario con una contraseña aleatoria y un token de restablecimiento par
 
 Los roles y permisos viven en el Núcleo (`AlxorCore.Nucleo.Autorizacion`) porque los comparten
 Identidad (emisión del token), Organización (resolución de permisos al seleccionar empresa) y la API
-(policies `RequierePermiso`).
+(policies `RequierePermiso` y `RequiereAlgunPermiso`).
 
 ## Tests
 

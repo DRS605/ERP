@@ -65,6 +65,12 @@ public interface IRepositorioAgro
     Task<EtiquetaCampo?> EtiquetaCampoAsync(Guid empresaId, string sscc, CancellationToken ct = default);
     Task<IReadOnlyList<EtiquetaCampo>> EtiquetasCampoPorIdAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct = default);
     Task<IReadOnlyList<RectificacionRecepcion>> RectificacionesAsync(IReadOnlyCollection<Guid> lineaRecepcionIds, CancellationToken ct = default);
+    // Calidad: plantillas de defectos y muestreos de las líneas de recepción
+    Task<IReadOnlyList<PlantillaCalidad>> PlantillasCalidadAsync(Guid empresaId, CancellationToken ct = default);
+    Task<PlantillaCalidad?> PlantillaCalidadAsync(Guid id, CancellationToken ct = default);
+    Task<bool> PlantillaCalidadEnUsoAsync(Guid id, CancellationToken ct = default);
+    Task<IReadOnlyList<MuestreoCalidad>> MuestreosAsync(IReadOnlyCollection<Guid> lineaRecepcionIds, CancellationToken ct = default);
+    Task<MuestreoCalidad?> MuestreoAsync(Guid id, CancellationToken ct = default);
     Task<IReadOnlyList<CorreccionExpedicion>> CorreccionesExpedicionAsync(Guid paleId, CancellationToken ct = default);
     Task<IReadOnlyList<ToleranciaMermaFamilia>> ToleranciasMermaAsync(Guid empresaId, CancellationToken ct = default);
     Task<IReadOnlyList<ReglaTransformacion>> ReglasTransformacionAsync(Guid empresaId, CancellationToken ct = default);

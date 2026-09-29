@@ -151,6 +151,12 @@ public sealed class RecepcionCompletaTests
         r.Pesadas.Should().BeEmpty("la pesada del camión se quita entera");
         r.AgregarPesadaCamion(10_000m, 3_000m, [(pimiento.Id, [new EnvaseContado(Box, 2, 1m, null)]), (melon.Id, [])], null).Error.Codigo
             .Should().Be("pesada_camion.envases");
+
+        // Por kilos declarados (el albarán de campo dice 3.000 y 1.000 kg): el neto de 7.000 se reparte 3/4 y 1/4.
+        r.AgregarPesadaCamion(10_000m, 3_000m, [(pimiento.Id, []), (melon.Id, [])], null, new Dictionary<Guid, decimal> { [pimiento.Id] = 3_000m, [melon.Id] = 1_000m })
+            .EsCorrecto.Should().BeTrue();
+        r.NetoDe(pimiento.Id).Should().Be(5_250m);
+        r.NetoDe(melon.Id).Should().Be(1_750m);
     }
 }
 

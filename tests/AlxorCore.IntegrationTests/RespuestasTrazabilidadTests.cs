@@ -227,8 +227,10 @@ public sealed class RespuestasTrazabilidadTests : IClassFixture<FabricaApiPrueba
         }));
         (await ProblemaAsync(await e.Api.PostAsync(new Uri($"/agro/partes/{otro.Id}/validar", UriKind.Relative), null))).Codigo.Should().Be("parte.merma_excesiva");
 
-        // Lo que se vende certificado tiene que venir de una parcela.
+        // Si la empresa certifica por parcela, lo que se vende certificado tiene que venir de una parcela.
         (await e.Api.PutAsJsonAsync($"/agro/declaraciones/{sandia}", new { Exige = "Ecologico" })).EnsureSuccessStatusCode();
+        (await e.Api.PutAsJsonAsync("/agro/configuracion", new { PrefijoGs1 = "8400000", DigitoExtension = 0, ToleranciaMermaPct = 5m, CertificacionPorParcela = true }))
+            .EnsureSuccessStatusCode();
         var (sinParcela, lineaSin) = await BorradorAsync(e, e.Agricultor, null, sandia);
         (await e.Api.PostAsJsonAsync($"/agro/recepciones/{sinParcela}/lineas/{lineaSin}/pesadas", new { BrutoKg = 3_000m, TaraKg = 1_000m, Envases = 10 })).EnsureSuccessStatusCode();
         (await ProblemaAsync(await ConfirmarAsync(e, sinParcela))).Codigo.Should().Be("recepcion.parcela_certificada");
@@ -290,5 +292,82 @@ public sealed class RespuestasTrazabilidadTests : IClassFixture<FabricaApiPrueba
         correcciones[0].Should().Match<CorreccionResp>(c => c.Tipo == "Datos" && c.ClienteAnteriorId == null && c.ClienteNuevoId == cliente && c.ReferenciaNueva == "R-1B");
         correcciones[1].Should().Match<CorreccionResp>(c => c.Tipo == "Anulacion" && c.ClienteAnteriorId == cliente && c.Motivo == "Devuelto en el muelle");
         (await RechazoAsync(e.Empresa, $"DELETE FROM agro.correccion_expedicion WHERE pale_id = '{pale.Id}'")).Hint.Should().Be("correccion_expedicion.inmutable");
+    }
+
+    private sealed record DefectoResp(Guid Id, string Nombre, bool DescuentaPeso);
+    private sealed record PlantillaCalidadResp(Guid Id, string Codigo, List<DefectoResp> Defectos);
+    private sealed record ResultadoMuestreoResp(string Defecto, decimal Porcentaje, bool SuperaTolerancia, bool SuperaMaximo);
+    private sealed record MuestreoResp(Guid Id, bool Definitivo, decimal DescuentoPct, decimal? KilosALiquidar, bool Anulado, List<ResultadoMuestreoResp> Resultados);
+    private sealed record LiquidacionResp(Guid Id, decimal Kilos);
+
+    [Fact]
+    public async Task El_muestreo_de_calidad_definitivo_descuenta_sus_defectos_del_peso_a_liquidar()
+    {
+        var e = await EscenarioAsync();
+        var plantilla = await OkAsync<PlantillaCalidadResp>(await e.Api.PostAsJsonAsync("/agro/calidad/plantillas", new
+        {
+            Codigo = "PIM", Nombre = "Pimiento en recepción", ProductoId = e.Pimiento,
+            Defectos = new object[]
+            {
+                new { Nombre = "Podrido", DescuentaPeso = true, ToleranciaPct = 2m, MaximoPct = 5m },
+                new { Nombre = "Golpe", DescuentaPeso = false, ToleranciaPct = 10m },
+            },
+        }));
+        (await e.Api.GetFromJsonAsync<List<PlantillaCalidadResp>>($"/agro/calidad/plantillas?productoId={e.Pimiento}"))!.Should().ContainSingle(x => x.Id == plantilla.Id);
+        var podrido = plantilla.Defectos.Single(d => d.Nombre == "Podrido").Id;
+        var golpe = plantilla.Defectos.Single(d => d.Nombre == "Golpe").Id;
+
+        var (rec, linea) = await BorradorAsync(e, e.Agricultor, e.Parcela, e.Pimiento);
+        (await e.Api.PostAsJsonAsync($"/agro/recepciones/{rec}/lineas/{linea}/pesadas", new { BrutoKg = 12_000m, TaraKg = 2_000m, Envases = 40 })).EnsureSuccessStatusCode();
+
+        // Un provisional solo informa; el definitivo (20 kg de muestra: 0,6 de podrido = 3 %, 1 de golpe = 5 %) descuenta el 3 %.
+        (await OkAsync<MuestreoResp>(await e.Api.PostAsJsonAsync($"/agro/recepciones/{rec}/lineas/{linea}/muestreos", new
+        {
+            PlantillaId = plantilla.Id, PesoMuestraKg = 10m, Resultados = new object[] { new { DefectoId = podrido, Kilos = 0.1m } },
+        }))).KilosALiquidar.Should().BeNull();
+        (await ProblemaAsync(await e.Api.PostAsJsonAsync($"/agro/recepciones/{rec}/lineas/{linea}/muestreos", new
+        {
+            PlantillaId = plantilla.Id, PesoMuestraKg = 1m, Resultados = new object[] { new { DefectoId = podrido, Kilos = 2m } },
+        }))).Codigo.Should().Be("muestreo.supera_muestra");
+        await OkAsync<RecepcionResp>(await ConfirmarAsync(e, rec));
+        var definitivo = await OkAsync<MuestreoResp>(await e.Api.PostAsJsonAsync($"/agro/recepciones/{rec}/lineas/{linea}/muestreos", new
+        {
+            PlantillaId = plantilla.Id, PesoMuestraKg = 20m, Definitivo = true,
+            Resultados = new object[] { new { DefectoId = podrido, Kilos = 0.6m }, new { DefectoId = golpe, Kilos = 1m } },
+        }));
+        definitivo.Should().Match<MuestreoResp>(m => m.Definitivo && m.DescuentoPct == 3m && m.KilosALiquidar == 9_700m);
+        definitivo.Resultados.Single(r => r.Defecto == "Podrido").Should().Match<ResultadoMuestreoResp>(r => r.Porcentaje == 3m && r.SuperaTolerancia && !r.SuperaMaximo);
+        (await ProblemaAsync(await e.Api.PostAsJsonAsync($"/agro/recepciones/{rec}/lineas/{linea}/muestreos", new
+        {
+            PlantillaId = plantilla.Id, PesoMuestraKg = 20m, Definitivo = true, Resultados = Array.Empty<object>(),
+        }))).Codigo.Should().Be("muestreo.ya_definitivo");
+
+        // La liquidación va por los 9.700 kg, y la base de datos lo exige; el muestreo ya no se toca.
+        Guid proveedor;
+        await using (var c = new NpgsqlConnection(FabricaApiPruebas.CadenaConexion))
+        {
+            await c.OpenAsync();
+            await using (var fijar = new NpgsqlCommand($"SELECT set_config('app.empresa_actual', '{e.Empresa}', false)", c))
+            {
+                await fijar.ExecuteNonQueryAsync();
+            }
+
+            await using var cmd = new NpgsqlCommand($"SELECT proveedor_id FROM agro.agricultor WHERE id = '{e.Agricultor}'", c);
+            proveedor = (Guid)(await cmd.ExecuteScalarAsync())!;
+        }
+
+        (await e.Api.PutAsJsonAsync($"/agro/agricultores/{e.Agricultor}", new { ProveedorId = proveedor, Regimen = "Reagp", AutofacturacionDesde = new DateOnly(Anio, 1, 1) }))
+            .EnsureSuccessStatusCode();
+        (await e.Api.PutAsJsonAsync($"/agro/campanas/{e.Campana}/articulos", new { ProductoId = e.Pimiento, Metodo = "PorPeriodo" })).EnsureSuccessStatusCode();
+        await IdAsync(e.Api, $"/agro/campanas/{e.Campana}/precios", new { ProductoId = e.Pimiento, Desde = new DateOnly(Anio, 1, 1), Hasta = new DateOnly(Anio, 1, 31), PrecioKg = 0.30m });
+        var liq = await OkAsync<LiquidacionResp>(await e.Api.PostAsJsonAsync("/agro/liquidaciones",
+            new { AgricultorId = e.Agricultor, CampanaId = e.Campana, Desde = new DateOnly(Anio, 1, 1), Hasta = new DateOnly(Anio, 1, 31), Fecha = new DateOnly(Anio, 1, 31) }));
+        liq.Kilos.Should().Be(9_700m);
+        (await ProblemaAsync(await e.Api.PostAsJsonAsync($"/agro/muestreos/{definitivo.Id}/anular", new { Motivo = "Mal pesada la muestra" })))
+            .Codigo.Should().Be("muestreo.liquidada");
+        (await RechazoAsync(e.Empresa, $"UPDATE agro.linea_liquidacion SET kilos = 10000, importe = 3000 WHERE liquidacion_id = '{liq.Id}'")).Hint
+            .Should().BeOneOf("liquidacion.kilos", "liquidacion.totales");
+        (await RechazoAsync(e.Empresa, $"UPDATE agro.muestreo_calidad SET descuento_pct = 0 WHERE id = '{definitivo.Id}'")).Hint.Should().Be("muestreo.inmutable");
+        (await RechazoAsync(e.Empresa, $"UPDATE agro.resultado_muestreo SET kilos = 0 WHERE muestreo_id = '{definitivo.Id}'")).Hint.Should().Be("muestreo.inmutable");
     }
 }

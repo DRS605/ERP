@@ -24,6 +24,8 @@ public sealed class AgroDbContext : DbContextEmpresaBase, IUnidadDeTrabajoAgro
     private const string SqlBorradoEmpresa = """
         DELETE FROM agro.rectificacion_recepcion WHERE empresa_id = {0};
         DELETE FROM agro.etiqueta_campo WHERE empresa_id = {0};
+        DELETE FROM agro.muestreo_calidad WHERE empresa_id = {0};
+        DELETE FROM agro.plantilla_calidad WHERE empresa_id = {0};
         DELETE FROM agro.correccion_expedicion WHERE empresa_id = {0};
         DELETE FROM agro.tolerancia_merma_familia WHERE empresa_id = {0};
         DELETE FROM agro.repaletizado WHERE empresa_id = {0};
@@ -241,6 +243,7 @@ internal sealed class ConfiguracionAjustes : IEntityTypeConfiguration<Configurac
         b.Property(x => x.ReflejarEnvasesEnInventario).HasColumnName("reflejar_envases_inventario").IsRequired();
         b.Property(x => x.DigitoExtension).HasColumnName("digito_extension").IsRequired();
         b.Property(x => x.ToleranciaMermaPct).HasColumnName("tolerancia_merma_pct").HasColumnType("numeric(5,2)");
+        b.Property(x => x.CertificacionPorParcela).HasColumnName("certificacion_por_parcela").IsRequired();
         b.HasIndex(x => x.EmpresaId).IsUnique().HasDatabaseName("ux_configuracion_empresa");
     }
 }
@@ -358,6 +361,78 @@ internal sealed class ConfiguracionRecepcion : IEntityTypeConfiguration<Recepcio
         b.Navigation(x => x.Pesadas).UsePropertyAccessMode(PropertyAccessMode.Field);
         b.Navigation(x => x.EnvasesPesadas).UsePropertyAccessMode(PropertyAccessMode.Field);
         b.Navigation(x => x.PalesEntrada).UsePropertyAccessMode(PropertyAccessMode.Field);
+    }
+}
+
+internal sealed class ConfiguracionPlantillaCalidad : IEntityTypeConfiguration<PlantillaCalidad>
+{
+    public void Configure(EntityTypeBuilder<PlantillaCalidad> b)
+    {
+        Columnas.Base(b, "plantilla_calidad");
+        b.Property(x => x.Codigo).HasColumnName("codigo").HasMaxLength(20).IsRequired();
+        b.Property(x => x.Nombre).HasColumnName("nombre").HasMaxLength(120).IsRequired();
+        b.Property(x => x.ProductoId).HasColumnName("producto_id");
+        b.Property(x => x.FamiliaId).HasColumnName("familia_id");
+        b.Property(x => x.Activa).HasColumnName("activa").IsRequired();
+        b.HasIndex(x => new { x.EmpresaId, x.Codigo }).IsUnique().HasDatabaseName("ux_plantilla_calidad_codigo");
+        b.HasIndex(x => x.ProductoId).HasDatabaseName("ix_plantilla_calidad_producto");
+        b.HasIndex(x => x.FamiliaId).HasDatabaseName("ix_plantilla_calidad_familia");
+        b.OwnsMany(x => x.Defectos, d =>
+        {
+            d.ToTable("defecto_calidad");
+            d.WithOwner().HasForeignKey("plantilla_id");
+            d.HasKey(x => x.Id);
+            d.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+            d.Property<Guid>("plantilla_id").HasColumnName("plantilla_id");
+            d.Property(x => x.Nombre).HasColumnName("nombre").HasMaxLength(80).IsRequired();
+            d.Property(x => x.Orden).HasColumnName("orden").IsRequired();
+            d.Property(x => x.DescuentaPeso).HasColumnName("descuenta_peso").IsRequired();
+            d.Property(x => x.ToleranciaPct).HasColumnName("tolerancia_pct").HasColumnType("numeric(5,2)");
+            d.Property(x => x.MaximoPct).HasColumnName("maximo_pct").HasColumnType("numeric(5,2)");
+            d.HasIndex("plantilla_id").HasDatabaseName("ix_defecto_calidad_plantilla");
+        });
+        b.Navigation(x => x.Defectos).UsePropertyAccessMode(PropertyAccessMode.Field);
+    }
+}
+
+internal sealed class ConfiguracionMuestreoCalidad : IEntityTypeConfiguration<MuestreoCalidad>
+{
+    public void Configure(EntityTypeBuilder<MuestreoCalidad> b)
+    {
+        Columnas.Base(b, "muestreo_calidad");
+        b.Property(x => x.RecepcionId).HasColumnName("recepcion_id").IsRequired();
+        b.Property(x => x.LineaRecepcionId).HasColumnName("linea_recepcion_id").IsRequired();
+        b.Property(x => x.PlantillaId).HasColumnName("plantilla_id").IsRequired();
+        b.Property(x => x.Fecha).HasColumnName("fecha").IsRequired();
+        b.Property(x => x.PesoMuestraKg).HasColumnName("peso_muestra_kg").HasColumnType(Columnas.Kilos).IsRequired();
+        b.Property(x => x.Definitivo).HasColumnName("definitivo").IsRequired();
+        b.Property(x => x.DescuentoPct).HasColumnName("descuento_pct").HasColumnType("numeric(5,2)").IsRequired();
+        b.Property(x => x.Observaciones).HasColumnName("observaciones").HasMaxLength(300);
+        b.Property(x => x.UsuarioId).HasColumnName("usuario_id");
+        b.Property(x => x.CreadoEn).HasColumnName("creado_en").IsRequired();
+        b.Property(x => x.Anulado).HasColumnName("anulado").IsRequired();
+        b.Property(x => x.MotivoAnulacion).HasColumnName("motivo_anulacion").HasMaxLength(300);
+        b.HasIndex(x => x.RecepcionId).HasDatabaseName("ix_muestreo_calidad_recepcion");
+        b.HasIndex(x => x.LineaRecepcionId).HasDatabaseName("ix_muestreo_calidad_linea");
+        b.HasIndex(x => x.PlantillaId).HasDatabaseName("ix_muestreo_calidad_plantilla");
+        b.HasIndex(x => x.UsuarioId).HasDatabaseName("ix_muestreo_calidad_usuario");
+        b.HasIndex(x => x.LineaRecepcionId).IsUnique().HasFilter("definitivo AND NOT anulado").HasDatabaseName("ux_muestreo_calidad_definitivo");
+        b.OwnsMany(x => x.Resultados, r =>
+        {
+            r.ToTable("resultado_muestreo");
+            r.WithOwner().HasForeignKey("muestreo_id");
+            r.HasKey(x => x.Id);
+            r.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+            r.Property<Guid>("muestreo_id").HasColumnName("muestreo_id");
+            r.Property(x => x.DefectoId).HasColumnName("defecto_id").IsRequired();
+            r.Property(x => x.Defecto).HasColumnName("defecto").HasMaxLength(80).IsRequired();
+            r.Property(x => x.Kilos).HasColumnName("kilos").HasColumnType(Columnas.Kilos).IsRequired();
+            r.Property(x => x.Porcentaje).HasColumnName("porcentaje").HasColumnType("numeric(5,2)").IsRequired();
+            r.Property(x => x.DescuentaPeso).HasColumnName("descuenta_peso").IsRequired();
+            r.HasIndex("muestreo_id").HasDatabaseName("ix_resultado_muestreo_muestreo");
+            r.HasIndex(x => x.DefectoId).HasDatabaseName("ix_resultado_muestreo_defecto");
+        });
+        b.Navigation(x => x.Resultados).UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }
 
@@ -1160,6 +1235,18 @@ internal sealed class RepositorioAgro : IRepositorioAgro
 
     public async Task<IReadOnlyList<RectificacionRecepcion>> RectificacionesAsync(IReadOnlyCollection<Guid> lineaRecepcionIds, CancellationToken ct = default) =>
         await _ctx.Set<RectificacionRecepcion>().Where(r => lineaRecepcionIds.Contains(r.LineaRecepcionId)).OrderBy(r => r.CreadaEn).ToListAsync(ct).ConfigureAwait(false);
+
+    public async Task<IReadOnlyList<PlantillaCalidad>> PlantillasCalidadAsync(Guid empresaId, CancellationToken ct = default) =>
+        await _ctx.Set<PlantillaCalidad>().Where(x => x.EmpresaId == empresaId).OrderBy(x => x.Codigo).ToListAsync(ct).ConfigureAwait(false);
+
+    public Task<PlantillaCalidad?> PlantillaCalidadAsync(Guid id, CancellationToken ct = default) => _ctx.Set<PlantillaCalidad>().SingleOrDefaultAsync(x => x.Id == id, ct);
+
+    public Task<bool> PlantillaCalidadEnUsoAsync(Guid id, CancellationToken ct = default) => _ctx.Set<MuestreoCalidad>().AnyAsync(x => x.PlantillaId == id, ct);
+
+    public async Task<IReadOnlyList<MuestreoCalidad>> MuestreosAsync(IReadOnlyCollection<Guid> lineaRecepcionIds, CancellationToken ct = default) =>
+        await _ctx.Set<MuestreoCalidad>().Where(x => lineaRecepcionIds.Contains(x.LineaRecepcionId)).OrderBy(x => x.CreadoEn).ToListAsync(ct).ConfigureAwait(false);
+
+    public Task<MuestreoCalidad?> MuestreoAsync(Guid id, CancellationToken ct = default) => _ctx.Set<MuestreoCalidad>().SingleOrDefaultAsync(x => x.Id == id, ct);
 
     public async Task<IReadOnlyList<CorreccionExpedicion>> CorreccionesExpedicionAsync(Guid paleId, CancellationToken ct = default) =>
         await _ctx.Set<CorreccionExpedicion>().Where(x => x.PaleId == paleId).OrderBy(x => x.En).ToListAsync(ct).ConfigureAwait(false);

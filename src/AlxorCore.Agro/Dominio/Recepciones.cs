@@ -292,10 +292,12 @@ public sealed class Recepcion : RaizAgregadoEmpresa<Guid>
     /// Pesada del camión entero con varias líneas (productos o parcelas): un solo bruto y una tara de camión, y los envases
     /// contados de cada línea. El neto total (bruto − camión − envases) se reparte entre las líneas en proporción a sus
     /// envases de fruta (los de su envase; si la línea no tiene envase, todos los suyos), y la tara del camión igual. Cada
-    /// línea queda con su pesada, todas con el mismo grupo, y sus brutos suman el bruto de la báscula.
+    /// línea queda con su pesada, todas con el mismo grupo, y sus brutos suman el bruto de la báscula. Con
+    /// <paramref name="kilosDeclarados"/> de todas las líneas (lo que el agricultor o el albarán de campo dice de cada
+    /// producto), el reparto es en proporción a esos kilos en vez de a los envases.
     /// </summary>
     public Resultado<IReadOnlyList<Pesada>> AgregarPesadaCamion(decimal brutoKg, decimal taraCamionKg, IReadOnlyList<(Guid LineaId, IReadOnlyList<EnvaseContado> Envases)> lineas,
-        string? bascula)
+        string? bascula, IReadOnlyDictionary<Guid, decimal>? kilosDeclarados = null)
     {
         ArgumentNullException.ThrowIfNull(lineas);
         var borrador = SoloBorrador();
@@ -314,12 +316,23 @@ public sealed class Recepcion : RaizAgregadoEmpresa<Guid>
             return Resultado.Fallo<IReadOnlyList<Pesada>>(Error.Validacion("pesada.kilos", "Los kilos admiten hasta 3 decimales y la tara del camión no puede ser negativa."));
         }
 
+        var porKilos = kilosDeclarados is { Count: > 0 };
+        if (porKilos && lineas.Any(l => !kilosDeclarados!.TryGetValue(l.LineaId, out var k) || k <= 0m))
+        {
+            return Resultado.Fallo<IReadOnlyList<Pesada>>(Error.Validacion("pesada_camion.kilos_declarados", "Para repartir por kilos declarados, indícalos (positivos) en todas las líneas."));
+        }
+
         var fruta = lineas.Select(l =>
         {
+            if (porKilos)
+            {
+                return kilosDeclarados![l.LineaId];
+            }
+
             var envaseLinea = _lineas.First(x => x.Id == l.LineaId).EnvaseProductoId;
-            return envaseLinea is { } e ? l.Envases.Where(x => x.EnvaseProductoId == e).Sum(x => x.Cantidad) : l.Envases.Sum(x => x.Cantidad);
+            return envaseLinea is { } e ? l.Envases.Where(x => x.EnvaseProductoId == e).Sum(x => x.Cantidad) : l.Envases.Sum(x => (decimal)x.Cantidad);
         }).ToList();
-        if (fruta.Any(f => f <= 0))
+        if (fruta.Any(f => f <= 0m))
         {
             return Resultado.Fallo<IReadOnlyList<Pesada>>(Error.Validacion("pesada_camion.envases", "Cuenta los envases de fruta de cada línea: el neto se reparte en proporción a ellos."));
         }

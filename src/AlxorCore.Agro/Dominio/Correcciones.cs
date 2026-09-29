@@ -91,15 +91,19 @@ public sealed class RectificacionRecepcion : RaizAgregadoEmpresa<Guid>
 
     /// <summary>
     /// Kilos por los que se liquida la línea tras sus rectificaciones: los de liquidación de la última que los fijó; si no
-    /// hay, los fijados en la recepción; si no, el neto real rectificado.
+    /// hay, los fijados en la recepción; si no, el neto real rectificado, menos el descuento del muestreo de calidad
+    /// definitivo.
     /// </summary>
-    public static decimal KilosALiquidar(LineaRecepcion linea, IEnumerable<RectificacionRecepcion> rectificaciones)
+    public static decimal KilosALiquidar(LineaRecepcion linea, IEnumerable<RectificacionRecepcion> rectificaciones, IEnumerable<MuestreoCalidad>? muestreos = null)
     {
         ArgumentNullException.ThrowIfNull(linea);
         var lista = (rectificaciones ?? []).Where(r => r.LineaRecepcionId == linea.Id).OrderBy(r => r.CreadaEn).ToList();
+        var neto = (linea.NetoKg ?? 0m) + lista.Sum(r => r.DiferenciaKg);
+        // Sin kilos de liquidación fijados, el muestreo de calidad definitivo descuenta sus defectos del neto real.
+        var calidad = (muestreos ?? []).FirstOrDefault(m => m.LineaRecepcionId == linea.Id && m.Definitivo && !m.Anulado);
         return lista.LastOrDefault(r => r.KilosLiquidacion is not null)?.KilosLiquidacion
                ?? linea.KilosLiquidacion
-               ?? (linea.NetoKg ?? 0m) + lista.Sum(r => r.DiferenciaKg);
+               ?? (calidad is null ? neto : calidad.Aplicar(neto));
     }
 }
 
