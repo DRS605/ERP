@@ -27,7 +27,8 @@ public sealed class ConceptosLineaTests : IClassFixture<FabricaApiPruebas>
     private sealed record LineaPedidoResp(Guid Id, decimal Importe, decimal CosteConceptos, decimal CosteUnitarioEntrada, List<ConceptoResp> Conceptos);
     private sealed record PedidoResp(Guid Id, decimal Total, List<LineaPedidoResp> Lineas);
     private sealed record ResumenResp(string Codigo, string Efecto, decimal Ventas, decimal Compras);
-    private sealed record InformeResp(List<ResumenResp> Conceptos, decimal PrecioVentas, decimal CosteVentas, decimal PrecioCompras, decimal CosteCompras);
+    private sealed record InformeResp(List<ResumenResp> Conceptos, decimal PrecioVentas, decimal CosteVentas, decimal PrecioCompras, decimal CosteCompras,
+        decimal PrecioSinFacturar = 0m);
     private sealed record ValLineaResp(Guid ProductoId, decimal CosteUnitario);
     private sealed record ValoracionResp(List<ValLineaResp> Lineas);
     private sealed record BajaResp(bool Eliminado, bool Activo);
@@ -106,12 +107,21 @@ public sealed class ConceptosLineaTests : IClassFixture<FabricaApiPruebas>
         });
         negativa.StatusCode.Should().Be(HttpStatusCode.Created, "un −100 % deja la línea a cero, no en negativo");
 
+        // Un albarán entregado y sin facturar también cuenta en el informe.
+        var albaran = await api.PostAsJsonAsync("/albaranes-venta", new
+        {
+            ClienteId = cliente,
+            Lineas = new[] { new { ProductoId = naranja, Cantidad = 10m, PrecioUnitario = 2m, Conceptos = new[] { new { ConceptoId = envase, Valor = (decimal?)5m } } } },
+        });
+        albaran.StatusCode.Should().Be(HttpStatusCode.Created, await albaran.Content.ReadAsStringAsync());
+
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
         var informe = (await api.GetFromJsonAsync<InformeResp>($"/conceptos-linea/informe?desde={hoy:yyyy-MM-dd}&hasta={hoy:yyyy-MM-dd}"))!;
-        informe.Conceptos.Single(c => c.Codigo == "ENVASE").Ventas.Should().Be(35m);
+        informe.PrecioSinFacturar.Should().Be(5m);
+        informe.Conceptos.Single(c => c.Codigo == "ENVASE").Ventas.Should().Be(40m);
         informe.Conceptos.Single(c => c.Codigo == "RAPPEL").Ventas.Should().Be(-10m);
         informe.Conceptos.Single(c => c.Codigo == "COMIS").Ventas.Should().Be(10m, "en la segunda factura se dieron los conceptos a mano, sin la comisión");
-        informe.PrecioVentas.Should().Be(10m + 35m - 10m);
+        informe.PrecioVentas.Should().Be(10m + 40m - 10m);
         informe.CosteVentas.Should().Be(10m);
     }
 

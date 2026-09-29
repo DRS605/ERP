@@ -195,7 +195,9 @@ Todos los endpoints de escritura piden el permiso `producto.gestionar`.
 - `GET /conceptos-linea/sugeridos?ambito=&terceroId=&productoId=&fecha=`: los que se pondrían solos en una línea, con el
   tipo del tercero y la vigencia a esa fecha, y su acreedor.
 - `GET /conceptos-linea/informe?desde=&hasta=`: importe de cada concepto en las facturas de venta (no anuladas) y en
-  los pedidos de compra (no cancelados) del periodo, separando importe y coste, con el detalle por documento.
+  los pedidos de compra (no cancelados) del periodo, separando importe y coste, con el detalle por documento. También
+  cuentan los albaranes de venta entregados y aún sin facturar (marcados `sinFacturar`, con su total aparte en
+  `precioSinFacturar` y `costeSinFacturar`); los facturados cuentan en su factura.
 - En las líneas de `POST/PUT /presupuestos`, `/pedidos-venta`, `/facturas` y `/compras/pedidos`:
   - `conceptos: [{ conceptoId, valor? }]` en cada línea;
   - `conceptosDocumento: [...]` en el documento.
@@ -225,4 +227,3 @@ revés) y `concepto.linea_negativa`.
   factura del acreedor).
 - Conceptos en tickets, facturas periódicas con reglas propias, rectificativas por diferencias y buzón de facturas
   recibidas.
-- El informe de conceptos del periodo aún no incluye los albaranes sin facturar.

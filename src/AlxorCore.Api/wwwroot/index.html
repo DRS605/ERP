@@ -1844,7 +1844,7 @@
       const caja=document.getElementById("ci_res"); if(!caja) return; caja.innerHTML='<div class="muted">Cargando…</div>';
       try{
         const d=await api(`/conceptos-linea/informe?desde=${val("ci_desde")}&hasta=${val("ci_hasta")}`);
-        caja.innerHTML=`<p style="margin:0 0 8px"><span class="pill part">Ventas: importe ${eur(d.precioVentas)} · coste ${eur(d.costeVentas)}</span> <span class="pill">Compras: importe ${eur(d.precioCompras)} · coste ${eur(d.costeCompras)}</span></p>`
+        caja.innerHTML=`<p style="margin:0 0 8px"><span class="pill part">Ventas: importe ${eur(d.precioVentas)} · coste ${eur(d.costeVentas)}</span> <span class="pill">Compras: importe ${eur(d.precioCompras)} · coste ${eur(d.costeCompras)}</span>${(d.precioSinFacturar||d.costeSinFacturar)?` <span class="pill" title="Incluido en ventas">Albaranes sin facturar: importe ${eur(d.precioSinFacturar)} · coste ${eur(d.costeSinFacturar)}</span>`:""}</p>`
           +(d.conceptos.length?`<table><thead><tr><th>Concepto</th><th>Efecto</th><th class="num">Ventas</th><th class="num">Compras</th></tr></thead><tbody>${d.conceptos.map(c=>`<tr><td><span class="mono">${agEsc(c.codigo)}</span> ${agEsc(c.nombre)}</td><td class="muted">${c.efecto==="Precio"?"Importe":"Coste"}</td><td class="num">${eur(c.ventas)} <span class="muted">(${c.documentosVenta})</span></td><td class="num">${eur(c.compras)} <span class="muted">(${c.documentosCompra})</span></td></tr>`).join("")}</tbody></table>`
           :'<p class="muted" style="margin:0">Ningún documento del periodo lleva conceptos.</p>');
       }catch(e){ caja.innerHTML=`<p class="muted">${agEsc(e.message)}</p>`; }

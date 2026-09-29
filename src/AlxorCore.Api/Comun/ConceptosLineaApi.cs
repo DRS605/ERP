@@ -21,10 +21,10 @@ public sealed class UsoConceptosLinea : IUsoConceptosLinea
 public sealed record ResumenConceptoDto(Guid ConceptoId, string Codigo, string Nombre, string Efecto, decimal Ventas, int DocumentosVenta, decimal Compras, int DocumentosCompra);
 
 public sealed record DetalleConceptoDto(string Circuito, Guid DocumentoId, string Documento, DateOnly Fecha, string Tercero, string Linea, string Codigo, string Nombre,
-    string Efecto, decimal Valor, string Calculo, decimal Importe, bool Repartido);
+    string Efecto, decimal Valor, string Calculo, decimal Importe, bool Repartido, bool SinFacturar = false);
 
 public sealed record InformeConceptosDto(DateOnly Desde, DateOnly Hasta, IReadOnlyList<ResumenConceptoDto> Conceptos, IReadOnlyList<DetalleConceptoDto> Detalle,
-    decimal PrecioVentas, decimal CosteVentas, decimal PrecioCompras, decimal CosteCompras);
+    decimal PrecioVentas, decimal CosteVentas, decimal PrecioCompras, decimal CosteCompras, decimal PrecioSinFacturar = 0m, decimal CosteSinFacturar = 0m);
 
 /// <summary>
 /// Informe de conceptos de línea de un periodo: cuánto ha sumado o restado cada concepto en las facturas de venta y en
@@ -34,11 +34,13 @@ public sealed class InformeConceptosLinea
 {
     private readonly IConsultaFacturas _facturas;
     private readonly IRepositorioPedidos _pedidos;
+    private readonly IRepositorioAlbaranesVenta? _albaranes;
 
-    public InformeConceptosLinea(IConsultaFacturas facturas, IRepositorioPedidos pedidos)
+    public InformeConceptosLinea(IConsultaFacturas facturas, IRepositorioPedidos pedidos, IRepositorioAlbaranesVenta? albaranes = null)
     {
         _facturas = facturas;
         _pedidos = pedidos;
+        _albaranes = albaranes;
     }
 
     public async Task<InformeConceptosDto> GenerarAsync(Guid empresaId, DateOnly desde, DateOnly hasta, CancellationToken ct = default)
@@ -47,6 +49,19 @@ public sealed class InformeConceptosLinea
         foreach (var c in await _facturas.ListarConceptosAsync(empresaId, desde, hasta, ct).ConfigureAwait(false))
         {
             detalle.Add(Detalle("Ventas", c.DocumentoId, c.Documento, c.Fecha, c.Tercero, c.Linea, c.Concepto));
+        }
+
+        // Los albaranes de venta entregados y aún sin facturar (los facturados ya cuentan en su factura).
+        if (_albaranes is not null)
+        {
+            foreach (var a in (await _albaranes.ListarAsync(empresaId, new FiltroAlbaranesVenta(Desde: desde, Hasta: hasta), ct).ConfigureAwait(false))
+                .Where(a => !a.Anulado && a.FacturaId is null && a.Estado != nameof(AlxorCore.Facturacion.Dominio.EstadoAlbaranVenta.Facturado)))
+            {
+                foreach (var l in a.Lineas)
+                {
+                    detalle.AddRange((l.Conceptos ?? []).Select(c => Detalle("Ventas", a.Id, $"Albarán {a.NumeroCompleto}", a.Fecha, a.ClienteNombre, l.Descripcion, c) with { SinFacturar = true }));
+                }
+            }
         }
 
         foreach (var p in (await _pedidos.ListarAsync(empresaId, ct).ConfigureAwait(false)).Where(p => p.Estado != "Cancelado" && p.Fecha >= desde && p.Fecha <= hasta))
@@ -64,7 +79,9 @@ public sealed class InformeConceptosLinea
             .OrderBy(r => r.Codigo, StringComparer.Ordinal).ToList();
         decimal Suma(string circuito, string efecto) => Redondeo.Dos(detalle.Where(d => d.Circuito == circuito && d.Efecto == efecto).Sum(d => d.Importe));
         return new InformeConceptosDto(desde, hasta, resumen, detalle.OrderBy(d => d.Fecha).ThenBy(d => d.Documento, StringComparer.Ordinal).ToList(),
-            Suma("Ventas", "Precio"), Suma("Ventas", "Coste"), Suma("Compras", "Precio"), Suma("Compras", "Coste"));
+            Suma("Ventas", "Precio"), Suma("Ventas", "Coste"), Suma("Compras", "Precio"), Suma("Compras", "Coste"),
+            Redondeo.Dos(detalle.Where(d => d.SinFacturar && d.Efecto == "Precio").Sum(d => d.Importe)),
+            Redondeo.Dos(detalle.Where(d => d.SinFacturar && d.Efecto == "Coste").Sum(d => d.Importe)));
     }
 
     private static DetalleConceptoDto Detalle(string circuito, Guid id, string documento, DateOnly fecha, string tercero, string linea, ConceptoAplicado c) =>
