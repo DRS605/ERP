@@ -12,6 +12,11 @@ internal sealed class ConfiguracionTratamientoParcela : IEntityTypeConfiguration
         Columnas.Base(b, "tratamiento_parcela");
         b.Property(x => x.ParcelaId).HasColumnName("parcela_id").IsRequired();
         b.Property(x => x.Fecha).HasColumnName("fecha").IsRequired();
+        Columnas.Enum(b.Property(x => x.Tipo), "tipo").HasDefaultValue(TipoLabor.Fitosanitario);
+        b.Property(x => x.NitrogenoKgHa).HasColumnName("nitrogeno_kg_ha").HasColumnType("numeric(10,3)");
+        b.Property(x => x.FosforoKgHa).HasColumnName("fosforo_kg_ha").HasColumnType("numeric(10,3)");
+        b.Property(x => x.PotasioKgHa).HasColumnName("potasio_kg_ha").HasColumnType("numeric(10,3)");
+        b.Property(x => x.VolumenM3).HasColumnName("volumen_m3").HasColumnType("numeric(12,3)");
         b.Property(x => x.Producto).HasColumnName("producto").HasMaxLength(TratamientoParcela.LongitudTexto).IsRequired();
         b.Property(x => x.NumeroRegistro).HasColumnName("numero_registro").HasMaxLength(30);
         b.Property(x => x.MateriaActiva).HasColumnName("materia_activa").HasMaxLength(TratamientoParcela.LongitudTexto);

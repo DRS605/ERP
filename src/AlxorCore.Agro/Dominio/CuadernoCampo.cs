@@ -4,8 +4,23 @@ using AlxorCore.Nucleo.Tiempo;
 
 namespace AlxorCore.Agro.Dominio;
 
+/// <summary>Tipo de labor del cuaderno de campo.</summary>
+public enum TipoLabor
+{
+    Fitosanitario,
+
+    /// <summary>Abonado: fertilizante con sus unidades fertilizantes (N, P₂O₅, K₂O en kg/ha).</summary>
+    Abonado,
+
+    /// <summary>Riego: volumen de agua aplicado.</summary>
+    Riego,
+
+    /// <summary>Otra labor (poda, laboreo, siembra…).</summary>
+    Otra,
+}
+
 /// <summary>
-/// Tratamiento fitosanitario de una parcela: el registro del cuaderno de campo (RD 1311/2012) que piden GlobalG.A.P. y
+/// Labor del cuaderno de campo de una parcela; la principal, el tratamiento fitosanitario: el registro del cuaderno de campo (RD 1311/2012) que piden GlobalG.A.P. y
 /// los clientes. El plazo de seguridad son los días que deben pasar desde el tratamiento hasta la recolección: una
 /// entrega recolectada antes no se confirma. No se borra: se anula con el motivo.
 /// </summary>
@@ -26,6 +41,20 @@ public sealed class TratamientoParcela : RaizAgregadoEmpresa<Guid>
     }
 
     public Guid ParcelaId { get; private set; }
+
+    public TipoLabor Tipo { get; private set; }
+
+    /// <summary>Abonado: unidades fertilizantes de nitrógeno (kg/ha).</summary>
+    public decimal? NitrogenoKgHa { get; private set; }
+
+    /// <summary>Abonado: fósforo (P₂O₅, kg/ha).</summary>
+    public decimal? FosforoKgHa { get; private set; }
+
+    /// <summary>Abonado: potasio (K₂O, kg/ha).</summary>
+    public decimal? PotasioKgHa { get; private set; }
+
+    /// <summary>Riego: metros cúbicos aplicados.</summary>
+    public decimal? VolumenM3 { get; private set; }
 
     public DateOnly Fecha { get; private set; }
 
@@ -69,12 +98,40 @@ public sealed class TratamientoParcela : RaizAgregadoEmpresa<Guid>
 
     public static Resultado<TratamientoParcela> Crear(Guid empresaId, Guid parcelaId, DateOnly fecha, string? producto, int plazoSeguridadDias, IReloj reloj,
         string? numeroRegistro = null, string? materiaActiva = null, string? motivo = null, decimal? dosis = null, string? unidadDosis = null,
-        decimal? superficieTratadaHa = null, string? aplicador = null, string? observaciones = null)
+        decimal? superficieTratadaHa = null, string? aplicador = null, string? observaciones = null, TipoLabor tipo = TipoLabor.Fitosanitario,
+        decimal? nitrogenoKgHa = null, decimal? fosforoKgHa = null, decimal? potasioKgHa = null, decimal? volumenM3 = null)
     {
         ArgumentNullException.ThrowIfNull(reloj);
+        if (!Enum.IsDefined(tipo))
+        {
+            return Resultado.Fallo<TratamientoParcela>(Error.Validacion("tratamiento.tipo", "Tipo de labor no válido: Fitosanitario, Abonado, Riego u Otra."));
+        }
+
         if (string.IsNullOrWhiteSpace(producto))
         {
-            return Resultado.Fallo<TratamientoParcela>(Error.Validacion("tratamiento.producto", "Indica el producto fitosanitario."));
+            return Resultado.Fallo<TratamientoParcela>(Error.Validacion("tratamiento.producto",
+                tipo == TipoLabor.Riego ? "Indica el origen del agua o el sistema de riego." : "Indica el producto o la labor."));
+        }
+
+        if (nitrogenoKgHa is < 0m || fosforoKgHa is < 0m || potasioKgHa is < 0m || volumenM3 is < 0m)
+        {
+            return Resultado.Fallo<TratamientoParcela>(Error.Validacion("tratamiento.valores", "Las unidades fertilizantes y el volumen no pueden ser negativos."));
+        }
+
+        // Solo un fitosanitario tiene plazo de seguridad; el abonado lleva sus unidades y el riego su volumen.
+        if (tipo != TipoLabor.Fitosanitario)
+        {
+            plazoSeguridadDias = 0;
+        }
+
+        if (tipo != TipoLabor.Abonado)
+        {
+            nitrogenoKgHa = fosforoKgHa = potasioKgHa = null;
+        }
+
+        if (tipo != TipoLabor.Riego)
+        {
+            volumenM3 = null;
         }
 
         if (plazoSeguridadDias is < 0 or > 365 || dosis is < 0m || superficieTratadaHa is < 0m)
@@ -85,7 +142,7 @@ public sealed class TratamientoParcela : RaizAgregadoEmpresa<Guid>
         static string? T(string? t, int max = LongitudTexto) => string.IsNullOrWhiteSpace(t) ? null : t.Trim()[..Math.Min(t.Trim().Length, max)];
         return Resultado.Ok(new TratamientoParcela(Guid.NewGuid(), empresaId)
         {
-            ParcelaId = parcelaId, Fecha = fecha, Producto = T(producto)!, NumeroRegistro = T(numeroRegistro, 30), MateriaActiva = T(materiaActiva), Motivo = T(motivo),
+            ParcelaId = parcelaId, Tipo = tipo, NitrogenoKgHa = nitrogenoKgHa, FosforoKgHa = fosforoKgHa, PotasioKgHa = potasioKgHa, VolumenM3 = volumenM3, Fecha = fecha, Producto = T(producto)!, NumeroRegistro = T(numeroRegistro, 30), MateriaActiva = T(materiaActiva), Motivo = T(motivo),
             Dosis = dosis, UnidadDosis = T(unidadDosis, 20), SuperficieTratadaHa = superficieTratadaHa, PlazoSeguridadDias = plazoSeguridadDias, Aplicador = T(aplicador),
             Observaciones = T(observaciones, 300), CreadoEn = reloj.AhoraUtc,
         });

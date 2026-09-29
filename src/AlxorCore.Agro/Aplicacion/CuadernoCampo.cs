@@ -14,18 +14,24 @@ public interface IRepositorioCuaderno
 }
 
 public sealed record DatosTratamiento(Guid ParcelaId, DateOnly Fecha, string? Producto, int PlazoSeguridadDias, string? NumeroRegistro = null, string? MateriaActiva = null,
-    string? Motivo = null, decimal? Dosis = null, string? UnidadDosis = null, decimal? SuperficieTratadaHa = null, string? Aplicador = null, string? Observaciones = null);
+    string? Motivo = null, decimal? Dosis = null, string? UnidadDosis = null, decimal? SuperficieTratadaHa = null, string? Aplicador = null, string? Observaciones = null,
+    TipoLabor Tipo = TipoLabor.Fitosanitario, decimal? NitrogenoKgHa = null, decimal? FosforoKgHa = null, decimal? PotasioKgHa = null, decimal? VolumenM3 = null);
 
 public sealed record TratamientoDto(Guid Id, Guid ParcelaId, string Parcela, Guid AgricultorId, DateOnly Fecha, string Producto, string? NumeroRegistro, string? MateriaActiva,
     string? Motivo, decimal? Dosis, string? UnidadDosis, decimal? SuperficieTratadaHa, int PlazoSeguridadDias, DateOnly RecolectableDesde, string? Aplicador,
-    string? Observaciones, bool Anulado, string? MotivoAnulacion);
+    string? Observaciones, bool Anulado, string? MotivoAnulacion, string Tipo = "Fitosanitario", decimal? NitrogenoKgHa = null, decimal? FosforoKgHa = null,
+    decimal? PotasioKgHa = null, decimal? VolumenM3 = null);
+
+/// <summary>Resumen de una parcela en el cuaderno: unidades fertilizantes aportadas (kg/ha) y agua de riego.</summary>
+public sealed record ResumenParcelaCuadernoDto(Guid ParcelaId, string Parcela, int Tratamientos, decimal NitrogenoKgHa, decimal FosforoKgHa, decimal PotasioKgHa,
+    decimal RiegoM3);
 
 /// <summary>Recolección (entrega) de una parcela en el cuaderno, con el aviso si fue dentro del plazo de seguridad de un tratamiento.</summary>
 public sealed record RecoleccionCuadernoDto(Guid RecepcionId, string Recepcion, DateOnly Fecha, Guid ParcelaId, string Parcela, string Producto, decimal NetoKg,
     string? Incidencia);
 
 public sealed record CuadernoCampoDto(Guid AgricultorId, string Agricultor, DateOnly? Desde, DateOnly? Hasta, IReadOnlyList<TratamientoDto> Tratamientos,
-    IReadOnlyList<RecoleccionCuadernoDto> Recolecciones, int Incidencias);
+    IReadOnlyList<RecoleccionCuadernoDto> Recolecciones, int Incidencias, IReadOnlyList<ResumenParcelaCuadernoDto>? Parcelas = null);
 
 /// <summary>
 /// Cuaderno de campo del agricultor: los tratamientos fitosanitarios de sus parcelas y sus recolecciones (las entregas
@@ -62,7 +68,8 @@ public sealed class CuadernoCampoAgro
         }
 
         var t = TratamientoParcela.Crear(empresaId, parcela.Id, datos.Fecha, datos.Producto, datos.PlazoSeguridadDias, _reloj, datos.NumeroRegistro, datos.MateriaActiva,
-            datos.Motivo, datos.Dosis, datos.UnidadDosis, datos.SuperficieTratadaHa, datos.Aplicador, datos.Observaciones);
+            datos.Motivo, datos.Dosis, datos.UnidadDosis, datos.SuperficieTratadaHa, datos.Aplicador, datos.Observaciones, datos.Tipo, datos.NitrogenoKgHa,
+            datos.FosforoKgHa, datos.PotasioKgHa, datos.VolumenM3);
         if (t.EsFallo)
         {
             return Resultado.Fallo<TratamientoDto>(t.Error);
@@ -123,9 +130,16 @@ public sealed class CuadernoCampoAgro
             }
         }
 
-        var tratamientos = todos.Where(t => desde is null || t.Fecha >= desde).Select(t => Dto(t, parcelas.GetValueOrDefault(t.ParcelaId))).ToList();
+        var delPeriodo = todos.Where(t => desde is null || t.Fecha >= desde).ToList();
+        var tratamientos = delPeriodo.Select(t => Dto(t, parcelas.GetValueOrDefault(t.ParcelaId))).ToList();
+        var resumen = parcelas.Values.OrderBy(p => p.Codigo, StringComparer.Ordinal).Select(p =>
+        {
+            var suyas = delPeriodo.Where(t => t.ParcelaId == p.Id && !t.Anulado).ToList();
+            return new ResumenParcelaCuadernoDto(p.Id, p.Codigo, suyas.Count(t => t.Tipo == TipoLabor.Fitosanitario), suyas.Sum(t => t.NitrogenoKgHa ?? 0m),
+                suyas.Sum(t => t.FosforoKgHa ?? 0m), suyas.Sum(t => t.PotasioKgHa ?? 0m), suyas.Sum(t => t.VolumenM3 ?? 0m));
+        }).ToList();
         return Resultado.Ok(new CuadernoCampoDto(agricultor.Id, agricultor.Nombre, desde, hasta, tratamientos,
-            recolecciones.OrderBy(x => x.Fecha).ToList(), recolecciones.Count(x => x.Incidencia is not null)));
+            recolecciones.OrderBy(x => x.Fecha).ToList(), recolecciones.Count(x => x.Incidencia is not null), resumen));
     }
 
     /// <summary>Errores de plazo de seguridad de las líneas de una recepción (parcela y fecha de recolección).</summary>
@@ -155,5 +169,5 @@ public sealed class CuadernoCampoAgro
 
     private static TratamientoDto Dto(TratamientoParcela t, Parcela? p) => new(t.Id, t.ParcelaId, p?.Codigo ?? "?", p?.AgricultorId ?? Guid.Empty, t.Fecha, t.Producto,
         t.NumeroRegistro, t.MateriaActiva, t.Motivo, t.Dosis, t.UnidadDosis, t.SuperficieTratadaHa, t.PlazoSeguridadDias, t.RecolectableDesde, t.Aplicador,
-        t.Observaciones, t.Anulado, t.MotivoAnulacion);
+        t.Observaciones, t.Anulado, t.MotivoAnulacion, t.Tipo.ToString(), t.NitrogenoKgHa, t.FosforoKgHa, t.PotasioKgHa, t.VolumenM3);
 }

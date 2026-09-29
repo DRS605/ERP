@@ -5441,27 +5441,34 @@
       if(!agricultorId){ view(panel("Cuaderno de campo",'<p class="muted" style="margin:0">Da de alta antes algún agricultor con sus parcelas.</p>')); return; }
       const c=await api(`/agro/agricultores/${agricultorId}/cuaderno`);
       const sel=`<div style="max-width:360px;margin-bottom:12px"><label>Agricultor</label><select onchange="vAgroCuaderno(this.value)">${agOpc(_ag.agricultores,agricultorId)}</select></div>`;
-      const ft=c.tratamientos.map(t=>`<tr${t.anulado?' style="opacity:.55"':""}><td class="muted">${fdate(t.fecha)}</td><td class="mono">${agEsc(t.parcela)}</td><td><strong>${agEsc(t.producto)}</strong>${t.numeroRegistro?` <small class="muted">nº ${agEsc(t.numeroRegistro)}</small>`:""}${t.materiaActiva?`<div class="muted">${agEsc(t.materiaActiva)}</div>`:""}</td>
-        <td>${agEsc(t.motivo||"")}</td><td class="num">${t.dosis!=null?`${t.dosis} ${agEsc(t.unidadDosis||"")}`:"—"}</td><td class="num">${t.superficieTratadaHa??"—"}</td><td class="num">${t.plazoSeguridadDias} d</td><td>${fdate(t.recolectableDesde)}</td><td class="muted">${agEsc(t.aplicador||"")}</td>
+      const ft=c.tratamientos.map(t=>`<tr${t.anulado?' style="opacity:.55"':""}><td class="muted">${fdate(t.fecha)}</td><td class="mono">${agEsc(t.parcela)}</td><td><span class="pill">${AG_LABOR[t.tipo]||t.tipo}</span> <strong>${agEsc(t.producto)}</strong>${t.numeroRegistro?` <small class="muted">nº ${agEsc(t.numeroRegistro)}</small>`:""}${t.materiaActiva?`<div class="muted">${agEsc(t.materiaActiva)}</div>`:""}</td>
+        <td>${agEsc(t.motivo||"")}${t.tipo==="Abonado"?`N ${t.nitrogenoKgHa??0} · P ${t.fosforoKgHa??0} · K ${t.potasioKgHa??0} kg/ha`:""}${t.tipo==="Riego"&&t.volumenM3!=null?`${t.volumenM3} m³`:""}</td><td class="num">${t.dosis!=null?`${t.dosis} ${agEsc(t.unidadDosis||"")}`:"—"}</td><td class="num">${t.superficieTratadaHa??"—"}</td><td class="num">${t.tipo==="Fitosanitario"?t.plazoSeguridadDias+" d":"—"}</td><td>${t.tipo==="Fitosanitario"?fdate(t.recolectableDesde):"—"}</td><td class="muted">${agEsc(t.aplicador||"")}</td>
         <td class="right">${t.anulado?`<span class="pill neg" title="${agEsc(t.motivoAnulacion||"")}">Anulado</span>`:`<button class="btn small ghost" onclick="anularTratamiento('${t.id}')">Anular</button>`}</td></tr>`).join("");
       const fr=c.recolecciones.map(x=>`<tr><td class="muted">${fdate(x.fecha)}</td><td class="mono">${agEsc(x.recepcion)}</td><td class="mono">${agEsc(x.parcela)}</td><td>${agEsc(x.producto)}</td><td class="num">${kg(x.netoKg)}</td><td>${x.incidencia?`<span class="pill neg">${agEsc(x.incidencia)}</span>`:'<span class="pill ok">Fuera de plazo</span>'}</td></tr>`).join("");
-      view(sel+panel("Tratamientos fitosanitarios",`<p class="muted" style="margin:0 0 12px">Registro del cuaderno de campo (RD 1311/2012, GlobalG.A.P.). Una entrega recolectada dentro del plazo de seguridad de un tratamiento de su parcela no se confirma.</p>`
+      const fres=(c.parcelas||[]).map(p=>`<tr><td class="mono">${agEsc(p.parcela)}</td><td class="num">${p.tratamientos}</td><td class="num">${p.nitrogenoKgHa}</td><td class="num">${p.fosforoKgHa}</td><td class="num">${p.potasioKgHa}</td><td class="num">${p.riegoM3}</td></tr>`).join("");
+      view(sel+(fres?panel("Resumen por parcela",`<table data-seleccion="no"><thead><tr><th>Parcela</th><th class="num">Tratamientos</th><th class="num">N kg/ha</th><th class="num">P₂O₅ kg/ha</th><th class="num">K₂O kg/ha</th><th class="num">Riego m³</th></tr></thead><tbody>${fres}</tbody></table>`):"")
+        +panel("Labores del cuaderno",`<p class="muted" style="margin:0 0 12px">Tratamientos, abonados, riegos y otras labores (RD 1311/2012, GlobalG.A.P.). Una entrega recolectada dentro del plazo de seguridad de un tratamiento de su parcela no se confirma.</p>`
         +(ft?`<table data-seleccion="no"><thead><tr><th>Fecha</th><th>Parcela</th><th>Producto</th><th>Motivo</th><th class="num">Dosis</th><th class="num">Ha</th><th class="num">Plazo</th><th>Recolectable desde</th><th>Aplicador</th><th></th></tr></thead><tbody>${ft}</tbody></table>`:'<p class="muted" style="margin:0">Sin tratamientos.</p>'),
-        `<button class="btn small" onclick="modalTratamiento('${agricultorId}')">+ Tratamiento</button>`)
+        `<button class="btn small" onclick="modalTratamiento('${agricultorId}')">+ Labor</button>`)
         +panel(`Recolecciones${c.incidencias?` · <span class="pill neg">${c.incidencias} dentro de plazo</span>`:""}`,fr?`<table data-seleccion="no"><thead><tr><th>Fecha</th><th>Recepción</th><th>Parcela</th><th>Producto</th><th class="num">Neto</th><th>Plazo de seguridad</th></tr></thead><tbody>${fr}</tbody></table>`:'<p class="muted" style="margin:0">Sin entregas con parcela.</p>'));
     }
+    const AG_LABOR={Fitosanitario:"Tratamiento fitosanitario",Abonado:"Abonado",Riego:"Riego",Otra:"Otra labor"};
     function modalTratamiento(agricultorId){
       const parcelas=_ag.parcelas.filter(p=>p.agricultorId===agricultorId);
       if(!parcelas.length){ toast("El agricultor no tiene parcelas.","err"); return; }
-      abrir("Nuevo tratamiento",`<div class="grid2"><div><label>Parcela</label><select id="tr_p">${agOpc(parcelas,null,undefined,p=>`${p.codigo} · ${p.nombre}`)}</select></div><div><label>Fecha</label><input id="tr_f" type="date" value="${hoyIso()}"/></div></div>
-        <div class="grid2"><div><label>Producto fitosanitario</label><input id="tr_pr"/></div><div><label>Nº de registro</label><input id="tr_nr" placeholder="ES-00000"/></div></div>
-        <div class="grid2"><div><label>Materia activa</label><input id="tr_ma"/></div><div><label>Plaga o motivo</label><input id="tr_mo"/></div></div>
-        <div class="grid2" style="grid-template-columns:repeat(4,1fr)"><div><label>Dosis</label><input id="tr_d" type="number" step="0.0001" min="0"/></div><div><label>Unidad</label><input id="tr_u" placeholder="l/ha"/></div><div><label>Superficie (ha)</label><input id="tr_s" type="number" step="0.0001" min="0"/></div><div><label>Plazo de seguridad (días)</label><input id="tr_ps" type="number" step="1" min="0" value="0"/></div></div>
+      abrir("Nueva labor del cuaderno",`<label>Tipo de labor</label><select id="tr_t" onchange="document.querySelectorAll('.tr_x').forEach(d=>d.style.display=d.dataset.t.split(',').includes(this.value)?'':'none')">${Object.entries(AG_LABOR).map(([k,v])=>`<option value="${k}">${v}</option>`).join("")}</select>
+        <div class="grid2"><div><label>Parcela</label><select id="tr_p">${agOpc(parcelas,null,undefined,p=>`${p.codigo} · ${p.nombre}`)}</select></div><div><label>Fecha</label><input id="tr_f" type="date" value="${hoyIso()}"/></div></div>
+        <div class="grid2"><div><label>Producto, fertilizante o labor (en riego, origen del agua)</label><input id="tr_pr"/></div><div class="tr_x" data-t="Fitosanitario,Abonado"><label>Nº de registro</label><input id="tr_nr" placeholder="ES-00000"/></div></div>
+        <div class="grid2 tr_x" data-t="Fitosanitario"><div><label>Materia activa</label><input id="tr_ma"/></div><div><label>Plaga o motivo</label><input id="tr_mo"/></div></div>
+        <div class="grid2 tr_x" data-t="Abonado" style="display:none;grid-template-columns:repeat(3,1fr)"><div><label>N (kg/ha)</label><input id="tr_n" type="number" step="0.001" min="0"/></div><div><label>P₂O₅ (kg/ha)</label><input id="tr_fp" type="number" step="0.001" min="0"/></div><div><label>K₂O (kg/ha)</label><input id="tr_k" type="number" step="0.001" min="0"/></div></div>
+        <div class="tr_x" data-t="Riego" style="display:none"><label>Volumen (m³)</label><input id="tr_m3" type="number" step="0.001" min="0"/></div>
+        <div class="grid2" style="grid-template-columns:repeat(4,1fr)"><div class="tr_x" data-t="Fitosanitario,Abonado"><label>Dosis</label><input id="tr_d" type="number" step="0.0001" min="0"/></div><div class="tr_x" data-t="Fitosanitario,Abonado"><label>Unidad</label><input id="tr_u" placeholder="l/ha"/></div><div><label>Superficie (ha)</label><input id="tr_s" type="number" step="0.0001" min="0"/></div><div class="tr_x" data-t="Fitosanitario"><label>Plazo de seguridad (días)</label><input id="tr_ps" type="number" step="1" min="0" value="0"/></div></div>
         <div class="grid2"><div><label>Aplicador (carné)</label><input id="tr_a"/></div><div><label>Observaciones</label><input id="tr_o"/></div></div>`,
         async()=>{ const n=v=>v===""?null:Number(v);
           await api("/agro/tratamientos",{method:"POST",body:JSON.stringify({parcelaId:val("tr_p"),fecha:val("tr_f"),producto:val("tr_pr"),numeroRegistro:val("tr_nr")||null,materiaActiva:val("tr_ma")||null,motivo:val("tr_mo")||null,
-            dosis:n(val("tr_d")),unidadDosis:val("tr_u")||null,superficieTratadaHa:n(val("tr_s")),plazoSeguridadDias:Math.trunc(Number(val("tr_ps")||0)),aplicador:val("tr_a")||null,observaciones:val("tr_o")||null})});
-          toast("Tratamiento registrado.","ok"); vAgroCuaderno(agricultorId); });
+            dosis:n(val("tr_d")),unidadDosis:val("tr_u")||null,superficieTratadaHa:n(val("tr_s")),plazoSeguridadDias:Math.trunc(Number(val("tr_ps")||0)),aplicador:val("tr_a")||null,observaciones:val("tr_o")||null,
+            tipo:val("tr_t"),nitrogenoKgHa:n(val("tr_n")),fosforoKgHa:n(val("tr_fp")),potasioKgHa:n(val("tr_k")),volumenM3:n(val("tr_m3"))})});
+          toast("Labor registrada.","ok"); vAgroCuaderno(agricultorId); });
     }
     async function anularTratamiento(id){
       const m=prompt("Motivo de la anulación del tratamiento:"); if(m===null) return;
@@ -5590,9 +5597,21 @@
       const conSaldo=(window._agPartidas||[]).filter(p=>p.saldo>0);
       abrir(`Cajas del palé ${sscc}`,`<div class="grid2"><div><label>Partida</label><select id="acj_p">${agOpc(conSaldo,null,undefined,p=>`${p.codigo} · ${agProd(p.productoId)} · ${kg(p.saldo)}`)}</select></div>
         <div><label>Cajas (negativo = sacar)</label><input id="acj_n" type="number" step="1" value="${faltan>0?faltan:""}"/></div></div>
-        <p class="muted" style="font-size:12px;margin:10px 0 0">Faltan ${faltan} caja(s): al completarlas, el palé se cierra solo.</p>`,
+        <p class="muted" style="font-size:12px;margin:10px 0 0">Faltan ${faltan} caja(s): al completarlas, el palé se cierra solo.</p>
+        <label style="margin-top:12px">Escáner (lee la etiqueta de cada caja: GS1-128 con el lote o el código de la partida)</label>
+        <input id="acj_scan" placeholder="Pasa el lector aquí…" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();agLeerCaja('${paleId}');}"/>
+        <div id="acj_log" class="muted" style="font-size:12px;margin-top:6px"></div>`,
         async()=>{ const p=await api(`/agro/pales/${paleId}/cajas`,{method:"POST",body:JSON.stringify({partidaId:val("acj_p"),cajas:Number(val("acj_n")||0)})});
           toast(p.estado==="Cerrado"?"Palé completo y cerrado.":`Palé con ${p.cajas}/${p.cajasPorPale} cajas.`,"ok"); setTimeout(vAgroPartidas); });
+    }
+    async function agLeerCaja(paleId){
+      const el=document.getElementById("acj_scan"), log=document.getElementById("acj_log"), codigo=el.value.trim(); el.value="";
+      if(!codigo) return;
+      try{ const p=await api(`/agro/pales/${paleId}/lecturas`,{method:"POST",body:JSON.stringify({codigo})});
+        log.innerHTML=`<span class="pill ok">${p.cajas}/${p.cajasPorPale??"?"}</span> ${agEsc(codigo)}`+(p.estado==="Cerrado"?" · <strong>Palé completo y cerrado.</strong>":"");
+        if(p.estado==="Cerrado"){ toast("Palé completo y cerrado.","ok"); cerrarModal(); setTimeout(vAgroPartidas); }
+      }catch(e){ log.innerHTML=`<span class="pill neg">${agEsc(e.message)}</span>`; }
+      el.focus();
     }
     async function agEtiqueta(sscc){ try{
         const r=await fetch(`/agro/pales/${sscc}/etiqueta`,{headers:{Authorization:"Bearer "+token}});

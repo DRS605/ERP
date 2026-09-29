@@ -258,7 +258,8 @@ public sealed class AgroEndpointsTests : IClassFixture<FabricaApiPruebas>
 
     private sealed record TratamientoResp(Guid Id, string Producto, DateOnly RecolectableDesde, bool Anulado);
     private sealed record RecoleccionResp(string Recepcion, DateOnly Fecha, decimal NetoKg, string? Incidencia);
-    private sealed record CuadernoResp(List<TratamientoResp> Tratamientos, List<RecoleccionResp> Recolecciones, int Incidencias);
+    private sealed record ResumenResp2(int Tratamientos, decimal NitrogenoKgHa, decimal FosforoKgHa, decimal PotasioKgHa, decimal RiegoM3);
+    private sealed record CuadernoResp(List<TratamientoResp> Tratamientos, List<RecoleccionResp> Recolecciones, int Incidencias, List<ResumenResp2> Parcelas);
 
     [Fact]
     public async Task El_cuaderno_de_campo_impide_recibir_fruta_dentro_del_plazo_de_seguridad()
@@ -293,6 +294,15 @@ public sealed class AgroEndpointsTests : IClassFixture<FabricaApiPruebas>
         cuaderno.Tratamientos.Single(t => t.Producto == "Cobre 50").RecolectableDesde.Should().Be(Dia.AddDays(-15));
         cuaderno.Recolecciones.Should().ContainSingle(x => x.NetoKg == 1_000m && x.Incidencia == null);
         cuaderno.Incidencias.Should().Be(0);
+
+        // Abonado y riego: sin plazo de seguridad (no bloquean) y con su resumen por parcela.
+        await IdAsync(e.Api, "/agro/tratamientos", new { ParcelaId = e.Parcela, Fecha = Dia, Tipo = "Abonado", Producto = "Complejo 15-15-15", PlazoSeguridadDias = 30,
+            NitrogenoKgHa = 60m, FosforoKgHa = 60m, PotasioKgHa = 60m });
+        await IdAsync(e.Api, "/agro/tratamientos", new { ParcelaId = e.Parcela, Fecha = Dia, Tipo = "Abonado", Producto = "Nitrato amónico", NitrogenoKgHa = 33.5m });
+        await IdAsync(e.Api, "/agro/tratamientos", new { ParcelaId = e.Parcela, Fecha = Dia, Tipo = "Riego", Producto = "Pozo · goteo", VolumenM3 = 120m });
+        var resumen = (await OkAsync<CuadernoResp>(await e.Api.GetAsync($"/agro/agricultores/{e.Agricultor}/cuaderno"))).Parcelas.Single();
+        resumen.Should().Match<ResumenResp2>(p => p.Tratamientos == 1 && p.NitrogenoKgHa == 93.5m && p.FosforoKgHa == 60m && p.PotasioKgHa == 60m && p.RiegoM3 == 120m);
+        await RecibirAsync(e, Dia);
     }
 
     [Fact]

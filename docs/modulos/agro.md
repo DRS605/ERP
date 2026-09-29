@@ -441,6 +441,9 @@ que la de la parcela), **plazo de seguridad** en días, aplicador y observacione
 - Un tratamiento no se borra: se anula con el motivo (`POST /agro/tratamientos/{id}/anular`) y deja de contar.
 - **Cuaderno del agricultor** (`GET /agro/agricultores/{id}/cuaderno?desde=&hasta=`): sus tratamientos y sus
   recolecciones (las entregas con parcela), con las que quedaron dentro de un plazo de seguridad.
+- **Otras labores** (`tipo`): además del **fitosanitario**, el **abonado** con sus unidades fertilizantes (N, P₂O₅ y
+  K₂O en kg/ha), el **riego** con su volumen en m³ y **otras** labores (poda, laboreo…). Solo el fitosanitario tiene
+  plazo de seguridad. El cuaderno resume por parcela los tratamientos, las unidades fertilizantes aportadas y el agua.
 - **Pantalla:** Agro → **Cuaderno de campo**. **API:** `GET/POST /agro/tratamientos` (filtros por agricultor,
   parcela y fechas).
 
@@ -453,7 +456,8 @@ plantilla del palé, sus kilos por caja). El lote de la etiqueta es el código d
   hasta el separador FNC1), con o sin el prefijo de simbología `]C1`;
 - o, si no es GS1, el propio código de la partida.
 
-Si no hay ninguna partida con existencias con ese lote, falla con `lectura.partida`.
+Si no hay ninguna partida con existencias con ese lote, falla con `lectura.partida`. En pantalla, la ventana de cajas
+del palé tiene un campo para el lector: cada lectura añade una caja y, al completar el palé, se cierra.
 
 ## Vuelta de palés expedidos
 
@@ -481,5 +485,4 @@ Al anular la expedición de un palé que salió con un albarán del pedido:
 - **Operativa:**
   - lectura directa de básculas: la pesada se registra por la API (`POST /agro/recepciones/{id}/lineas/{linea}/pesadas`,
     con el campo `Bascula`), pero falta el agente local que lea el indicador de la báscula y la envíe;
-  - el resto de la certificación GlobalG.A.P. (abonados, riegos, auditorías internas); el cuaderno de campo ya lleva
-    los tratamientos fitosanitarios.
+  - las auditorías internas de GlobalG.A.P. (el cuaderno ya lleva tratamientos, abonados, riegos y otras labores).
