@@ -324,8 +324,9 @@ Tesorería consulta los totales de los documentos a **Facturación** (`IConsulta
 
 - Una remesa de adeudos se liquida entera; los recibos devueltos se registran después, uno a uno.
 - La conciliación no concilia traspasos entre cuentas propias ni divisas; los extractos son en euros.
-- Los anticipos no eligen banco; la anulación manual de un movimiento ya conciliado no desconcilia su apunte
-  (hay que deshacer la conciliación).
+- Los anticipos no eligen banco.
+- Un cobro o pago conciliado con un apunte no se anula a mano (`movimiento.conciliado`): se deshace la conciliación,
+  que anula lo que registró y deja el apunte pendiente.
 - Gastos de devolución repercutidos: se crea el efecto a cobrar, no se suman al pendiente de la factura.
 
 ## Tests

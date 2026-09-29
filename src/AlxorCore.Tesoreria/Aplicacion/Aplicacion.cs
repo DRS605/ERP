@@ -335,10 +335,12 @@ public sealed class AnularMovimiento
 
     private readonly IRepositorioLiquidacionesPagos? _liquidaciones;
     private readonly IRepositorioDeudas? _deudas;
+    private readonly IRepositorioConciliacion? _conciliacion;
 
     public AnularMovimiento(IRepositorioMovimientos movimientos, IUnidadDeTrabajoTesoreria unidad, IReloj reloj, ContabilizacionTesoreria? contabilizacion = null,
-        IRepositorioLiquidacionesPagos? liquidaciones = null, IRepositorioDeudas? deudas = null)
+        IRepositorioLiquidacionesPagos? liquidaciones = null, IRepositorioDeudas? deudas = null, IRepositorioConciliacion? conciliacion = null)
     {
+        _conciliacion = conciliacion;
         _deudas = deudas;
         _liquidaciones = liquidaciones;
         _movimientos = movimientos;
@@ -369,6 +371,13 @@ public sealed class AnularMovimiento
         if (original.Metodo == CuentasDeuda.MetodoRenovacion && _deudas is not null && await _deudas.EsMovimientoDeRenovacionAsync(movimientoId, ct).ConfigureAwait(false))
         {
             return Resultado.Fallo<MovimientoDto>(Error.Conflicto("movimiento.de_renovacion", "Este cobro es la renovación del documento: anula la renovación."));
+        }
+
+        // Conciliado con un apunte del extracto: anularlo dejaría el apunte casado con nada.
+        if (_conciliacion is not null && (await _conciliacion.ConciliadosAsync([movimientoId], ct).ConfigureAwait(false)).Count > 0)
+        {
+            return Resultado.Fallo<MovimientoDto>(Error.Conflicto("movimiento.conciliado",
+                "Este cobro o pago está conciliado con un apunte del extracto: deshaz antes la conciliación (anula lo que registró)."));
         }
 
         EntregaCuentaProveedor? entrega = null;

@@ -401,6 +401,12 @@ public sealed class TesoreriaBancosTests : IClassFixture<FabricaApiPruebas>
         det.Extracto.Pendientes.Should().Be(0);
         det.Apuntes.Single(a => a.Orden == 4).CuentaAsiento.Should().Be("626");
 
+        // Un cobro conciliado no se anula a mano: se deshace la conciliación.
+        var cobroN2 = (await c.GetFromJsonAsync<SaldoResp>($"/facturas/{n2.Id}/saldo"))!.Movimientos.Single();
+        var anularConciliado = await c.PostAsJsonAsync($"/tesoreria/movimientos/{cobroN2.Id}/anular", new { });
+        anularConciliado.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await anularConciliado.Content.ReadAsStringAsync()).Should().Contain("movimiento.conciliado");
+
         // Deshacer: lo registrado por la conciliación se anula y el apunte vuelve a pendiente.
         (await c.PostAsJsonAsync($"/tesoreria/apuntes/{a3.Id}/deshacer", new { })).EnsureSuccessStatusCode();
         (await c.GetFromJsonAsync<SaldoResp>($"/facturas/{n1.Id}/saldo"))!.Pendiente.Should().Be(10m);
