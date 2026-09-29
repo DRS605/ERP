@@ -15,7 +15,8 @@ namespace AlxorCore.Facturacion.Aplicacion;
 /// <c>PrecioPorFijar</c>, el precio indicado (o el de tarifa) es solo una estimación y el albarán queda por valorar.
 /// </summary>
 public sealed record LineaAlbaranComando(decimal Cantidad, string? Descripcion = null, decimal? PrecioUnitario = null, string? CodigoIva = null,
-    decimal PorcentajeDescuento = 0m, Guid? ProductoId = null, bool PrecioPorFijar = false, IReadOnlyList<ConceptoSolicitado>? Conceptos = null);
+    decimal PorcentajeDescuento = 0m, Guid? ProductoId = null, bool PrecioPorFijar = false, IReadOnlyList<ConceptoSolicitado>? Conceptos = null,
+    decimal? Bultos = null, decimal? Pales = null);
 
 /// <summary>Albarán directo. Sin conceptos en una línea se ponen los automáticos del cliente y el artículo (sus reglas).</summary>
 public sealed record CrearAlbaranVentaComando(Guid ClienteId, IReadOnlyList<LineaAlbaranComando> Lineas, DateOnly? Fecha = null, string? Referencia = null,
@@ -85,15 +86,24 @@ internal static class AlbaranesVentaStock
 
     /// <summary>
     /// Conceptos de una línea de pedido para la parte entregada: los porcentajes sobre la nueva base (en su orden, con la
-    /// cascada) y el resto en proporción a la cantidad entregada.
+    /// cascada), los de bulto o palé por los bultos y palés entregados (si se indican; si no, en proporción) y el resto en
+    /// proporción a la cantidad entregada.
     /// </summary>
-    public static List<ConceptoAplicado> ConceptosParciales(IReadOnlyList<ConceptoAplicado> conceptos, decimal cantidadPedida, decimal cantidadEntregada, decimal baseBruta)
+    public static List<ConceptoAplicado> ConceptosParciales(IReadOnlyList<ConceptoAplicado> conceptos, decimal cantidadPedida, decimal cantidadEntregada, decimal baseBruta,
+        decimal? bultos = null, decimal? pales = null)
     {
         var resultado = new List<ConceptoAplicado>();
         var proporcion = cantidadPedida == 0m ? 1m : cantidadEntregada / cantidadPedida;
         foreach (var c in conceptos)
         {
             var baseConcepto = c.Cascada ? baseBruta + ConceptosLinea.SumaPrecio(resultado) : baseBruta;
+            if (ConceptosLinea.PorUnidadesLogisticas(c.Calculo))
+            {
+                var unidades = (c.Calculo == CalculoConcepto.PorBulto ? bultos : pales) ?? decimal.Round((c.Unidades ?? 0m) * proporcion, 3);
+                resultado.Add(c with { Unidades = unidades, Importe = ConceptosLinea.Calcular(c.Calculo, c.Sentido, c.Valor, 0m, 0m, null, unidades) });
+                continue;
+            }
+
             resultado.Add(c with
             {
                 Importe = c.Calculo switch
@@ -186,7 +196,8 @@ public sealed class CrearAlbaranVenta
         if (_conceptos is not null && lineas.Count > 0)
         {
             var entrada = lineas.Select((l, i) => new LineaConceptos(l.ProductoId, l.Cantidad,
-                AlxorCore.Nucleo.Comun.Redondeo.Dos(l.Cantidad * (l.PrecioUnitario ?? 0m) * (1m - l.PorcentajeDescuento / 100m)), comando.Lineas![i].Conceptos)).ToList();
+                AlxorCore.Nucleo.Comun.Redondeo.Dos(l.Cantidad * (l.PrecioUnitario ?? 0m) * (1m - l.PorcentajeDescuento / 100m)), comando.Lineas![i].Conceptos,
+                Bultos: comando.Lineas[i].Bultos, Pales: comando.Lineas[i].Pales)).ToList();
             var r = await _conceptos.ResolverAsync(AmbitoConcepto.Ventas, cliente.Id, entrada, comando.ConceptosDocumento, true,
                 new ContextoConceptos(cliente.Tipo, fecha), ct).ConfigureAwait(false);
             if (r.EsFallo)

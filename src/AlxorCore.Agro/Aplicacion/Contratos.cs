@@ -194,7 +194,7 @@ public sealed record LineaPedidoParaReservas(Guid Id, Guid? ProductoId, string D
 /// <summary>Albarán de venta de una expedición: pedido y, por producto, los kilos y las cajas expedidos.</summary>
 /// <summary>Albarán de lo expedido. <paramref name="CosteKg"/>: coste por kilo de cada producto según sus palés (el de las partidas cargadas).</summary>
 public sealed record AlbaranExpedicion(Guid PedidoVentaId, DateOnly Fecha, string? Referencia, IReadOnlyList<(Guid ProductoId, decimal Kilos, int Cajas)> Lineas,
-    IReadOnlyDictionary<Guid, decimal>? CosteKg = null);
+    IReadOnlyDictionary<Guid, decimal>? CosteKg = null, IReadOnlyDictionary<Guid, int>? Pales = null);
 
 /// <summary>Gastos e ingresos imputados en analítica a unos centros (con sus descendientes) en unas fechas.</summary>
 public interface ICosteAnalitico

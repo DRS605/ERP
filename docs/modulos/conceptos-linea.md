@@ -22,7 +22,7 @@ El maestro se comparte en el grupo, como los artículos y las tarifas (tabla `ca
 | Se usa en | Ventas, compras o ambos |
 | Efecto | Cambia el importe o solo coste |
 | Sentido | Suma o resta |
-| Cálculo | % sobre la línea (tras el descuento), € por unidad, € por kilo neto o importe fijo |
+| Cálculo | % sobre la línea (tras el descuento), € por unidad, € por kilo neto, € por **bulto**, € por **palé** o importe fijo |
 | Valor | El valor por defecto (nunca negativo: el signo lo pone el sentido; un porcentaje no pasa de 100) |
 | Reparto | Cómo se reparte un importe fijo puesto al documento entero: por importe, por cantidad o por peso |
 | Orden | Orden de aplicación en la línea: los de orden menor van antes |
@@ -38,6 +38,15 @@ Los kilos netos de una línea son:
 - nada, si la línea no tiene artículo.
 
 Un concepto por kilo no se pone solo en una línea sin peso.
+
+Los **bultos** de una línea son los que se indican (`Bultos` en la línea del albarán directo); si no, la cantidad entre el
+factor de la unidad de venta del artículo (100 kg en cajas de 10 kg son 10 bultos) o, si no se vende por kilos, la
+cantidad. Los **palés** son los que se indican (`Pales`). Un concepto por bulto o por palé no se pone solo si no se
+conocen. El concepto guarda las unidades usadas (`unidades`) y no cambia al revalorar la línea.
+
+- **Al entregar un pedido**, los conceptos por bulto y palé van por los bultos y palés que se indiquen en la entrega
+  (`Bultos`, `Pales`), o en proporción a lo entregado.
+- **Al expedir palés agro contra un pedido**, van por las cajas y los palés reales expedidos de cada artículo.
 
 ### Reglas: cuándo se pone solo
 
@@ -186,11 +195,10 @@ revés) y `concepto.linea_negativa`.
 ## Pendiente
 
 - Conceptos **después de la base imponible** (suplidos, fianzas) y con un **impuesto propio** distinto del de la línea.
-- Cálculo por **bulto** y por **palé**, y reglas por **envase**.
+- Reglas por **envase** en las ventas.
 - La provisión contable del cargo de coste con acreedor en el documento (hoy el coste se contabiliza al registrar la
   factura del acreedor).
 - La cuenta propia en las compras.
-- Conceptos con reglas en las recepciones y liquidaciones agro (hoy, conceptos de liquidación globales).
 - Conceptos en tickets, facturas periódicas con reglas propias, rectificativas por diferencias y buzón de facturas
   recibidas.
 - El informe de conceptos del periodo aún no incluye los albaranes sin facturar.

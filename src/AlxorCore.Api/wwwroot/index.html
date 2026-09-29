@@ -1819,7 +1819,7 @@
 
     /* ---------- Conceptos de línea: maestro, editor en las líneas de ventas y compras, informe ---------- */
     const CONC_ETQ={Ambito:{Ventas:"Ventas",Compras:"Compras",Ambos:"Ventas y compras"},Efecto:{Precio:"Cambia el importe",Coste:"Solo coste"},
-      Sentido:{Suma:"Suma",Resta:"Resta"},Calculo:{Porcentaje:"% sobre la línea",PorUnidad:"€ por unidad",PorKilo:"€ por kilo",Importe:"Importe fijo"},
+      Sentido:{Suma:"Suma",Resta:"Resta"},Calculo:{Porcentaje:"% sobre la línea",PorUnidad:"€ por unidad",PorKilo:"€ por kilo",PorBulto:"€ por bulto",PorPale:"€ por palé",Importe:"Importe fijo"},
       Reparto:{PorImporte:"por importe",PorCantidad:"por cantidad",PorPeso:"por peso"}};
     const concValorTxt=c=>c.calculo==="Porcentaje"?`${numCant(c.valor)} %`:c.calculo==="PorUnidad"?`${eur(c.valor)}/ud`:c.calculo==="PorKilo"?`${eur(c.valor)}/kg`:eur(c.valor);
     async function vConceptosLinea(){
@@ -5512,9 +5512,23 @@
         <div class="grid2"><div><label>Precio estimado €/kg</label><input id="al_pr" type="number" step="0.0001"/></div><div><label>Calibre</label><input id="al_c"/></div></div>`,
         async()=>{ await api(`/agro/recepciones/${recId}/lineas`,{method:"POST",body:JSON.stringify({productoId:val("al_p"),parcelaId:val("al_pa")||null,fechaRecoleccion:val("al_fr")||null,envaseProductoId:val("al_e")||null,precioEstimadoKg:val("al_pr")?Number(val("al_pr")):null,calibre:val("al_c")||null})}); setTimeout(()=>vAgroRecepcion(recId)); });
     }
+    function agBasculaUrl(){ try{ return localStorage.getItem("alxor.bascula")||"http://localhost:5199"; }catch{ return "http://localhost:5199"; } }
+    function agUrlBascula(){ const u=prompt("Dirección del agente de báscula de este puesto:",agBasculaUrl()); if(u===null) return; try{ localStorage.setItem("alxor.bascula",u.trim()); }catch{} toast("Guardado para este navegador.","ok"); }
+    async function agLeerBascula(campo){
+      const info=document.getElementById("ap_bas"); info.textContent="Leyendo…";
+      try{ const r=await fetch(agBasculaUrl().replace(/\/$/,"")+"/peso",{cache:"no-store"}); const p=await r.json();
+        if(!r.ok) throw new Error(p.detail||p.title||"El agente no tiene peso.");
+        if(!p.estable){ info.innerHTML='<span class="pill wait">Peso inestable: espera y vuelve a leer</span>'; return; }
+        if(p.antiguedadSegundos>10){ info.innerHTML='<span class="pill wait">La última lectura tiene más de 10 s: revisa la báscula</span>'; return; }
+        document.getElementById(campo).value=p.kilos; if(!val("ap_s")) document.getElementById("ap_s").value=p.bascula||"";
+        info.innerHTML=`<span class="pill ok">${p.kilos} kg · ${agEsc(p.bascula||"")}</span>`;
+      }catch(e){ info.innerHTML=`<span class="pill neg">${agEsc(e.message||"No responde el agente de báscula")}</span>`; }
+    }
     function modalAgroPesada(recId,lineaId){
       abrir("Pesada de báscula",`<div class="grid2"><div><label>Bruto (kg)</label><input id="ap_b" type="number" step="0.001"/></div><div><label>Tara (kg)</label><input id="ap_t" type="number" step="0.001" value="0"/></div></div>
-        <div class="grid2"><div><label>Envases</label><input id="ap_e" type="number" step="1" value="0"/></div><div><label>Báscula / ticket</label><input id="ap_s"/></div></div>`,
+        <div class="grid2"><div><label>Envases</label><input id="ap_e" type="number" step="1" value="0"/></div><div><label>Báscula / ticket</label><input id="ap_s"/></div></div>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap"><button class="btn small secondary" onclick="agLeerBascula('ap_b')">Leer báscula → bruto</button><button class="btn small ghost" onclick="agLeerBascula('ap_t')">Leer báscula → tara</button>
+          <span id="ap_bas" class="muted" style="font-size:12px"></span><a class="muted" style="font-size:12px;cursor:pointer;margin-left:auto" onclick="agUrlBascula()">Agente de báscula…</a></div>`,
         async()=>{ await api(`/agro/recepciones/${recId}/lineas/${lineaId}/pesadas`,{method:"POST",body:JSON.stringify({brutoKg:Number(val("ap_b")),taraKg:Number(val("ap_t")||0),envases:Number(val("ap_e")||0),bascula:val("ap_s")||null})}); setTimeout(()=>vAgroRecepcion(recId)); });
     }
     function modalAgroAnularRecepcion(id){

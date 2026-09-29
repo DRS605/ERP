@@ -39,6 +39,12 @@ public enum CalculoConcepto
     PorUnidad,
     PorKilo,
     Importe,
+
+    /// <summary>Tantos euros por bulto (caja, envase) de la línea (Hispatec: importe por unidad en envases).</summary>
+    PorBulto,
+
+    /// <summary>Tantos euros por palé de la línea.</summary>
+    PorPale,
 }
 
 /// <summary>
@@ -76,7 +82,8 @@ public sealed record ConceptoAplicado(
     bool Repartido = false,
     bool Cascada = false,
     Guid? AcreedorId = null,
-    string? CuentaContable = null);
+    string? CuentaContable = null,
+    decimal? Unidades = null);
 
 /// <summary>Cálculo, reparto y serialización de los conceptos de línea (común a ventas y compras).</summary>
 public static class ConceptosLinea
@@ -87,14 +94,16 @@ public static class ConceptosLinea
         Converters = { new JsonStringEnumConverter() },
     };
 
-    /// <summary>Importe con signo de un concepto sobre una línea.</summary>
-    public static decimal Calcular(CalculoConcepto calculo, SentidoConcepto sentido, decimal valor, decimal baseLinea, decimal cantidad, decimal? kilos)
+    /// <summary>Importe con signo de un concepto sobre una línea (<paramref name="unidades"/>: los bultos o palés, si va por ellos).</summary>
+    public static decimal Calcular(CalculoConcepto calculo, SentidoConcepto sentido, decimal valor, decimal baseLinea, decimal cantidad, decimal? kilos,
+        decimal? unidades = null)
     {
         var importe = calculo switch
         {
             CalculoConcepto.Porcentaje => baseLinea * valor / 100m,
             CalculoConcepto.PorUnidad => cantidad * valor,
             CalculoConcepto.PorKilo => (kilos ?? 0m) * valor,
+            CalculoConcepto.PorBulto or CalculoConcepto.PorPale => (unidades ?? 0m) * valor,
             _ => valor,
         };
         importe = Redondeo.Dos(importe);
@@ -105,7 +114,7 @@ public static class ConceptosLinea
     public static ConceptoAplicado Recalcular(ConceptoAplicado c, decimal baseLinea, decimal cantidad, decimal? kilos)
     {
         ArgumentNullException.ThrowIfNull(c);
-        return c with { Importe = Calcular(c.Calculo, c.Sentido, c.Valor, baseLinea, cantidad, kilos) };
+        return c with { Importe = Calcular(c.Calculo, c.Sentido, c.Valor, baseLinea, cantidad, kilos, c.Unidades) };
     }
 
     /// <summary>
@@ -171,6 +180,9 @@ public static class ConceptosLinea
 
         return partes.Select(p => p / 100m).ToList();
     }
+
+    /// <summary>Si el concepto va por bultos o por palés (su importe depende de <see cref="ConceptoAplicado.Unidades"/>).</summary>
+    public static bool PorUnidadesLogisticas(CalculoConcepto calculo) => calculo is CalculoConcepto.PorBulto or CalculoConcepto.PorPale;
 
     /// <summary>Suma de los conceptos que cambian el importe de la línea.</summary>
     public static decimal SumaPrecio(IEnumerable<ConceptoAplicado>? conceptos) =>

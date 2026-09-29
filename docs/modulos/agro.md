@@ -477,6 +477,14 @@ que la de la parcela), **plazo de seguridad** en días, aplicador y observacione
 - **Pantalla:** Agro → **Cuaderno de campo**. **API:** `GET/POST /agro/tratamientos` (filtros por agricultor,
   parcela y fechas).
 
+## Básculas
+
+El **agente de báscula** (`src/AlxorCore.AgenteBascula`, ver su README) es un servicio local del puesto de la báscula:
+lee el indicador por TCP o por el puerto serie (Dini Argeo, A&D, Gram, Mettler Toledo SICS y tramas genéricas) y da el
+último peso en `http://localhost:5199/peso`. En la pesada de una recepción, **Leer báscula → bruto / tara** lo toma: no
+acepta un peso inestable ni una lectura de más de 10 s, y pone el nombre de la báscula. La dirección del agente se
+guarda por navegador («Agente de báscula…»).
+
 ## Escáner de cajas en el punto de paletizado
 
 `POST /agro/pales/{id}/lecturas` con el `Codigo` leído añade la caja al palé, como si se indicara a mano (con la
@@ -508,6 +516,4 @@ Al anular la expedición de un palé que salió con un albarán del pedido:
 ## 11. Pendiente
 
 - **Operativa:**
-  - lectura directa de básculas: la pesada se registra por la API (`POST /agro/recepciones/{id}/lineas/{linea}/pesadas`,
-    con el campo `Bascula`), pero falta el agente local que lea el indicador de la báscula y la envíe;
   - las auditorías internas de GlobalG.A.P. (el cuaderno ya lleva tratamientos, abonados, riegos y otras labores).

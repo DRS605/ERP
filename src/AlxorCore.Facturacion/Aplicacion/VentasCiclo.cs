@@ -82,7 +82,8 @@ public sealed record CrearPedidoVentaComando(Guid ClienteId, IReadOnlyList<Linea
 
 public sealed record CrearPedidoDesdePresupuestoComando(Guid PresupuestoId, DateOnly? Fecha = null);
 
-public sealed record EntregaLineaComando(Guid LineaPedidoId, decimal Cantidad, decimal? CosteUnitario = null);
+/// <summary>Lo que se entrega de una línea del pedido; con bultos o palés, los conceptos por bulto o palé van por lo real.</summary>
+public sealed record EntregaLineaComando(Guid LineaPedidoId, decimal Cantidad, decimal? CosteUnitario = null, decimal? Bultos = null, decimal? Pales = null);
 
 public sealed record EntregarPedidoComando(IReadOnlyList<EntregaLineaComando> Lineas, DateOnly? Fecha = null, string? Referencia = null);
 
@@ -324,7 +325,7 @@ public sealed class EntregarPedido
             var lp = pedido.Lineas.Single(l => l.Id == e.LineaPedidoId);
             var bruta = Redondeo.Dos(e.Cantidad * lp.PrecioUnitario * (1m - lp.PorcentajeDescuento / 100m));
             return new NuevaLineaAlbaran(e.LineaPedidoId, lp.ProductoId, lp.Descripcion, e.Cantidad, lp.PrecioUnitario, lp.PorcentajeDescuento, lp.CodigoIva,
-                Conceptos: AlbaranesVentaStock.ConceptosParciales(lp.Conceptos, lp.Cantidad, e.Cantidad, bruta), CosteUnitario: costes[i]);
+                Conceptos: AlbaranesVentaStock.ConceptosParciales(lp.Conceptos, lp.Cantidad, e.Cantidad, bruta, (comando.Lineas ?? [])[i].Bultos, (comando.Lineas ?? [])[i].Pales), CosteUnitario: costes[i]);
         }).ToList();
 
         var albaran = AlbaranVenta.Crear(empresaId, pedidoId, pedido.ClienteId, pedido.ClienteNombre, numero, fecha, comando.Referencia, lineasAlbaran, _reloj, serie);

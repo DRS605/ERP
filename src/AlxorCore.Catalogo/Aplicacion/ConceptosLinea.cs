@@ -34,8 +34,14 @@ public sealed record ConceptoSolicitado(Guid ConceptoId, decimal? Valor = null);
 /// Con <see cref="Conceptos"/> se ponen exactamente esos; con <see cref="Copiados"/> (al pasar un documento a otro)
 /// se recalculan los de la línea de origen; si no hay ninguno de los dos, se ponen los automáticos.
 /// </summary>
+/// <summary>
+/// Línea a la que se ponen conceptos. <see cref="Bultos"/> y <see cref="Pales"/> son sus unidades logísticas, para los
+/// conceptos por bulto o por palé; sin bultos, se sacan de la unidad de venta del artículo (una caja de tantos kilos) o
+/// de la cantidad si el artículo no se vende por kilos.
+/// </summary>
 public sealed record LineaConceptos(
-    Guid? ProductoId, decimal Cantidad, decimal BaseBruta, IReadOnlyList<ConceptoSolicitado>? Conceptos = null, IReadOnlyList<ConceptoAplicado>? Copiados = null);
+    Guid? ProductoId, decimal Cantidad, decimal BaseBruta, IReadOnlyList<ConceptoSolicitado>? Conceptos = null, IReadOnlyList<ConceptoAplicado>? Copiados = null,
+    decimal? Bultos = null, decimal? Pales = null);
 
 /// <summary>Concepto que se pondría solo en una línea (para que la interfaz lo muestre antes de guardar).</summary>
 public sealed record ConceptoSugeridoDto(Guid ConceptoId, string Codigo, string Nombre, string Efecto, string Sentido, string Calculo, decimal Valor,
@@ -230,12 +236,19 @@ public sealed class ResolverConceptos : IResolverConceptos
         }
 
         var familias = await CadenasAsync(todos.Values.FirstOrDefault()?.GrupoId, ct).ConfigureAwait(false);
-        var datos = new List<(Guid? ProductoId, IReadOnlyList<Guid> Familias, decimal? Kilos)>();
+        var datos = new List<(Guid? ProductoId, IReadOnlyList<Guid> Familias, decimal? Kilos, decimal? Bultos, decimal? Pales)>();
         foreach (var l in lineas)
         {
             var producto = l.ProductoId is { } p ? await _productos.ObtenerAsync(p, ct).ConfigureAwait(false) : null;
-            datos.Add((l.ProductoId, familias(producto?.FamiliaId), Kilos(producto, l.Cantidad)));
+            datos.Add((l.ProductoId, familias(producto?.FamiliaId), Kilos(producto, l.Cantidad), l.Bultos ?? Bultos(producto, l.Cantidad), l.Pales));
         }
+
+        decimal? Unidades(ConceptoLinea c, int i) => c.Calculo switch
+        {
+            CalculoConcepto.PorBulto => datos[i].Bultos,
+            CalculoConcepto.PorPale => datos[i].Pales,
+            _ => null,
+        };
 
         for (var i = 0; i < lineas.Count; i++)
         {
@@ -267,17 +280,19 @@ public sealed class ResolverConceptos : IResolverConceptos
 
                 foreach (var (c, valor, acreedor) in pedidos.OrderBy(x => x.Concepto.Orden))
                 {
-                    resultado[i].Add(Aplicar(c, valor, l.BaseBruta, l.Cantidad, datos[i].Kilos, false, resultado[i], acreedor));
+                    resultado[i].Add(Aplicar(c, valor, l.BaseBruta, l.Cantidad, datos[i].Kilos, false, resultado[i], acreedor, Unidades(c, i)));
                 }
             }
             else if (automaticos)
             {
                 foreach (var c in todos.Values.Where(c => c.Activo && c.ValeEn(ambito)).OrderBy(c => c.Orden).ThenBy(c => c.Codigo, StringComparer.Ordinal))
                 {
-                    // Un concepto por kilo no se pone solo en una línea sin peso conocido (quedaría a cero).
-                    if (c.AsignacionPara(terceroId, l.ProductoId, datos[i].Familias, tipo, fecha) is { } a && (c.Calculo != CalculoConcepto.PorKilo || datos[i].Kilos is not null))
+                    // Un concepto por kilo, bulto o palé no se pone solo en una línea sin peso, bultos o palés conocidos (quedaría a cero).
+                    var sinBase = (c.Calculo == CalculoConcepto.PorKilo && datos[i].Kilos is null)
+                        || (ConceptosLinea.PorUnidadesLogisticas(c.Calculo) && Unidades(c, i) is null);
+                    if (c.AsignacionPara(terceroId, l.ProductoId, datos[i].Familias, tipo, fecha) is { } a && !sinBase)
                     {
-                        resultado[i].Add(Aplicar(c, a.Valor ?? c.Valor, l.BaseBruta, l.Cantidad, datos[i].Kilos, false, resultado[i], a.AcreedorId ?? c.AcreedorId));
+                        resultado[i].Add(Aplicar(c, a.Valor ?? c.Valor, l.BaseBruta, l.Cantidad, datos[i].Kilos, false, resultado[i], a.AcreedorId ?? c.AcreedorId, Unidades(c, i)));
                     }
                 }
             }
@@ -309,14 +324,16 @@ public sealed class ResolverConceptos : IResolverConceptos
                 var partes = ConceptosLinea.Repartir(valor, pesos);
                 for (var i = 0; i < lineas.Count; i++)
                 {
-                    resultado[i].Add(Aplicar(concepto, partes[i], lineas[i].BaseBruta, lineas[i].Cantidad, datos[i].Kilos, true, resultado[i], concepto.AcreedorId));
+                    resultado[i].Add(Aplicar(concepto, partes[i], lineas[i].BaseBruta, lineas[i].Cantidad, datos[i].Kilos, true, resultado[i], concepto.AcreedorId,
+                        Unidades(concepto, i)));
                 }
             }
             else
             {
                 for (var i = 0; i < lineas.Count; i++)
                 {
-                    resultado[i].Add(Aplicar(concepto, valor, lineas[i].BaseBruta, lineas[i].Cantidad, datos[i].Kilos, true, resultado[i], concepto.AcreedorId));
+                    resultado[i].Add(Aplicar(concepto, valor, lineas[i].BaseBruta, lineas[i].Cantidad, datos[i].Kilos, true, resultado[i], concepto.AcreedorId,
+                        Unidades(concepto, i)));
                 }
             }
         }
@@ -352,6 +369,15 @@ public sealed class ResolverConceptos : IResolverConceptos
             .ToList();
     }
 
+    /// <summary>
+    /// Bultos de la línea: con unidad de venta (una caja de tantas unidades base), la cantidad entre el factor; sin ella,
+    /// la cantidad si el artículo no se vende por kilos. Null si no se sabe.
+    /// </summary>
+    private static decimal? Bultos(ProductoDto? producto, decimal cantidad) =>
+        producto is null ? null
+        : !string.IsNullOrWhiteSpace(producto.UnidadVenta) && producto.FactorVenta > 1m ? decimal.Round(cantidad / producto.FactorVenta, 3)
+        : string.Equals(producto.Unidad, "kg", StringComparison.OrdinalIgnoreCase) ? null : cantidad;
+
     /// <summary>Kilos netos de la línea: la cantidad si se vende por kilos, o el peso del artículo por la cantidad.</summary>
     private static decimal? Kilos(ProductoDto? producto, decimal cantidad) =>
         producto is null ? null
@@ -360,12 +386,13 @@ public sealed class ResolverConceptos : IResolverConceptos
 
     /// <summary>Aplica el concepto a la línea; en cascada, el porcentaje va sobre la línea más los conceptos de importe ya puestos.</summary>
     private static ConceptoAplicado Aplicar(ConceptoLinea c, decimal valor, decimal baseLinea, decimal cantidad, decimal? kilos, bool repartido,
-        IReadOnlyList<ConceptoAplicado> anteriores, Guid? acreedor)
+        IReadOnlyList<ConceptoAplicado> anteriores, Guid? acreedor, decimal? unidades = null)
     {
         var cascada = c.BasePorcentaje == BasePorcentajeConcepto.Cascada;
         var baseConcepto = cascada ? baseLinea + ConceptosLinea.SumaPrecio(anteriores) : baseLinea;
+        var logisticas = ConceptosLinea.PorUnidadesLogisticas(c.Calculo) ? unidades ?? 0m : (decimal?)null;
         return new(c.Id, c.Codigo, c.TextoDocumento ?? c.Nombre, c.Efecto, c.Sentido, c.Calculo, valor,
-            ConceptosLinea.Calcular(c.Calculo, c.Sentido, valor, baseConcepto, cantidad, kilos), repartido, cascada, acreedor, c.CuentaContable);
+            ConceptosLinea.Calcular(c.Calculo, c.Sentido, valor, baseConcepto, cantidad, kilos, logisticas), repartido, cascada, acreedor, c.CuentaContable, logisticas);
     }
 
     private static Resultado<ConceptoLinea> Buscar(Dictionary<Guid, ConceptoLinea> todos, Guid id, AmbitoConcepto ambito)

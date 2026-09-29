@@ -166,10 +166,14 @@ public sealed class DocumentosExpedicionFacturacion : IDocumentosExpedicion
             decimal? coste = albaran.CosteKg is { } costes && costes.TryGetValue(productoId, out var kg)
                 ? porKilos ? kg : decimal.Round(kg * kilos / cajas, 6)
                 : null;
+            // Bultos (cajas) y palés reales de lo expedido, repartidos entre las líneas en proporción a lo que toma cada una.
+            var total = porKilos ? kilos : cajas;
+            var pales = albaran.Pales is { } p && p.TryGetValue(productoId, out var n) ? n : 0;
             foreach (var linea in pedido.Lineas.Where(l => l.ProductoId == productoId && l.PendienteServir > 0m))
             {
                 var toma = Math.Min(restante, linea.PendienteServir);
-                entregas.Add(new EntregaLineaComando(linea.Id, toma, coste));
+                var parte = total == 0m ? 0m : toma / total;
+                entregas.Add(new EntregaLineaComando(linea.Id, toma, coste, decimal.Round(cajas * parte, 3), decimal.Round(pales * parte, 3)));
                 restante -= toma;
                 if (restante <= 0m)
                 {

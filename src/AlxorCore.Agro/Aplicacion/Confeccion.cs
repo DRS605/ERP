@@ -983,7 +983,10 @@ public sealed class PalesAgro
             var costeKg = cargado.GroupBy(c => partidasCargadas.GetValueOrDefault(c.Contenido.PartidaId)?.ProductoId ?? Guid.Empty)
                 .Where(g => g.All(c => partidasCargadas.GetValueOrDefault(c.Contenido.PartidaId)?.CosteKg is not null) && g.Sum(c => c.Contenido.Kilos) > 0m)
                 .ToDictionary(g => g.Key, g => decimal.Round(g.Sum(c => c.Contenido.Kilos * partidasCargadas[c.Contenido.PartidaId].CosteKg!.Value) / g.Sum(c => c.Contenido.Kilos), 6));
-            var albaran = await _documentos!.EmitirAlbaranAsync(empresaId, new AlbaranExpedicion(pedido, fecha, datos.Referencia, lineas, costeKg), ct).ConfigureAwait(false);
+            var palesPorProducto = cargado.GroupBy(c => partidasCargadas.GetValueOrDefault(c.Contenido.PartidaId)?.ProductoId ?? Guid.Empty)
+                .ToDictionary(g => g.Key, g => g.Select(c => c.PaleId).Distinct().Count());
+            var albaran = await _documentos!.EmitirAlbaranAsync(empresaId, new AlbaranExpedicion(pedido, fecha, datos.Referencia, lineas, costeKg, palesPorProducto), ct)
+                .ConfigureAwait(false);
             if (albaran.EsFallo)
             {
                 return Resultado.Fallo<IReadOnlyList<PaleDto>>(albaran.Error);

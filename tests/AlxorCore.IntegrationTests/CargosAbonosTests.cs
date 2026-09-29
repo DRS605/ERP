@@ -50,6 +50,39 @@ public sealed class CargosAbonosTests : IClassFixture<FabricaApiPruebas>
             },
         };
 
+    private sealed record ConceptoUdsResp(string Codigo, decimal Importe, decimal? Unidades);
+    private sealed record LineaUdsResp(decimal Base, List<ConceptoUdsResp> Conceptos);
+    private sealed record AlbaranUdsResp(Guid Id, List<LineaUdsResp> Lineas);
+
+    [Fact]
+    public async Task Los_cargos_por_bulto_y_por_pale_van_por_las_unidades_logisticas_de_la_linea()
+    {
+        var (api, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+        var naranja = await IdAsync(api, "/productos", new { Nombre = "Naranja en caja", PrecioUnitario = 1m, Tipo = "Bien", Unidad = "kg", UnidadVenta = "caja", FactorVenta = 10m });
+        var granel = await IdAsync(api, "/productos", new { Nombre = "Naranja granel", PrecioUnitario = 1m, Tipo = "Bien", Unidad = "kg" });
+        var cliente = await IdAsync(api, "/clientes", new { Nombre = "Mercado Norte" });
+        await IdAsync(api, "/conceptos-linea", Concepto("CAJA", "Precio", "Suma", "PorBulto", 0.20m, [new { }]));
+        await IdAsync(api, "/conceptos-linea", Concepto("PALE", "Coste", "Suma", "PorPale", 5m, [new { }]));
+
+        // 100 kg en cajas de 10 kg: 10 bultos (2 €); con 2 palés indicados, 10 € de coste; sin palés no se pone.
+        var a = (await (await api.PostAsJsonAsync("/albaranes-venta", new
+        {
+            ClienteId = cliente,
+            Lineas = new object[]
+            {
+                new { ProductoId = naranja, Cantidad = 100m, PrecioUnitario = 1m, Pales = (decimal?)2m },
+                new { ProductoId = naranja, Cantidad = 50m, PrecioUnitario = 1m, Bultos = (decimal?)4m },
+                new { ProductoId = granel, Cantidad = 30m, PrecioUnitario = 1m },
+            },
+        })).Content.ReadFromJsonAsync<AlbaranUdsResp>())!;
+        a.Lineas[0].Conceptos.Should().ContainSingle(c => c.Codigo == "CAJA" && c.Unidades == 10m && c.Importe == 2m);
+        a.Lineas[0].Conceptos.Should().ContainSingle(c => c.Codigo == "PALE" && c.Unidades == 2m && c.Importe == 10m);
+        a.Lineas[0].Base.Should().Be(102m);
+        a.Lineas[1].Conceptos.Should().ContainSingle(c => c.Codigo == "CAJA" && c.Unidades == 4m && c.Importe == 0.8m, "los bultos indicados mandan");
+        a.Lineas[1].Conceptos.Should().NotContain(c => c.Codigo == "PALE", "sin palés conocidos no se pone solo");
+        a.Lineas[2].Conceptos.Should().BeEmpty("a granel y por kilos no hay bultos conocidos");
+    }
+
     [Fact]
     public async Task Manda_la_regla_del_tercero_y_despues_la_del_articulo()
     {
