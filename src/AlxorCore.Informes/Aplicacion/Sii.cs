@@ -78,17 +78,50 @@ public sealed class GenerarSii
     private readonly IConsultaGastos _gastos;
     private readonly IConsultaEmpresas _empresas;
     private readonly IConsultaProveedores _proveedores;
+    private readonly AlxorCore.Catalogo.Aplicacion.IResolverIvaEmpresa? _tipos;
 
-    public GenerarSii(IConsultaFacturas facturas, IConsultaGastos gastos, IConsultaEmpresas empresas, IConsultaProveedores proveedores)
+    public GenerarSii(IConsultaFacturas facturas, IConsultaGastos gastos, IConsultaEmpresas empresas, IConsultaProveedores proveedores,
+        AlxorCore.Catalogo.Aplicacion.IResolverIvaEmpresa? tipos = null)
     {
+        _tipos = tipos;
         _facturas = facturas;
         _gastos = gastos;
         _empresas = empresas;
         _proveedores = proveedores;
     }
 
-    /// <summary>Base, cuota y recargo de un tipo impositivo dentro de una factura (un DetalleIVA).</summary>
-    private sealed record DetalleTipo(decimal Tipo, decimal Base, decimal Cuota, decimal TipoRecargo, decimal CuotaRecargo);
+    /// <summary>Base, cuota y recargo de un tipo impositivo dentro de una factura (un DetalleIVA), con la clase de operación del tipo.</summary>
+    private sealed record DetalleTipo(decimal Tipo, decimal Base, decimal Cuota, decimal TipoRecargo, decimal CuotaRecargo,
+        AlxorCore.Catalogo.Dominio.ClaseIva Clase = AlxorCore.Catalogo.Dominio.ClaseIva.Ordinario);
+
+    /// <summary>Contraparte extranjera de una emitida (país distinto de España): va con IDOtro, no con NIF.</summary>
+    private sealed record ContraparteSii(string? Pais);
+
+    /// <summary>
+    /// Clave de régimen especial o trascendencia de una factura emitida, por la clase de sus tipos de IVA: 02 exportación,
+    /// 03 bienes usados (REBU), 05 agencias de viajes, 07 criterio de caja; si no, 01 régimen general.
+    /// </summary>
+    private static string ClaveEmitida(IReadOnlyList<DetalleTipo> detalles) =>
+        detalles.Select(d => d.Clase switch
+        {
+            AlxorCore.Catalogo.Dominio.ClaseIva.Exportacion or AlxorCore.Catalogo.Dominio.ClaseIva.Viajeros => "02",
+            AlxorCore.Catalogo.Dominio.ClaseIva.BienesUsados => "03",
+            AlxorCore.Catalogo.Dominio.ClaseIva.AgenciasViajes => "05",
+            AlxorCore.Catalogo.Dominio.ClaseIva.CriterioCaja => "07",
+            _ => null,
+        }).FirstOrDefault(c => c is not null) ?? "01";
+
+    /// <summary>Causa de exención del SII de un tipo exento: E2 exportación (art. 21), E5 intracomunitaria (art. 25), E1 art. 20, E6 otras.</summary>
+    private static string CausaExencion(AlxorCore.Catalogo.Dominio.ClaseIva clase) => clase switch
+    {
+        AlxorCore.Catalogo.Dominio.ClaseIva.Exportacion or AlxorCore.Catalogo.Dominio.ClaseIva.Viajeros => "E2",
+        AlxorCore.Catalogo.Dominio.ClaseIva.Intracomunitario => "E5",
+        AlxorCore.Catalogo.Dominio.ClaseIva.Exento => "E1",
+        _ => "E6",
+    };
+
+    private static bool EsExenta(AlxorCore.Catalogo.Dominio.ClaseIva c) => c is AlxorCore.Catalogo.Dominio.ClaseIva.Exento or AlxorCore.Catalogo.Dominio.ClaseIva.Exportacion
+        or AlxorCore.Catalogo.Dominio.ClaseIva.Viajeros or AlxorCore.Catalogo.Dominio.ClaseIva.Intracomunitario or AlxorCore.Catalogo.Dominio.ClaseIva.OroInversion;
 
     public async Task<Resultado<string>> EjecutarAsync(Guid empresaId, TipoLibroSii tipo, int ejercicio, int periodo, CancellationToken ct = default)
     {
@@ -125,21 +158,47 @@ public sealed class GenerarSii
 
             // Desglose por tipo impositivo de cada factura (un DetalleIVA por tipo, no un tipo medio).
             var desgloses = new Dictionary<Guid, IReadOnlyList<DetalleTipo>>();
+            var contrapartes = new Dictionary<Guid, ContraparteSii>();
+            var clases = new Dictionary<string, AlxorCore.Catalogo.Dominio.ClaseIva>(StringComparer.OrdinalIgnoreCase);
+            async Task<AlxorCore.Catalogo.Dominio.ClaseIva> ClaseAsync(string codigo)
+            {
+                if (!clases.TryGetValue(codigo, out var c))
+                {
+                    c = (_tipos is null ? null : await _tipos.ResolverAsync(empresaId, codigo, ct).ConfigureAwait(false))?.Clase
+                        ?? (string.Equals(codigo, Impuesto.IvaExento.Codigo, StringComparison.OrdinalIgnoreCase) ? AlxorCore.Catalogo.Dominio.ClaseIva.Exento
+                            : AlxorCore.Catalogo.Dominio.ClaseIva.Ordinario);
+                    clases[codigo] = c;
+                }
+
+                return c;
+            }
+
             foreach (var f in todas)
             {
                 var detalle = await _facturas.ObtenerAsync(f.Id, ct).ConfigureAwait(false);
-                desgloses[f.Id] = detalle is { Lineas.Count: > 0 }
-                    ? detalle.Lineas.GroupBy(l => (l.PorcentajeIva, l.PorcentajeRecargo)).OrderByDescending(g => g.Key.PorcentajeIva)
-                        .Select(g => new DetalleTipo(g.Key.PorcentajeIva, Redondeo.Dos(g.Sum(l => l.Base)), Redondeo.Dos(g.Sum(l => l.CuotaIva)),
-                            g.Key.PorcentajeRecargo, Redondeo.Dos(g.Sum(l => l.CuotaRecargo)))).ToList()
-                    : [new DetalleTipo(TipoMedio(f.BaseImponible, f.CuotaIva), f.BaseImponible, f.CuotaIva, 0m, 0m)];
+                if (detalle is { Lineas.Count: > 0 })
+                {
+                    var lista = new List<DetalleTipo>();
+                    foreach (var g in detalle.Lineas.GroupBy(l => (l.CodigoIva, l.PorcentajeIva, l.PorcentajeRecargo)).OrderByDescending(g => g.Key.PorcentajeIva))
+                    {
+                        lista.Add(new DetalleTipo(g.Key.PorcentajeIva, Redondeo.Dos(g.Sum(l => l.Base)), Redondeo.Dos(g.Sum(l => l.CuotaIva)),
+                            g.Key.PorcentajeRecargo, Redondeo.Dos(g.Sum(l => l.CuotaRecargo)), await ClaseAsync(g.Key.CodigoIva).ConfigureAwait(false)));
+                    }
+
+                    desgloses[f.Id] = lista;
+                    contrapartes[f.Id] = new ContraparteSii(detalle.ClientePais);
+                }
+                else
+                {
+                    desgloses[f.Id] = [new DetalleTipo(TipoMedio(f.BaseImponible, f.CuotaIva), f.BaseImponible, f.CuotaIva, 0m, 0m)];
+                }
             }
 
             // Una factura anulada (VeriFactu) no se da de alta; si se envió antes, se da de baja.
             var vivas = todas.Where(f => f.Estado != "Anulada").ToList();
             var anuladas = todas.Where(f => f.Estado == "Anulada").ToList();
             string Alta(IReadOnlyCollection<Guid> ids, string tipoComunicacion) => Documento(w =>
-                EscribirEmitidas(w, empresa, ejercicio, periodoTexto, vivas.Where(f => ids.Contains(f.Id)).ToList(), desgloses, tipoComunicacion));
+                EscribirEmitidas(w, empresa, ejercicio, periodoTexto, vivas.Where(f => ids.Contains(f.Id)).ToList(), desgloses, contrapartes, tipoComunicacion));
             string Baja(IReadOnlyCollection<Guid> ids) => Documento(w =>
                 EscribirBajas(w, empresa, ejercicio, periodoTexto, "BajaLRFacturasEmitidas", "RegistroLRBajaExpedidas",
                     anuladas.Where(f => ids.Contains(f.Id)).Select(f => (Nif: (string?)empresa.Nif, Nombre: empresa.RazonSocial, f.NumeroCompleto, f.FechaEmision)).ToList()));
@@ -241,7 +300,7 @@ public sealed class GenerarSii
     }
 
     private static void EscribirEmitidas(XmlWriter w, EmpresaDto empresa, int ejercicio, string periodo, IReadOnlyList<FacturaResumen> facturas,
-        IReadOnlyDictionary<Guid, IReadOnlyList<DetalleTipo>> desgloses, string tipoComunicacion)
+        IReadOnlyDictionary<Guid, IReadOnlyList<DetalleTipo>> desgloses, IReadOnlyDictionary<Guid, ContraparteSii> contrapartes, string tipoComunicacion)
     {
         w.WriteStartElement("siiLR", "SuministroLRFacturasEmitidas", NsLr);
         EscribirCabecera(w, empresa, tipoComunicacion);
@@ -262,20 +321,32 @@ public sealed class GenerarSii
 
             w.WriteStartElement("FacturaExpedida", NsLr);
             w.WriteElementString("TipoFactura", NsLr, f.Tipo == "Rectificativa" ? "R1" : "F1");
-            w.WriteElementString("ClaveRegimenEspecialOTrascendencia", NsLr, "01"); // régimen general
+            var detalles = desgloses[f.Id];
+            w.WriteElementString("ClaveRegimenEspecialOTrascendencia", NsLr, ClaveEmitida(detalles));
             w.WriteElementString("ImporteTotal", NsLr, Importe(f.Total));
             w.WriteElementString("DescripcionOperacion", NsLr, "Venta");
 
+            // Contraparte extranjera: IDOtro con el país (02 NIF-IVA en la UE, 04 documento del país fuera de ella).
+            var pais = contrapartes.GetValueOrDefault(f.Id)?.Pais?.Trim().ToUpperInvariant();
+            var extranjera = pais is { Length: 2 } && pais != "ES";
             w.WriteStartElement("Contraparte", NsLr);
             w.WriteElementString("NombreRazon", NsLr, f.ClienteNombre);
-            if (!string.IsNullOrWhiteSpace(f.ClienteNif))
+            if (extranjera)
+            {
+                w.WriteStartElement("IDOtro", NsLr);
+                w.WriteElementString("CodigoPais", NsLr, pais!);
+                w.WriteElementString("IDType", NsLr, detalles.Any(d => d.Clase == AlxorCore.Catalogo.Dominio.ClaseIva.Intracomunitario) || PaisesUe.Contains(pais!) ? "02" : "04");
+                w.WriteElementString("ID", NsLr, string.IsNullOrWhiteSpace(f.ClienteNif) ? f.ClienteNombre : f.ClienteNif);
+                w.WriteEndElement();
+            }
+            else if (!string.IsNullOrWhiteSpace(f.ClienteNif))
             {
                 w.WriteElementString("NIF", NsLr, f.ClienteNif);
             }
 
             w.WriteEndElement();
 
-            EscribirDesgloseSujeta(w, "CuotaRepercutida", desgloses[f.Id]);
+            EscribirDesgloseEmitida(w, detalles, extranjera);
             w.WriteEndElement(); // FacturaExpedida
             w.WriteEndElement(); // RegistroLRFacturasEmitidas
         }
@@ -415,6 +486,78 @@ public sealed class GenerarSii
         w.WriteStartElement("PeriodoLiquidacion", NsLr);
         w.WriteElementString("Ejercicio", NsLr, ejercicio.ToString(Inv));
         w.WriteElementString("Periodo", NsLr, periodo);
+        w.WriteEndElement();
+    }
+
+    private static readonly HashSet<string> PaisesUe = new(StringComparer.Ordinal)
+    {
+        "AT", "BE", "BG", "CY", "CZ", "DE", "DK", "EE", "EL", "GR", "FI", "FR", "HR", "HU", "IE", "IT", "LT", "LU", "LV", "MT", "NL", "PL", "PT", "RO", "SE", "SI", "SK",
+    };
+
+    /// <summary>
+    /// Desglose de una emitida: sujeta y exenta (con su causa), sujeta y no exenta (S1, o S2 si es inversión del sujeto
+    /// pasivo) y no sujeta. Con contraparte extranjera va en DesgloseTipoOperacion (entrega de bienes), como pide la AEAT.
+    /// </summary>
+    private static void EscribirDesgloseEmitida(XmlWriter w, IReadOnlyList<DetalleTipo> detalles, bool extranjera)
+    {
+        var exentas = detalles.Where(d => EsExenta(d.Clase)).ToList();
+        var noSujetas = detalles.Where(d => d.Clase == AlxorCore.Catalogo.Dominio.ClaseIva.NoSujeto).ToList();
+        var isp = detalles.Where(d => d.Clase == AlxorCore.Catalogo.Dominio.ClaseIva.InversionSujetoPasivo).ToList();
+        var noExentas = detalles.Except(exentas).Except(noSujetas).Except(isp).ToList();
+        if (exentas.Count == 0 && noSujetas.Count == 0 && isp.Count == 0 && !extranjera)
+        {
+            EscribirDesgloseSujeta(w, "CuotaRepercutida", detalles);
+            return;
+        }
+
+        w.WriteStartElement("TipoDesglose", NsLr);
+        w.WriteStartElement(extranjera ? "DesgloseTipoOperacion" : "DesgloseFactura", NsLr);
+        if (extranjera)
+        {
+            w.WriteStartElement("Entrega", NsLr);
+        }
+
+        if (exentas.Count > 0 || noExentas.Count > 0 || isp.Count > 0)
+        {
+            w.WriteStartElement("Sujeta", NsLr);
+            if (exentas.Count > 0)
+            {
+                w.WriteStartElement("Exenta", NsLr);
+                foreach (var g in exentas.GroupBy(d => CausaExencion(d.Clase)))
+                {
+                    w.WriteStartElement("DetalleExenta", NsLr);
+                    w.WriteElementString("CausaExencion", NsLr, g.Key);
+                    w.WriteElementString("BaseImponible", NsLr, Importe(g.Sum(d => d.Base)));
+                    w.WriteEndElement();
+                }
+
+                w.WriteEndElement();
+            }
+
+            if (noExentas.Count > 0 || isp.Count > 0)
+            {
+                w.WriteStartElement("NoExenta", NsLr);
+                w.WriteElementString("TipoNoExenta", NsLr, noExentas.Count > 0 && isp.Count > 0 ? "S3" : isp.Count > 0 ? "S2" : "S1");
+                EscribirDetallesIva(w, "CuotaRepercutida", noExentas.Concat(isp).ToList());
+                w.WriteEndElement();
+            }
+
+            w.WriteEndElement();
+        }
+
+        if (noSujetas.Count > 0)
+        {
+            w.WriteStartElement("NoSujeta", NsLr);
+            w.WriteElementString("ImportePorArticulos7_14_Otros", NsLr, Importe(noSujetas.Sum(d => d.Base)));
+            w.WriteEndElement();
+        }
+
+        if (extranjera)
+        {
+            w.WriteEndElement();
+        }
+
+        w.WriteEndElement();
         w.WriteEndElement();
     }
 

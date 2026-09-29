@@ -111,4 +111,49 @@ public sealed class SiiEndpointsTests : IClassFixture<FabricaApiPruebas>
         detalles.Single(d => d.Element(lr + "TipoImpositivo")!.Value == "21").Element(lr + "CuotaRepercutida")!.Value.Should().Be("210.00");
         detalles.Single(d => d.Element(lr + "TipoImpositivo")!.Value == "10").Element(lr + "BaseImponible")!.Value.Should().Be("200.00");
     }
+
+    [Fact]
+    public async Task Las_exportaciones_y_las_exentas_llevan_su_clave_su_causa_y_la_contraparte_extranjera()
+    {
+        var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+        (await cliente.GetAsync(new Uri("/tipos-iva", UriKind.Relative))).EnsureSuccessStatusCode();
+        var extranjero = (await (await cliente.PostAsJsonAsync("/clientes", new { Nombre = "Fresh Imports Inc", NifFiscal = "US987654321", Pais = "US" }))
+            .Content.ReadFromJsonAsync<IdResp>())!.Id;
+        var nacional = (await (await cliente.PostAsJsonAsync("/clientes", new { Nombre = "Academia SL", NifFiscal = Ayudas.GenerarNif() })).Content.ReadFromJsonAsync<IdResp>())!.Id;
+        (await cliente.PostAsJsonAsync("/facturas", new
+        {
+            ClienteId = extranjero, FechaEmision = "2026-06-10",
+            Lineas = new[] { new { Cantidad = 1m, Descripcion = "Naranjas", PrecioUnitario = 5000m, CodigoIva = "EXPORT" } },
+        })).IsSuccessStatusCode.Should().BeTrue();
+        (await cliente.PostAsJsonAsync("/facturas", new
+        {
+            ClienteId = nacional, FechaEmision = "2026-06-11",
+            Lineas = new[]
+            {
+                new { Cantidad = 1m, Descripcion = "Curso", PrecioUnitario = 300m, CodigoIva = "IVA0" },
+                new { Cantidad = 1m, Descripcion = "Material", PrecioUnitario = 100m, CodigoIva = "IVA21" },
+            },
+        })).IsSuccessStatusCode.Should().BeTrue();
+
+        var xml = await (await cliente.GetAsync("/informes/sii?tipo=Emitidas&ejercicio=2026&periodo=6")).Content.ReadAsStringAsync();
+        var doc = System.Xml.Linq.XDocument.Parse(xml);
+        System.Xml.Linq.XNamespace lr = "https://www2.agenciatributaria.gob.es/static_files/common/internet/dep/aplicaciones/es/aeat/ssii/fact/ws/SuministroLR.xsd";
+        var registros = doc.Descendants(lr + "RegistroLRFacturasEmitidas").ToList();
+        registros.Should().HaveCount(2);
+
+        var export = registros.Single(r => r.Descendants(lr + "NombreRazon").Any(n => n.Value == "Fresh Imports Inc"));
+        export.Descendants(lr + "ClaveRegimenEspecialOTrascendencia").Single().Value.Should().Be("02");
+        export.Descendants(lr + "IDOtro").Single().Element(lr + "CodigoPais")!.Value.Should().Be("US");
+        export.Descendants(lr + "IDOtro").Single().Element(lr + "IDType")!.Value.Should().Be("04");
+        export.Descendants(lr + "DesgloseTipoOperacion").Should().ContainSingle();
+        export.Descendants(lr + "CausaExencion").Single().Value.Should().Be("E2");
+
+        var mixta = registros.Single(r => r.Descendants(lr + "NombreRazon").Any(n => n.Value == "Academia SL"));
+        mixta.Descendants(lr + "ClaveRegimenEspecialOTrascendencia").Single().Value.Should().Be("01");
+        mixta.Descendants(lr + "DesgloseFactura").Should().ContainSingle();
+        var exenta = mixta.Descendants(lr + "DetalleExenta").Single();
+        exenta.Element(lr + "CausaExencion")!.Value.Should().Be("E1");
+        exenta.Element(lr + "BaseImponible")!.Value.Should().Be("300.00");
+        mixta.Descendants(lr + "DetalleIVA").Single().Element(lr + "CuotaRepercutida")!.Value.Should().Be("21.00");
+    }
 }

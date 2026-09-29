@@ -105,9 +105,18 @@ Como en Hispatec, se lleva un **registro por factura** (esquema `fiscal`: `certi
 - **Interfaz**: en Informes, el panel SII muestra el certificado, la situación del mes, el botón «Enviar a la AEAT» y
   el histórico.
 
+**Emitidas según la clase de sus tipos de IVA:**
+
+- **Clave de régimen:** 02 exportación (o régimen de viajeros), 03 bienes usados (REBU), 05 agencias de viajes,
+  07 criterio de caja; si no, 01 régimen general.
+- **Desglose:** lo exento va en `Sujeta/Exenta` con su causa (E1 art. 20, E2 exportación, E5 entrega intracomunitaria,
+  E6 otras); lo no sujeto, en `NoSujeta`; la inversión del sujeto pasivo, como `NoExenta` S2 (S3 si se mezcla con S1).
+- **Contraparte extranjera** (país del cliente distinto de ES): `IDOtro` con el país y el tipo de documento (02 NIF-IVA
+  en la UE, 04 fuera), y el desglose va en `DesgloseTipoOperacion/Entrega`, como pide la AEAT.
+
 Pendiente: los certificados de sello (servidores `www10`), la consulta de lo registrado en la AEAT
-(`ConsultaLRFacturas…`), otros libros (bienes de inversión, cobros en metálico) y las claves de régimen distintas de
-01 y 02 en emitidas (exportación, criterio de caja…).
+(`ConsultaLRFacturas…`), otros libros (bienes de inversión, cobros en metálico) y las prestaciones de servicios a
+extranjeros (hoy todo va como entrega de bienes).
 
 En la interfaz clásica, Informes tiene selector de **ejercicio** y trimestre; el libro de IVA muestra
 repercutido o **soportado** (con NIF) por año o trimestre y su CSV respeta esa selección, y el panel SII
