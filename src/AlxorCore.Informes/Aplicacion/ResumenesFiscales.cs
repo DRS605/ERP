@@ -24,7 +24,8 @@ public sealed record Modelo303Dto(
     int PorcentajeProrrata = 100,
     decimal RegularizacionProrrata = 0m,
     decimal CompensacionesReagpBase = 0m,
-    decimal CompensacionesReagpCuota = 0m);
+    decimal CompensacionesReagpCuota = 0m,
+    decimal RegularizacionBienesInversion = 0m);
 
 /// <summary>
 /// Resumen del <b>modelo 130</b> (pago fraccionado del IRPF en estimación directa). Es
@@ -53,9 +54,11 @@ public sealed class GenerarResumenesFiscales
     private readonly IConsultaFacturas _facturas;
     private readonly IConsultaGastos _gastos;
     private readonly CalcularProrrata? _prorrata;
+    private readonly RegularizarBienesInversion? _bienes;
 
-    public GenerarResumenesFiscales(IConsultaFacturas facturas, IConsultaGastos gastos, CalcularProrrata? prorrata = null)
+    public GenerarResumenesFiscales(IConsultaFacturas facturas, IConsultaGastos gastos, CalcularProrrata? prorrata = null, RegularizarBienesInversion? bienes = null)
     {
+        _bienes = bienes;
         _facturas = facturas;
         _gastos = gastos;
         _prorrata = prorrata;
@@ -103,10 +106,12 @@ public sealed class GenerarResumenesFiscales
         var reagp = gastos.Where(g => g.Fecha >= desde && g.Fecha <= hasta && Soportado.Cuenta(g, TipoImpuesto.Iva))
             .SelectMany(g => g.DesgloseIva).Where(d => d.CodigoIva.StartsWith("REAGP", StringComparison.OrdinalIgnoreCase)).ToList();
 
+        // Regularización de bienes de inversión (casilla 43): en el último periodo del año.
+        var bienes = trimestre == 4 && _bienes is not null ? (await _bienes.EjecutarAsync(empresaId, anio, TipoImpuesto.Iva, ct).ConfigureAwait(false)).Total : 0m;
         return new Modelo303Dto(anio, trimestre, desde, hasta, devBase, devCuota, soportado.Base, deduccion.Deducible,
-            Redondeo.Dos(devCuota - deduccion.Deducible - deduccion.Regularizacion),
+            Redondeo.Dos(devCuota - deduccion.Deducible - deduccion.Regularizacion - bienes),
             soportado.Total, deduccion.Porcentaje, deduccion.Regularizacion,
-            Redondeo.Dos(reagp.Sum(d => d.Base)), Redondeo.Dos(reagp.Sum(d => d.Cuota)));
+            Redondeo.Dos(reagp.Sum(d => d.Base)), Redondeo.Dos(reagp.Sum(d => d.Cuota)), bienes);
     }
 
     private static Modelo130Dto Calcular130(int anio, int trimestre, IReadOnlyList<FacturaResumen> facturas, IReadOnlyList<GastoDto> gastos)

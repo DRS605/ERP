@@ -29,6 +29,12 @@ public static class EndpointsImpuestosIndirectos
         g.MapPost("/prorrata/{ejercicio:int}/regularizar", RegularizarProrrataAsync)
             .WithSummary("Asiento de la regularización anual de la prorrata a 31/12: 472 a 639 si se deduce más, 634 a 472 si menos. Una sola vez por ejercicio.")
             .RequierePermiso(Permisos.EmpresaAjustes);
+        g.MapGet("/bienes-inversion", BienesInversionAsync)
+            .WithSummary("Regularización de los bienes de inversión del ejercicio (art. 107 LIVA): 5 años, 10 los inmuebles, si el porcentaje cambia más de 10 puntos.")
+            .RequierePermiso(Permisos.InformeLeer);
+        g.MapPost("/bienes-inversion/{ejercicio:int}/regularizar", RegularizarBienesInversionAsync)
+            .WithSummary("Asiento a 31/12 de la regularización de los bienes de inversión: 472 a 639 si se deduce más, 634 a 472 si menos. Una sola vez por ejercicio.")
+            .RequierePermiso(Permisos.EmpresaAjustes);
         g.MapGet("/modelo-425", Modelo425Async)
             .WithSummary("Borrador del modelo 425 (resumen anual del IGIC): los cuatro 420 del año sumados, por tipo, con la prorrata.")
             .RequierePermiso(Permisos.InformeLeer);
@@ -93,6 +99,53 @@ public static class EndpointsImpuestosIndirectos
         // Más deducible con el definitivo: la Hacienda nos debe (472) y es un ingreso (639); menos: gasto (634) contra la 472.
         var importe = Math.Abs(calculo.Regularizacion);
         IReadOnlyList<AlxorCore.Contabilidad.Aplicacion.LineaAsientoComando> lineas = calculo.Regularizacion > 0m
+            ? [new("472", importe, 0m, concepto), new("639", 0m, importe, "Ajustes positivos en la imposición indirecta")]
+            : [new("634", importe, 0m, "Ajustes negativos en la imposición indirecta"), new("472", 0m, importe, concepto)];
+        var r = await crear.EjecutarAsync(empresaId, new AlxorCore.Contabilidad.Aplicacion.CrearAsientoComando(new DateOnly(ejercicio, 12, 31), concepto, lineas), ct)
+            .ConfigureAwait(false);
+        return r.EsFallo ? ResultadosHttp.AProblema(r.Error) : Results.Ok(r.Valor);
+    }
+
+    /// <summary>Concepto del asiento de la regularización de los bienes de inversión (también sirve para no repetirlo).</summary>
+    public static string ConceptoBienesInversion(int ejercicio, TipoImpuesto impuesto) => $"Regularización de bienes de inversión {ejercicio} ({impuesto.Siglas()})";
+
+    private static async Task<IResult> BienesInversionAsync(IContextoEmpresa contexto, IConsultaEmpresas empresas, RegularizarBienesInversion caso, CancellationToken ct,
+        int? ejercicio = null)
+    {
+        if (contexto.EmpresaId is not { } empresaId)
+        {
+            return ResultadosHttp.AProblema(SinEmpresa());
+        }
+
+        var impuesto = (await empresas.ObtenerAsync(empresaId, ct).ConfigureAwait(false))?.ImpuestoIndirecto ?? TipoImpuesto.Iva;
+        return Results.Ok(await caso.EjecutarAsync(empresaId, ejercicio ?? DateTime.UtcNow.Year, impuesto, ct).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> RegularizarBienesInversionAsync(int ejercicio, IContextoEmpresa contexto, IConsultaEmpresas empresas, RegularizarBienesInversion caso,
+        AlxorCore.Contabilidad.Aplicacion.CrearAsiento crear, AlxorCore.Contabilidad.Aplicacion.IRepositorioAsientos asientos, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is not { } empresaId)
+        {
+            return ResultadosHttp.AProblema(SinEmpresa());
+        }
+
+        var impuesto = (await empresas.ObtenerAsync(empresaId, ct).ConfigureAwait(false))?.ImpuestoIndirecto ?? TipoImpuesto.Iva;
+        var calculo = await caso.EjecutarAsync(empresaId, ejercicio, impuesto, ct).ConfigureAwait(false);
+        if (calculo.Total == 0m)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("bienes_inversion.sin_regularizacion",
+                $"En {ejercicio} no hay bienes de inversión que regularizar (ninguno cambia más de 10 puntos su porcentaje de deducción)."));
+        }
+
+        var concepto = ConceptoBienesInversion(ejercicio, impuesto);
+        if ((await asientos.DiarioAsync(empresaId, ejercicio, ct).ConfigureAwait(false)).Any(a => a.Concepto == concepto && a.AnuladoPorId is null && a.AnulaAsientoId is null))
+        {
+            return ResultadosHttp.AProblema(Error.Conflicto("bienes_inversion.regularizada",
+                $"Los bienes de inversión de {ejercicio} ya están regularizados en contabilidad (anula ese asiento para rehacerlo)."));
+        }
+
+        var importe = Math.Abs(calculo.Total);
+        IReadOnlyList<AlxorCore.Contabilidad.Aplicacion.LineaAsientoComando> lineas = calculo.Total > 0m
             ? [new("472", importe, 0m, concepto), new("639", 0m, importe, "Ajustes positivos en la imposición indirecta")]
             : [new("634", importe, 0m, "Ajustes negativos en la imposición indirecta"), new("472", 0m, importe, concepto)];
         var r = await crear.EjecutarAsync(empresaId, new AlxorCore.Contabilidad.Aplicacion.CrearAsientoComando(new DateOnly(ejercicio, 12, 31), concepto, lineas), ct)

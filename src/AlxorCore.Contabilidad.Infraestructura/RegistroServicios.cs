@@ -65,6 +65,7 @@ public static class RegistroServicios
         servicios.AddScoped<CrearInmovilizado>();
         servicios.AddScoped<EliminarInmovilizado>();
         servicios.AddScoped<ListarInmovilizados>();
+        servicios.AddScoped<FijarImpuestoInmovilizado>();
         servicios.AddScoped<ObtenerCuadroAmortizacion>();
         servicios.AddScoped<GenerarAmortizacion>();
         servicios.AddScoped<DarDeBajaInmovilizado>();

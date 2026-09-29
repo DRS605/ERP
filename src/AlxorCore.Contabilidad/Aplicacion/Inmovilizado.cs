@@ -29,14 +29,16 @@ public sealed record InmovilizadoDto(
     DateOnly FechaAdquisicion, DateOnly FechaAlta, decimal ValorAdquisicion, decimal ValorResidual,
     string Periodicidad, string MetodoContable, int VidaUtilContable, decimal PorcentajeDegresivoContable,
     string MetodoFiscal, int VidaUtilFiscal, decimal PorcentajeDegresivoFiscal,
-    string Estado, decimal AmortizacionAcumulada, decimal ValorNetoContable, DateOnly? FechaBaja, decimal? ValorEnajenacion)
+    string Estado, decimal AmortizacionAcumulada, decimal ValorNetoContable, DateOnly? FechaBaja, decimal? ValorEnajenacion,
+    decimal? CuotaImpuestoSoportada = null, int? PorcentajeDeduccionInicial = null, bool BienInmueble = false)
 {
     public static InmovilizadoDto Desde(Inmovilizado i) => new(
         i.Id, i.Codigo, i.Descripcion, i.CuentaActivo, i.CuentaAmortizacion, i.CuentaDotacion,
         i.FechaAdquisicion, i.FechaAlta, i.ValorAdquisicion, i.ValorResidual,
         i.Periodicidad.ToString(), i.Contable.Metodo.ToString(), i.Contable.VidaUtilAnios, i.Contable.PorcentajeDegresivo,
         i.Fiscal.Metodo.ToString(), i.Fiscal.VidaUtilAnios, i.Fiscal.PorcentajeDegresivo,
-        i.Estado.ToString(), i.AmortizacionAcumulada, i.ValorNetoContable, i.FechaBaja, i.ValorEnajenacion);
+        i.Estado.ToString(), i.AmortizacionAcumulada, i.ValorNetoContable, i.FechaBaja, i.ValorEnajenacion,
+        i.CuotaImpuestoSoportada, i.PorcentajeDeduccionInicial, i.BienInmueble);
 }
 
 /// <summary>Datos para crear un inmovilizado.</summary>
@@ -45,7 +47,11 @@ public sealed record CrearInmovilizadoComando(
     DateOnly FechaAdquisicion, DateOnly FechaAlta, decimal ValorAdquisicion, decimal ValorResidual,
     PeriodicidadAmortizacion Periodicidad,
     MetodoAmortizacion MetodoContable, int VidaUtilContable, decimal PorcentajeDegresivoContable,
-    MetodoAmortizacion MetodoFiscal, int VidaUtilFiscal, decimal PorcentajeDegresivoFiscal);
+    MetodoAmortizacion MetodoFiscal, int VidaUtilFiscal, decimal PorcentajeDegresivoFiscal,
+    decimal? CuotaImpuestoSoportada = null, int? PorcentajeDeduccionInicial = null, bool BienInmueble = false);
+
+/// <summary>Datos fiscales de un bien de inversión (regularización del art. 107 LIVA).</summary>
+public sealed record DatosImpuestoInmovilizadoComando(decimal? CuotaImpuestoSoportada, int? PorcentajeDeduccionInicial, bool BienInmueble);
 
 /// <summary>Fila del cuadro de amortización de un ejercicio (contable vs fiscal).</summary>
 public sealed record FilaCuadroDto(int Ejercicio, decimal Contable, decimal Fiscal, decimal DiferenciaTemporaria, decimal Contabilizado);
@@ -125,10 +131,48 @@ public sealed class CrearInmovilizado
             return Resultado.Fallo<InmovilizadoDto>(inmovilizado.Error);
         }
 
+        var fiscal = inmovilizado.Valor.FijarDatosImpuesto(comando.CuotaImpuestoSoportada, comando.PorcentajeDeduccionInicial, comando.BienInmueble);
+        if (fiscal.EsFallo)
+        {
+            return Resultado.Fallo<InmovilizadoDto>(fiscal.Error);
+        }
+
         await SembradorPlan.AsegurarAsync(empresaId, _cuentas, ct).ConfigureAwait(false);
         _inmovilizados.Agregar(inmovilizado.Valor);
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return Resultado.Ok(InmovilizadoDto.Desde(inmovilizado.Valor));
+    }
+}
+
+/// <summary>Cambia los datos fiscales de un bien de inversión (cuota soportada, porcentaje inicial, inmueble).</summary>
+public sealed class FijarImpuestoInmovilizado
+{
+    private readonly IRepositorioInmovilizado _inmovilizados;
+    private readonly IUnidadDeTrabajoContabilidad _unidad;
+
+    public FijarImpuestoInmovilizado(IRepositorioInmovilizado inmovilizados, IUnidadDeTrabajoContabilidad unidad)
+    {
+        _inmovilizados = inmovilizados;
+        _unidad = unidad;
+    }
+
+    public async Task<Resultado<InmovilizadoDto>> EjecutarAsync(Guid empresaId, Guid id, DatosImpuestoInmovilizadoComando comando, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(comando);
+        var i = await _inmovilizados.ObtenerAsync(empresaId, id, ct).ConfigureAwait(false);
+        if (i is null)
+        {
+            return Resultado.Fallo<InmovilizadoDto>(Error.NoEncontrado("inmovilizado.no_encontrado", "El inmovilizado no existe."));
+        }
+
+        var r = i.FijarDatosImpuesto(comando.CuotaImpuestoSoportada, comando.PorcentajeDeduccionInicial, comando.BienInmueble);
+        if (r.EsFallo)
+        {
+            return Resultado.Fallo<InmovilizadoDto>(r.Error);
+        }
+
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(InmovilizadoDto.Desde(i));
     }
 }
 

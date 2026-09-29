@@ -352,6 +352,59 @@ public sealed class Inmovilizado : RaizAgregadoEmpresa<Guid>
 
     public decimal? ValorEnajenacion { get; private set; }
 
+    /// <summary>IVA o IGIC soportado en la compra del bien (para la regularización de bienes de inversión, art. 107 LIVA).</summary>
+    public decimal? CuotaImpuestoSoportada { get; private set; }
+
+    /// <summary>Porcentaje de deducción (prorrata definitiva) del año en que se soportó el impuesto.</summary>
+    public int? PorcentajeDeduccionInicial { get; private set; }
+
+    /// <summary>Terrenos o edificaciones: se regulariza durante 10 años (el resto de bienes, 5).</summary>
+    public bool BienInmueble { get; private set; }
+
+    /// <summary>Años del periodo de regularización, contando el de inicio de la utilización.</summary>
+    public int AniosRegularizacion => BienInmueble ? 10 : 5;
+
+    /// <summary>Datos fiscales del bien de inversión: la cuota soportada y el porcentaje con que se dedujo.</summary>
+    public Resultado FijarDatosImpuesto(decimal? cuota, int? porcentajeInicial, bool inmueble)
+    {
+        if (cuota is < 0m)
+        {
+            return Resultado.Fallo(Error.Validacion("inmovilizado.cuota_impuesto", "La cuota soportada no puede ser negativa."));
+        }
+
+        if (porcentajeInicial is < 0 or > 100)
+        {
+            return Resultado.Fallo(Error.Validacion("inmovilizado.porcentaje_deduccion", "El porcentaje de deducción inicial va de 0 a 100."));
+        }
+
+        CuotaImpuestoSoportada = cuota is null or 0m ? null : Redondeo.Dos(cuota.Value);
+        PorcentajeDeduccionInicial = CuotaImpuestoSoportada is null ? null : porcentajeInicial ?? 100;
+        BienInmueble = inmueble;
+        return Resultado.Ok();
+    }
+
+    /// <summary>
+    /// Regularización de un ejercicio (art. 107 LIVA, igual en el IGIC): en cada año del periodo (desde el de inicio de
+    /// la utilización, salvo el de la compra, que ya regulariza la prorrata general), si el porcentaje definitivo difiere
+    /// en más de 10 puntos del inicial, se ajusta la quinta (o décima) parte de la cuota por la diferencia. Positiva:
+    /// más deducción; negativa: menos. Sin cuota, fuera del periodo o ya dado de baja, 0.
+    /// </summary>
+    public decimal Regularizacion(int ejercicio, int porcentajeDefinitivo)
+    {
+        if (CuotaImpuestoSoportada is not { } cuota || PorcentajeDeduccionInicial is not { } inicial || !EnPeriodoRegularizacion(ejercicio))
+        {
+            return 0m;
+        }
+
+        var diferencia = porcentajeDefinitivo - inicial;
+        return Math.Abs(diferencia) <= 10 ? 0m : Redondeo.Dos(cuota * diferencia / 100m / AniosRegularizacion);
+    }
+
+    /// <summary>Si el ejercicio cae en el periodo de regularización del bien (y no es el de la compra).</summary>
+    public bool EnPeriodoRegularizacion(int ejercicio) =>
+        CuotaImpuestoSoportada is not null && ejercicio >= FechaAlta.Year && ejercicio < FechaAlta.Year + AniosRegularizacion
+        && ejercicio != FechaAdquisicion.Year && (FechaBaja is null || FechaBaja.Value.Year >= ejercicio);
+
     public IReadOnlyList<DotacionAmortizacion> Dotaciones => _dotaciones;
 
     public IReadOnlyList<AjusteFiscalAmortizacion> AjustesFiscales => _ajustesFiscales;

@@ -18,7 +18,7 @@ public sealed record Modelo420Dto(
     decimal DevengadoBase, decimal DevengadoCuota,
     decimal SoportadoBase, decimal SoportadoCuota,
     int PorcentajeProrrata, decimal DeducibleCuota, decimal RegularizacionProrrata,
-    decimal Resultado);
+    decimal Resultado, decimal RegularizacionBienesInversion = 0m);
 
 /// <summary>Caso de uso: calcula el borrador del modelo 420 de un trimestre.</summary>
 public sealed class GenerarModelo420
@@ -26,12 +26,14 @@ public sealed class GenerarModelo420
     private readonly IConsultaFacturas _facturas;
     private readonly IConsultaGastos _gastos;
     private readonly CalcularProrrata _prorrata;
+    private readonly RegularizarBienesInversion? _bienes;
 
-    public GenerarModelo420(IConsultaFacturas facturas, IConsultaGastos gastos, CalcularProrrata prorrata)
+    public GenerarModelo420(IConsultaFacturas facturas, IConsultaGastos gastos, CalcularProrrata prorrata, RegularizarBienesInversion? bienes = null)
     {
         _facturas = facturas;
         _gastos = gastos;
         _prorrata = prorrata;
+        _bienes = bienes;
     }
 
     public async Task<Modelo420Dto> EjecutarAsync(Guid empresaId, int anio, int trimestre, CancellationToken ct = default)
@@ -48,10 +50,12 @@ public sealed class GenerarModelo420
         var deduccion = await _prorrata.DeduccionAsync(empresaId, anio, trimestre, TipoImpuesto.Igic, soportado, ct).ConfigureAwait(false);
 
         var devCuota = Redondeo.Dos(devengado.Sum(d => d.Cuota));
+        // La regularización de los bienes de inversión va en el último periodo del año.
+        var bienes = trimestre == 4 && _bienes is not null ? (await _bienes.EjecutarAsync(empresaId, anio, TipoImpuesto.Igic, ct).ConfigureAwait(false)).Total : 0m;
         return new Modelo420Dto(
             anio, trimestre, desde, hasta, devengado, Redondeo.Dos(devengado.Sum(d => d.Base)), devCuota,
             soportado.Base, soportado.Total, deduccion.Porcentaje, deduccion.Deducible, deduccion.Regularizacion,
-            Redondeo.Dos(devCuota - deduccion.Deducible - deduccion.Regularizacion));
+            Redondeo.Dos(devCuota - deduccion.Deducible - deduccion.Regularizacion - bienes), bienes);
     }
 }
 
@@ -70,7 +74,8 @@ public sealed record Modelo425Dto(
     decimal SoportadoBase, decimal SoportadoCuota,
     int PorcentajeProrrata, decimal DeducibleCuota, decimal RegularizacionProrrata,
     decimal Resultado,
-    IReadOnlyList<TrimestreModelo425Dto> Trimestres);
+    IReadOnlyList<TrimestreModelo425Dto> Trimestres,
+    decimal RegularizacionBienesInversion = 0m);
 
 /// <summary>Caso de uso: calcula el borrador del modelo 425 de un año con los cuatro 420.</summary>
 public sealed class GenerarModelo425
@@ -94,6 +99,7 @@ public sealed class GenerarModelo425
             Redondeo.Dos(trimestres.Sum(t => t.SoportadoBase)), Redondeo.Dos(trimestres.Sum(t => t.SoportadoCuota)), trimestres[3].PorcentajeProrrata,
             Redondeo.Dos(trimestres.Sum(t => t.DeducibleCuota)), Redondeo.Dos(trimestres.Sum(t => t.RegularizacionProrrata)),
             Redondeo.Dos(trimestres.Sum(t => t.Resultado)),
-            trimestres.Select(t => new TrimestreModelo425Dto(t.Trimestre, t.DevengadoCuota, t.DeducibleCuota + t.RegularizacionProrrata, t.Resultado)).ToList());
+            trimestres.Select(t => new TrimestreModelo425Dto(t.Trimestre, t.DevengadoCuota, t.DeducibleCuota + t.RegularizacionProrrata + t.RegularizacionBienesInversion, t.Resultado)).ToList(),
+            trimestres[3].RegularizacionBienesInversion);
     }
 }

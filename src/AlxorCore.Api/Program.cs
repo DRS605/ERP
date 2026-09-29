@@ -91,6 +91,8 @@ builder.Services.AddScoped<AlxorCore.Nucleo.Aplicacion.IComprobadorUso, AlxorCor
 
 // Contabilidad pregunta qué parte del IVA/IGIC soportado es deducible (prorrata, en Organización).
 builder.Services.AddScoped<AlxorCore.Contabilidad.Aplicacion.IDeduccionImpuesto, AlxorCore.Api.Comun.DeduccionImpuestoProrrata>();
+builder.Services.AddScoped<AlxorCore.Informes.Aplicacion.IConsultaBienesInversion, AlxorCore.Api.Comun.BienesInversionInmovilizado>();
+builder.Services.AddScoped<AlxorCore.Informes.Aplicacion.RegularizarBienesInversion>();
 
 // Agro: la autofactura de las liquidaciones es un gasto (Gastos/Tesorería) y el coste por kilo sale de la analítica.
 builder.Services.AddScoped<AlxorCore.Agro.Aplicacion.IAutofacturas, AlxorCore.Api.Comun.AutofacturasGastos>();

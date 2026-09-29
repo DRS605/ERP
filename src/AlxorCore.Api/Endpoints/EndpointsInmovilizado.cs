@@ -45,6 +45,13 @@ public static class EndpointsInmovilizado
             .WithSummary("Elimina un bien dado de alta por error (sin amortizaciones contabilizadas).")
             .RequierePermiso(Permisos.ContabilidadGestionar);
 
+        grupo.MapPut("/{id:guid}/impuesto", async (Guid id, DatosImpuestoInmovilizadoComando comando, IContextoEmpresa contexto, FijarImpuestoInmovilizado caso, CancellationToken ct) =>
+                contexto.EmpresaId is not { } empresa
+                    ? ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."))
+                    : (await caso.EjecutarAsync(empresa, id, comando, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Datos del bien de inversión para la prorrata: IVA/IGIC soportado, porcentaje de deducción del año de compra e inmueble (10 años).")
+            .RequierePermiso(Permisos.ContabilidadGestionar);
+
         grupo.MapPost("/{id:guid}/baja", BajaAsync)
             .WithSummary("Da de baja un inmovilizado (sin contraprestación) y genera su asiento.")
             .RequierePermiso(Permisos.ContabilidadGestionar);

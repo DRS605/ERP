@@ -3033,6 +3033,7 @@
         if(i.estado==="Activo"){
           b.push(`<button class="btn small ghost" onclick="modalEnajenar('${i.id}','${i.codigo}')">Vender</button>`);
           b.push(`<button class="btn small ghost" onclick="modalBaja('${i.id}','${i.codigo}')" title="Dar de baja">Baja</button>`);
+          b.push(`<button class="btn small ghost" onclick="modalImpuestoInmo('${i.id}',${i.cuotaImpuestoSoportada??"null"},${i.porcentajeDeduccionInicial??100},${!!i.bienInmueble})" title="${IMP.siglas} soportado para la prorrata (bien de inversión)">${IMP.siglas}</button>`);
           if(!i.amortizacionAcumulada) b.push(`<button class="btn small ghost" onclick="eliminarMaestro('/contabilidad/inmovilizado/${i.id}','el bien ${i.codigo} (dado de alta por error)',vInmovilizado,false)" title="Eliminar (sin amortizaciones)">🗑</button>`);
         }
         return b.join(" ");
@@ -3097,7 +3098,10 @@
             <div><label>% degresivo</label><input id="in_pf" type="number" step="0.01" value="0"/></div></div>
           </div>
         </div>
-        <p class="muted" style="font-size:12px;margin:10px 0 0">La amortización fiscal suele ser más acelerada; la diferencia genera el impuesto diferido. El % degresivo solo se usa con el método degresivo.</p>`,
+        <p class="muted" style="font-size:12px;margin:10px 0 0">La amortización fiscal suele ser más acelerada; la diferencia genera el impuesto diferido. El % degresivo solo se usa con el método degresivo.</p>
+        <div class="grid2" style="margin-top:10px;grid-template-columns:repeat(3,1fr)"><div><label>${IMP.siglas} soportado en la compra</label><input id="in_cuota" type="number" step="0.01" min="0" placeholder="Solo con prorrata"/></div>
+          <div><label>% de deducción de ese año</label><input id="in_pded" type="number" min="0" max="100" step="1" value="100"/></div><div><label><input type="checkbox" id="in_inm"/> Terreno o edificación (10 años)</label></div></div>
+        <p class="muted" style="font-size:12px;margin:4px 0 0">Con prorrata, el bien de inversión se regulariza cada año de su periodo (5 años, 10 los inmuebles) si el porcentaje definitivo cambia más de 10 puntos.</p>`,
         async()=>{
           const cuerpo={
             codigo:val("in_cod"), descripcion:val("in_desc"),
@@ -3107,10 +3111,18 @@
             periodicidad:val("in_period"),
             metodoContable:val("in_mc"), vidaUtilContable:Number(val("in_vc")||0), porcentajeDegresivoContable:Number(val("in_pc")||0),
             metodoFiscal:val("in_mf"), vidaUtilFiscal:Number(val("in_vf")||0), porcentajeDegresivoFiscal:Number(val("in_pf")||0),
+            cuotaImpuestoSoportada:val("in_cuota")===""?null:Number(val("in_cuota")), porcentajeDeduccionInicial:Number(val("in_pded")||100), bienInmueble:document.getElementById("in_inm").checked,
           };
           await api("/contabilidad/inmovilizado",{method:"POST",body:JSON.stringify(cuerpo)});
           toast("Inmovilizado dado de alta.","ok"); vInmovilizado();
         });
+    }
+    function modalImpuestoInmo(id,cuota,pct,inm){
+      abrir("Bien de inversión: impuesto soportado",`<div class="grid2"><div><label>${IMP.siglas} soportado en la compra (vacío: no se regulariza)</label><input id="ii_c" type="number" step="0.01" min="0" value="${cuota??""}"/></div>
+        <div><label>% de deducción del año de la compra</label><input id="ii_p" type="number" min="0" max="100" step="1" value="${pct}"/></div></div>
+        <label><input type="checkbox" id="ii_i" ${inm?"checked":""}/> Terreno o edificación (se regulariza 10 años; el resto, 5)</label>`,
+        async()=>{ await api(`/contabilidad/inmovilizado/${id}/impuesto`,{method:"PUT",body:JSON.stringify({cuotaImpuestoSoportada:val("ii_c")===""?null:Number(val("ii_c")),porcentajeDeduccionInicial:Number(val("ii_p")||100),bienInmueble:document.getElementById("ii_i").checked})});
+          toast("Datos fiscales guardados.","ok"); vInmovilizado(); });
     }
     async function verCuadro(id){
       const c=await api("/contabilidad/inmovilizado/"+id+"/cuadro");
@@ -5052,6 +5064,11 @@
     async function panelFiscalHtml(){
       const anio=new Date().getFullYear();
       const pr=await api(`/impuestos/prorrata?ejercicio=${anio}`).catch(()=>null);
+      const bi=await api(`/impuestos/bienes-inversion?ejercicio=${anio}`).catch(()=>null);
+      const bienes=bi&&bi.bienes.length?`<p style="margin:14px 0 6px"><strong>Bienes de inversión ${anio}</strong> <small class="muted">(art. 107: 5 años, 10 los inmuebles; solo si el porcentaje cambia más de 10 puntos)</small></p>
+        <table><thead><tr><th>Bien</th><th class="num">Año</th><th class="num">% inicial</th><th class="num">% definitivo</th><th class="num">Regularización</th></tr></thead><tbody>${bi.bienes.map(b=>`<tr><td>${b.codigo} <small class="muted">${b.descripcion}</small></td><td class="num">${b.anioDelPeriodo}/${b.anios}</td><td class="num">${b.porcentajeInicial} %</td><td class="num">${b.porcentajeDefinitivo} %</td><td class="num">${eur(b.regularizacion)}</td></tr>`).join("")}
+        <tr><td colspan="4"><strong>Total (casilla 43 del último periodo)</strong></td><td class="num"><strong>${eur(bi.total)}</strong></td></tr></tbody></table>
+        ${Math.abs(bi.total)>0.005?`<button class="btn small secondary" style="margin-top:8px" onclick="regularizarBienesInversion(${anio})">Contabilizar la regularización de bienes (31/12)</button>`:""}`:"";
       const reg=pr&&pr.regimen?pr.regimen:"";
       const opt=(v,t,sel)=>`<option value="${v}"${v===sel?" selected":""}>${t}</option>`;
       const datos=pr?`<table style="margin-top:12px"><tbody>
@@ -5069,8 +5086,12 @@
         <div><label>Prorrata ${anio}</label><div class="grid2"><div><select id="fi_reg">${opt("","Sin prorrata (se deduce todo)",reg)}${opt("General","General",reg)}${opt("Especial","Especial",reg)}</select></div>
           <div><input id="fi_pct" type="number" min="0" max="100" step="1" value="${pr?pr.porcentajeProvisional:100}" title="Porcentaje provisional"/></div></div>
           <p class="muted" style="font-size:12px">Para empresas con ventas exentas sin derecho a deducir. El porcentaje provisional suele ser el definitivo del año anterior.</p>
-          <button class="btn small" onclick="guardarProrrata(${anio})">Guardar prorrata</button></div></div>${datos}`;
+          <button class="btn small" onclick="guardarProrrata(${anio})">Guardar prorrata</button></div></div>${datos}${bienes}`;
       return panel("Fiscalidad",cuerpo);
+    }
+    async function regularizarBienesInversion(anio){
+      if(!confirm(`¿Contabilizar a 31/12/${anio} la regularización de los bienes de inversión? (472 contra 639 o 634)`)) return;
+      try{ const a=await api(`/impuestos/bienes-inversion/${anio}/regularizar`,{method:"POST"}); toast(`Asiento ${a.numero} de la regularización de bienes creado.`,"ok"); }catch(e){ toast(e.message,"err"); }
     }
     async function regularizarProrrata(anio){
       if(!confirm(`¿Contabilizar a 31/12/${anio} la regularización de la prorrata? (472 contra 639 o 634)`)) return;

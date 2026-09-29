@@ -24,7 +24,9 @@ public sealed class ImpuestosIndirectosEndpointsTests : IClassFixture<FabricaApi
     private sealed record TrimestreResp(int Trimestre, decimal Resultado);
     private sealed record Modelo425Resp(decimal DevengadoCuota, decimal Resultado, List<TrimestreResp> Trimestres);
     private sealed record Modelo303Resp(decimal IvaDevengadoCuota, decimal IvaDeducibleCuota, decimal Resultado, decimal IvaSoportadoCuota,
-        int PorcentajeProrrata, decimal RegularizacionProrrata);
+        int PorcentajeProrrata, decimal RegularizacionProrrata, decimal RegularizacionBienesInversion = 0m);
+    private sealed record LineaBienResp(string Codigo, int AnioDelPeriodo, int Anios, int PorcentajeInicial, int PorcentajeDefinitivo, decimal Regularizacion);
+    private sealed record BienesResp(int PorcentajeDefinitivo, List<LineaBienResp> Bienes, decimal Total);
     private sealed record ResumenResp(Modelo303Resp Modelo303);
     private sealed record SoportadoResp(decimal Total, decimal Comun, decimal ConDerecho, decimal SinDerecho);
     private sealed record ProrrataResp(string? Regimen, int PorcentajeProvisional, int PorcentajeDefinitivo, decimal BaseConDerecho, decimal BaseSinDerecho,
@@ -184,6 +186,56 @@ public sealed class ImpuestosIndirectosEndpointsTests : IClassFixture<FabricaApi
         asiento.Apuntes.Should().ContainSingle(x => x.CuentaCodigo == "639" && x.Haber == 23.10m);
         var otra = await api.PostAsync(new Uri($"/impuestos/prorrata/{Anio}/regularizar", UriKind.Relative), null);
         (await otra.Content.ReadFromJsonAsync<ProblemaResp>())!.Codigo.Should().Be("prorrata.regularizada");
+    }
+
+    [Fact]
+    public async Task Los_bienes_de_inversion_se_regularizan_si_el_porcentaje_cambia_mas_de_10_puntos()
+    {
+        var (api, cliente) = await EmpresaAsync(_fabrica, canarias: false);
+        // Máquina comprada hace dos años con 10.000 € de IVA deducido entero (100 %); este año, la mitad de las ventas es exenta: 50 %.
+        var maquina = await api.PostAsJsonAsync("/contabilidad/inmovilizado", new
+        {
+            Codigo = "MAQ-1", Descripcion = "Máquina", CuentaActivo = "213", CuentaAmortizacion = "2813", CuentaDotacion = "6813",
+            FechaAdquisicion = new DateOnly(Anio - 2, 1, 10), FechaAlta = new DateOnly(Anio - 2, 1, 10), ValorAdquisicion = 50000m, ValorResidual = 0m,
+            Periodicidad = "Anual", MetodoContable = "Lineal", VidaUtilContable = 10, PorcentajeDegresivoContable = 0m, MetodoFiscal = "Lineal", VidaUtilFiscal = 10,
+            PorcentajeDegresivoFiscal = 0m, CuotaImpuestoSoportada = 10000m, PorcentajeDeduccionInicial = 100,
+        });
+        maquina.StatusCode.Should().Be(HttpStatusCode.Created, await maquina.Content.ReadAsStringAsync());
+        var nave = (await (await api.PostAsJsonAsync("/contabilidad/inmovilizado", new
+        {
+            Codigo = "NAVE", Descripcion = "Nave", CuentaActivo = "211", CuentaAmortizacion = "2811", CuentaDotacion = "6811",
+            FechaAdquisicion = new DateOnly(Anio - 1, 6, 1), FechaAlta = new DateOnly(Anio - 1, 6, 1), ValorAdquisicion = 100000m, ValorResidual = 0m,
+            Periodicidad = "Anual", MetodoContable = "Lineal", VidaUtilContable = 30, PorcentajeDegresivoContable = 0m, MetodoFiscal = "Lineal", VidaUtilFiscal = 30,
+            PorcentajeDegresivoFiscal = 0m,
+        })).Content.ReadFromJsonAsync<IdResp>())!.Id;
+        (await api.PutAsJsonAsync($"/contabilidad/inmovilizado/{nave}/impuesto", new { CuotaImpuestoSoportada = 21000m, PorcentajeDeduccionInicial = 55, BienInmueble = true }))
+            .StatusCode.Should().Be(HttpStatusCode.OK);
+        await FacturaAsync(api, cliente, Dia(2, 10), (500m, "IVA21"));
+        await FacturaAsync(api, cliente, Dia(2, 11), (500m, "IVA0"));
+
+        // Máquina: 10.000 × (50 − 100) % / 5 = −1.000. Nave (inmueble, 10 años): 55 → 50 no pasa de 10 puntos, no se regulariza.
+        var bienes = (await api.GetFromJsonAsync<BienesResp>($"/impuestos/bienes-inversion?ejercicio={Anio}"))!;
+        bienes.PorcentajeDefinitivo.Should().Be(50);
+        bienes.Bienes.Should().ContainSingle(b => b.Codigo == "MAQ-1" && b.AnioDelPeriodo == 3 && b.Anios == 5 && b.Regularizacion == -1000m);
+        bienes.Bienes.Should().ContainSingle(b => b.Codigo == "NAVE" && b.Anios == 10 && b.Regularizacion == 0m);
+        bienes.Total.Should().Be(-1000m);
+
+        // El 303 del cuarto trimestre la lleva (casilla 43): se ingresan 1.000 € más.
+        var t4 = (await api.GetFromJsonAsync<ResumenResp>($"/informes/resumen-trimestral?anio={Anio}&trimestre=4"))!.Modelo303;
+        t4.RegularizacionBienesInversion.Should().Be(-1000m);
+        t4.Resultado.Should().Be(1000m);
+
+        // Asiento a 31/12: 634 a 472 (se deduce menos). Una sola vez.
+        var reg = await api.PostAsync(new Uri($"/impuestos/bienes-inversion/{Anio}/regularizar", UriKind.Relative), null);
+        reg.StatusCode.Should().Be(HttpStatusCode.OK, await reg.Content.ReadAsStringAsync());
+        var asiento = (await reg.Content.ReadFromJsonAsync<AsientoResp>())!;
+        asiento.Apuntes.Should().ContainSingle(x => x.CuentaCodigo == "634" && x.Debe == 1000m);
+        asiento.Apuntes.Should().ContainSingle(x => x.CuentaCodigo == "472" && x.Haber == 1000m);
+        (await (await api.PostAsync(new Uri($"/impuestos/bienes-inversion/{Anio}/regularizar", UriKind.Relative), null)).Content.ReadFromJsonAsync<ProblemaResp>())!
+            .Codigo.Should().Be("bienes_inversion.regularizada");
+
+        // Fuera del periodo (el año de la compra lo regulariza la prorrata general) no hay nada.
+        (await api.GetFromJsonAsync<BienesResp>($"/impuestos/bienes-inversion?ejercicio={Anio - 2}"))!.Bienes.Should().NotContain(b => b.Codigo == "MAQ-1");
     }
 
     [Fact]

@@ -27,6 +27,10 @@ internal sealed class ConfiguracionInmovilizado : IEntityTypeConfiguration<Inmov
         builder.Property(i => i.Estado).HasColumnName("estado").HasMaxLength(20).HasConversion<string>().IsRequired();
         builder.Property(i => i.FechaBaja).HasColumnName("fecha_baja");
         builder.Property(i => i.ValorEnajenacion).HasColumnName("valor_enajenacion").HasColumnType("numeric(14,2)");
+        builder.Property(i => i.CuotaImpuestoSoportada).HasColumnName("cuota_impuesto_soportada").HasColumnType("numeric(14,2)");
+        builder.Property(i => i.PorcentajeDeduccionInicial).HasColumnName("porcentaje_deduccion_inicial");
+        builder.Property(i => i.BienInmueble).HasColumnName("bien_inmueble").IsRequired();
+        builder.Ignore(i => i.AniosRegularizacion);
 
         builder.OwnsOne(i => i.Contable, plan =>
         {

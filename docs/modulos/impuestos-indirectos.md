@@ -79,7 +79,25 @@ regularización» en Ajustes → Fiscalidad) va a 31/12: si con el definitivo se
 positivos en la imposición indirecta); si menos, **634 a 472**. Se hace una sola vez por ejercicio
 (`prorrata.regularizada`); para rehacerlo se anula el asiento.
 
-**Pendiente:** la regularización de bienes de inversión en 5 o 10 años (art. 107).
+### Regularización de los bienes de inversión (art. 107)
+
+Cada inmovilizado puede llevar el **IVA o IGIC soportado** en su compra, el **porcentaje de deducción** con que se
+dedujo (la prorrata definitiva del año de la compra) y si es **terreno o edificación**. Se indica en el alta o con
+`PUT /contabilidad/inmovilizado/{id}/impuesto`, o con el botón del impuesto en la lista del inmovilizado.
+
+- **Periodo:** 5 años, o 10 los inmuebles, desde el de inicio de la utilización. El año de la compra no se regulariza
+  aquí, porque ya lo hace la prorrata general.
+- **Cada año del periodo**, si el porcentaje definitivo difiere en **más de 10 puntos** del inicial, se ajusta:
+  `cuota × (definitivo − inicial) / 100 / 5` (o `/ 10`). Si sale positivo se deduce más; si sale negativo, menos.
+- `GET /impuestos/bienes-inversion?ejercicio` da el detalle por bien y el total. El total va en el último periodo:
+  la **casilla 43** del 303 del cuarto trimestre o el 420 del cuarto trimestre (y su resumen, el 425).
+- **El asiento** se hace con `POST /impuestos/bienes-inversion/{ejercicio}/regularizar`, o con el botón de Ajustes →
+  Fiscalidad. Va a 31/12: **472 a 639** si se deduce más, **634 a 472** si menos. Se hace una sola vez por ejercicio
+  (`bienes_inversion.regularizada`).
+- Un bien dado de baja deja de regularizarse después del año de la baja.
+
+**Pendiente:** la regularización de una sola vez por los años que quedan cuando el bien se vende durante el periodo
+(art. 110).
 
 ## 3. Compensaciones del REAGP
 
