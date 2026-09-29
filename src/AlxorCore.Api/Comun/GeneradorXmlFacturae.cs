@@ -68,7 +68,7 @@ public static class GeneradorXmlFacturae
         El(w, "TotalAmount", Dec(invoiceTotal));
         w.WriteEndElement();
         Ini(w, "TotalOutstandingAmount");
-        El(w, "TotalAmount", Dec(invoiceTotal));
+        El(w, "TotalAmount", Dec(invoiceTotal + factura.Suplidos));
         w.WriteEndElement();
         Ini(w, "TotalExecutableAmount");
         El(w, "TotalAmount", Dec(ejecutable));
@@ -248,8 +248,14 @@ public static class GeneradorXmlFacturae
         El(w, "TotalTaxOutputs", Dec(factura.CuotaIva + factura.RecargoTotal));
         El(w, "TotalTaxesWithheld", Dec(factura.RetencionIrpf));
         El(w, "InvoiceTotal", Dec(invoiceTotal));
-        El(w, "TotalOutstandingAmount", Dec(invoiceTotal));
+        El(w, "TotalOutstandingAmount", Dec(invoiceTotal + factura.Suplidos));
         El(w, "TotalExecutableAmount", Dec(factura.Total));
+        if (factura.Suplidos != 0m)
+        {
+            // Suplidos: gastos reembolsables, fuera de la base imponible.
+            El(w, "TotalReimbursableExpenses", Dec(factura.Suplidos));
+        }
+
         w.WriteEndElement();
     }
 

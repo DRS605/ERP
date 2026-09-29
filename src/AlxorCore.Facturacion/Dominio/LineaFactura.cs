@@ -35,6 +35,7 @@ public sealed class LineaFactura : EntidadBase<Guid>
         Conceptos = datos.Conceptos?.ToList() ?? [];
         ImporteConceptos = ConceptosLinea.SumaPrecio(Conceptos);
         CosteConceptos = ConceptosLinea.SumaCoste(Conceptos);
+        SuplidosConceptos = ConceptosLinea.SumaSuplidos(Conceptos);
 
         Base = CalcularBaseBruta(Cantidad, PrecioUnitario, PorcentajeDescuento) + ImporteConceptos;
         CuotaIva = Redondeo.Dos(Base * PorcentajeIva / 100m);
@@ -87,6 +88,9 @@ public sealed class LineaFactura : EntidadBase<Guid>
 
     /// <summary>Suma de los conceptos que cambian el importe (forma parte de la base).</summary>
     public decimal ImporteConceptos { get; private set; }
+
+    /// <summary>Suma de los conceptos después de la base (suplidos, fianzas): van al total de la factura, sin impuesto.</summary>
+    public decimal SuplidosConceptos { get; private set; }
 
     /// <summary>Suma de los conceptos que solo cambian el coste (no está en la factura).</summary>
     public decimal CosteConceptos { get; private set; }

@@ -98,6 +98,7 @@ internal sealed class ConfiguracionFactura : IEntityTypeConfiguration<Factura>
         builder.Property(f => f.RecargoEquivalencia).HasColumnName("recargo_equivalencia").IsRequired();
         builder.Property(f => f.RecargoTotal).HasColumnName("recargo_total").HasColumnType("numeric(14,2)").IsRequired();
         builder.Property(f => f.Total).HasColumnName("total").HasColumnType("numeric(14,2)").IsRequired();
+        builder.Property(f => f.Suplidos).HasColumnName("suplidos").HasColumnType("numeric(14,2)").HasDefaultValue(0m).IsRequired();
 
         builder.Property(f => f.Estado).HasColumnName("estado").HasMaxLength(20).HasConversion<string>().IsRequired();
         builder.Property(f => f.TipoFactura).HasColumnName("tipo_factura").HasMaxLength(20).HasConversion<string>().IsRequired();
@@ -142,6 +143,7 @@ internal sealed class ConfiguracionFactura : IEntityTypeConfiguration<Factura>
             linea.Property(l => l.CuotaRecargo).HasColumnName("cuota_recargo").HasColumnType("numeric(14,2)").IsRequired();
             linea.Property(l => l.Conceptos).ComoConceptos();
             linea.Property(l => l.ImporteConceptos).HasColumnName("importe_conceptos").HasColumnType("numeric(14,2)").HasDefaultValue(0m).IsRequired();
+            linea.Property(l => l.SuplidosConceptos).HasColumnName("suplidos_conceptos").HasColumnType("numeric(14,2)").HasDefaultValue(0m).IsRequired();
             linea.Property(l => l.CosteConceptos).HasColumnName("coste_conceptos").HasColumnType("numeric(14,2)").HasDefaultValue(0m).IsRequired();
             linea.Property(l => l.CuentaContable).HasColumnName("cuenta_contable").HasMaxLength(12);
             linea.Property(l => l.Orden).HasColumnName("orden").HasDefaultValue(0).IsRequired();

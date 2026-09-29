@@ -52,7 +52,8 @@ public sealed record FacturaDto(
     IReadOnlyList<LineaFacturaDto> Lineas,
     string? AvisoRiesgo = null,
     string? MencionFiscal = null,
-    TipoImpuesto Impuesto = TipoImpuesto.Iva)
+    TipoImpuesto Impuesto = TipoImpuesto.Iva,
+    decimal Suplidos = 0m)
 {
     /// <summary>Siglas del impuesto para mostrar en documentos ("IVA" o "IGIC").</summary>
     public string SiglasImpuesto => Impuesto.Siglas();
@@ -68,7 +69,8 @@ public sealed record FacturaDto(
             l.CosteUnitario, l.Margen, l.PorcentajeRecargo, l.CuotaRecargo, l.ProductoId, l.Conceptos, l.ImporteConceptos, l.CosteConceptos,
             l.CuentaContable, l.AnticipoId, l.AlbaranVentaId)).ToList(),
         MencionFiscal: f.MencionFiscal,
-        Impuesto: f.Impuesto);
+        Impuesto: f.Impuesto,
+        Suplidos: f.Suplidos);
 }
 
 /// <summary>Resumen de factura para listados y libros de IVA.</summary>

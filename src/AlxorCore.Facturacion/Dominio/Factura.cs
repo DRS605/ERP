@@ -122,6 +122,9 @@ public sealed class Factura : RaizAgregadoEmpresa<Guid>
 
     public decimal Total { get; private set; }
 
+    /// <summary>Suplidos y fianzas (conceptos después de la base): suman al total a cobrar, fuera de la base y sin impuesto.</summary>
+    public decimal Suplidos { get; private set; }
+
     // --- Estado y tipo ---
     public EstadoFactura Estado { get; private set; }
     public TipoFactura TipoFactura { get; private set; }
@@ -229,7 +232,8 @@ public sealed class Factura : RaizAgregadoEmpresa<Guid>
         factura.RecargoTotal = Redondeo.Dos(factura._lineas.Sum(l => l.CuotaRecargo));
         factura.RecargoEquivalencia = factura.RecargoTotal > 0m;
         factura.RetencionIrpf = Redondeo.Dos(factura.BaseImponible * porcentajeIrpf / 100m);
-        factura.Total = Redondeo.Dos(factura.BaseImponible + factura.CuotaIva + factura.RecargoTotal - factura.RetencionIrpf);
+        factura.Suplidos = Redondeo.Dos(factura._lineas.Sum(l => l.SuplidosConceptos));
+        factura.Total = Redondeo.Dos(factura.BaseImponible + factura.CuotaIva + factura.RecargoTotal - factura.RetencionIrpf + factura.Suplidos);
         if (factura._lineas.Any(l => l.AnticipoId is not null) && (factura.BaseImponible < 0m || factura.Total < 0m))
         {
             return Resultado.Fallo<Factura>(Error.Validacion("factura.anticipo_excede", "El anticipo descontado no puede superar el importe de la factura."));
@@ -285,7 +289,8 @@ public sealed class Factura : RaizAgregadoEmpresa<Guid>
         factura.RecargoTotal = Redondeo.Dos(factura._lineas.Sum(l => l.CuotaRecargo));
         factura.RecargoEquivalencia = factura.RecargoTotal > 0m;
         factura.RetencionIrpf = 0m;
-        factura.Total = Redondeo.Dos(factura.BaseImponible + factura.CuotaIva + factura.RecargoTotal);
+        factura.Suplidos = Redondeo.Dos(factura._lineas.Sum(l => l.SuplidosConceptos));
+        factura.Total = Redondeo.Dos(factura.BaseImponible + factura.CuotaIva + factura.RecargoTotal + factura.Suplidos);
 
         if (factura.Total > TicketImporteMaximo)
         {
@@ -359,7 +364,8 @@ public sealed class Factura : RaizAgregadoEmpresa<Guid>
         factura.RecargoTotal = Redondeo.Dos(factura._lineas.Sum(l => l.CuotaRecargo));
         factura.RecargoEquivalencia = factura.RecargoTotal > 0m;
         factura.RetencionIrpf = Redondeo.Dos(factura.BaseImponible * porcentajeIrpf / 100m);
-        factura.Total = Redondeo.Dos(factura.BaseImponible + factura.CuotaIva + factura.RecargoTotal - factura.RetencionIrpf);
+        factura.Suplidos = Redondeo.Dos(factura._lineas.Sum(l => l.SuplidosConceptos));
+        factura.Total = Redondeo.Dos(factura.BaseImponible + factura.CuotaIva + factura.RecargoTotal - factura.RetencionIrpf + factura.Suplidos);
 
         factura.RegistrarEvento(new FacturaEmitida(factura.Id, empresaId, factura.NumeroCompleto, factura.Total, reloj.AhoraUtc));
         return Resultado.Ok(factura);

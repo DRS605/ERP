@@ -114,7 +114,8 @@ public sealed class EmitirFactura
     {
         static IEnumerable<ConceptoAplicado> Propios(LineaFactura l) =>
             l.Conceptos.Where(c => c.Efecto == EfectoConcepto.Precio && !string.IsNullOrWhiteSpace(c.CuentaContable));
-        if (!f.Lineas.Any(l => l.CuentaContable is not null || Propios(l).Any()))
+        static IEnumerable<ConceptoAplicado> Suplidos(LineaFactura l) => l.Conceptos.Where(c => c.Efecto == EfectoConcepto.Suplido && c.Importe != 0m);
+        if (!f.Lineas.Any(l => l.CuentaContable is not null || Propios(l).Any() || Suplidos(l).Any()))
         {
             return null;
         }
@@ -125,6 +126,8 @@ public sealed class EmitirFactura
             var propios = Propios(l).ToList();
             lineas.Add(new LineaContable(l.Base - propios.Sum(c => c.Importe), l.CodigoIva, l.CuotaIva, l.CuotaIva, l.CuotaRecargo, CuentaGasto: l.CuentaContable));
             lineas.AddRange(propios.Select(c => new LineaContable(c.Importe, l.CodigoIva, 0m, 0m, 0m, CuentaGasto: c.CuentaContable)));
+            // Suplidos: al haber de su cuenta, sin impuesto (el cliente los paga en el total).
+            lineas.AddRange(Suplidos(l).Select(c => new LineaContable(c.Importe, l.CodigoIva, 0m, 0m, 0m, CuentaGasto: c.CuentaContable ?? "4709")));
         }
 
         return lineas;

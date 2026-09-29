@@ -20,6 +20,12 @@ public enum EfectoConcepto
 {
     Precio,
     Coste,
+
+    /// <summary>
+    /// Después de la base imponible (Hispatec: aplicación después de la base): un suplido o una fianza que se cobra al
+    /// cliente sin impuesto. No está en la base ni en la cuota; suma al total de la factura y va a su propia cuenta.
+    /// </summary>
+    Suplido,
 }
 
 /// <summary>Si el concepto aumenta (<see cref="Suma"/>) o reduce (<see cref="Resta"/>) el importe o el coste.</summary>
@@ -187,6 +193,10 @@ public static class ConceptosLinea
     /// <summary>Suma de los conceptos que cambian el importe de la línea.</summary>
     public static decimal SumaPrecio(IEnumerable<ConceptoAplicado>? conceptos) =>
         Redondeo.Dos((conceptos ?? []).Where(c => c.Efecto == EfectoConcepto.Precio).Sum(c => c.Importe));
+
+    /// <summary>Suma de los conceptos después de la base (suplidos y fianzas): suman al total, sin impuesto.</summary>
+    public static decimal SumaSuplidos(IEnumerable<ConceptoAplicado>? conceptos) =>
+        Redondeo.Dos((conceptos ?? []).Where(c => c.Efecto == EfectoConcepto.Suplido).Sum(c => c.Importe));
 
     /// <summary>Suma de los conceptos que solo cambian el coste de la línea.</summary>
     public static decimal SumaCoste(IEnumerable<ConceptoAplicado>? conceptos) =>

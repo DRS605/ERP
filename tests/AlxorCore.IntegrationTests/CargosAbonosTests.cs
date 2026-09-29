@@ -219,4 +219,36 @@ public sealed class CargosAbonosTests : IClassFixture<FabricaApiPruebas>
         asiento.Apuntes.Where(a => a.CuentaCodigo.StartsWith("70", StringComparison.Ordinal)).Sum(a => a.Haber).Should().Be(100m);
         asiento.Apuntes.Where(a => a.CuentaCodigo.StartsWith("430", StringComparison.Ordinal)).Sum(a => a.Debe).Should().Be(145.20m);
     }
+
+    private sealed record FacturaSuplidosResp(Guid Id, decimal BaseImponible, decimal CuotaIva, decimal Suplidos, decimal Total);
+
+    [Fact]
+    public async Task Un_suplido_va_despues_de_la_base_sin_impuesto_y_a_su_cuenta()
+    {
+        var (api, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+        (await api.PutAsJsonAsync("/contabilidad/modo", new { Modo = "Completo" })).EnsureSuccessStatusCode();
+        (await api.PutAsJsonAsync("/contabilidad/contabilizacion-automatica", new { Automatica = true })).EnsureSuccessStatusCode();
+        (await api.GetAsync(new Uri("/tipos-iva", UriKind.Relative))).EnsureSuccessStatusCode();
+        var cliente = await IdAsync(api, "/clientes", new { Nombre = "Cliente con fianza" });
+
+        // Sin cuenta, un suplido no se admite.
+        var sinCuenta = await api.PostAsJsonAsync("/conceptos-linea", Concepto("FIANZA0", "Suplido", "Suma", "Importe", 15m, [new { }]));
+        sinCuenta.IsSuccessStatusCode.Should().BeFalse();
+        (await sinCuenta.Content.ReadFromJsonAsync<ProblemaResp>())!.Codigo.Should().Be("concepto.suplido");
+
+        // Fianza de envases de 15 € por línea, fuera de la base, a la 5550.
+        await IdAsync(api, "/conceptos-linea", Concepto("FIANZA", "Suplido", "Suma", "Importe", 15m, [new { }], cuenta: "5550"));
+        var f = (await (await api.PostAsJsonAsync("/facturas", new { ClienteId = cliente, Lineas = new[] { new { Descripcion = "Mercancía", Cantidad = 1m, PrecioUnitario = 100m, CodigoIva = "IVA21" } } }))
+            .Content.ReadFromJsonAsync<FacturaSuplidosResp>())!;
+        f.Should().Match<FacturaSuplidosResp>(x => x.BaseImponible == 100m && x.CuotaIva == 21m && x.Suplidos == 15m && x.Total == 136m);
+
+        var asiento = (await api.GetFromJsonAsync<List<AsientoResp>>($"/contabilidad/diario?ejercicio={DateTime.Today.Year}"))!.Single(a => a.Origen == "Venta");
+        asiento.Apuntes.Where(a => a.CuentaCodigo.StartsWith("430", StringComparison.Ordinal)).Sum(a => a.Debe).Should().Be(136m);
+        asiento.Apuntes.Where(a => a.CuentaCodigo.StartsWith("5550", StringComparison.Ordinal)).Sum(a => a.Haber).Should().Be(15m);
+        asiento.Apuntes.Where(a => a.CuentaCodigo.StartsWith("70", StringComparison.Ordinal)).Sum(a => a.Haber).Should().Be(100m);
+        asiento.Apuntes.Where(a => a.CuentaCodigo.StartsWith("477", StringComparison.Ordinal)).Sum(a => a.Haber).Should().Be(21m);
+
+        var pdf = await api.GetAsync($"/facturas/{f.Id}/pdf");
+        pdf.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
 }

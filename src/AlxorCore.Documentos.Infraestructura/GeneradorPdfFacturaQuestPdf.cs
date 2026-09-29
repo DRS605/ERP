@@ -125,6 +125,13 @@ internal sealed class GeneradorPdfFacturaQuestPdf : IGeneradorPdfFactura
                             totales.Item().Text($"Retención IRPF ({factura.PorcentajeIrpf:0}%): -{Redondeo.Formatear(factura.RetencionIrpf)} €");
                         }
 
+                        // Suplidos y fianzas: fuera de la base imponible y sin impuesto.
+                        foreach (var g in factura.Lineas.SelectMany(l => l.Conceptos ?? []).Where(c => c.Efecto == EfectoConcepto.Suplido && c.Importe != 0m)
+                                     .GroupBy(c => c.Nombre))
+                        {
+                            totales.Item().Text($"{g.Key} (suplido, sin {factura.SiglasImpuesto}): {Redondeo.Formatear(g.Sum(c => c.Importe))} €");
+                        }
+
                         totales.Item().Text($"TOTAL: {Redondeo.Formatear(factura.Total)} €").Bold().FontSize(13).FontColor(color);
                     });
 

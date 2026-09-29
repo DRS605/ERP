@@ -1123,6 +1123,7 @@
           <div class="doc-tot"><span class="muted">IVA</span><span>${eur(f.cuotaIva)}</span></div>
           ${f.recargoTotal?`<div class="doc-tot"><span class="muted">Recargo eq.</span><span>${eur(f.recargoTotal)}</span></div>`:""}
           ${f.retencionIrpf?`<div class="doc-tot"><span class="muted">Retención IRPF (${f.porcentajeIrpf}%)</span><span>−${eur(f.retencionIrpf)}</span></div>`:""}
+          ${f.suplidos?`<div class="doc-tot"><span class="muted">Suplidos (sin impuesto)</span><span>${eur(f.suplidos)}</span></div>`:""}
           <div class="doc-tot grand"><span>Total</span><span>${eur(f.total)}</span></div>
         </div>${vf}
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:18px">
@@ -1818,7 +1819,7 @@
     }
 
     /* ---------- Conceptos de línea: maestro, editor en las líneas de ventas y compras, informe ---------- */
-    const CONC_ETQ={Ambito:{Ventas:"Ventas",Compras:"Compras",Ambos:"Ventas y compras"},Efecto:{Precio:"Cambia el importe",Coste:"Solo coste"},
+    const CONC_ETQ={Ambito:{Ventas:"Ventas",Compras:"Compras",Ambos:"Ventas y compras"},Efecto:{Precio:"Cambia el importe",Coste:"Solo coste",Suplido:"Después de la base (suplido, sin impuesto)"},
       Sentido:{Suma:"Suma",Resta:"Resta"},Calculo:{Porcentaje:"% sobre la línea",PorUnidad:"€ por unidad",PorKilo:"€ por kilo",PorBulto:"€ por bulto",PorPale:"€ por palé",Importe:"Importe fijo"},
       Reparto:{PorImporte:"por importe",PorCantidad:"por cantidad",PorPeso:"por peso"}};
     const concValorTxt=c=>c.calculo==="Porcentaje"?`${numCant(c.valor)} %`:c.calculo==="PorUnidad"?`${eur(c.valor)}/ud`:c.calculo==="PorKilo"?`${eur(c.valor)}/kg`:eur(c.valor);

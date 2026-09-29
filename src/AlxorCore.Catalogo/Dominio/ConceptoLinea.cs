@@ -233,6 +233,13 @@ public sealed class ConceptoLinea : RaizAgregadoGrupo<Guid>
             return Resultado.Fallo(Error.Validacion("concepto.tipo", "El ámbito, el efecto, el sentido, el cálculo o el reparto no son válidos."));
         }
 
+        if (datos.Efecto == EfectoConcepto.Suplido
+            && (datos.Ambito != AmbitoConcepto.Ventas || datos.Sentido != SentidoConcepto.Suma || string.IsNullOrWhiteSpace(datos.CuentaContable)))
+        {
+            return Resultado.Fallo(Error.Validacion("concepto.suplido",
+                "Un concepto después de la base (suplido o fianza) es de ventas, suma y lleva su cuenta contable (p. ej. 4709 o 5550)."));
+        }
+
         if (ErrorValor(datos.Valor, datos.Calculo) is { } error)
         {
             return Resultado.Fallo(error);
