@@ -43,8 +43,11 @@ public sealed class LiquidacionesAgro
     private readonly IAutofacturas _autofacturas;
     private readonly IReloj _reloj;
 
-    public LiquidacionesAgro(IRepositorioAgro repo, IUnidadDeTrabajoAgro unidad, IAutofacturas autofacturas, IReloj reloj)
+    private readonly IImpuestoEmpresaAgro? _impuesto;
+
+    public LiquidacionesAgro(IRepositorioAgro repo, IUnidadDeTrabajoAgro unidad, IAutofacturas autofacturas, IReloj reloj, IImpuestoEmpresaAgro? impuesto = null)
     {
+        _impuesto = impuesto;
         _repo = repo;
         _unidad = unidad;
         _autofacturas = autofacturas;
@@ -387,7 +390,15 @@ public sealed class LiquidacionesAgro
     {
         var precios = await PreciosAsync(empresaId, campanaId, lineas.Select(l => l.PartidaId).ToList(), ct).ConfigureAwait(false);
         var conceptos = (await _repo.ConceptosAsync(empresaId, ct).ConfigureAwait(false)).Where(c => c.ValeParaAgricultor(agricultor.Id)).ToList();
-        var porcentaje = AlxorCore.Nucleo.Comun.Impuesto.PorCodigoImpuesto(agricultor.CodigoImpuesto).Valor.Porcentaje;
+        var impuesto = AlxorCore.Nucleo.Comun.Impuesto.PorCodigoImpuesto(agricultor.CodigoImpuesto).Valor;
+        // El impuesto de la autofactura tiene que ser el del territorio de la empresa (p. ej. si la empresa pasó a Canarias).
+        if (_impuesto is not null && await _impuesto.ImpuestoAsync(empresaId, ct).ConfigureAwait(false) is var territorio && impuesto.Tipo != territorio)
+        {
+            return (null, [Error.Validacion("agricultor.impuesto_territorio",
+                $"El agricultor tiene {impuesto.Codigo} ({AlxorCore.Nucleo.Comun.TerritorioFiscalExtensiones.Siglas(impuesto.Tipo)}), pero la empresa declara {AlxorCore.Nucleo.Comun.TerritorioFiscalExtensiones.Siglas(territorio)}: cambia el impuesto de su ficha.")]);
+        }
+
+        var porcentaje = impuesto.Porcentaje;
         var r = Valoracion.Calcular(lineas, conceptos, porcentaje, agricultor.PorcentajeRetencion, precios, out var errores);
         return (r.EsCorrecto ? r.Valor : null, errores);
     }

@@ -337,6 +337,36 @@ public sealed class AgroEndpointsTests : IClassFixture<FabricaApiPruebas>
     }
 
     [Fact]
+    public async Task En_Canarias_el_agricultor_del_REAGP_liquida_sin_compensacion_de_IGIC()
+    {
+        var e = await EscenarioAsync();
+        (await e.Api.PutAsJsonAsync("/empresas/actual/territorio-fiscal", new { TerritorioFiscal = "Canarias" })).StatusCode.Should().Be(HttpStatusCode.OK);
+        await e.Api.GetAsync(new Uri("/tipos-iva", UriKind.Relative));
+        await RecibirAsync(e, Dia);
+        (await e.Api.PutAsJsonAsync($"/agro/campanas/{e.Campana}/articulos", new { ProductoId = e.Naranja, Metodo = "PorPeriodo" })).EnsureSuccessStatusCode();
+        await IdAsync(e.Api, $"/agro/campanas/{e.Campana}/precios", new { ProductoId = e.Naranja, Desde = new DateOnly(Anio, 3, 1), Hasta = new DateOnly(Anio, 3, 31), PrecioKg = 0.30m });
+        var datos = new { AgricultorId = e.Agricultor, CampanaId = e.Campana, Desde = new DateOnly(Anio, 3, 1), Hasta = new DateOnly(Anio, 3, 31), Fecha = new DateOnly(Anio, 3, 31) };
+
+        // Dado de alta en península con la compensación del IVA: en Canarias no se liquida así.
+        (await ProblemaAsync(await e.Api.PostAsJsonAsync("/agro/liquidaciones", datos), HttpStatusCode.BadRequest)).Codigo.Should().Be("agricultor.impuesto_territorio");
+        (await ProblemaAsync(await e.Api.PutAsJsonAsync($"/agro/agricultores/{e.Agricultor}", new { e.ProveedorId, Regimen = "Reagp", CodigoImpuesto = "REAGP12" }),
+            HttpStatusCode.BadRequest)).Codigo.Should().Be("agricultor.impuesto");
+        (await ProblemaAsync(await e.Api.PutAsJsonAsync($"/agro/agricultores/{e.Agricultor}", new { e.ProveedorId, Regimen = "General" }),
+            HttpStatusCode.BadRequest)).Codigo.Should().Be("agricultor.impuesto");
+        (await e.Api.PutAsJsonAsync($"/agro/agricultores/{e.Agricultor}", new { e.ProveedorId, Regimen = "Reagp", AutofacturacionDesde = new DateOnly(Anio, 1, 1) }))
+            .EnsureSuccessStatusCode();
+
+        var liq = await OkAsync<LiquidacionResp>(await e.Api.PostAsJsonAsync("/agro/liquidaciones", datos));
+        liq.CodigoImpuesto.Should().Be("REAGPIGIC");
+        liq.BaseImponible.Should().Be(3_000m);
+        liq.CuotaImpuesto.Should().Be(0m, "en el REAGP del IGIC el adquirente no paga compensación");
+        liq.Retencion.Should().Be(60m);
+        var emitida = await OkAsync<LiquidacionResp>(await e.Api.PostAsync(new Uri($"/agro/liquidaciones/{liq.Id}/emitir", UriKind.Relative), null));
+        var gasto = (await e.Api.GetFromJsonAsync<GastoResp>($"/gastos/{emitida.GastoId}"))!;
+        gasto.Should().Match<GastoResp>(g => g.CodigoIva == "REAGPIGIC" && g.CuotaIva == 0m && g.BaseImponible == 3_000m && g.RetencionIrpf == 60m);
+    }
+
+    [Fact]
     public async Task La_liquidacion_por_periodo_en_regimen_general_detecta_precios_cambiados()
     {
         var e = await EscenarioAsync();

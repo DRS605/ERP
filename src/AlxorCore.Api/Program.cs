@@ -64,6 +64,7 @@ builder.Services.AddScoped<AlxorCore.Api.Comun.CifrasMaestros>();
 builder.Services.AddScoped<AlxorCore.Api.Comun.ImpresosComerciales>();
 builder.Services.AddScoped<AlxorCore.Api.Comun.IntercambioEdi>();
 builder.Services.AddScoped<AlxorCore.Agro.Aplicacion.IVentasAgro, AlxorCore.Api.Comun.VentasAgro>();
+builder.Services.AddScoped<AlxorCore.Agro.Aplicacion.IImpuestoEmpresaAgro, AlxorCore.Api.Comun.ImpuestoEmpresaAgro>();
 builder.Services.AddScoped<AlxorCore.Tesoreria.Aplicacion.IPendientesLiquidacionPagos, AlxorCore.Api.Comun.PendientesLiquidacionPagos>();
 builder.Services.AddScoped<AlxorCore.Api.Comun.CargosAcreedores>();
 builder.Services.AddScoped<AlxorCore.Tesoreria.Aplicacion.DescuentosAnticipo>();

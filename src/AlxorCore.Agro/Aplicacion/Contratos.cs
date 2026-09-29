@@ -203,6 +203,12 @@ public interface ICosteAnalitico
     Task<IReadOnlyDictionary<Guid, (decimal Gastos, decimal Ingresos)>?> PorCentroAsync(Guid empresaId, DateOnly desde, DateOnly hasta, CancellationToken ct = default);
 }
 
+/// <summary>Impuesto indirecto de la empresa (IVA, o IGIC en Canarias): decide el impuesto de las autofacturas a agricultores.</summary>
+public interface IImpuestoEmpresaAgro
+{
+    Task<AlxorCore.Nucleo.Comun.TipoImpuesto> ImpuestoAsync(Guid empresaId, CancellationToken ct = default);
+}
+
 /// <summary>Ventas del artículo en unas fechas (kilos y su importe a precio de venta, sin conceptos): base de la liquidación a resultas.</summary>
 public interface IVentasAgro
 {

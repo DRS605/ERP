@@ -309,6 +309,8 @@ public sealed class TipoIva : RaizAgregadoEmpresa<Guid>
         ("IGICISP", "IGIC: inversión del sujeto pasivo", 0m, 0m, ClaseIva.InversionSujetoPasivo, "Inversión del sujeto pasivo del IGIC (Ley 20/1991)."),
         ("IGICEXPORT", "IGIC: exportación exenta", 0m, 0m, ClaseIva.Exportacion, "Operación exenta del IGIC: exportación o envío de bienes fuera de Canarias (Ley 20/1991)."),
         ("IGICIMP7", "IGIC importación (7%)", 7m, 0m, ClaseIva.Importacion, null),
+        ("REAGPIGIC", "REAGP del IGIC (sin compensación)", 0m, 0m, ClaseIva.AgriculturaCompensacion,
+            "Entrega de un agricultor en el régimen especial de la agricultura y ganadería del IGIC: sin compensación a cargo del adquirente."),
     };
 
     /// <summary>Tipos que se siembran para el impuesto indicado.</summary>

@@ -204,29 +204,60 @@ public sealed class Agricultor : RaizAgregadoEmpresa<Guid>
 
     public bool Bloqueado => MotivoBloqueo is not null;
 
-    public static Resultado<Agricultor> Crear(Guid empresaId, Guid proveedorId, string nombre, RegimenAgricultor regimen, decimal retencion, DateOnly? autofacturacionDesde, string? codigoImpuesto = null)
+    public static Resultado<Agricultor> Crear(Guid empresaId, Guid proveedorId, string nombre, RegimenAgricultor regimen, decimal retencion, DateOnly? autofacturacionDesde,
+        string? codigoImpuesto = null, TipoImpuesto impuestoEmpresa = TipoImpuesto.Iva)
     {
         var a = new Agricultor(Guid.NewGuid(), empresaId, proveedorId, nombre.Trim());
-        var r = a.Actualizar(regimen, retencion, autofacturacionDesde, null, codigoImpuesto);
+        var r = a.Actualizar(regimen, retencion, autofacturacionDesde, null, codigoImpuesto, impuestoEmpresa, nuevo: true);
         return r.EsFallo ? Resultado.Fallo<Agricultor>(r.Error) : Resultado.Ok(a);
     }
 
-    public Resultado Actualizar(RegimenAgricultor regimen, decimal retencion, DateOnly? autofacturacionDesde, string? motivoBloqueo, string? codigoImpuesto = null)
+    /// <summary>
+    /// Sin código de impuesto se conserva el que tiene si sigue valiendo para el régimen y el territorio, o se pone el de
+    /// siempre: la compensación <c>REAGP12</c> (en Canarias, <c>REAGPIGIC</c>) o el IVA de la fruta. En Canarias y régimen
+    /// general hay que indicar el tipo de IGIC. El impuesto tiene que ser el del territorio de la empresa (IVA o IGIC).
+    /// </summary>
+    public Resultado Actualizar(RegimenAgricultor regimen, decimal retencion, DateOnly? autofacturacionDesde, string? motivoBloqueo, string? codigoImpuesto = null,
+        TipoImpuesto impuestoEmpresa = TipoImpuesto.Iva, bool nuevo = false)
     {
         if (!Enum.IsDefined(regimen))
         {
             return Resultado.Fallo(Error.Validacion("agricultor.regimen", "El régimen debe ser Reagp o General."));
         }
 
-        var codigo = string.IsNullOrWhiteSpace(codigoImpuesto)
-            ? (regimen == RegimenAgricultor.Reagp ? Impuesto.CompensacionAgricola.Codigo : Impuesto.IvaSuperreducido.Codigo)
-            : codigoImpuesto.Trim().ToUpperInvariant();
-        var impuesto = Impuesto.PorCodigoImpuesto(codigo);
-        if (impuesto.EsFallo || impuesto.Valor.Tipo == TipoImpuesto.Irpf || impuesto.Valor.EsCompensacionReagp != (regimen == RegimenAgricultor.Reagp))
+        var igic = impuestoEmpresa == TipoImpuesto.Igic;
+        bool Vale(Impuesto i) => i.Tipo == impuestoEmpresa && i.EsCompensacionReagp == (regimen == RegimenAgricultor.Reagp);
+        string? codigo;
+        if (!string.IsNullOrWhiteSpace(codigoImpuesto))
         {
-            return Resultado.Fallo(Error.Validacion("agricultor.impuesto", regimen == RegimenAgricultor.Reagp
-                ? "En el REAGP la autofactura lleva la compensación (REAGP12 o REAGP105)."
-                : "En régimen general la autofactura lleva un tipo de IVA o de IGIC."));
+            codigo = codigoImpuesto.Trim().ToUpperInvariant();
+        }
+        else if (!nuevo && Impuesto.PorCodigoImpuesto(CodigoImpuesto) is { EsCorrecto: true } actual && Vale(actual.Valor))
+        {
+            codigo = actual.Valor.Codigo;
+        }
+        else
+        {
+            codigo = regimen == RegimenAgricultor.Reagp
+                ? (igic ? Impuesto.ReagpIgic : Impuesto.CompensacionAgricola).Codigo
+                : igic ? null : Impuesto.IvaSuperreducido.Codigo;
+        }
+
+        if (codigo is null)
+        {
+            return Resultado.Fallo(Error.Validacion("agricultor.impuesto", "En Canarias, en régimen general, indica el tipo de IGIC de la autofactura."));
+        }
+
+        var impuesto = Impuesto.PorCodigoImpuesto(codigo);
+        if (impuesto.EsFallo || impuesto.Valor.Tipo == TipoImpuesto.Irpf || !Vale(impuesto.Valor))
+        {
+            return Resultado.Fallo(Error.Validacion("agricultor.impuesto", (regimen, igic) switch
+            {
+                (RegimenAgricultor.Reagp, false) => "En el REAGP la autofactura lleva la compensación (REAGP12 o REAGP105).",
+                (RegimenAgricultor.Reagp, true) => "En Canarias el agricultor del REAGP va con REAGPIGIC: el adquirente no paga compensación.",
+                (_, false) => "En régimen general la autofactura lleva un tipo de IVA.",
+                _ => "En Canarias, en régimen general, la autofactura lleva un tipo de IGIC.",
+            }));
         }
 
         CodigoImpuesto = impuesto.Valor.Codigo;

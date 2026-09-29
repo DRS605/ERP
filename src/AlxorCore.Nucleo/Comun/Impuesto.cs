@@ -68,9 +68,13 @@ public sealed class Impuesto
     public static readonly Impuesto CompensacionAgricola = new("REAGP12", TipoImpuesto.Iva, 12m, "Compensación REAGP agrícola y forestal (12%)");
     public static readonly Impuesto CompensacionGanadera = new("REAGP105", TipoImpuesto.Iva, 10.5m, "Compensación REAGP ganadera y pesquera (10,5%)");
 
+    // Régimen especial de la agricultura y ganadería del IGIC (Canarias): el adquirente no paga compensación en la
+    // entrega; el agricultor pide a la Hacienda Canaria el reintegro por sus envíos y exportaciones (modelo 422).
+    public static readonly Impuesto ReagpIgic = new("REAGPIGIC", TipoImpuesto.Igic, 0m, "Agricultor en el REAGP del IGIC (sin compensación del adquirente)");
+
     private static readonly Dictionary<string, Impuesto> PorCodigo =
         new[] { IvaGeneral, IvaReducido, IvaSuperreducido, IvaExento, IgicCero, IgicReducido, IgicGeneral, IgicIncrementado, IgicIncrementado15, IgicEspecial,
-                CompensacionAgricola, CompensacionGanadera }
+                CompensacionAgricola, CompensacionGanadera, ReagpIgic }
             .ToDictionary(i => i.Codigo, StringComparer.OrdinalIgnoreCase);
 
     private Impuesto(string codigo, TipoImpuesto tipo, decimal porcentaje, string nombre)

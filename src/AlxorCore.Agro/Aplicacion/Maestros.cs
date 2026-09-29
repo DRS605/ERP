@@ -107,8 +107,9 @@ public sealed class MaestrosAgro
     private readonly AlxorCore.Catalogo.Aplicacion.IConsultaProductos? _productos;
 
     public MaestrosAgro(IRepositorioAgro repo, IUnidadDeTrabajoAgro unidad, IConsultaProveedores proveedores, IComprobadorUso? uso = null, IVentasAgro? ventas = null,
-        AlxorCore.Catalogo.Aplicacion.IConsultaProductos? productos = null)
+        AlxorCore.Catalogo.Aplicacion.IConsultaProductos? productos = null, IImpuestoEmpresaAgro? impuesto = null)
     {
+        _impuesto = impuesto;
         _ventas = ventas;
         _productos = productos;
         _repo = repo;
@@ -116,6 +117,11 @@ public sealed class MaestrosAgro
         _proveedores = proveedores;
         _uso = uso;
     }
+
+    private readonly IImpuestoEmpresaAgro? _impuesto;
+
+    private async Task<AlxorCore.Nucleo.Comun.TipoImpuesto> ImpuestoAsync(Guid empresaId, CancellationToken ct) =>
+        _impuesto is null ? AlxorCore.Nucleo.Comun.TipoImpuesto.Iva : await _impuesto.ImpuestoAsync(empresaId, ct).ConfigureAwait(false);
 
     private async Task<string?> UsoAsync(string tipo, Guid id, CancellationToken ct) =>
         _uso is null ? null : await _uso.BuscarUsoAsync(tipo, id, ct).ConfigureAwait(false);
@@ -309,7 +315,8 @@ public sealed class MaestrosAgro
         }
 
         var retencion = datos.PorcentajeRetencion ?? (proveedor.PorcentajeIrpfDefecto > 0m ? proveedor.PorcentajeIrpfDefecto : RetencionAgricola);
-        var a = Agricultor.Crear(empresaId, proveedor.Id, proveedor.Nombre, datos.Regimen, retencion, datos.AutofacturacionDesde, datos.CodigoImpuesto);
+        var a = Agricultor.Crear(empresaId, proveedor.Id, proveedor.Nombre, datos.Regimen, retencion, datos.AutofacturacionDesde, datos.CodigoImpuesto,
+            await ImpuestoAsync(empresaId, ct).ConfigureAwait(false));
         if (a.EsFallo)
         {
             return Resultado.Fallo<AgricultorDto>(a.Error);
@@ -329,7 +336,8 @@ public sealed class MaestrosAgro
             return Resultado.Fallo<AgricultorDto>(Error.NoEncontrado("agricultor.no_encontrado", "El agricultor no existe."));
         }
 
-        var r = a.Actualizar(datos.Regimen, datos.PorcentajeRetencion ?? a.PorcentajeRetencion, datos.AutofacturacionDesde, datos.MotivoBloqueo, datos.CodigoImpuesto);
+        var r = a.Actualizar(datos.Regimen, datos.PorcentajeRetencion ?? a.PorcentajeRetencion, datos.AutofacturacionDesde, datos.MotivoBloqueo, datos.CodigoImpuesto,
+            await ImpuestoAsync(a.EmpresaId, ct).ConfigureAwait(false));
         if (r.EsFallo)
         {
             return Resultado.Fallo<AgricultorDto>(r.Error);

@@ -262,6 +262,17 @@ devuelve todos los problemas de una vez.
 
 En el **303**, las compensaciones REAGP se muestran aparte (casillas 42-43) dentro de lo deducible.
 
+**REAGP del IGIC (Canarias).** En una empresa de Canarias el agricultor del REAGP liquida con `REAGPIGIC`: la
+autofactura **no lleva compensación a cargo del adquirente** (cuota 0) y solo la retención. Es el agricultor quien pide a
+la Hacienda Canaria el reintegro de la compensación por sus envíos y exportaciones fuera de Canarias (modelo 422).
+
+- Sin código de impuesto, el REAGP toma `REAGPIGIC` en Canarias y `REAGP12` en el resto; en régimen general, en
+  Canarias hay que indicar el tipo de IGIC.
+- El impuesto del agricultor tiene que ser el del territorio de la empresa (`agricultor.impuesto`); si la empresa cambia
+  de territorio, la liquidación avisa hasta que se corrija la ficha (`agricultor.impuesto_territorio`).
+- **A confirmar con el asesor:** esta regla sale de la documentación pública del modelo 422; conviene revisarla con el
+  texto refundido del IGIC (Decreto Legislativo 1/2025, arts. 56 a 67) antes de usarla.
+
 **Anular** una liquidación emitida anula su autofactura con un **contraasiento**, siempre que la autofactura
 no esté pagada. Sus entregas quedan libres para otra liquidación.
 
@@ -479,9 +490,6 @@ Al anular la expedición de un palé que salió con un albarán del pedido:
 
 - **Otros módulos:**
   - reflejar las partidas en Inventario, para una valoración única de existencias;
-- **Liquidaciones:**
-  - REAGP del IGIC en Canarias (hoy se indica a mano el impuesto de la autofactura): falta confirmar el porcentaje de
-    compensación vigente antes de darlo de alta en el catálogo de impuestos.
 - **Operativa:**
   - lectura directa de básculas: la pesada se registra por la API (`POST /agro/recepciones/{id}/lineas/{linea}/pesadas`,
     con el campo `Bascula`), pero falta el agente local que lea el indicador de la báscula y la envíe;
