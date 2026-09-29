@@ -87,9 +87,10 @@
     .navhead:hover { background: var(--side-hover); color:#fff; }
     .navhead .chev { width:15px; height:15px; margin-left:auto; stroke: currentColor; fill:none; stroke-width:2; opacity:.5; transition: transform .18s; }
     .navgroup.closed .chev { transform: rotate(-90deg); }
-    .subnav { overflow:hidden; max-height: 320px; transition: max-height .2s ease; }
+    .subnav { overflow:hidden; max-height: 900px; transition: max-height .2s ease; }
     .navgroup.closed .subnav { max-height: 0; }
     nav a.navsub { padding: 8px 12px 8px 42px; font-weight: 480; margin-bottom: 1px; font-size:13.5px; }
+    nav .navsec { padding: 10px 12px 3px 42px; font-size:10.5px; font-weight:650; letter-spacing:.06em; text-transform:uppercase; color: var(--side-ink); opacity:.5; }
     .sidebar .spacer { flex:1; }
     .userbox { display:flex; align-items:center; gap:10px; padding: 12px 10px 4px; border-top: 1px solid rgba(255,255,255,.10); margin-top:6px; }
     .userbox .avatar { width:34px; height:34px; }
@@ -327,6 +328,10 @@
     .doc-tot { display:flex; justify-content:space-between; padding:6px 0; font-size:13.5px; }
     .doc-tot.grand { border-top:1px solid var(--line); margin-top:6px; padding-top:12px; font-size:16px; font-weight:750; }
     .doc-verifactu { margin-top:16px; padding:12px 14px; background:var(--bg); border-radius:12px; font-size:12px; color:var(--muted); word-break:break-all; }
+    .pestanas { display:flex; gap:4px; flex-wrap:wrap; margin:0 0 16px; border-bottom:1px solid var(--line); }
+    .pestana { background:none; border:none; border-bottom:2px solid transparent; padding:9px 14px; font:inherit; font-weight:500; color:var(--muted,#667); cursor:pointer; margin-bottom:-1px; }
+    .pestana:hover { color:inherit; }
+    .pestana.activa { color:var(--accent); border-bottom-color:var(--accent); }
   </style>
 </head>
 <body>
@@ -480,12 +485,12 @@
     // Menú agrupado en carpetas: Ventas, Compras y Artículos.
     const NAV = [
       { t:"item", k:"inicio", l:"Inicio" },
-      { t:"grupo", k:"ventas", l:"Ventas", items:[["clientes","Clientes"],["presupuestos","Presupuestos"],["pedidosventa","Pedidos de venta"],["albaranesventa","Albaranes"],["devolucionesventa","Devoluciones"],["reclamaciones","Reclamaciones"],["facturas","Facturas"],["tpv","TPV · Tickets"],["recurrentes","Facturación periódica"],["anticipos","Anticipos"]] },
+      { t:"grupo", k:"ventas", l:"Ventas", items:["Comercial",["clientes","Clientes"],["presupuestos","Presupuestos"],["pedidosventa","Pedidos de venta"],["albaranesventa","Albaranes"],"Posventa",["devolucionesventa","Devoluciones"],["reclamaciones","Reclamaciones"],"Facturación",["facturas","Facturas"],["tpv","TPV · Tickets"],["recurrentes","Facturación periódica"],["anticipos","Anticipos"]] },
       { t:"grupo", k:"compras", l:"Compras", items:[["proveedores","Proveedores"],["solicitudes","Solicitudes"],["pedidos","Pedidos de compra"],["recepcion","Buzón de facturas"],["gastos","Facturas de proveedor"],["cargosacreedor","Cargos de acreedores"]] },
       { t:"grupo", k:"articulos", l:"Artículos y almacén", items:[["productos","Artículos"],["familias","Familias"],["tarifas","Tarifas de precios"],["conceptoslinea","Conceptos de línea"],["inventario","Inventario / Almacenes"],["produccion","Producción"]] },
       { t:"grupo", k:"logistica", l:"Logística y expedición", items:[["logterminal","Terminal (móvil / pistola)"],["logunidades","Palés y unidades SSCC"],["logcalculo","Cálculo de palés"],["logmaestros","Fichas, soportes y plantillas"],["cartasporte","Cartas de porte · CMR"],["aduanas","Aduanas · Intrastat"]] },
-      { t:"grupo", k:"agro", l:"Agro", items:[["agrorecepciones","Recepciones"],["agropartidas","Partidas y palés"],["agroconfeccion","Confección"],["agroordenescarga","Órdenes de carga"],["agroliquidaciones","Liquidaciones"],["agroenvases","Envases"],["agrocuaderno","Cuaderno de campo"],["agrofitos","Fitosanitarios"],["agroglobalgap","GlobalG.A.P."],["agrotrazabilidad","Trazabilidad"],["agroplanificacion","Planificación"],["agroinforme","Informe de campaña"],["agromaestros","Maestros agro"]] },
-      { t:"grupo", k:"tesoreria", l:"Tesorería", items:[["bancos","Bancos y cajas"],["cobros","Cobros"],["cartera","Efectos de cartera"],["impagados","Impagados"],["remesas","Remesas SEPA"],["pagos","Pagos"],["liquidacionespagos","Liquidaciones y entregas a cuenta"],["conciliacion","Conciliación bancaria"],["prevision","Previsión de tesorería"],["divisas","Divisas"]] },
+      { t:"grupo", k:"agro", l:"Agro", items:["Almacén",["agrorecepciones","Recepciones"],["agroconfeccion","Confección"],["agropartidas","Partidas y palés"],["agroordenescarga","Órdenes de carga"],["agroenvases","Envases"],"Campo y calidad",["agrocuaderno","Cuaderno de campo"],["agrofitos","Fitosanitarios"],["agroglobalgap","GlobalG.A.P."],"Campaña",["agroplanificacion","Planificación"],["agrotrazabilidad","Trazabilidad"],["agroliquidaciones","Liquidaciones"],["agroinforme","Informe de campaña"],["agromaestros","Maestros agro"]] },
+      { t:"grupo", k:"tesoreria", l:"Tesorería", items:["Cobros",["cobros","Cobros"],["cartera","Efectos de cartera"],["impagados","Impagados"],["remesas","Remesas SEPA"],"Pagos",["pagos","Pagos"],["liquidacionespagos","Liquidaciones y entregas a cuenta"],"Bancos",["bancos","Bancos y cajas"],["conciliacion","Conciliación bancaria"],["prevision","Previsión de tesorería"],["divisas","Divisas"]] },
       { t:"grupo", k:"contabilidad", l:"Contabilidad", items:[["contabilidad","Contabilidad y libros"],["inmovilizado","Inmovilizado"],["analitica","Analítica · resultados"],["analiticapend","Analítica · pendientes"],["analiticamaestros","Centros, partidas y reglas"],["presupuestoscont","Presupuestos contables"]] },
       { t:"grupo", k:"informes", l:"Informes", items:[["analisis","Análisis de datos"],["informes","Informes y modelos"],["gestion","Análisis de gestión"]] },
       { t:"grupo", k:"intragrupo", l:"Grupo de empresas", items:[["intragrupo","Operaciones entre empresas"],["actividades","Actividades de negocio"]] },
@@ -507,11 +512,17 @@
       tesoreria_avanzada:"Tesorería avanzada", divisas:"Divisas", aprobaciones:"Aprobaciones", integraciones:"Integraciones" };
     // Sin plan en el token (tokens antiguos) no se oculta nada.
     const contratado = k => !plan || !plan.edicion || !MODULO_VISTA[k] || plan.modulos.has(MODULO_VISTA[k]);
+    // En los grupos, un texto suelto entre las vistas es un rótulo de sección; solo se pinta si le sigue alguna vista contratada.
+    const vistasGrupo = n => n.items.filter(Array.isArray);
     function renderNav() {
-      return NAV.filter(n => n.t === "item" ? contratado(n.k) : n.items.some(([k]) => contratado(k))).map(n => {
+      return NAV.filter(n => n.t === "item" ? contratado(n.k) : vistasGrupo(n).some(([k]) => contratado(k))).map(n => {
         if (n.t === "item") return `<a class="navitem" data-k="${n.k}" onclick="ir('${n.k}')">${ICON[n.k]}<span>${n.l}</span></a>`;
-        const links = n.items.filter(([k]) => contratado(k)).map(([k,l]) => `<a class="navsub" data-k="${k}" onclick="ir('${k}')"><span>${l}</span></a>`).join("");
-        return `<div class="navgroup${n.items.some(([k])=>k===vista)?"":" closed"}" data-g="${n.k}"><div class="navhead" onclick="toggleGrupo('${n.k}')">${ICON[n.k]}<span>${n.l}</span><svg class="chev" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6"/></svg></div><div class="subnav">${links}</div></div>`;
+        let rotulo = null;
+        const links = n.items.map(it => { if (!Array.isArray(it)) { rotulo = it; return ""; }
+          const [k,l] = it; if (!contratado(k)) return "";
+          const r = rotulo ? `<div class="navsec">${rotulo}</div>` : ""; rotulo = null;
+          return r + `<a class="navsub" data-k="${k}" onclick="ir('${k}')"><span>${l}</span></a>`; }).join("");
+        return `<div class="navgroup${vistasGrupo(n).some(([k])=>k===vista)?"":" closed"}" data-g="${n.k}"><div class="navhead" onclick="toggleGrupo('${n.k}')">${ICON[n.k]}<span>${n.l}</span><svg class="chev" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6"/></svg></div><div class="subnav">${links}</div></div>`;
       }).join("");
     }
     function toggleGrupo(g){ document.querySelector(`.navgroup[data-g="${g}"]`).classList.toggle("closed"); }
@@ -1150,6 +1161,18 @@
       }catch(e){ toast(e.message,"err"); }
     }
     const panel = (t,c,a="") => `<div class="panel">${(t||a)?`<div class="panel-head">${t?`<h2>${t}</h2>`:'<span></span>'}${a}</div>`:''}${c}</div>`;
+    // Pestañas: una pantalla con varias áreas muestra una sola a la vez (y recuerda la última). Todo el contenido está en
+    // la página, así que los botones y lo que se carga después de pintarla siguen funcionando.
+    function pestanas(clave,grupos){
+      const gs=grupos.filter(g=>g&&g[1]); if(!gs.length) return ""; if(gs.length===1) return gs[0][1];
+      let activa=0; try{ const t=localStorage.getItem("alxor.pestana."+clave); const i=gs.findIndex(g=>g[0]===t); if(i>=0) activa=i; }catch(_){}
+      return `<div class="pestanas" data-clave="${clave}" role="tablist">${gs.map((g,i)=>`<button class="pestana${i===activa?" activa":""}" role="tab" onclick="verPestana('${clave}',${i},this)">${g[0]}</button>`).join("")}</div>`
+        +gs.map((g,i)=>`<div class="pestana-cuerpo" data-pestana="${clave}:${i}" data-titulo="${String(g[0]).replace(/"/g,"&quot;")}"${i===activa?"":' style="display:none"'}>${g[1]}</div>`).join("");
+    }
+    function verPestana(clave,i,boton){
+      document.querySelectorAll(`.pestanas[data-clave="${clave}"] .pestana`).forEach((b,j)=>b.classList.toggle("activa",j===i));
+      document.querySelectorAll(`[data-pestana^="${clave}:"]`).forEach(d=>{ const vis=d.dataset.pestana===`${clave}:${i}`; d.style.display=vis?"":"none"; if(vis){ try{ localStorage.setItem("alxor.pestana."+clave,d.dataset.titulo); }catch(_){} } });
+    }
     const vacio = (ico,titulo,texto,accion="") => `<div class="empty"><div class="big">${ICON[ico]}</div><h3>${titulo}</h3><p>${texto}</p><div style="margin-top:16px">${accion}</div></div>`;
 
     /* ---------- Listados con filtros y paginación en servidor ----------
@@ -1882,10 +1905,10 @@
       const fs=fichas.map(f=>`<tr><td>${lgEsc(f.producto||lgNom(_lg.productos,f.productoId))}</td><td class="mono">${f.gtin||"—"}</td><td class="mono">${f.gtinCaja||"—"}</td><td class="num">${f.unidadesPorCaja}</td><td class="num">${f.pesoBrutoCajaKg!=null?lgKg(f.pesoBrutoCajaKg):"—"}</td><td>${f.cajasPorCapa&&f.capas?`${f.cajasPorCapa}×${f.capas}`:"—"}</td><td class="muted">${f.soporteId?lgEsc(lgNom(_lg.soportes,f.soporteId)):"—"}</td><td>${f.temperaturaMinC!=null||f.temperaturaMaxC!=null?`${f.temperaturaMinC??""}…${f.temperaturaMaxC??""} ºC`:"—"}</td><td>${f.vidaUtilDias?`${f.vidaUtilDias} d`:"—"}</td><td class="right"><button class="btn small secondary" onclick="modalLgFicha('${f.productoId}')">Editar</button></td></tr>`).join("");
       const ss=_lg.soportes.map(s=>`<tr><td class="mono">${lgEsc(s.codigo)}</td><td>${lgEsc(s.nombre)}${s.activo?"":' <span class="pill neg">baja</span>'}</td><td>${s.largoMm}×${s.anchoMm}×${s.altoMm} mm</td><td class="num">${lgKg(s.taraKg)}</td><td class="num">${s.cargaMaxKg!=null?lgKg(s.cargaMaxKg):"—"}</td><td class="right" style="white-space:nowrap"><button class="btn small secondary" onclick="modalLgSoporte('${s.id}')">Editar</button> <button class="btn small ghost" onclick="lgBorrar('/logistica/soportes/${s.id}')">Eliminar</button></td></tr>`).join("");
       const ps=plantillas.map(p=>`<tr><td>${lgEsc(p.producto||lgNom(_lg.productos,p.productoId))}</td><td>${p.clienteId?lgEsc(lgNom(_lg.clientes,p.clienteId)):'<span class="muted">general</span>'}</td><td>${lgEsc(p.soporte||"")}</td><td>${p.cajasPorCapa}×${p.capas} = ${p.cajasPorCapa*p.capas}</td><td>${p.alturaMaxMm?`${p.alturaMaxMm} mm`:"—"}${p.pesoMaxKg?` · ${lgKg(p.pesoMaxKg)}`:""}</td><td>${p.activa?"":'<span class="pill neg">inactiva</span>'}</td><td class="right" style="white-space:nowrap"><button class="btn small secondary" onclick="modalLgPlantilla('${p.id}')">Editar</button> <button class="btn small ghost" onclick="lgBorrar('/logistica/plantillas/${p.id}')">Eliminar</button></td></tr>`).join("");
-      view(panel("Fichas logísticas",`<p class="muted" style="margin:0 0 12px">GTIN de la unidad y de la caja (ITF-14), unidades por caja, pesos y medidas, mosaico por defecto, límites del palé, temperatura y vida útil. Sirve para cualquier producto envasado: alimentación, bebidas, droguería, industria…</p>`+(fichas.length?`<table><thead><tr><th>Artículo</th><th>GTIN</th><th>GTIN caja</th><th class="num">Ud/caja</th><th class="num">Bruto caja</th><th>Mosaico</th><th>Soporte</th><th>Temperatura</th><th>Vida útil</th><th></th></tr></thead><tbody>${fs}</tbody></table>`:'<p class="muted" style="margin:0">Sin fichas.</p>'),`<button class="btn small" onclick="modalLgFicha()">+ Ficha</button>`)
-        +panel("Soportes",ss?`<table><thead><tr><th>Código</th><th>Nombre</th><th>Medidas</th><th class="num">Tara</th><th class="num">Carga máx.</th><th></th></tr></thead><tbody>${ss}</tbody></table>`:'<p class="muted" style="margin:0">Da de alta el europalé (1200×800), el americano (1200×1000), medio palé…</p>',`<button class="btn small" onclick="modalLgSoporte()">+ Soporte</button>`)
-        +panel("Plantillas de paletizado",`<p class="muted" style="margin:0 0 12px">El mosaico que pide cada cliente (o uno general del artículo). Se usa la del cliente, si no la general, y si no la ficha.</p>`+(ps?`<table><thead><tr><th>Artículo</th><th>Cliente</th><th>Soporte</th><th>Mosaico</th><th>Límites</th><th></th><th></th></tr></thead><tbody>${ps}</tbody></table>`:'<p class="muted" style="margin:0">Sin plantillas.</p>'),`<button class="btn small" onclick="modalLgPlantilla()">+ Plantilla</button>`)
-        +panel("Numeración SSCC",`<p style="margin:0 0 8px">Prefijo de empresa GS1 <strong class="mono">${config.prefijoGs1}</strong> · dígito de extensión <strong>${config.digitoExtension}</strong> · último número ${config.ultimaSerie} · ${config.mezclarLotes?"se pueden mezclar lotes en un palé":"cada lote en su palé"}</p>`,`<button class="btn small secondary" onclick="modalLgConfig()">Cambiar</button>`));
+      view(pestanas("logmaestros",[["Fichas logísticas",panel("Fichas logísticas",`<p class="muted" style="margin:0 0 12px">GTIN de la unidad y de la caja (ITF-14), unidades por caja, pesos y medidas, mosaico por defecto, límites del palé, temperatura y vida útil. Sirve para cualquier producto envasado: alimentación, bebidas, droguería, industria…</p>`+(fichas.length?`<table><thead><tr><th>Artículo</th><th>GTIN</th><th>GTIN caja</th><th class="num">Ud/caja</th><th class="num">Bruto caja</th><th>Mosaico</th><th>Soporte</th><th>Temperatura</th><th>Vida útil</th><th></th></tr></thead><tbody>${fs}</tbody></table>`:'<p class="muted" style="margin:0">Sin fichas.</p>'),`<button class="btn small" onclick="modalLgFicha()">+ Ficha</button>`)
+        ],["Soportes",panel("Soportes",ss?`<table><thead><tr><th>Código</th><th>Nombre</th><th>Medidas</th><th class="num">Tara</th><th class="num">Carga máx.</th><th></th></tr></thead><tbody>${ss}</tbody></table>`:'<p class="muted" style="margin:0">Da de alta el europalé (1200×800), el americano (1200×1000), medio palé…</p>',`<button class="btn small" onclick="modalLgSoporte()">+ Soporte</button>`)
+        ],["Plantillas de paletizado",panel("Plantillas de paletizado",`<p class="muted" style="margin:0 0 12px">El mosaico que pide cada cliente (o uno general del artículo). Se usa la del cliente, si no la general, y si no la ficha.</p>`+(ps?`<table><thead><tr><th>Artículo</th><th>Cliente</th><th>Soporte</th><th>Mosaico</th><th>Límites</th><th></th><th></th></tr></thead><tbody>${ps}</tbody></table>`:'<p class="muted" style="margin:0">Sin plantillas.</p>'),`<button class="btn small" onclick="modalLgPlantilla()">+ Plantilla</button>`)
+        ],["Numeración SSCC",panel("Numeración SSCC",`<p style="margin:0 0 8px">Prefijo de empresa GS1 <strong class="mono">${config.prefijoGs1}</strong> · dígito de extensión <strong>${config.digitoExtension}</strong> · último número ${config.ultimaSerie} · ${config.mezclarLotes?"se pueden mezclar lotes en un palé":"cada lote en su palé"}</p>`,`<button class="btn small secondary" onclick="modalLgConfig()">Cambiar</button>`)]]));
       window._lgConfig=config;
     }
     async function lgBorrar(ruta){ if(!confirm("¿Eliminar? Si ya se ha usado, se dará de baja.")) return;
@@ -2355,7 +2378,7 @@
         <td class="right" style="white-space:nowrap"><button class="btn small secondary" onclick="verLiquidacionPagos('${l.id}')">Ver</button>${l.estado==="Emitida"?` <button class="btn small ghost" onclick="anularLiquidacionPagos('${l.id}')">Anular</button>`:""}</td></tr>`).join("");
       const panelL=panel("Liquidaciones emitidas",liqs.length?`<table data-seleccion="no"><thead><tr><th>Número</th><th>Proveedor</th><th class="num">A pagar</th><th class="num">Entregas</th><th class="num">Compensado</th><th class="num">Líquido</th><th>Estado · pago</th><th></th></tr></thead><tbody>${filasL}</tbody></table>`
         :'<p class="muted" style="margin:0">Aún no hay liquidaciones de pagos.</p>');
-      view(kpis+panelP+panelE+panelL);
+      view(kpis+pestanas("liquidacionespagos",[["Pendiente de pagar",panelP],["Entregas a cuenta",panelE],["Liquidaciones emitidas",panelL]]));
     }
     function lpFormaHtml(pref,defecto){
       const b=window._lp.bancos;
@@ -2980,17 +3003,13 @@
              <tr style="border-top:2px solid var(--line)"><td><strong>Cuota diferencial (a ingresar / devolver)</strong></td><td class="num"><strong>${eur(is200.cuotaDiferencial)}</strong></td></tr>
            </tbody></table>`);
       }
-      view(banner
-        +panelPend
-        +panelReglas
-        +panel("Libro diario · "+anio,`<div id="diario_cuerpo">${diarioTabla}</div>`,agBotones((diarios||[]).length?`<select style="width:auto" onchange="filtrarDiario(this.value)"><option value="">Todos los diarios</option>${diarios.map(d=>`<option value="${d.codigo}">${agEsc(d.codigo)} · ${agEsc(d.nombre)}</option>`).join("")}</select>`:"",`<button class="btn small" onclick="modalAsiento()">+ Nuevo asiento</button>`))
-        +(modo==="Completo"?panelPeriodificaciones(periodif)+panelPeriodos(periodos,anio)+panelDiarios(diarios):"")
-        +panel("Balance de sumas y saldos · "+anio,(balance.length?'<p class="muted" style="margin:0 0 10px">Pulsa una cuenta para ver su libro mayor.</p>':'')+balTabla,`<button class="btn small ghost" onclick="vMayor('',${anio})">Libro mayor</button>`)
-        +panelPyg
-        +panelBalSit
-        +panelAnuales
-        +panelIS
-        +panelCierre);
+      view(banner+pestanas("contabilidad",[
+        ["Pendientes",panelPend+panelReglas],
+        ["Diario y saldos",panel("Libro diario · "+anio,`<div id="diario_cuerpo">${diarioTabla}</div>`,agBotones((diarios||[]).length?`<select style="width:auto" onchange="filtrarDiario(this.value)"><option value="">Todos los diarios</option>${diarios.map(d=>`<option value="${d.codigo}">${agEsc(d.codigo)} · ${agEsc(d.nombre)}</option>`).join("")}</select>`:"",`<button class="btn small" onclick="modalAsiento()">+ Nuevo asiento</button>`))
+          +panel("Balance de sumas y saldos · "+anio,(balance.length?'<p class="muted" style="margin:0 0 10px">Pulsa una cuenta para ver su libro mayor.</p>':'')+balTabla,`<button class="btn small ghost" onclick="vMayor('',${anio})">Libro mayor</button>`)],
+        ["Periodos y diarios",modo==="Completo"?panelPeriodificaciones(periodif)+panelPeriodos(periodos,anio)+panelDiarios(diarios):""],
+        ["Estados financieros",panelPyg+panelBalSit],
+        ["Cierre y cuentas anuales",panelCierre+panelAnuales+panelIS]]));
     }
     async function cerrarEjercicio(anio){
       if(!confirm("¿Cerrar el ejercicio "+anio+"?\n\nSe generarán los asientos de regularización, cierre y apertura de "+(anio+1)+". El ejercicio "+anio+" quedará bloqueado para nuevos asientos.")) return;
@@ -3668,7 +3687,7 @@
         +(deudas.length?`<table><thead><tr><th>Documento</th><th>Cliente</th><th>Situación</th><th>Cuenta</th><th class="num">En la cuenta</th><th class="num">Deterioro</th><th class="num">Pendiente</th><th></th></tr></thead><tbody>${filasD}</tbody></table>`:'<p class="muted" style="margin:0">Ninguna deuda fuera de la cuenta del cliente.</p>'));
       const filasR=renovaciones.map(r=>`<tr><td class="mono">${agEsc(r.documento)}</td><td>${agEsc(r.tercero)}</td><td class="muted">${fdate(r.fecha)}</td><td class="num">${eur(r.importe)}</td><td class="num">${eur(r.gastos)}</td><td>${r.efectos.map(e=>`${agEsc(e.documento)} · ${fdate(e.vencimiento)} · ${eur(e.importe)}${e.pendiente<e.importe?` (pend. ${eur(e.pendiente)})`:""}`).join("<br>")}</td><td>${r.anulada?'<span class="pill">Anulada</span>':'<span class="pill ok">Vigente</span>'}</td><td class="right">${r.anulada?"":`<button class="btn small ghost" onclick="anularRenovacion('${r.id}')">Anular</button>`}</td></tr>`).join("");
       const panelR=panel("Renovaciones de efectos",renovaciones.length?`<table><thead><tr><th>Documento</th><th>Cliente</th><th>Fecha</th><th class="num">Renovado</th><th class="num">Gastos</th><th>Efectos nuevos</th><th>Estado</th><th></th></tr></thead><tbody>${filasR}</tbody></table>`:'<p class="muted" style="margin:0">Sin renovaciones.</p>');
-      view(kpis+panel("Facturas vencidas",`<p class="muted" style="margin:0 0 12px">Aparecen las facturas vencidas con pendiente y las de recibos domiciliados devueltos por el banco (con el motivo SEPA). Cada nivel de reclamación llega unos días después del vencimiento (por defecto 7, 30 y 60). Al reclamar se envía el aviso por correo con la factura en PDF y queda registrado.</p>`+cuerpo)+panelD+panelR);
+      view(kpis+pestanas("impagados",[["Facturas vencidas",panel("Facturas vencidas",`<p class="muted" style="margin:0 0 12px">Aparecen las facturas vencidas con pendiente y las de recibos domiciliados devueltos por el banco (con el motivo SEPA). Cada nivel de reclamación llega unos días después del vencimiento (por defecto 7, 30 y 60). Al reclamar se envía el aviso por correo con la factura en PDF y queda registrado.</p>`+cuerpo)],["Impagados y dudosos",panelD],["Renovaciones",panelR]]));
     }
     async function guardarConfigCartera(){ try{ await api("/tesoreria/cartera/configuracion",{method:"PUT",body:JSON.stringify({impagadosA4315:document.getElementById("cc_4315").checked,porcentajeRenovacion:Number(val("cc_ren")||0)})}); toast("Configuración guardada.","ok"); }catch(e){ toast(e.message,"err"); } }
     function modalRenovar(tipo,id,pendiente,doc){
@@ -3778,7 +3797,7 @@
         `<button class="btn small secondary" onclick="modalCorrespondencia()">+ Correspondencia</button>`);
       window._correspondencias=corr;
       view(panel(`Consolidado del grupo ${anio}`,`<p class="muted" style="margin:0 0 12px">Saldos (debe − haber) de cada empresa por cuenta de 3 dígitos, con las ventas, compras y saldos entre empresas del grupo eliminados. Solo se eliminan las facturas que cuadran en las dos empresas.</p>`+resumen+
-        (c.lineas.length?`<div style="overflow-x:auto"><table><thead><tr><th>Cuenta</th><th>Nombre</th>${cab}<th class="num">Suma</th><th class="num">Eliminado</th><th class="num">Consolidado</th></tr></thead><tbody>${filas}</tbody></table></div>`:'<p class="muted" style="margin:0">Sin asientos en el ejercicio (las empresas con contabilidad simple no tienen asientos que consolidar).</p>'),volver)+pInv+noElim+elim+pPerim+pCorr);
+        (c.lineas.length?`<div style="overflow-x:auto"><table><thead><tr><th>Cuenta</th><th>Nombre</th>${cab}<th class="num">Suma</th><th class="num">Eliminado</th><th class="num">Consolidado</th></tr></thead><tbody>${filas}</tbody></table></div>`:'<p class="muted" style="margin:0">Sin asientos en el ejercicio (las empresas con contabilidad simple no tienen asientos que consolidar).</p>'),volver)+pestanas("consolidado",[["Eliminaciones",noElim+elim],["Inversión y patrimonio",pInv],["Perímetro y cuentas",pPerim+pCorr]]));
     }
     function modalPerimetro(empresaId){
       const p=(window._perimetro||[]).find(x=>x.empresaId===empresaId); if(!p) return;
@@ -4213,7 +4232,7 @@
         <h4 style="margin:14px 0 6px">Por cliente</h4><table>${cab}<tbody>${inf.porCliente.map(filaInf).join("")||'<tr><td colspan="7" class="muted">—</td></tr>'}</tbody></table>`);
       const panelC=panel("Conceptos para reclamaciones",(conceptos.length?`<table><thead><tr><th>Código</th><th>Nombre</th><th>Estado</th><th></th></tr></thead><tbody>${conceptos.map(c=>`<tr><td class="mono">${c.codigo}</td><td>${c.nombre}</td><td>${c.activo?'<span class="pill ok">Activo</span>':'<span class="pill">De baja</span>'}</td><td class="right"><button class="btn small ghost" onclick='modalConceptoReclamacion(${JSON.stringify(c)})'>Editar</button> <button class="btn small ghost" onclick="activarConceptoReclamacion('${c.id}',${!c.activo})">${c.activo?"Dar de baja":"Reactivar"}</button></td></tr>`).join("")}</tbody></table>`:'<p class="muted" style="margin:0">Sin conceptos. Crea los motivos habituales: calidad, calibre, retraso, rotura…</p>'),
         `<button class="btn small" onclick="modalConceptoReclamacion()">+ Concepto</button>`);
-      view(panelL+panelI+panelC);
+      view(pestanas("reclamaciones",[["Reclamaciones",panelL],["Informe",panelI],["Conceptos",panelC]]));
     }
     function modalConceptoReclamacion(c){
       abrir(c?"Concepto de reclamación":"Nuevo concepto de reclamación",`<label>Código</label><input id="cr_cod" maxlength="20" value="${c?.codigo||""}"/><label>Nombre</label><input id="cr_nom" maxlength="100" value="${c?.nombre||""}"/>`,
@@ -4708,7 +4727,7 @@
       const criterios=r=>[r.prefijoCuenta?`cuenta ${r.prefijoCuenta}…`:null,r.terceroId?"tercero concreto":null,r.actividadNegocioId?"actividad":null,r.familia?`familia ${r.familia}`:null,r.vigenteDesde||r.vigenteHasta?`vigencia ${fdate(r.vigenteDesde)||"…"}–${fdate(r.vigenteHasta)||"…"}`:null].filter(Boolean).join(", ");
       const pReglas=panel("Reglas de asignación",reglas.length?`<table><thead><tr><th>Regla</th><th>Si…</th><th>Entonces</th><th></th></tr></thead><tbody>${reglas.map(r=>`<tr><td><strong>${r.descripcion}</strong>${r.prioridad?` <small class="muted">prioridad ${r.prioridad}</small>`:""}</td><td class="muted">${criterios(r)}</td><td>${r.centroId?anNombre(_an.centros,r.centroId):"clave "+anNombre(_an.claves,r.claveRepartoId)}${r.partidaId?` · ${anNombre(_an.partidas,r.partidaId)}`:""}</td><td class="right" style="white-space:nowrap"><button class="btn small secondary" onclick="modalReglaAnalitica('${r.id}')">Editar</button> <button class="btn small ghost" onclick="anBorrarRegla('${r.id}')" title="Eliminar">🗑</button></td></tr>`).join("")}</tbody></table>`:'<p class="muted" style="margin:0">Las reglas imputan solas al contabilizar. Gana la de mayor prioridad y, a igualdad, la más concreta (tercero antes que cuenta).</p>',`<button class="btn small" onclick="modalReglaAnalitica()">+ Regla</button>`);
       const pPeriodos=panel("Periodos analíticos (campañas)",_an.periodos.length?`<table><thead><tr><th>Código</th><th>Nombre</th><th>Desde</th><th>Hasta</th><th></th></tr></thead><tbody>${_an.periodos.map(p=>`<tr><td class="mono"><strong>${p.codigo}</strong></td><td>${p.nombre}</td><td class="muted">${fdate(p.desde)}</td><td class="muted">${fdate(p.hasta)}</td><td class="right"><button class="btn small secondary" onclick="anCerrarPeriodo('${p.id}',${!p.cerrado})">${p.cerrado?"Reabrir":"Cerrar"}</button></td></tr>`).join("")}</tbody></table>`:'<p class="muted" style="margin:0">Ejercicios de gestión distintos del fiscal, como una campaña de septiembre a agosto. Cerrado, sus imputaciones no se pueden cambiar.</p>',`<button class="btn small" onclick="modalPeriodo()">+ Periodo</button>`);
-      view(pCentros+pPartidas+pClaves+pReglas+pPeriodos);
+      view(pestanas("analiticamaestros",[["Centros y partidas",pCentros+pPartidas],["Reparto y reglas",pClaves+pReglas],["Periodos (campañas)",pPeriodos]]));
     }
     const tiposCentro=["CentroCoste","Proyecto","Departamento","Campana","Finca","Otro"];
     const chkActivo=(id,activo)=>`<label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input id="${id}" type="checkbox" style="width:auto" ${activo===false?"":"checked"}/> Activo (desmárcalo para que deje de ofrecerse sin perder lo imputado)</label>`;
@@ -4829,7 +4848,7 @@
          <div style="display:flex;gap:10px;align-items:end;margin-bottom:10px"><div><label style="font-size:11px;color:var(--muted);display:block">Fecha de valoración</label><input id="df_fecha" type="date" value="${hoy}"/></div>
          <button class="btn small secondary" onclick="difAnadir()">+ Posición</button><button class="btn small" onclick="calcularDiferencias()">Calcular</button></div>
          <div id="df_lineas"></div><div id="df_res" style="margin-top:12px"></div>`,``);
-      view(panelTc+panelConv+panelDif);
+      view(pestanas("divisas",[["Tipos de cambio",panelTc],["Conversor",panelConv],["Diferencias de cambio",panelDif]]));
       _difLineas=[]; difAnadir();
     }
     function modalTipoCambio(id){
@@ -4953,7 +4972,7 @@
         `<table><thead><tr><th>Evento</th><th>Estado</th><th class="num">Intentos</th><th>Respuesta</th><th>Fecha</th></tr></thead><tbody>${filasE}</tbody></table>`,
         `<button class="btn small secondary" onclick="procesarWebhooks()">Enviar pendientes ahora</button>`);
 
-      view(panelC+panelW+panelE+await panelEdi());
+      view(pestanas("integraciones",[["API",panelC],["Webhooks",panelW+panelE],["EDI",await panelEdi()]]));
     }
     async function panelEdi(){
       const [cfg,socios,pedidos]=await Promise.all([api("/integraciones/edi/configuracion").catch(()=>({})),api("/integraciones/edi/socios").catch(()=>[]),api("/integraciones/edi/pedidos").catch(()=>[])]);
@@ -5033,13 +5052,13 @@
       ]);
       const selAnio=`<select onchange="_gestAnio=Number(this.value);vGestion()" style="padding:6px 10px">${[a+1,a,a-1,a-2].map(y=>`<option value="${y}"${y===a?" selected":""}>${y}</option>`).join("")}</select>`;
       view(panel("Análisis de gestión",`<p class="muted" style="margin:0">Visión de negocio del ejercicio. Cambia el año: ${selAnio}</p>`)
-        +(comp?panelComparativa(comp):"")
-        +(aging?panelAging(aging):"")
-        +panelExtractoHtml()
-        +(vc?panelVentasCliente(vc):"")
-        +(va?panelVentasArticulo(va):"")
-        +(cp?panelComprasProveedor(cp):"")
-        +(rot?panelRotacion(rot):""));
+        +pestanas("gestion",[
+          ["Evolución",comp?panelComparativa(comp):""],
+          ["Ventas",(vc?panelVentasCliente(vc):"")+(va?panelVentasArticulo(va):"")],
+          ["Compras",cp?panelComprasProveedor(cp):""],
+          ["Cobros pendientes",aging?panelAging(aging):""],
+          ["Existencias",rot?panelRotacion(rot):""],
+          ["Extracto de tercero",panelExtractoHtml()]]));
       cargarTercerosExtracto();
     }
     function panelComparativa(c){
@@ -5339,7 +5358,14 @@
       try{ panelPlan=await panelPlanHtml(); }catch(e){ panelPlan=""; }
       let panelFiscal="";
       try{ panelFiscal=await panelFiscalHtml(); }catch(e){ panelFiscal=""; }
-      view(panelPlan+panelFiscal+panelSeries+panelAsig+panelPlantilla+panelFormas+panelRiesgo+panelImport+panelMigracionHtml()+panelValoracion+panelCobroHtml()+panelUsuarios+panelSeguridad+panelDatosHtml()+panelAudit);
+      view(pestanas("ajustes",[
+        ["Empresa y plan",panelPlan+panelFiscal+panelPlantilla],
+        ["Numeración",panelSeries+panelAsig],
+        ["Cobros y riesgo",panelFormas+panelCobroHtml()+panelRiesgo],
+        ["Inventario",panelValoracion],
+        ["Usuarios y roles",panelUsuarios+panelSeguridad],
+        ["Datos e importación",panelImport+panelMigracionHtml()+panelDatosHtml()],
+        ["Actividad",panelAudit]]));
     }
     /* ---------- Fiscalidad: territorio (IVA / IGIC) y prorrata ---------- */
     async function panelFiscalHtml(){
@@ -6139,10 +6165,10 @@
         <td class="right" style="white-space:nowrap">${p.origen==="Recepcion"?`<button class="btn small secondary" onclick="modalAgroClasificar('${p.id}','${p.codigo}')">Clasificar</button> `:""}<button class="btn small ghost" onclick="modalAgroAjuste('${p.id}','${p.codigo}')">Ajustar</button> ${p.certificaciones&&p.certificaciones!=="Ninguna"?`<button class="btn small ghost" onclick="modalAgroDescalificar('${p.id}','${p.codigo}','${p.certificaciones}')" title="Quitar una certificación (con motivo, queda registrado)">Descalificar</button> `:""}<button class="btn small ghost" onclick="vAgroTraza('atras-partida','${p.id}')">Trazar</button></td></tr>`).join("");
       const fpal=pales.filter(p=>p.estado!=="Expedido"||p.kilos>0).slice(0,60).map(p=>`<tr><td class="mono"><strong>${p.sscc}</strong></td><td>${agEstado(p.estado)}</td><td class="num"><strong>${kg(p.kilos)}</strong>${p.cajasPorPale?`<br><small class="muted">${p.cajas}/${p.cajasPorPale} cajas</small>`:""}</td><td class="muted">${p.contenido.map(c=>`${c.partida} (${kg(c.kilos)}${c.cajas?` · ${c.cajas} cj`:""})`).join(", ")}</td><td class="muted">${p.estado==="Expedido"?`${agEsc(agNombre(_ag.clientes,p.clienteId))} ${fdate(p.fechaExpedicion)} ${agEsc(p.referenciaExpedicion||"")}`:""}</td>
         <td class="right" style="white-space:nowrap">${p.kilos>0?`<button class="btn small ghost" onclick="agEtiqueta('${p.sscc}')" title="Etiqueta GS1 del palé">Etiqueta</button> `:""}${p.estado==="Abierto"?`${p.plantillaId?`<button class="btn small secondary" onclick="modalAgroCajas('${p.id}','${p.sscc}',${p.cajasPorPale-p.cajas})">Cajas</button> <button class="btn small ghost" title="Cajas que lleva este palé" onclick="agCajasPorPale('${p.id}',${p.cajasPorPale})">${p.cajas}/${p.cajasPorPale}</button>`:`<button class="btn small secondary" onclick="modalAgroPaletizar('${p.id}','${p.sscc}')">Paletizar</button>`} <button class="btn small ghost" onclick="agAccion(()=>api('/agro/pales/${p.id}/cerrar',{method:'POST'}),'Palé cerrado.',vAgroPartidas)">Cerrar</button>`:(p.estado==="Cerrado"?`<button class="btn small ghost" onclick="agAccion(()=>api('/agro/pales/${p.id}/reabrir',{method:'POST'}),null,vAgroPartidas)">Reabrir</button>`:`<button class="btn small ghost" onclick="vAgroTraza('atras','${p.sscc}')">Trazar</button> ${p.albaranId||p.cartaPorteId?"":`<button class="btn small ghost" onclick="modalAgroCorregirExpedicion('${p.id}','${p.sscc}')">Corregir</button> `}<button class="btn small ghost" onclick="modalAgroAnularExpedicion('${p.id}','${p.sscc}')">Anular salida</button>`)}</td></tr>`).join("");
-      view(panel("Partidas en almacén",partidas.length?`<table><thead><tr><th>Partida</th><th>Producto</th><th>Origen</th><th>Fecha</th><th class="num">Iniciales</th><th class="num">Disponible</th><th class="num">Coste</th><th></th></tr></thead><tbody>${fp}</tbody></table>`:'<p class="muted" style="margin:0">Sin existencias. Las partidas nacen al confirmar una recepción o validar un parte de confección.</p>')
-        +panel("Palés (SSCC)",pales.length?`<table><thead><tr><th>SSCC</th><th>Estado</th><th class="num">Kilos</th><th>Contenido</th><th>Expedición</th><th></th></tr></thead><tbody>${fpal}</tbody></table>`:'<p class="muted" style="margin:0">Cada palé lleva un SSCC GS1 de 18 dígitos (con el prefijo de empresa configurado en Maestros agro).</p>',
+      view(pestanas("agropartidas",[["Partidas",panel("Partidas en almacén",partidas.length?`<table><thead><tr><th>Partida</th><th>Producto</th><th>Origen</th><th>Fecha</th><th class="num">Iniciales</th><th class="num">Disponible</th><th class="num">Coste</th><th></th></tr></thead><tbody>${fp}</tbody></table>`:'<p class="muted" style="margin:0">Sin existencias. Las partidas nacen al confirmar una recepción o validar un parte de confección.</p>')
+        ],["Palés",panel("Palés (SSCC)",pales.length?`<table><thead><tr><th>SSCC</th><th>Estado</th><th class="num">Kilos</th><th>Contenido</th><th>Expedición</th><th></th></tr></thead><tbody>${fpal}</tbody></table>`:'<p class="muted" style="margin:0">Cada palé lleva un SSCC GS1 de 18 dígitos (con el prefijo de empresa configurado en Maestros agro).</p>',
           agBotones(`<button class="btn small" onclick="modalAgroMontar()">Montar palés</button>`,`<button class="btn small secondary" onclick="modalAgroPale()">+ Palé</button>`,`<button class="btn small secondary" onclick="modalAgroRepaletizar()">Repaletizar</button>`,`<button class="btn small secondary" onclick="modalAgroExpedir()">Expedir</button>`))
-        +panelPlantillasPale(plantillas));
+        ],["Plantillas de palé",panelPlantillasPale(plantillas)]]));
     }
     function panelPlantillasPale(pls){
       const filas=pls.map(t=>`<tr><td class="mono"><strong>${agEsc(t.codigo)}</strong></td><td>${agEsc(t.nombre)}${t.activa?"":' <span class="pill wait">Inactiva</span>'}</td><td class="muted">${agEsc(t.tipoPale||"—")}</td>
@@ -6541,7 +6567,13 @@
       const pRegl=panel("Transformaciones permitidas en la confección",`<p class="muted" style="margin:0 0 10px">Si un producto tiene transformaciones, de él solo puede salir lo que dicen, y con su merma máxima (si es más estricta que la general). Sin transformaciones, no se limita.</p>`
         +(reglas.length?`<table><thead><tr><th>De</th><th>Puede salir</th><th class="num">Merma máx.</th><th></th></tr></thead><tbody>${reglas.map(r=>`<tr><td>${agEsc(agProd(r.productoOrigenId))}</td><td>${agEsc(agProd(r.productoDestinoId))}</td><td class="num">${r.mermaMaximaPct!=null?pct(r.mermaMaximaPct):'<span class="muted">general</span>'}</td><td class="right"><button class="btn small ghost" onclick="agAccion(()=>api('/agro/transformaciones/${r.id}',{method:'DELETE'}),'Quitada.').then(()=>vAgroMaestros())">Quitar</button></td></tr>`).join("")}</tbody></table>`:'<p class="muted" style="margin:0">Sin transformaciones: cualquier producto puede salir de cualquiera.</p>'),
         `<button class="btn small" onclick="modalAgroRegla()">+ Transformación</button>`);
-      view(pCamp+pAgr+pCert+pCal+pTaras+pTol+pRegl+pCat+pPre+pCon+pTar+pRen+pGs1);
+      view(pestanas("agromaestros",[
+        ["Campañas y agricultores",pCamp+pAgr],
+        ["Precios y liquidación",pCat+pPre+pCon],
+        ["Confección",pTar+pRen+pRegl+pTol],
+        ["Calidad y certificación",pCal+pCert],
+        ["Envases y taras",pTaras],
+        ["Palés e inventario",pGs1]]));
     }
     const AG_CERT={Ninguna:"Convencional",Ecologico:"Ecológico",GlobalGap:"GlobalG.A.P.",Grasp:"GRASP"};
     const agCertTexto=v=>String(v||"Ninguna").split(",").map(x=>x.trim()).map(x=>x==="Ecologico"?'<span class="pill ok">Ecológico</span>':x==="Ninguna"?'<span class="muted">Convencional</span>':`<span class="pill">${AG_CERT[x]||x}</span>`).join(" ");

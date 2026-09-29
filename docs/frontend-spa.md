@@ -102,3 +102,34 @@ Los documentos de venta y compra (presupuestos, pedidos de venta, facturas y ped
   - pedido de venta: confirmar, entrega parcial con albarán, facturar, cancelar, anular albarán;
   - pedido de compra: confirmar, recepción por almacén con lote, facturar (gasto), cancelar, anular albarán;
   - enlaces entre documentos: presupuesto → pedido → factura.
+
+## Orden de las pantallas: secciones en el menú y pestañas
+
+Para no amontonar funciones en una misma pantalla:
+
+- **Menú por secciones.** En `NAV`, un texto suelto entre las vistas de un grupo es un rótulo de sección. Solo se pinta
+  si debajo hay alguna vista contratada. Así están ahora los grupos:
+  - Ventas: Comercial / Posventa / Facturación.
+  - Tesorería: Cobros / Pagos / Bancos.
+  - Agro: Almacén / Campo y calidad / Campaña.
+- **Pestañas dentro de la pantalla.** `pestanas(clave, [[título, html], …])` reparte en pestañas las áreas de una
+  pantalla. Las áreas vacías no se muestran, y si solo queda una se pinta sin pestañas. La pestaña elegida se recuerda
+  por pantalla en `localStorage`, con la clave `alxor.pestana.<clave>`.
+
+Pantallas con pestañas:
+
+| Pantalla | Pestañas |
+|---|---|
+| Ajustes | empresa y plan · numeración · cobros y riesgo · inventario · usuarios y roles · datos e importación · actividad |
+| Maestros agro | campañas y agricultores · precios y liquidación · confección · calidad y certificación · envases y taras · palés e inventario |
+| Partidas y palés | partidas · palés · plantillas de palé |
+| Contabilidad | pendientes · diario y saldos · periodos y diarios · estados financieros · cierre y cuentas anuales |
+| Analítica: maestros | centros y partidas · reparto y reglas · periodos |
+| Consolidación | eliminaciones · inversión y patrimonio · perímetro y cuentas |
+| Análisis de gestión | evolución · ventas · compras · cobros pendientes · existencias · extracto de tercero |
+| Logística: maestros | fichas · soportes · plantillas de paletizado · numeración SSCC |
+| Integraciones | API · webhooks · EDI |
+| Reclamaciones | reclamaciones · informe · conceptos |
+| Liquidaciones de pagos | pendiente de pagar · entregas a cuenta · liquidaciones emitidas |
+| Divisas | tipos de cambio · conversor · diferencias de cambio |
+| Impagados | facturas vencidas · impagados y dudosos · renovaciones |
