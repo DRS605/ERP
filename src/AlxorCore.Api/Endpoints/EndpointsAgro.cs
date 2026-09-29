@@ -175,6 +175,56 @@ public static class EndpointsAgro
         g.MapPost("/tratamientos/{id:guid}/anular", async (Guid id, AnularPeticionEnvases? p, CuadernoCampoAgro q, CancellationToken ct) =>
                 (await q.AnularAsync(id, p?.Motivo, ct).ConfigureAwait(false)).AOk())
             .WithSummary("Anula un tratamiento (no se borra).").RequierePermiso(Permisos.AgroGestionar);
+        g.MapGet("/fitosanitarios", (string? buscar, IContextoEmpresa c, RegistroFitosanitarios q, CancellationToken ct) =>
+                ConEmpresa(c, async e => Results.Ok(await q.ListarAsync(e, buscar, ct).ConfigureAwait(false))))
+            .WithSummary("Productos del Registro Oficial de Productos Fitosanitarios (busca por nombre, número o materia activa).").RequierePermiso(Permisos.AgroLeer);
+        g.MapGet("/fitosanitarios/{id:guid}", async (Guid id, RegistroFitosanitarios q, CancellationToken ct) =>
+                Encontrado(await q.ObtenerAsync(id, ct).ConfigureAwait(false), "fitosanitario"))
+            .WithSummary("Un producto del registro con sus materias activas y usos autorizados.").RequierePermiso(Permisos.AgroLeer);
+        g.MapPost("/fitosanitarios", (DatosFitosanitario d, IContextoEmpresa c, RegistroFitosanitarios q, CancellationToken ct) =>
+                ConEmpresa(c, async e => Creado(await q.CrearAsync(e, d, ct).ConfigureAwait(false), "fitosanitarios")))
+            .WithSummary("Da de alta a mano un producto del registro.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapPut("/fitosanitarios/{id:guid}", async (Guid id, DatosFitosanitario d, RegistroFitosanitarios q, CancellationToken ct) =>
+                (await q.ActualizarAsync(id, d, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Cambia un producto del registro (los cambios que importan quedan como aviso) o su artículo del almacén.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapDelete("/fitosanitarios/{id:guid}", async (Guid id, RegistroFitosanitarios q, CancellationToken ct) =>
+                (await q.EliminarAsync(id, ct).ConfigureAwait(false)).ASinContenido())
+            .WithSummary("Elimina un producto del registro que no está en ningún tratamiento.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapPost("/fitosanitarios/cargar", (CargaRegistroFito d, IContextoEmpresa c, RegistroFitosanitarios q, CancellationToken ct) =>
+                ConEmpresa(c, async e => Results.Ok(await q.CargarAsync(e, d, ct).ConfigureAwait(false))))
+            .WithSummary("Carga del registro del ministerio: altas, cambios (quedan como avisos) y, si es completa, retirada de lo que no viene.")
+            .RequierePermiso(Permisos.AgroGestionar);
+        g.MapPost("/fitosanitarios/importar-mapa", (HttpRequest peticion, bool? completa, IContextoEmpresa c, RegistroFitosanitarios q, CancellationToken ct) =>
+                ConEmpresa(c, async e =>
+                {
+                    LecturaRegistroMapa lectura;
+                    try
+                    {
+                        lectura = await ImportadorRegistroMapa.LeerAsync(peticion.Body, completa ?? true, ct).ConfigureAwait(false);
+                    }
+                    catch (Exception ex) when (ex is System.Text.Json.JsonException or FormatException)
+                    {
+                        return ResultadosHttp.AProblema(Error.Validacion("fitosanitario.fichero", $"El fichero no es el JSON del registro del ministerio: {ex.Message}"));
+                    }
+
+                    var r = await q.CargarAsync(e, lectura.Carga, ct).ConfigureAwait(false);
+                    return Results.Ok(r with { Detalle = [.. lectura.Avisos, .. r.Detalle] });
+                }))
+            .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(1_073_741_824))
+            .WithSummary("Carga el fichero JSON del Registro Oficial de Productos Fitosanitarios del MAPA tal cual (cuerpo de la petición). Por defecto, como registro completo.")
+            .RequierePermiso(Permisos.AgroGestionar);
+        g.MapGet("/fitosanitarios/avisos", (DateOnly? desde, bool? pendientes, IContextoEmpresa c, RegistroFitosanitarios q, CancellationToken ct) =>
+                ConEmpresa(c, async e => Results.Ok(await q.CambiosAsync(e, desde, pendientes ?? true, ct).ConfigureAwait(false))))
+            .WithSummary("Cambios del registro detectados en las cargas, con quién tiene el producto en el almacén o lo ha aplicado.").RequierePermiso(Permisos.AgroLeer);
+        g.MapPost("/fitosanitarios/avisos/{id:guid}/revisado", async (Guid id, RegistroFitosanitarios q, CancellationToken ct) =>
+                (await q.MarcarRevisadoAsync(id, ct).ConfigureAwait(false)).ASinContenido())
+            .WithSummary("Marca un aviso del registro como revisado.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapGet("/fitosanitarios/trazabilidad", (Guid articuloId, string lote, IContextoEmpresa c, TrazabilidadFitosanitarios q, CancellationToken ct) =>
+                ConEmpresa(c, async e => Results.Ok(await q.DeLoteAsync(e, articuloId, lote, ct).ConfigureAwait(false))))
+            .WithSummary("Traza de un lote de fitosanitario: tratamientos, partidas recolectadas después en esas parcelas y palés y clientes.").RequierePermiso(Permisos.AgroLeer);
+        g.MapGet("/fitosanitarios/de-partida", (Guid? partidaId, string? sscc, IContextoEmpresa c, TrazabilidadFitosanitarios q, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await q.DePartidaAsync(e, partidaId, sscc, ct).ConfigureAwait(false)).AOk()))
+            .WithSummary("Tratamientos (con su lote) que recibieron las parcelas de origen de una partida o un palé.").RequierePermiso(Permisos.AgroLeer);
         g.MapGet("/listas-control", (IContextoEmpresa c, AutoevaluacionesAgro q, CancellationToken ct) =>
                 ConEmpresa(c, async e => Results.Ok(await q.ListasAsync(e, ct).ConfigureAwait(false))))
             .WithSummary("Listas de puntos de control (GlobalG.A.P. u otras normas).").RequierePermiso(Permisos.AgroLeer);

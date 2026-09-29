@@ -637,4 +637,144 @@ public sealed class AgroEndpointsTests : IClassFixture<FabricaApiPruebas>
         var vacia = await IdAsync(e.Api, "/agro/campanas", new { Codigo = $"{Anio + 1}", Nombre = "Siguiente", Desde = new DateOnly(Anio + 1, 1, 1), Hasta = new DateOnly(Anio + 1, 12, 31) });
         (await e.Api.DeleteAsync(new Uri($"/agro/campanas/{vacia}", UriKind.Relative))).StatusCode.Should().Be(HttpStatusCode.OK);
     }
+
+    private sealed record StockLoteResp(decimal Cantidad, string? Lote);
+    private sealed record TratamientoFitoResp(Guid Id, int PlazoSeguridadDias, string? NumeroRegistro, string? MateriaActiva, Guid? FitosanitarioId, string? Lote,
+        decimal? CantidadConsumida, bool Anulado);
+    private sealed record AfectadoResp(string Tipo, string Descripcion);
+    private sealed record AvisoFitoResp(Guid Id, string Tipo, string Detalle, bool Restrictivo, List<AfectadoResp> Afectados);
+    private sealed record CargaResp(int Productos, int Altas, int ConCambios, int Retirados, int Errores);
+    private sealed record TratLoteResp(Guid TratamientoId, string? Lote);
+    private sealed record PartidaTratadaResp(Guid PartidaId, Guid TratamientoId);
+    private sealed record LoteCaducaResp(string Codigo, DateOnly? FechaCaducidad, decimal Existencias);
+    private sealed record TrazaLoteResp(List<TratLoteResp> Tratamientos, List<PartidaTratadaResp> Partidas);
+
+    [Fact]
+    public async Task Los_fitosanitarios_del_registro_se_validan_descuentan_su_lote_avisan_de_cambios_y_se_trazan()
+    {
+        var e = await EscenarioAsync();
+        var almacen = await IdAsync(e.Api, "/inventario/almacenes", new { Codigo = "A1", Nombre = "Almacén de fitos" });
+        var envase = await IdAsync(e.Api, "/productos", new { Nombre = "Fungicida X 1 L", PrecioUnitario = 0m, Tipo = "Bien", Unidad = "l" });
+        (await e.Api.PostAsJsonAsync("/inventario/entrada", new { ProductoId = envase, AlmacenId = almacen, Cantidad = 10m, Lote = "L1", FechaCaducidad = Dia.AddYears(1) }))
+            .EnsureSuccessStatusCode();
+        (await e.Api.PostAsJsonAsync("/inventario/entrada", new { ProductoId = envase, AlmacenId = almacen, Cantidad = 5m, Lote = "L2", FechaCaducidad = Dia.AddDays(-40) }))
+            .EnsureSuccessStatusCode();
+
+        var fito = await IdAsync(e.Api, "/agro/fitosanitarios", new
+        {
+            NumeroRegistro = "es-25.123", Nombre = "Fungicida X", Titular = "Agroquímica SA", MateriasActivas = new[] { new { Nombre = "Oxicloruro de cobre", Riqueza = "50 %" } },
+            Usos = new[] { new { Cultivo = "Naranjo", Plaga = "Aguado", DosisMinima = 2m, DosisMaxima = 3m, UnidadDosis = "l/ha", PlazoSeguridadDias = 15, Aplicaciones = 2 } },
+            ProductoId = envase,
+        });
+        object Trat(DateOnly fecha, string cultivo = "Naranjo", string plaga = "Aguado", decimal dosis = 2.5m, string lote = "L1") => new
+        {
+            ParcelaId = e.Parcela, Fecha = fecha, FitosanitarioId = fito, Cultivo = cultivo, Motivo = plaga, Dosis = dosis, UnidadDosis = "l/ha", PlazoSeguridadDias = 0,
+            AlmacenId = almacen, Lote = lote, CantidadConsumida = 2m, Aplicador = "Pedro (carné 1234)",
+        };
+
+        (await ProblemaAsync(await e.Api.PostAsJsonAsync("/agro/tratamientos", Trat(Dia.AddDays(-30), plaga: "Pulgón")), HttpStatusCode.Conflict)).Codigo.Should().Be("tratamiento.uso_no_autorizado");
+        (await ProblemaAsync(await e.Api.PostAsJsonAsync("/agro/tratamientos", Trat(Dia.AddDays(-30), dosis: 5m)), HttpStatusCode.BadRequest)).Codigo.Should().Be("tratamiento.dosis");
+        (await ProblemaAsync(await e.Api.PostAsJsonAsync("/agro/tratamientos", Trat(Dia.AddDays(-30), lote: "L2")), HttpStatusCode.Conflict)).Codigo.Should().Be("tratamiento.lote_caducado");
+
+        // Bien: toma del registro el número, la materia activa y el plazo de seguridad del uso, y descuenta 2 L del lote L1.
+        var t = await OkCreadoAsync<TratamientoFitoResp>(await e.Api.PostAsJsonAsync("/agro/tratamientos", Trat(Dia.AddDays(-30))));
+        t.Should().Match<TratamientoFitoResp>(x => x.PlazoSeguridadDias == 15 && x.NumeroRegistro == "ES-25.123" && x.MateriaActiva == "Oxicloruro de cobre"
+            && x.Lote == "L1" && x.CantidadConsumida == 2m);
+        (await e.Api.GetFromJsonAsync<List<StockLoteResp>>($"/inventario/stock/producto/{envase}"))!.Single(x => x.Lote == "L1").Cantidad.Should().Be(8m);
+
+        // La fruta recolectada después en la parcela sale en la traza del lote, y la partida lleva el tratamiento.
+        var recepcion = await RecibirAsync(e, Dia);
+        var partida = recepcion.Lineas.Single().PartidaId!.Value;
+        var traza = (await e.Api.GetFromJsonAsync<TrazaLoteResp>($"/agro/fitosanitarios/trazabilidad?articuloId={envase}&lote=L1"))!;
+        traza.Tratamientos.Should().ContainSingle(x => x.TratamientoId == t.Id);
+        traza.Partidas.Should().ContainSingle(x => x.PartidaId == partida && x.TratamientoId == t.Id);
+        (await e.Api.GetFromJsonAsync<List<TratLoteResp>>($"/agro/fitosanitarios/de-partida?partidaId={partida}"))!.Should().ContainSingle(x => x.Lote == "L1");
+
+        // Carga del registro: el producto se cancela con uso hasta hace 20 días. Avisa con el stock y el tratamiento.
+        var carga = (await (await e.Api.PostAsJsonAsync("/agro/fitosanitarios/cargar", new
+        {
+            Productos = new[]
+            {
+                new
+                {
+                    NumeroRegistro = "ES-25.123", Nombre = "Fungicida X", Titular = "Agroquímica SA", Estado = "Cancelado", FechaLimiteVenta = Dia.AddDays(-50), FechaLimiteUso = Dia.AddDays(-20),
+                    MateriasActivas = new[] { new { Nombre = "Oxicloruro de cobre", Riqueza = "50 %" } },
+                    Usos = new[] { new { Cultivo = "Naranjo", Plaga = "Aguado", DosisMinima = 2m, DosisMaxima = 3m, UnidadDosis = "l/ha", PlazoSeguridadDias = 15, Aplicaciones = 2 } },
+                },
+            },
+        })).Content.ReadFromJsonAsync<CargaResp>())!;
+        carga.Should().Match<CargaResp>(c => c.Productos == 1 && c.ConCambios == 1 && c.Errores == 0);
+        var avisos = (await e.Api.GetFromJsonAsync<List<AvisoFitoResp>>("/agro/fitosanitarios/avisos"))!;
+        var retirada = avisos.Single(a => a.Tipo == "Retirado");
+        retirada.Restrictivo.Should().BeTrue();
+        retirada.Afectados.Should().Contain(a => a.Tipo == "Almacén" && a.Descripcion.Contains("13", StringComparison.Ordinal));
+        retirada.Afectados.Should().Contain(a => a.Tipo == "Tratamiento");
+        (await ProblemaAsync(await e.Api.PostAsJsonAsync("/agro/tratamientos", Trat(Dia.AddDays(-10))), HttpStatusCode.Conflict)).Codigo.Should().Be("tratamiento.no_autorizado");
+        (await e.Api.PostAsync(new Uri($"/agro/fitosanitarios/avisos/{retirada.Id}/revisado", UriKind.Relative), null)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+        (await e.Api.GetFromJsonAsync<List<AvisoFitoResp>>("/agro/fitosanitarios/avisos"))!.Should().NotContain(a => a.Id == retirada.Id);
+
+        // Anular el tratamiento devuelve lo consumido a su lote; el producto usado no se elimina.
+        (await e.Api.PostAsJsonAsync($"/agro/tratamientos/{t.Id}/anular", new { Motivo = "Error" })).EnsureSuccessStatusCode();
+        (await e.Api.GetFromJsonAsync<List<StockLoteResp>>($"/inventario/stock/producto/{envase}"))!.Single(x => x.Lote == "L1").Cantidad.Should().Be(10m);
+        (await e.Api.DeleteAsync(new Uri($"/agro/fitosanitarios/{fito}", UriKind.Relative))).StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await e.Api.GetFromJsonAsync<List<LoteCaducaResp>>("/inventario/lotes/caducan?dias=0"))!.Should().ContainSingle(l => l.Codigo == "L2" && l.Existencias == 5m);
+    }
+
+    private sealed record CargaMapaResp(int Productos, int Altas, int ConCambios, int Retirados, int Errores);
+    private sealed record FitoListaResp(Guid Id, string NumeroRegistro, string Estado, List<AfectadoResp>? Afectados, List<UsoListaResp> Usos, string? Formulado);
+    private sealed record UsoListaResp(string Cultivo, string Plaga, int? PlazoSeguridadDias, int? Aplicaciones);
+
+    private const string FicheroMapa = """
+        {"Productos":[
+          {"DATOSPRODUCTO":{"IdProducto":113941,"Num_Registro":"11179","Nombre":"MICROTHIOL SPECIAL DISPERSS","Titular":"UPL IBERIA, S.A.","Formulado":"AZUFRE 80% [WG] P\/P",
+            "Estado":"Vigente","Fecha_Caducidad":"2027\/07\/31","Fecha_Cancelacion":"","Fecha_LimiteVenta":""},
+           "COMPOSICION":[{"Nombre Sustancia":"AZUFRE","Concentracion":8.0e+001,"DescripcionNota":"%"}],
+           "USOS":[{"Cultivo":"Olivo","Agente":"Negrilla, fumagina, Capnodium elaeophilum","Dosis_Min":0.25,"Dosis_Max":0.75,"Unidad Medida dosis":"%","Plazo Seguridad":"NO PROCEDE","Aplicaciones":"1-3"},
+                   {"Cultivo":"Vid","Agente":"Oídio de la vid, Erysiphe necator","Dosis_Min":0.25,"Dosis_Max":0.8,"Unidad Medida dosis":"%","Plazo Seguridad":"NO PROCEDE","Aplicaciones":"1-8"}]},
+          {"DATOSPRODUCTO":{"Num_Registro":"25999","Nombre":"OTRO PRODUCTO","Titular":"X SA","Estado":"Vigente","Fecha_Caducidad":"2028\/01\/31"},
+           "COMPOSICION":[],"USOS":[]}
+        ]}
+        """;
+
+    private const string FicheroMapaSemana2 = """
+        {"Productos":[
+          {"DATOSPRODUCTO":{"IdProducto":113941,"Num_Registro":"11179","Nombre":"MICROTHIOL SPECIAL DISPERSS","Titular":"UPL IBERIA, S.A.","Formulado":"AZUFRE 80% [WG] P\/P",
+            "Estado":"Vigente","Fecha_Caducidad":"2027\/07\/31","Fecha_Cancelacion":"","Fecha_LimiteVenta":""},
+           "COMPOSICION":[{"Nombre Sustancia":"AZUFRE","Concentracion":8.0e+001,"DescripcionNota":"%"}],
+           "USOS":[{"Cultivo":"Olivo","Agente":"Negrilla, fumagina, Capnodium elaeophilum","Dosis_Min":0.25,"Dosis_Max":0.75,"Unidad Medida dosis":"%","Plazo Seguridad":"NO PROCEDE","Aplicaciones":"1-3"}]}
+        ]}
+        """;
+
+    private static Task<HttpResponseMessage> ImportarMapaAsync(HttpClient api, string json, bool completa = true) =>
+        api.PostAsync(new Uri($"/agro/fitosanitarios/importar-mapa?completa={completa}", UriKind.Relative), new StringContent(json, System.Text.Encoding.UTF8, "application/json"));
+
+    [Fact]
+    public async Task El_fichero_del_registro_del_ministerio_se_carga_tal_cual_y_cada_semana_avisa_de_lo_que_cambia()
+    {
+        var e = await EscenarioAsync();
+        var primera = await OkAsync<CargaMapaResp>(await ImportarMapaAsync(e.Api, FicheroMapa));
+        primera.Should().Match<CargaMapaResp>(c => c.Productos == 2 && c.Altas == 2 && c.ConCambios == 0 && c.Errores == 0);
+        var lista = (await e.Api.GetFromJsonAsync<List<FitoListaResp>>("/agro/fitosanitarios?buscar=azufre"))!;
+        lista.Should().ContainSingle().Which.Should().Match<FitoListaResp>(p => p.NumeroRegistro == "11179" && p.Usos.Count == 2 && p.Formulado == "AZUFRE 80% [WG] P/P");
+
+        // La misma semana otra vez: nada cambia.
+        (await OkAsync<CargaMapaResp>(await ImportarMapaAsync(e.Api, FicheroMapa))).ConCambios.Should().Be(0);
+        (await e.Api.GetFromJsonAsync<List<AvisoFitoResp>>("/agro/fitosanitarios/avisos"))!.Should().BeEmpty();
+
+        // Semana siguiente: sale el uso en vid y el otro producto ya no viene en el registro completo.
+        var segunda = await OkAsync<CargaMapaResp>(await ImportarMapaAsync(e.Api, FicheroMapaSemana2));
+        segunda.Should().Match<CargaMapaResp>(c => c.Productos == 1 && c.ConCambios == 1 && c.Retirados == 1);
+        var avisos = (await e.Api.GetFromJsonAsync<List<AvisoFitoResp>>("/agro/fitosanitarios/avisos"))!;
+        avisos.Should().Contain(a => a.Tipo == "UsoRetirado" && a.Detalle.Contains("Vid", StringComparison.Ordinal));
+        avisos.Should().Contain(a => a.Tipo == "Retirado" && a.Detalle.Contains("no figura", StringComparison.OrdinalIgnoreCase));
+        (await e.Api.GetFromJsonAsync<List<FitoListaResp>>("/agro/fitosanitarios?buscar=25999"))!.Single().Estado.Should().Be("Cancelado");
+
+        (await ProblemaAsync(await ImportarMapaAsync(e.Api, """{"otra":1}"""), HttpStatusCode.BadRequest)).Codigo.Should().Be("fitosanitario.fichero");
+    }
+
+    private static async Task<T> OkCreadoAsync<T>(HttpResponseMessage r)
+    {
+        r.StatusCode.Should().Be(HttpStatusCode.Created, await r.Content.ReadAsStringAsync());
+        return (await r.Content.ReadFromJsonAsync<T>())!;
+    }
 }

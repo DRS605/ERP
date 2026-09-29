@@ -30,6 +30,8 @@ public static class RegistroServicios
         servicios.AddScoped<IRepositorioExistencias, RepositorioExistencias>();
         servicios.AddScoped<IRepositorioMovimientos, RepositorioMovimientos>();
         servicios.AddScoped<IRepositorioUbicacionesDefecto, RepositorioUbicacionesDefecto>();
+        servicios.AddScoped<IRepositorioLotes, RepositorioLotes>();
+        servicios.AddScoped<LotesArticulos>();
 
         servicios.AddScoped<GestionAlmacenes>();
         servicios.AddScoped<MovimientosInventario>();

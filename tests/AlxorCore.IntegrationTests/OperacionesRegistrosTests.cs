@@ -100,6 +100,8 @@ public sealed class OperacionesRegistrosTests : IClassFixture<FabricaApiPruebas>
         ["/productos/{id}/stock"] = "movimiento de stock simple: se corrige con otro movimiento",
         ["/agro/agricultores/{id}/envases"] = "movimiento de envases: se corrige con el movimiento contrario",
         ["/agro/partidas/{id}/ajustes"] = "ajuste de kilos: se corrige con el ajuste contrario",
+        ["/agro/fitosanitarios/importar-mapa"] = "fichero del registro del ministerio: se corrige con el siguiente fichero (o editando el producto)",
+        ["/agro/fitosanitarios/cargar"] = "carga del registro del ministerio: se corrige con la siguiente carga (o editando el producto)",
         ["/agro/partidas/{id}/clasificaciones"] = "se corrige con una clasificación nueva: la definitiva sustituye a la anterior (si la partida no está liquidada)",
     };
 

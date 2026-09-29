@@ -43,6 +43,20 @@ public static class EndpointsInventario
         g.MapGet("/trazabilidad/{productoId:guid}", TrazabilidadAsync).WithSummary("Trazabilidad de un lote o nº de serie: existencias e historial.").RequierePermiso(Permisos.InventarioLeer);
         g.MapGet("/valoracion", ValoracionAsync).WithSummary("Valoración de existencias con el método de la empresa (estándar/última compra/PMP/FIFO).").RequierePermiso(Permisos.InventarioLeer);
 
+        g.MapGet("/lotes", async (Guid? productoId, IContextoEmpresa c, LotesArticulos caso, CancellationToken ct) =>
+                c.EmpresaId is null ? SinEmpresa() : Results.Ok(await caso.ListarAsync(c.EmpresaId.Value, productoId, ct).ConfigureAwait(false)))
+            .WithSummary("Lotes de los artículos con su caducidad y existencias.").RequierePermiso(Permisos.InventarioLeer);
+        g.MapGet("/lotes/caducan", async (int? dias, IContextoEmpresa c, LotesArticulos caso, AlxorCore.Nucleo.Tiempo.IReloj reloj, CancellationToken ct) =>
+                c.EmpresaId is null ? SinEmpresa() : Results.Ok(await caso.CaducanAsync(c.EmpresaId.Value,
+                    DateOnly.FromDateTime(reloj.AhoraUtc.UtcDateTime).AddDays(dias ?? 30), ct).ConfigureAwait(false)))
+            .WithSummary("Lotes con existencias que caducan en los próximos días (30 por defecto), incluidos los caducados.").RequierePermiso(Permisos.InventarioLeer);
+        g.MapPost("/lotes", async (DatosLote d, IContextoEmpresa c, LotesArticulos caso, CancellationToken ct) =>
+                c.EmpresaId is null ? SinEmpresa() : (await caso.FijarAsync(c.EmpresaId.Value, d, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Da de alta un lote de un artículo o cambia sus fechas (caducidad, fabricación).").RequierePermiso(Permisos.InventarioGestionar);
+        g.MapDelete("/lotes/{id:guid}", async (Guid id, LotesArticulos caso, CancellationToken ct) =>
+                (await caso.EliminarAsync(id, ct).ConfigureAwait(false)).ASinContenido())
+            .WithSummary("Quita las fechas de un lote (sus existencias y movimientos siguen).").RequierePermiso(Permisos.InventarioGestionar);
+
         g.MapPost("/entrada", EntradaAsync).WithSummary("Registra una entrada de stock.").RequierePermiso(Permisos.InventarioGestionar);
         g.MapPost("/salida", SalidaAsync).WithSummary("Registra una salida de stock.").RequierePermiso(Permisos.InventarioGestionar);
         g.MapPost("/ajuste", AjusteAsync).WithSummary("Ajusta el stock por recuento.").RequierePermiso(Permisos.InventarioGestionar);

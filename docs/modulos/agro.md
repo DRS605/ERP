@@ -477,6 +477,100 @@ que la de la parcela), **plazo de seguridad** en días, aplicador y observacione
 - **Pantalla:** Agro → **Cuaderno de campo**. **API:** `GET/POST /agro/tratamientos` (filtros por agricultor,
   parcela y fechas).
 
+## Registro Oficial de Productos Fitosanitarios
+
+`agro.fitosanitario`, con sus tablas `fitosanitario_materia_activa` y `fitosanitario_uso`, guarda cada producto:
+
+- número de registro, nombre, titular y formulado;
+- situación (autorizado, suspendido, caducado o cancelado) y fechas de caducidad, cancelación, límite de venta y límite
+  de uso;
+- materias activas con su concentración;
+- **usos autorizados**: cultivo, plaga o agente, dosis mínima y máxima con su unidad, plazo de seguridad y número
+  máximo de aplicaciones. El intervalo entre aplicaciones y el condicionamiento van en las observaciones.
+
+Se puede enlazar con el **artículo del almacén** con que se compra y se aplica.
+
+### Carga semanal del fichero del ministerio
+
+`POST /agro/fitosanitarios/importar-mapa?completa=true` recibe **tal cual** el JSON del MAPA
+(`{"Productos":[{"DATOSPRODUCTO":…,"COMPOSICION":…,"USOS":…}]}`). También se puede subir en Agro → Fitosanitarios →
+«Cargar registro».
+
+Cómo se lee cada campo:
+
+- **Estado:** «Vigente» es autorizado; «Cancelado», «Caducado» y «Suspendido», su situación. Un estado desconocido se
+  toma como suspendido y se avisa en el detalle.
+- **Fechas:** en «aaaa/mm/dd» o ISO.
+- **Plazo de seguridad:** «NO PROCEDE» es sin plazo; si trae un número, esos días.
+- **Aplicaciones:** «1-8» son 8 como máximo.
+- **Dosis:** mínima y máxima en su unidad (%, l/ha, kg/ha…).
+
+Cada carga compara producto a producto con la anterior y anota cada cambio en `agro.cambio_fitosanitario`:
+
+- situación;
+- fechas;
+- materias activas que entran o salen;
+- usos nuevos, retirados o modificados (dosis, plazo, aplicaciones);
+- nombre o titular.
+
+En una **carga completa** (por defecto), el producto autorizado que ya no viene pasa a cancelado. Una carga igual a la
+anterior no cambia nada.
+
+Con 3.000 productos y 75.000 usos (22 MB), la primera carga tarda unos 20 segundos y las semanales, unos 5.
+
+Para altas o cambios a mano: `GET/POST /agro/fitosanitarios`, `GET/PUT/DELETE /agro/fitosanitarios/{id}`. Un producto
+usado en tratamientos no se elimina.
+
+### Avisos
+
+`GET /agro/fitosanitarios/avisos` (pantalla Agro → Fitosanitarios) lista los cambios pendientes de revisar. Los que
+**restringen** (retirada, fechas, materias activas, usos retirados o modificados) dicen a quién afectan:
+
+- existencias del artículo enlazado en el almacén;
+- tratamientos del último año con ese producto (parcela, agricultor, cultivo y plaga).
+
+`POST /agro/fitosanitarios/avisos/{id}/revisado` los quita de pendientes.
+
+### Validación del tratamiento
+
+Un tratamiento con `fitosanitarioId` (el producto del registro) se comprueba contra el registro:
+
+- **Autorizado ese día:** autorizado y sin caducar ni cancelar, o dentro de su límite de uso. Si no,
+  `tratamiento.no_autorizado`.
+- **Uso autorizado:** cultivo (`cultivo`) y plaga (`motivo`) de uno de sus usos. Si no, `tratamiento.uso_no_autorizado`,
+  con la lista de usos.
+- **Dosis:** dentro del rango del uso cuando la unidad coincide. Si no, `tratamiento.dosis`.
+- **Aplicaciones:** que no pasen del máximo del uso en el año y la parcela. Si no, `tratamiento.aplicaciones`.
+- **Plazo de seguridad:** el del uso, si es mayor que el indicado. Con él se bloquean las entregas recolectadas antes.
+
+El número de registro y la materia activa se toman del registro.
+
+### Consumo del almacén por lote
+
+Con `almacenId`, `lote` y `cantidadConsumida`, el tratamiento **descuenta** del almacén ese lote del artículo. El
+artículo es el indicado en `articuloId` o, si no, el del registro.
+
+- Si el lote está caducado el día del tratamiento, no se registra (`tratamiento.lote_caducado`).
+- Si no hay existencias suficientes, tampoco.
+- Al anular el tratamiento, lo consumido vuelve a su lote.
+
+### Trazabilidad del lote
+
+- `GET /agro/fitosanitarios/trazabilidad?articuloId=&lote=` va del lote a los tratamientos (parcela y agricultor), de
+  ahí a las **partidas recolectadas en esas parcelas** desde el tratamiento hasta un año después, y de ahí a sus
+  **palés expedidos y clientes**.
+- Al revés, `GET /agro/fitosanitarios/de-partida?partidaId=` (o `sscc=`) da los tratamientos, con su lote, que
+  recibieron las parcelas de origen de una partida o un palé en el año anterior a su recolección.
+
+### Pendiente
+
+- La fecha límite de uso no viene en el fichero. Un producto cancelado solo se puede seguir aplicando si se le pone
+  esa fecha a mano.
+- Las otras denominaciones (`OTRASDENOMINACIONES`, `OTROSNOMBRES`) no se guardan.
+- Los usos de un mismo cultivo y agente que se distinguen solo por el tipo de usuario (profesional o no profesional)
+  se guardan una vez.
+- Cruzar el cultivo del uso con el artículo de la parcela: hoy el uso se elige en el tratamiento.
+
 ## Autoevaluaciones y auditorías internas (GlobalG.A.P.)
 
 - **Listas de control** (`agro.lista_control` y `agro.punto_control`): la de la norma en su versión (por ejemplo, IFA

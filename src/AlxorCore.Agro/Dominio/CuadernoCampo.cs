@@ -148,6 +148,41 @@ public sealed class TratamientoParcela : RaizAgregadoEmpresa<Guid>
         });
     }
 
+    /// <summary>Producto del Registro Oficial aplicado (null si se escribió a mano).</summary>
+    public Guid? FitosanitarioId { get; private set; }
+
+    /// <summary>Cultivo del uso autorizado con que se aplicó (la plaga va en <see cref="Motivo"/>).</summary>
+    public string? Cultivo { get; private set; }
+
+    /// <summary>Artículo del almacén consumido (el envase del producto).</summary>
+    public Guid? ArticuloId { get; private set; }
+
+    public Guid? AlmacenId { get; private set; }
+
+    public string? Lote { get; private set; }
+
+    /// <summary>Cantidad del artículo que salió del almacén.</summary>
+    public decimal? CantidadConsumida { get; private set; }
+
+    /// <summary>Enlaza el tratamiento con el producto del registro y el uso autorizado.</summary>
+    public void EnlazarRegistro(ProductoFitosanitario producto, string? cultivo)
+    {
+        ArgumentNullException.ThrowIfNull(producto);
+        FitosanitarioId = producto.Id;
+        NumeroRegistro = producto.NumeroRegistro;
+        MateriaActiva ??= string.Join(" + ", producto.MateriasActivas.Select(m => m.Nombre)) is { Length: > 0 } ma ? ma[..Math.Min(ma.Length, LongitudTexto)] : null;
+        Cultivo = string.IsNullOrWhiteSpace(cultivo) ? null : cultivo.Trim()[..Math.Min(cultivo.Trim().Length, LongitudTexto)];
+    }
+
+    /// <summary>Anota lo que salió del almacén con el tratamiento.</summary>
+    public void AnotarConsumo(Guid articuloId, Guid almacenId, string? lote, decimal cantidad)
+    {
+        ArticuloId = articuloId;
+        AlmacenId = almacenId;
+        Lote = string.IsNullOrWhiteSpace(lote) ? null : lote.Trim()[..Math.Min(lote.Trim().Length, 60)];
+        CantidadConsumida = cantidad;
+    }
+
     public Resultado Anular(string? motivo)
     {
         if (Anulado)

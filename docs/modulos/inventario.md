@@ -40,6 +40,19 @@ Al dar entrada a mercancía de un proveedor se resuelve la ubicación así:
 Esto permite, por ejemplo, que un mismo artículo se ubique en `RECEPCIÓN-A` cuando llega del
 proveedor X y en la ubicación estándar del almacén para el resto.
 
+## Lotes con caducidad
+
+Las existencias y los movimientos llevan el código del lote. `inventario.lote_articulo` le añade la **caducidad** (y la
+fabricación) por artículo y lote.
+
+- Se fija al dar entrada con `fechaCaducidad` en `POST /inventario/entrada`, o con `POST /inventario/lotes`
+  (`{ productoId, codigo, fechaCaducidad, fechaFabricacion?, observaciones? }`). `DELETE /inventario/lotes/{id}` quita
+  las fechas; las existencias siguen.
+- `GET /inventario/lotes?productoId=` lista los lotes con sus existencias. `GET /inventario/lotes/caducan?dias=30`
+  lista los que tienen existencias y caducan en esos días, incluidos los ya caducados.
+- La trazabilidad del lote (`/inventario/trazabilidad/{productoId}?lote=`) devuelve su caducidad.
+- El cuaderno de campo no deja aplicar un lote caducado (ver [agro](agro.md#cuaderno-de-campo-tratamientos-fitosanitarios)).
+
 ## API
 
 | Método | Ruta | Auth | Descripción |

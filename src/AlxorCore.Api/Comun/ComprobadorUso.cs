@@ -63,6 +63,9 @@ public static class ReferenciasRegistros
             [TiposRegistro.Producto] =
             [
                 ("facturacion.linea_factura.producto_id", "facturas"),
+                ("agro.fitosanitario.producto_id", "productos del registro de fitosanitarios"),
+                ("agro.tratamiento_parcela.articulo_id", "tratamientos del cuaderno de campo"),
+                ("inventario.lote_articulo.producto_id", "lotes con fechas"),
                 ("catalogo.asignacion_concepto.producto_id", "conceptos de línea que se le ponen solos"),
                 ("facturacion.linea_albaran_venta.producto_id", "albaranes de venta"),
                 ("facturacion.linea_devolucion_venta.producto_id", "devoluciones de venta"),
@@ -107,6 +110,7 @@ public static class ReferenciasRegistros
             [TiposRegistro.Almacen] =
             [
                 ("inventario.existencia.almacen_id", "existencias"),
+                ("agro.tratamiento_parcela.almacen_id", "tratamientos del cuaderno de campo"),
                 ("inventario.movimiento_inventario.almacen_id", "movimientos"),
                 ("inventario.ubicacion_defecto.almacen_id", "ubicaciones por defecto de artículos"),
                 ("produccion.orden_fabricacion.almacen_id", "órdenes de fabricación"),

@@ -213,6 +213,17 @@ public sealed record MovimientoInventarioAgro(Guid ProductoId, decimal Cantidad,
 public interface IInventarioAgro
 {
     Task<IReadOnlyList<string>> MoverAsync(Guid empresaId, IReadOnlyList<MovimientoInventarioAgro> movimientos, CancellationToken ct = default);
+
+    /// <summary>Salida de un almacén concreto y de un lote (el consumo de un tratamiento): falla si no hay existencias.</summary>
+    Task<Resultado> ConsumirAsync(Guid empresaId, Guid productoId, Guid almacenId, string? lote, decimal cantidad, DateOnly fecha, string referencia,
+        CancellationToken ct = default) => Task.FromResult(Resultado.Fallo(Error.Validacion("inventario.sin_almacenes", "La empresa no trabaja con almacenes.")));
+
+    /// <summary>Vuelta al almacén y al lote de lo consumido (al anular el tratamiento).</summary>
+    Task<Resultado> DevolverAsync(Guid empresaId, Guid productoId, Guid almacenId, string? lote, decimal cantidad, DateOnly fecha, string referencia,
+        CancellationToken ct = default) => Task.FromResult(Resultado.Ok());
+
+    /// <summary>Caducidad del lote del artículo, si se conoce.</summary>
+    Task<DateOnly?> CaducidadLoteAsync(Guid empresaId, Guid productoId, string lote, CancellationToken ct = default) => Task.FromResult<DateOnly?>(null);
 }
 
 /// <summary>Impuesto indirecto de la empresa (IVA, o IGIC en Canarias): decide el impuesto de las autofacturas a agricultores.</summary>

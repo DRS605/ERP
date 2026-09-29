@@ -25,6 +25,7 @@ public sealed class InventarioDbContext : DbContextEmpresaBase, IUnidadDeTrabajo
     public DbSet<Existencia> Existencias => Set<Existencia>();
     public DbSet<MovimientoInventario> Movimientos => Set<MovimientoInventario>();
     public DbSet<UbicacionDefecto> UbicacionesDefecto => Set<UbicacionDefecto>();
+    public DbSet<LoteArticulo> Lotes => Set<LoteArticulo>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -123,6 +124,44 @@ internal sealed class ConfiguracionUbicacionDefecto : IEntityTypeConfiguration<U
         b.HasIndex(x => new { x.EmpresaId, x.ProductoId, x.AlmacenId, x.ProveedorId }).HasDatabaseName("ix_ubidef_clave");
         b.Ignore(x => x.EventosDominio);
     }
+}
+
+internal sealed class ConfiguracionLote : IEntityTypeConfiguration<LoteArticulo>
+{
+    public void Configure(EntityTypeBuilder<LoteArticulo> b)
+    {
+        b.ToTable("lote_articulo");
+        b.HasKey(x => x.Id);
+        b.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+        b.Property(x => x.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        b.Property(x => x.ProductoId).HasColumnName("producto_id").IsRequired();
+        b.Property(x => x.Codigo).HasColumnName("codigo").HasMaxLength(LoteArticulo.LongitudCodigo).IsRequired();
+        b.Property(x => x.FechaCaducidad).HasColumnName("fecha_caducidad");
+        b.Property(x => x.FechaFabricacion).HasColumnName("fecha_fabricacion");
+        b.Property(x => x.Observaciones).HasColumnName("observaciones").HasMaxLength(300);
+        b.HasIndex(x => new { x.EmpresaId, x.ProductoId, x.Codigo }).IsUnique().HasDatabaseName("ux_lote_articulo");
+        b.Ignore(x => x.EventosDominio);
+    }
+}
+
+internal sealed class RepositorioLotes : IRepositorioLotes
+{
+    private readonly InventarioDbContext _ctx;
+
+    public RepositorioLotes(InventarioDbContext ctx) => _ctx = ctx;
+
+    public void Agregar(LoteArticulo lote) => _ctx.Lotes.Add(lote);
+
+    public void Eliminar(LoteArticulo lote) => _ctx.Lotes.Remove(lote);
+
+    public Task<LoteArticulo?> ObtenerAsync(Guid id, CancellationToken ct = default) => _ctx.Lotes.FirstOrDefaultAsync(l => l.Id == id, ct);
+
+    public Task<LoteArticulo?> ObtenerAsync(Guid empresaId, Guid productoId, string codigo, CancellationToken ct = default) =>
+        _ctx.Lotes.FirstOrDefaultAsync(l => l.EmpresaId == empresaId && l.ProductoId == productoId && l.Codigo == codigo, ct);
+
+    public async Task<IReadOnlyList<LoteArticulo>> ListarAsync(Guid empresaId, Guid? productoId, CancellationToken ct = default) =>
+        await _ctx.Lotes.AsNoTracking().Where(l => l.EmpresaId == empresaId && (productoId == null || l.ProductoId == productoId))
+            .OrderBy(l => l.FechaCaducidad).ThenBy(l => l.Codigo).ToListAsync(ct).ConfigureAwait(false);
 }
 
 internal sealed class RepositorioAlmacenes : IRepositorioAlmacenes

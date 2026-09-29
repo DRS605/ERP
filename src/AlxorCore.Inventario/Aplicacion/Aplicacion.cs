@@ -59,6 +59,15 @@ public interface IRepositorioUbicacionesDefecto
     Task<IReadOnlyList<UbicacionDefectoDto>> ListarPorProductoAsync(Guid empresaId, Guid productoId, CancellationToken ct = default);
 }
 
+public interface IRepositorioLotes
+{
+    void Agregar(LoteArticulo lote);
+    void Eliminar(LoteArticulo lote);
+    Task<LoteArticulo?> ObtenerAsync(Guid id, CancellationToken ct = default);
+    Task<LoteArticulo?> ObtenerAsync(Guid empresaId, Guid productoId, string codigo, CancellationToken ct = default);
+    Task<IReadOnlyList<LoteArticulo>> ListarAsync(Guid empresaId, Guid? productoId, CancellationToken ct = default);
+}
+
 public interface IUnidadDeTrabajoInventario : IUnidadDeTrabajo;
 
 /// <summary>
@@ -73,7 +82,8 @@ public interface IAvisoExistencias
 // ---------------------------------------------------------------------------- Comandos
 public sealed record CrearAlmacenComando(string Codigo, string Nombre);
 public sealed record CrearUbicacionComando(Guid AlmacenId, string Codigo, string? Nombre = null);
-public sealed record MovimientoComando(Guid ProductoId, Guid AlmacenId, decimal Cantidad, Guid? UbicacionId = null, DateOnly? Fecha = null, string? Motivo = null, string? Referencia = null, string? Lote = null, decimal? CosteUnitario = null);
+public sealed record MovimientoComando(Guid ProductoId, Guid AlmacenId, decimal Cantidad, Guid? UbicacionId = null, DateOnly? Fecha = null, string? Motivo = null, string? Referencia = null, string? Lote = null, decimal? CosteUnitario = null,
+    DateOnly? FechaCaducidad = null);
 public sealed record TraspasoComando(Guid ProductoId, decimal Cantidad, Guid AlmacenOrigenId, Guid AlmacenDestinoId, Guid? UbicacionOrigenId = null, Guid? UbicacionDestinoId = null, DateOnly? Fecha = null, string? Lote = null);
 public sealed record UbicacionDefectoComando(Guid ProductoId, Guid AlmacenId, Guid UbicacionId, Guid? ProveedorId = null);
 
@@ -239,11 +249,12 @@ public sealed class MovimientosInventario
     private readonly IReloj _reloj;
     private readonly IRepositorioAlmacenes? _almacenes;
     private readonly IAvisoExistencias? _aviso;
+    private readonly IRepositorioLotes? _lotes;
 
     public MovimientosInventario(IRepositorioExistencias existencias, IRepositorioMovimientos movimientos, IUnidadDeTrabajoInventario unidad, IReloj reloj,
-        IRepositorioAlmacenes? almacenes = null, IAvisoExistencias? aviso = null)
+        IRepositorioAlmacenes? almacenes = null, IAvisoExistencias? aviso = null, IRepositorioLotes? lotes = null)
     {
-        _existencias = existencias; _movimientos = movimientos; _unidad = unidad; _reloj = reloj; _almacenes = almacenes; _aviso = aviso;
+        _existencias = existencias; _movimientos = movimientos; _unidad = unidad; _reloj = reloj; _almacenes = almacenes; _aviso = aviso; _lotes = lotes;
     }
 
     private Task AvisarAsync(Guid empresaId, Guid productoId, CancellationToken ct) =>
@@ -323,6 +334,26 @@ public sealed class MovimientosInventario
         if (c.Cantidad <= 0m)
         {
             return Resultado.Fallo<ExistenciaDto>(Error.Validacion("inventario.cantidad_invalida", "La cantidad debe ser mayor que cero."));
+        }
+
+        // La entrada de un lote con caducidad la anota en el lote (la última manda).
+        if (c.FechaCaducidad is { } caducidad && !string.IsNullOrWhiteSpace(c.Lote) && _lotes is not null)
+        {
+            var lote = await _lotes.ObtenerAsync(empresaId, c.ProductoId, c.Lote.Trim(), ct).ConfigureAwait(false);
+            if (lote is null)
+            {
+                var nuevo = LoteArticulo.Crear(empresaId, c.ProductoId, c.Lote, caducidad, null, null);
+                if (nuevo.EsFallo)
+                {
+                    return Resultado.Fallo<ExistenciaDto>(nuevo.Error);
+                }
+
+                _lotes.Agregar(nuevo.Valor);
+            }
+            else
+            {
+                lote.Fijar(caducidad, lote.FechaFabricacion, lote.Observaciones);
+            }
         }
 
         var e = await ObtenerOCrearAsync(empresaId, c.ProductoId, c.AlmacenId, c.UbicacionId, c.Lote, ct).ConfigureAwait(false);
@@ -437,22 +468,105 @@ public sealed class TrazabilidadLote
 {
     private readonly IRepositorioExistencias _existencias;
     private readonly IRepositorioMovimientos _movimientos;
+    private readonly IRepositorioLotes? _lotes;
 
-    public TrazabilidadLote(IRepositorioExistencias existencias, IRepositorioMovimientos movimientos)
+    public TrazabilidadLote(IRepositorioExistencias existencias, IRepositorioMovimientos movimientos, IRepositorioLotes? lotes = null)
     {
-        _existencias = existencias; _movimientos = movimientos;
+        _existencias = existencias; _movimientos = movimientos; _lotes = lotes;
     }
 
     public async Task<TrazabilidadDto> ConsultarAsync(Guid empresaId, Guid productoId, string lote, CancellationToken ct = default)
     {
         var existencias = await _existencias.ListarPorLoteAsync(empresaId, productoId, lote, ct).ConfigureAwait(false);
         var movimientos = await _movimientos.ListarPorLoteAsync(empresaId, productoId, lote, ct).ConfigureAwait(false);
-        return new TrazabilidadDto(lote, existencias, movimientos);
+        var datos = _lotes is null ? null : await _lotes.ObtenerAsync(empresaId, productoId, lote, ct).ConfigureAwait(false);
+        return new TrazabilidadDto(lote, existencias, movimientos, datos?.FechaCaducidad);
     }
 }
 
 /// <summary>Resultado de una consulta de trazabilidad: existencias actuales del lote y su historial.</summary>
-public sealed record TrazabilidadDto(string Lote, IReadOnlyList<ExistenciaDto> Existencias, IReadOnlyList<MovimientoDto> Movimientos);
+public sealed record TrazabilidadDto(string Lote, IReadOnlyList<ExistenciaDto> Existencias, IReadOnlyList<MovimientoDto> Movimientos, DateOnly? FechaCaducidad = null);
+
+public sealed record LoteDto(Guid Id, Guid ProductoId, string Codigo, DateOnly? FechaCaducidad, DateOnly? FechaFabricacion, string? Observaciones, decimal Existencias = 0m);
+
+public sealed record DatosLote(Guid ProductoId, string? Codigo, DateOnly? FechaCaducidad, DateOnly? FechaFabricacion = null, string? Observaciones = null);
+
+/// <summary>Lotes de los artículos con sus fechas: caducidad, lotes que caducan pronto con existencias.</summary>
+public sealed class LotesArticulos
+{
+    private readonly IRepositorioLotes _lotes;
+    private readonly IRepositorioExistencias _existencias;
+    private readonly IUnidadDeTrabajoInventario _unidad;
+
+    public LotesArticulos(IRepositorioLotes lotes, IRepositorioExistencias existencias, IUnidadDeTrabajoInventario unidad)
+    {
+        _lotes = lotes;
+        _existencias = existencias;
+        _unidad = unidad;
+    }
+
+    public async Task<IReadOnlyList<LoteDto>> ListarAsync(Guid empresaId, Guid? productoId, CancellationToken ct = default)
+    {
+        var lista = new List<LoteDto>();
+        foreach (var l in await _lotes.ListarAsync(empresaId, productoId, ct).ConfigureAwait(false))
+        {
+            lista.Add(await DtoAsync(l, ct).ConfigureAwait(false));
+        }
+
+        return lista;
+    }
+
+    /// <summary>Lotes con existencias que caducan hasta esa fecha (incluidos los ya caducados).</summary>
+    public async Task<IReadOnlyList<LoteDto>> CaducanAsync(Guid empresaId, DateOnly hasta, CancellationToken ct = default) =>
+        (await ListarAsync(empresaId, null, ct).ConfigureAwait(false)).Where(l => l.FechaCaducidad is { } c && c <= hasta && l.Existencias > 0m)
+            .OrderBy(l => l.FechaCaducidad).ToList();
+
+    public Task<LoteArticulo?> ObtenerAsync(Guid empresaId, Guid productoId, string lote, CancellationToken ct = default) =>
+        _lotes.ObtenerAsync(empresaId, productoId, lote.Trim(), ct);
+
+    /// <summary>Da de alta el lote o cambia sus fechas (el código identifica el lote del artículo).</summary>
+    public async Task<Resultado<LoteDto>> FijarAsync(Guid empresaId, DatosLote d, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(d);
+        var l = string.IsNullOrWhiteSpace(d.Codigo) ? null : await _lotes.ObtenerAsync(empresaId, d.ProductoId, d.Codigo.Trim(), ct).ConfigureAwait(false);
+        if (l is null)
+        {
+            var nuevo = LoteArticulo.Crear(empresaId, d.ProductoId, d.Codigo, d.FechaCaducidad, d.FechaFabricacion, d.Observaciones);
+            if (nuevo.EsFallo)
+            {
+                return Resultado.Fallo<LoteDto>(nuevo.Error);
+            }
+
+            l = nuevo.Valor;
+            _lotes.Agregar(l);
+        }
+        else if (l.Fijar(d.FechaCaducidad, d.FechaFabricacion, d.Observaciones) is { EsFallo: true } r)
+        {
+            return Resultado.Fallo<LoteDto>(r.Error);
+        }
+
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(await DtoAsync(l, ct).ConfigureAwait(false));
+    }
+
+    /// <summary>Quita las fechas de un lote (las existencias y los movimientos siguen con su código).</summary>
+    public async Task<Resultado> EliminarAsync(Guid id, CancellationToken ct = default)
+    {
+        var l = await _lotes.ObtenerAsync(id, ct).ConfigureAwait(false);
+        if (l is null)
+        {
+            return Resultado.Fallo(Error.NoEncontrado("lote.no_encontrado", "El lote no existe."));
+        }
+
+        _lotes.Eliminar(l);
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok();
+    }
+
+    private async Task<LoteDto> DtoAsync(LoteArticulo l, CancellationToken ct) =>
+        new(l.Id, l.ProductoId, l.Codigo, l.FechaCaducidad, l.FechaFabricacion, l.Observaciones,
+            (await _existencias.ListarPorLoteAsync(l.EmpresaId, l.ProductoId, l.Codigo, ct).ConfigureAwait(false)).Sum(e => e.Cantidad));
+}
 
 /// <summary>Línea del informe de valoración de existencias.</summary>
 public sealed record ValoracionLineaDto(Guid ProductoId, string Nombre, decimal Cantidad, decimal CosteUnitario, decimal Valor);
