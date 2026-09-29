@@ -44,7 +44,15 @@ public abstract class DbContextBase : DbContext, IUnidadDeTrabajo
         {
             if (_transaccionPropia is not null)
             {
-                await _transaccionPropia.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+                try
+                {
+                    await _transaccionPropia.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+                }
+                catch (InvalidOperationException)
+                {
+                    // El commit falló (p. ej. una garantía diferida de la base de datos) y la transacción ya terminó:
+                    // no hay nada que deshacer, y lo que importa es la excepción original.
+                }
             }
 
             throw;

@@ -17,9 +17,9 @@ public sealed record LineaRecepcionDto(
 public sealed record RecepcionDto(
     Guid Id, string? Numero, DateOnly Fecha, Guid AgricultorId, string? AgricultorNombre, Guid CampanaId, string? Matricula, string? Conductor,
     string? Observaciones, string Estado, string? MotivoAnulacion, decimal NetoKg, IReadOnlyList<LineaRecepcionDto> Lineas, IReadOnlyList<PesadaDto> Pesadas,
-    IReadOnlyList<EnvasePesadaDto> EnvasesPesadas, IReadOnlyList<PaleEntradaDto> PalesEntrada)
+    IReadOnlyList<EnvasePesadaDto> EnvasesPesadas, IReadOnlyList<PaleEntradaDto> PalesEntrada, IReadOnlyList<RectificacionDto> Rectificaciones)
 {
-    public static RecepcionDto De(Recepcion r, string? agricultor) => new(
+    public static RecepcionDto De(Recepcion r, string? agricultor, IReadOnlyList<RectificacionRecepcion>? rectificaciones = null) => new(
         r.Id, r.NumeroCompleto, r.Fecha, r.AgricultorId, agricultor, r.CampanaId, r.Matricula, r.Conductor, r.Observaciones, r.Estado.ToString(),
         r.MotivoAnulacion, r.NetoKg,
         r.Lineas.OrderBy(l => l.NumeroLinea).Select(l => new LineaRecepcionDto(l.Id, l.NumeroLinea, l.ProductoId, l.ProductoNombre, l.ParcelaId,
@@ -29,7 +29,9 @@ public sealed record RecepcionDto(
             p.TaraEnvasesKg)).ToList(),
         r.EnvasesPesadas.Select(e => new EnvasePesadaDto(e.Id, e.PesadaId, e.EnvaseProductoId, e.Cantidad, e.TaraUnitariaKg, e.TaraKg, e.TaraEnvaseId)).ToList(),
         r.PalesEntrada.OrderBy(p => p.LineaId).ThenBy(p => p.Numero).Select(p => new PaleEntradaDto(p.Id, p.LineaId, p.Numero, p.SerieOrigen, p.EnvaseProductoId, p.Envases,
-            p.KilosNetos, p.PaleId, p.KilosAsignados)).ToList());
+            p.KilosNetos, p.PaleId, p.KilosAsignados)).ToList(),
+        (rectificaciones ?? []).OrderBy(x => x.CreadaEn).Select(x => new RectificacionDto(x.Id, x.LineaRecepcionId, x.PartidaId, x.Fecha, x.NetoAnteriorKg, x.DiferenciaKg,
+            x.NetoNuevoKg, x.KilosLiquidacion, x.BrutoKg, x.TaraKg, x.Motivo, x.UsuarioId, x.CreadaEn)).ToList());
 }
 
 public sealed record RecepcionResumenDto(Guid Id, string? Numero, DateOnly Fecha, Guid AgricultorId, string? AgricultorNombre, string Estado, int Lineas, decimal NetoKg);
@@ -62,6 +64,13 @@ public sealed record DatosPesada(decimal BrutoKg, decimal TaraKg = 0m, int Envas
 public sealed record DatosPaleEntrada(string? SerieOrigen = null, Guid? EnvaseProductoId = null, int Envases = 0, decimal? KilosNetos = null);
 
 public sealed record DatosKilosLiquidacion(decimal? Kilos, string? Motivo);
+
+/// <summary>Rectificación de una línea confirmada: el neto real correcto y/o los kilos de liquidación nuevos, con motivo (y la nueva pesada, si la hay).</summary>
+public sealed record DatosRectificacion(string? Motivo, decimal? NetoKg = null, decimal? KilosLiquidacion = null, decimal? BrutoKg = null, decimal? TaraKg = null,
+    DateOnly? Fecha = null);
+
+public sealed record RectificacionDto(Guid Id, Guid LineaRecepcionId, Guid PartidaId, DateOnly Fecha, decimal NetoAnteriorKg, decimal DiferenciaKg, decimal NetoNuevoKg,
+    decimal? KilosLiquidacion, decimal? BrutoKg, decimal? TaraKg, string Motivo, Guid? UsuarioId, DateTimeOffset CreadaEn);
 
 public sealed record EnvasePesadaDto(Guid Id, Guid PesadaId, Guid EnvaseProductoId, int Cantidad, decimal TaraUnitariaKg, decimal TaraKg, Guid? TaraEnvaseId);
 
@@ -109,7 +118,96 @@ public sealed class RecepcionesAgro
     public async Task<RecepcionDto?> ObtenerAsync(Guid id, CancellationToken ct = default)
     {
         var r = await _repo.RecepcionAsync(id, ct).ConfigureAwait(false);
-        return r is null ? null : RecepcionDto.De(r, (await _repo.AgricultorAsync(r.AgricultorId, ct).ConfigureAwait(false))?.Nombre);
+        return r is null ? null : await DtoAsync(r, ct).ConfigureAwait(false);
+    }
+
+    private async Task<RecepcionDto> DtoAsync(Recepcion r, CancellationToken ct) =>
+        RecepcionDto.De(r, (await _repo.AgricultorAsync(r.AgricultorId, ct).ConfigureAwait(false))?.Nombre,
+            await _repo.RectificacionesAsync(r.Lineas.Select(l => l.Id).ToList(), ct).ConfigureAwait(false));
+
+    /// <summary>
+    /// Rectifica una línea ya confirmada (aunque sus kilos ya se hayan confeccionado o vendido): corrige su neto real con un
+    /// movimiento compensatorio sobre la misma partida (y sus palés de entrada) y/o sus kilos de liquidación. No se toca
+    /// la recepción ni sus pesadas originales. Si la entrega está en una liquidación viva, antes hay que anularla.
+    /// </summary>
+    public async Task<Resultado<RecepcionDto>> RectificarAsync(Guid recepcionId, Guid lineaId, DatosRectificacion d, Guid? usuarioId, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(d);
+        var r = await _repo.RecepcionAsync(recepcionId, ct).ConfigureAwait(false);
+        if (r is null)
+        {
+            return NoEncontrada<RecepcionDto>();
+        }
+
+        var linea = r.Lineas.FirstOrDefault(l => l.Id == lineaId);
+        if (r.Estado != EstadoRecepcion.Confirmada || linea?.PartidaId is not { } partidaId)
+        {
+            return Resultado.Fallo<RecepcionDto>(Error.Conflicto("rectificacion.no_confirmada",
+                "Solo se rectifica una línea de una recepción confirmada (un borrador se corrige directamente)."));
+        }
+
+        var partida = await _repo.PartidaAsync(partidaId, ct).ConfigureAwait(false);
+        if (partida is null || partida.Anulada)
+        {
+            return Resultado.Fallo<RecepcionDto>(Error.Conflicto("rectificacion.partida_anulada", "La partida de la línea está anulada."));
+        }
+
+        if ((await _repo.LineasEnLiquidacionAsync([lineaId], ct).ConfigureAwait(false)).Count > 0)
+        {
+            return Resultado.Fallo<RecepcionDto>(Error.Conflicto("rectificacion.liquidada",
+                "La entrega está en una liquidación: anúlala (o elimínala si es un borrador), rectifica y vuelve a liquidar."));
+        }
+
+        await _unidad.BloquearAsync($"alxor.agro.rectificacion:{partidaId}", ct).ConfigureAwait(false);
+        var previas = await _repo.RectificacionesAsync([lineaId], ct).ConfigureAwait(false);
+        var netoActual = (linea.NetoKg ?? 0m) + previas.Sum(x => x.DiferenciaKg);
+        var fecha = d.Fecha ?? DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
+        var rect = RectificacionRecepcion.Crear(r.EmpresaId, r.Id, lineaId, partidaId, fecha, netoActual, d.NetoKg, d.KilosLiquidacion, d.BrutoKg, d.TaraKg, d.Motivo, usuarioId,
+            _reloj.AhoraUtc);
+        if (rect.EsFallo)
+        {
+            return Resultado.Fallo<RecepcionDto>(rect.Error);
+        }
+
+        var diferencia = rect.Valor.DiferenciaKg;
+        if (diferencia != 0m)
+        {
+            // Sobre los palés de entrada (en proporción a lo que queda en cada uno) o, si no hay, sobre los kilos sueltos.
+            var saldos = (await _repo.SaldosAsync([partidaId], ct).ConfigureAwait(false)).Where(x => x.Kilos > 0m).ToList();
+            var pales = r.PalesEntrada.Where(p => p.LineaId == lineaId && p.PaleId is not null).Select(p => p.PaleId!.Value).ToHashSet();
+            var destinos = pales.Count == 0
+                ? [(PaleId: (Guid?)null, Kilos: saldos.Where(x => x.PaleId is null).Sum(x => x.Kilos))]
+                : saldos.Where(x => x.PaleId is { } pid && pales.Contains(pid)).Select(x => (PaleId: x.PaleId, x.Kilos)).ToList();
+            if (diferencia > 0m && destinos.All(x => x.Kilos <= 0m))
+            {
+                destinos = [(null, 0m)]; // los palés ya salieron: lo que faltaba entra suelto
+            }
+
+            var disponible = destinos.Sum(x => x.Kilos);
+            if (diferencia < 0m && -diferencia > disponible)
+            {
+                return Resultado.Fallo<RecepcionDto>(Error.Conflicto("rectificacion.sin_saldo",
+                    $"De la partida {partida.Codigo} quedan {Redondeo.Formatear(disponible, 3)} kg en almacén y se quitan {Redondeo.Formatear(-diferencia, 3)}: " +
+                    "el resto ya se confeccionó o se vendió. Rectifica lo que queda y regulariza la diferencia en el parte o la expedición que lo usó."));
+            }
+
+            var resto = diferencia;
+            for (var i = 0; i < destinos.Count; i++)
+            {
+                var kilos = i == destinos.Count - 1 ? resto
+                    : Math.Round(disponible == 0m ? diferencia / destinos.Count : diferencia * destinos[i].Kilos / disponible, 3, MidpointRounding.AwayFromZero);
+                resto -= kilos;
+                if (kilos != 0m)
+                {
+                    _repo.Agregar(MovimientoPartida.Crear(r.EmpresaId, partidaId, fecha, TipoMovimientoPartida.Rectificacion, kilos, destinos[i].PaleId, "Rectificacion",
+                        rect.Valor.Id, $"Rectificación de {r.NumeroCompleto} línea {linea.NumeroLinea}", _reloj).Valor);
+                }
+            }
+        }
+
+        _repo.Agregar(rect.Valor);
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(await DtoAsync(r, ct).ConfigureAwait(false));
     }
 
     public async Task<Resultado<RecepcionDto>> CrearAsync(Guid empresaId, DatosRecepcion datos, CancellationToken ct = default)
@@ -620,7 +718,7 @@ public sealed class RecepcionesAgro
         }
 
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
-        return Resultado.Ok(RecepcionDto.De(r, (await _repo.AgricultorAsync(r.AgricultorId, ct).ConfigureAwait(false))?.Nombre));
+        return Resultado.Ok(await DtoAsync(r, ct).ConfigureAwait(false));
     }
 
     private static Resultado<T> NoEncontrada<T>() => Resultado.Fallo<T>(Error.NoEncontrado("recepcion.no_encontrada", "La recepción no existe."));

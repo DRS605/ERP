@@ -466,6 +466,56 @@ pactada. Se indican al crear la línea o con `PUT .../kilos-liquidacion`, siempr
 - La liquidación usa los kilos de liquidación si se fijaron y, si no, el neto. La base de datos lo comprueba al
   cuadrar la liquidación.
 
+## Rectificación de una recepción confirmada
+
+Una recepción confirmada **no se borra ni se rehace**. Si ya se ha confeccionado o vendido, se rectifica
+(`POST /agro/recepciones/{id}/lineas/{lineaId}/rectificar`), siempre con **motivo**:
+
+- **Qué se puede cambiar:**
+  - el neto correcto (o una nueva pesada con bruto y tara, que debe dar ese neto);
+  - los kilos de liquidación.
+- **Cómo se registra.** La diferencia es un movimiento `Rectificacion` sobre la **misma partida**, así que la traza
+  hacia confección y ventas no se rompe.
+  - Si la línea tiene palés de entrada, la diferencia se reparte entre los que aún tienen kilos.
+  - Si no los tiene o están vacíos, va a los kilos sueltos.
+  - Queda guardado el neto anterior, la diferencia, el usuario y la fecha. La rectificación es de solo inserción: para
+    deshacerla se rectifica en sentido contrario.
+- **Cuándo no se puede rectificar:**
+  - Si la entrega está en una liquidación viva (`rectificacion.liquidada`): hay que anular antes la liquidación.
+  - Si se quitan más kilos de los que quedan en la partida (`rectificacion.sin_saldo`).
+- **Liquidación.** Se liquida por los últimos kilos de liquidación rectificados; si no hay, por los de la línea; y si
+  tampoco, por el neto más las rectificaciones.
+- **Interfaz.** Cada línea confirmada tiene el botón **Rectificar**, y la recepción muestra la lista de sus
+  rectificaciones.
+
+## Balance de masas en la confección
+
+- **Tolerancia de merma.** En la configuración se fija la merma máxima sin aprobación, en % de lo consumido
+  (`toleranciaMermaPct`; vacía, sin límite).
+  - Un parte que la supera no se valida (`parte.merma_excesiva`) hasta que alguien **aprueba la merma** con motivo
+    (`POST /agro/partes/{id}/aprobar-merma`). Queda registrado quién, cuándo, por qué y qué porcentaje aprobó.
+  - Si el parte cambia y la merma sube por encima de lo aprobado, hay que volver a aprobarla.
+  - Por ahora puede aprobar cualquier usuario con `agro.gestionar`. El permiso propio llegará con los roles.
+- **Transformaciones permitidas** (`/agro/transformaciones`). Indican qué producto puede salir de cuál, con una merma
+  máxima opcional.
+  - Si un producto consumido tiene transformaciones, solo puede salir de él lo que dicen
+    (`parte.transformacion_no_permitida`).
+  - La merma máxima de la regla se aplica si es más estricta que la general.
+  - Un producto sin transformaciones no se limita.
+- La base de datos vuelve a comprobar la tolerancia al validar el parte.
+
+## Repaletizado
+
+`POST /agro/repaletizados` pasa palés enteros, o los kilos de una partida de un palé, a otro palé (uno abierto o uno
+nuevo), **sin cambiar de partida**.
+
+- Sirve para palés rotos o para unir picos. Se puede hacer desde palés cerrados y de entrada.
+- Queda registrado el origen y el destino de cada línea, los kilos, el motivo y el usuario. Es de solo inserción.
+- El palé de destino puede cerrarse al terminar.
+- La base de datos exige que lo que sale de los orígenes entre en el destino, y que cada movimiento de repaletizado
+  tenga su documento.
+- La lista de repaletizados, por palé, se consulta en `GET /agro/repaletizados?paleId=`.
+
 ## Certificaciones (ecológico, GlobalG.A.P., GRASP)
 
 La certificación viaja con la partida desde la finca hasta el cliente.

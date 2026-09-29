@@ -101,6 +101,8 @@ public static class ReferenciasRegistros
                 ("agro.plantilla_pale.pale_producto_id", "plantillas de palé (como palé)"),
                 ("agro.declaracion_articulo.producto_id", "declaración de certificación del artículo"),
                 ("agro.tara_envase.envase_producto_id", "taras de envases"),
+                ("agro.regla_transformacion.producto_origen_id", "transformaciones permitidas (como origen)"),
+                ("agro.regla_transformacion.producto_destino_id", "transformaciones permitidas (como destino)"),
                 ("agro.pesada_envase.envase_producto_id", "pesadas (envases contados)"),
                 ("agro.pale_entrada.envase_producto_id", "palés de entrada de recepciones"),
                 ("logistica.ficha_logistica.producto_id", "ficha logística"),

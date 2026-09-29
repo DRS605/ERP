@@ -41,7 +41,8 @@ public sealed record ParteDto(
     Guid Id, string? Numero, DateOnly Fecha, Guid? CampanaId, string? Descripcion, Guid? CentroAnaliticoId, decimal PorcentajeIndirectos, string Reparto,
     string Estado, decimal KilosConsumidos, decimal KilosObtenidos, decimal Merma, decimal CosteFruta, decimal CosteMateriales, decimal CosteManoObra,
     decimal CosteMaquinaria, decimal CosteIndirectos, decimal CosteTotal, IReadOnlyList<ConsumoDto> Consumos, IReadOnlyList<ManoObraDto> ManoObra,
-    IReadOnlyList<MaquinaDto> Maquinas, IReadOnlyList<MaterialDto> Materiales, IReadOnlyList<SalidaDto> Salidas, IReadOnlyList<ErrorDto> Errores);
+    IReadOnlyList<MaquinaDto> Maquinas, IReadOnlyList<MaterialDto> Materiales, IReadOnlyList<SalidaDto> Salidas, IReadOnlyList<ErrorDto> Errores,
+    decimal PorcentajeMerma = 0m, string? MermaAprobadaPor = null, string? MotivoMerma = null, decimal? MermaAprobadaPct = null);
 
 public sealed record ParteResumenDto(Guid Id, string? Numero, DateOnly Fecha, string? Descripcion, string Estado, decimal KilosConsumidos, decimal KilosObtenidos, decimal CosteTotal);
 
@@ -330,6 +331,67 @@ public sealed class ConfeccionAgro
 
     /// <summary>Valora el parte y comprueba partidas, saldos y palés. Devuelve todos los errores.</summary>
     /// <summary>
+    /// Balance de masas y reglas de transformación:
+    /// <list type="bullet">
+    /// <item>si un producto consumido tiene reglas, cada salida tiene que ser uno de sus destinos permitidos;</item>
+    /// <item>la merma (lo consumido que no sale) no pasa de la tolerancia: la de la regla más estricta que se aplica o, si no
+    /// hay, la general de la configuración. Por encima, hace falta aprobarla con motivo.</item>
+    /// </list>
+    /// </summary>
+    private async Task<IReadOnlyList<Error>> BalanceAsync(ParteConfeccion parte, IEnumerable<Partida> consumidas, CancellationToken ct)
+    {
+        var errores = new List<Error>();
+        var reglas = await _repo.ReglasTransformacionAsync(parte.EmpresaId, ct).ConfigureAwait(false);
+        var origenes = consumidas.Select(p => p.ProductoId).Distinct().ToList();
+        var aplicadas = new List<ReglaTransformacion>();
+        foreach (var origen in origenes.Where(o => reglas.Any(r => r.ProductoOrigenId == o)))
+        {
+            foreach (var s in parte.Salidas)
+            {
+                var regla = reglas.FirstOrDefault(r => r.ProductoOrigenId == origen && r.ProductoDestinoId == s.ProductoId);
+                if (regla is null)
+                {
+                    var nombre = (await _productos.ObtenerAsync(origen, ct).ConfigureAwait(false))?.Nombre ?? "el producto consumido";
+                    errores.Add(Error.Conflicto("parte.transformacion_no_permitida", $"De {nombre} no puede salir «{s.Nombre}»: no está entre sus transformaciones permitidas."));
+                }
+                else
+                {
+                    aplicadas.Add(regla);
+                }
+            }
+        }
+
+        var config = await _repo.ConfiguracionAsync(parte.EmpresaId, ct).ConfigureAwait(false);
+        var tolerancia = aplicadas.Where(r => r.MermaMaximaPct is not null).Select(r => r.MermaMaximaPct).Min() ?? config?.ToleranciaMermaPct;
+        if (tolerancia is { } maximo && parte.PorcentajeMerma > maximo && !parte.MermaAprobada)
+        {
+            errores.Add(Error.Conflicto("parte.merma_excesiva",
+                $"La merma es del {parte.PorcentajeMerma:0.##} % ({Redondeo.Formatear(parte.Merma, 3)} kg) y el máximo es {maximo:0.##} %: revisa los kilos o apruébala con motivo."));
+        }
+
+        return errores;
+    }
+
+    /// <summary>Aprueba la merma del borrador por encima de la tolerancia (quién y por qué).</summary>
+    public async Task<Resultado<ParteDto>> AprobarMermaAsync(Guid id, string? motivo, Guid? usuarioId, string? usuario, CancellationToken ct = default)
+    {
+        var parte = await _repo.ParteAsync(id, ct).ConfigureAwait(false);
+        if (parte is null)
+        {
+            return NoEncontrado<ParteDto>();
+        }
+
+        var r = parte.AprobarMerma(usuarioId, usuario, motivo, _reloj.AhoraUtc);
+        if (r.EsFallo)
+        {
+            return Resultado.Fallo<ParteDto>(r.Error);
+        }
+
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok(await DtoAsync(parte, [], ct).ConfigureAwait(false));
+    }
+
+    /// <summary>
     /// Certificaciones de cada salida: las comunes a las partidas consumidas (ecológico con convencional da convencional),
     /// ajustadas a lo que declara el artículo que sale (ver <see cref="ReglasCertificacion.Aplicar"/>).
     /// </summary>
@@ -373,6 +435,8 @@ public sealed class ConfeccionAgro
                 errores.Add(Error.Conflicto("parte.saldo_insuficiente", $"La partida {p.Codigo} solo tiene {Redondeo.Formatear(disponible, 3)} kg {(g.Key.PaleId is null ? "sueltos" : "en ese palé")} y se consumen {Redondeo.Formatear(pedido, 3)}."));
             }
         }
+
+        errores.AddRange(await BalanceAsync(parte, partidas.Values, ct).ConfigureAwait(false));
 
         foreach (var c in await CertificacionesSalidasAsync(parte, partidas.Values, ct).ConfigureAwait(false))
         {
@@ -428,7 +492,7 @@ public sealed class ConfeccionAgro
             p.Materiales.Select(m => new MaterialDto(m.ProductoId, m.Nombre, m.Cantidad, m.CosteUnitario, m.Coste)).ToList(),
             p.Salidas.OrderBy(s => s.NumeroLinea).Select(s => new SalidaDto(s.NumeroLinea, s.ProductoId, s.Nombre, s.Kilos, s.Factor, s.Calibre, s.CategoriaId, s.PaleId,
                 s.PartidaId, s.Coste, s.CosteKg, s.Cajas, s.EnvaseProductoId, s.SegundosTeoricos, s.CosteConfeccion, s.MotivoDescalificacion)).ToList(),
-            errores.Select(e => new ErrorDto(e.Codigo, e.Mensaje)).ToList());
+            errores.Select(e => new ErrorDto(e.Codigo, e.Mensaje)).ToList(), p.PorcentajeMerma, p.MermaAprobadaPor, p.MotivoMerma, p.MermaAprobadaPct);
     }
 
     private static Resultado<T> NoEncontrado<T>() => Resultado.Fallo<T>(Error.NoEncontrado("parte.no_encontrado", "El parte no existe."));

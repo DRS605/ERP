@@ -37,6 +37,13 @@ public sealed class TrazabilidadRobustaTests : IClassFixture<FabricaApiPruebas>
         List<EnvasePesadaResp> EnvasesPesadas, List<PaleEntradaResp> PalesEntrada);
     private sealed record TaraResp(Guid Id, decimal TaraKg, DateOnly Desde, DateOnly? Hasta, bool Usada);
     private sealed record LiquidacionResp(Guid Id, decimal Kilos, decimal Bruto);
+    private sealed record RectificacionResp(decimal NetoAnteriorKg, decimal DiferenciaKg, decimal NetoNuevoKg, string Motivo, Guid? UsuarioId);
+    private sealed record RecepcionRectificadaResp(Guid Id, string Estado, List<LineaCompletaResp> Lineas, List<RectificacionResp> Rectificaciones);
+    private sealed record OrigenResp(string? Agricultor, decimal Kilos);
+    private sealed record TrazaResp(List<OrigenResp> Origenes);
+    private sealed record ParteMermaResp(Guid Id, string Estado, decimal PorcentajeMerma, string? MermaAprobadaPor, string? MotivoMerma, List<ErrorResp> Errores);
+    private sealed record RepaletizadoResp(Guid Id, Guid DestinoPaleId, string? DestinoSscc, decimal Kilos, List<LineaRepaletizadoResp> Lineas);
+    private sealed record LineaRepaletizadoResp(Guid OrigenPaleId, Guid PartidaId, decimal Kilos);
 
     private static readonly int Anio = DateTime.UtcNow.Year;
     private static readonly DateOnly Dia = new(Anio, 1, 10);
@@ -432,5 +439,124 @@ public sealed class TrazabilidadRobustaTests : IClassFixture<FabricaApiPruebas>
         var anulada = await OkAsync<RecepcionCompletaResp>(await e.Api.PostAsJsonAsync($"/agro/recepciones/{rec}/anular", new { Motivo = "Recepción duplicada" }));
         anulada.Estado.Should().Be("Anulada");
         (await e.Api.GetFromJsonAsync<List<PaleResp>>("/agro/pales"))!.Where(p => confirmada.PalesEntrada.Any(x => x.PaleId == p.Id)).Should().OnlyContain(p => p.Kilos == 0m);
+    }
+
+    [Fact]
+    public async Task Fallo1_una_recepcion_ya_vendida_se_rectifica_sobre_la_misma_partida_sin_recrearla()
+    {
+        var e = await EscenarioAsync();
+        var rec = await BorradorAsync(e, e.Pimiento, Dia);
+        var r = await OkAsync<RecepcionCompletaResp>(await ConfirmarAsync(e, rec));
+        var linea = r.Lineas.Single().Id;
+        var partida = r.Lineas.Single().PartidaId!.Value;
+
+        // Se vende parte: palé de 3.000 kg expedido.
+        var pale = await OkAsync<PaleResp>(await e.Api.PostAsJsonAsync("/agro/pales", new { }));
+        await OkAsync<PaleResp>(await e.Api.PostAsJsonAsync($"/agro/pales/{pale.Id}/paletizar", new { PartidaId = partida, Kilos = 3_000m, Fecha = Dia.AddDays(1) }));
+        (await e.Api.PostAsync(new Uri($"/agro/pales/{pale.Id}/cerrar", UriKind.Relative), null)).EnsureSuccessStatusCode();
+        await OkAsync<List<PaleResp>>(await e.Api.PostAsJsonAsync("/agro/expediciones", new { PaleIds = new[] { pale.Id }, Fecha = Dia.AddDays(2), Referencia = "ALB-9" }));
+
+        // Rehacerla es imposible: no se anula (ya se usó) ni se tocan sus líneas en la base de datos.
+        (await ProblemaAsync(await e.Api.PostAsJsonAsync($"/agro/recepciones/{rec}/anular", new { Motivo = "Rehacer" }))).Codigo.Should().Be("recepcion.partidas_usadas");
+        (await RechazoAsync(e.Empresa, $"DELETE FROM agro.linea_recepcion WHERE id = '{linea}'")).Hint.Should().Be("recepcion.confirmada");
+        (await RechazoAsync(e.Empresa, $"DELETE FROM agro.partida WHERE id = '{partida}'")).Hint.Should().Be("partida.inmutable");
+
+        // La báscula pesó de menos: se rectifica el neto (10.000 → 10.500) sobre la misma partida, con motivo.
+        (await ProblemaAsync(await e.Api.PostAsJsonAsync($"/agro/recepciones/{rec}/lineas/{linea}/rectificar", new { NetoKg = 10_500m }))).Codigo.Should().Be("rectificacion.motivo");
+        (await ProblemaAsync(await e.Api.PostAsJsonAsync($"/agro/recepciones/{rec}/lineas/{linea}/rectificar",
+            new { NetoKg = 10_500m, BrutoKg = 12_000m, TaraKg = 2_000m, Motivo = "Báscula descalibrada" }))).Codigo.Should().Be("rectificacion.pesada");
+        var rect = await OkAsync<RecepcionRectificadaResp>(await e.Api.PostAsJsonAsync($"/agro/recepciones/{rec}/lineas/{linea}/rectificar",
+            new { NetoKg = 10_500m, BrutoKg = 12_500m, TaraKg = 2_000m, Motivo = "Báscula descalibrada: repesado el 12/01", Fecha = Dia.AddDays(2) }));
+        rect.Estado.Should().Be("Confirmada");
+        rect.Lineas.Single().PartidaId.Should().Be(partida, "la partida (y lo ya vendido) no cambia");
+        rect.Rectificaciones.Single().Should().Match<RectificacionResp>(x => x.NetoAnteriorKg == 10_000m && x.DiferenciaKg == 500m && x.NetoNuevoKg == 10_500m
+            && x.UsuarioId != null);
+        (await PartidaAsync(e, partida)).Saldo.Should().Be(7_500m);
+
+        // La traza del palé vendido sigue llegando a la finca.
+        (await e.Api.GetFromJsonAsync<TrazaResp>($"/agro/trazabilidad/atras?sscc={pale.Sscc}"))!.Origenes.Should().ContainSingle(o => o.Agricultor == "Finca La Vega");
+
+        // No se quita más de lo que queda: lo vendido no se «desvende».
+        (await ProblemaAsync(await e.Api.PostAsJsonAsync($"/agro/recepciones/{rec}/lineas/{linea}/rectificar", new { NetoKg = 2_000m, Motivo = "Error" })))
+            .Codigo.Should().Be("rectificacion.sin_saldo");
+
+        // La liquidación va por el neto rectificado; con la entrega liquidada ya no se rectifica sin anular antes la liquidación.
+        (await e.Api.PutAsJsonAsync($"/agro/agricultores/{e.Agricultor}", new { ProveedorId = await ProveedorAsync(e), Regimen = "Reagp", AutofacturacionDesde = new DateOnly(Anio, 1, 1) }))
+            .EnsureSuccessStatusCode();
+        (await e.Api.PutAsJsonAsync($"/agro/campanas/{e.Campana}/articulos", new { ProductoId = e.Pimiento, Metodo = "PorPeriodo" })).EnsureSuccessStatusCode();
+        await IdAsync(e.Api, $"/agro/campanas/{e.Campana}/precios", new { ProductoId = e.Pimiento, Desde = new DateOnly(Anio, 1, 1), Hasta = new DateOnly(Anio, 1, 31), PrecioKg = 0.30m });
+        var liq = await OkAsync<LiquidacionResp>(await e.Api.PostAsJsonAsync("/agro/liquidaciones",
+            new { AgricultorId = e.Agricultor, CampanaId = e.Campana, Desde = new DateOnly(Anio, 1, 1), Hasta = new DateOnly(Anio, 1, 31), Fecha = new DateOnly(Anio, 1, 31) }));
+        liq.Kilos.Should().Be(10_500m);
+        (await ProblemaAsync(await e.Api.PostAsJsonAsync($"/agro/recepciones/{rec}/lineas/{linea}/rectificar", new { NetoKg = 10_400m, Motivo = "Otra" })))
+            .Codigo.Should().Be("rectificacion.liquidada");
+
+        // En la base de datos: la rectificación no se borra, y no hay movimientos de rectificación sin su documento.
+        (await RechazoAsync(e.Empresa, $"DELETE FROM agro.rectificacion_recepcion WHERE linea_recepcion_id = '{linea}'")).Hint.Should().Be("rectificacion.inmutable");
+        (await RechazoAsync(e.Empresa, $"""
+            INSERT INTO agro.movimiento_partida (id, empresa_id, partida_id, fecha, tipo, kilos, documento_tipo, documento_id, creado_en)
+            VALUES (gen_random_uuid(), '{e.Empresa}', '{partida}', '{Dia.AddDays(3):yyyy-MM-dd}', 'Rectificacion', 100, 'Rectificacion', gen_random_uuid(), now())
+            """)).Hint.Should().Be("rectificacion.sin_documento");
+    }
+
+    [Fact]
+    public async Task La_merma_por_encima_de_la_tolerancia_necesita_aprobacion_y_las_transformaciones_se_limitan()
+    {
+        var e = await EscenarioAsync();
+        (await e.Api.PutAsJsonAsync("/agro/configuracion", new { PrefijoGs1 = "8400000", DigitoExtension = 0, ToleranciaMermaPct = 10m })).EnsureSuccessStatusCode();
+        var partida = await RecibirAsync(e, e.Pimiento, Dia);
+
+        // 15 % de merma: no se valida sin aprobar.
+        var parte = await ParteAsync(e, Dia.AddDays(1), [new { PartidaId = partida, Kilos = 1_000m }], [new { ProductoId = e.Pimiento, Kilos = 850m }]);
+        (await ProblemaAsync(await ValidarAsync(e, parte.Id))).Codigo.Should().Be("parte.merma_excesiva");
+        (await ProblemaAsync(await e.Api.PostAsJsonAsync($"/agro/partes/{parte.Id}/aprobar-merma", new { }))).Codigo.Should().Be("parte.motivo_merma");
+        var aprobado = await OkAsync<ParteMermaResp>(await e.Api.PostAsJsonAsync($"/agro/partes/{parte.Id}/aprobar-merma", new { Motivo = "Podrido por la lluvia" }));
+        aprobado.Should().Match<ParteMermaResp>(p => p.PorcentajeMerma == 15m && p.MotivoMerma == "Podrido por la lluvia" && p.MermaAprobadaPor != null);
+        await OkAsync<ParteResp>(await ValidarAsync(e, parte.Id));
+
+        // Con reglas: del pimiento solo sale pimiento, y con un 5 % de merma como mucho (más estricto que el 10 % general).
+        await IdAsync(e.Api, "/agro/transformaciones", new { ProductoOrigenId = e.Pimiento, ProductoDestinoId = e.Pimiento, MermaMaximaPct = 5m });
+        var otro = await ParteAsync(e, Dia.AddDays(1), [new { PartidaId = partida, Kilos = 1_000m }], [new { ProductoId = e.PimientoEco, Kilos = 990m }]);
+        (await ProblemaAsync(await ValidarAsync(e, otro.Id))).Codigo.Should().Be("parte.transformacion_no_permitida");
+        var ocho = await ParteAsync(e, Dia.AddDays(1), [new { PartidaId = partida, Kilos = 1_000m }], [new { ProductoId = e.Pimiento, Kilos = 920m }]);
+        (await ProblemaAsync(await ValidarAsync(e, ocho.Id))).Codigo.Should().Be("parte.merma_excesiva");
+        var bien = await ParteAsync(e, Dia.AddDays(1), [new { PartidaId = partida, Kilos = 1_000m }], [new { ProductoId = e.Pimiento, Kilos = 960m }]);
+        await OkAsync<ParteResp>(await ValidarAsync(e, bien.Id));
+    }
+
+    [Fact]
+    public async Task El_repaletizado_pasa_kilos_entre_pales_en_una_operacion_registrada_que_conserva_la_traza()
+    {
+        var e = await EscenarioAsync();
+        var partida = await RecibirAsync(e, e.Pimiento, Dia);
+        var a = await OkAsync<PaleResp>(await e.Api.PostAsJsonAsync("/agro/pales", new { }));
+        var b = await OkAsync<PaleResp>(await e.Api.PostAsJsonAsync("/agro/pales", new { }));
+        await OkAsync<PaleResp>(await e.Api.PostAsJsonAsync($"/agro/pales/{a.Id}/paletizar", new { PartidaId = partida, Kilos = 600m, Fecha = Dia }));
+        await OkAsync<PaleResp>(await e.Api.PostAsJsonAsync($"/agro/pales/{b.Id}/paletizar", new { PartidaId = partida, Kilos = 400m, Fecha = Dia }));
+        (await e.Api.PostAsync(new Uri($"/agro/pales/{a.Id}/cerrar", UriKind.Relative), null)).EnsureSuccessStatusCode();
+
+        // A (cerrado) entero y 150 kg de B, a un palé nuevo que se cierra.
+        (await ProblemaAsync(await e.Api.PostAsJsonAsync("/agro/repaletizados", new { Lineas = new object[] { new { OrigenPaleId = b.Id, Kilos = 150m } } })))
+            .Codigo.Should().Be("repaletizado.kilos");
+        var rep = await OkAsync<RepaletizadoResp>(await e.Api.PostAsJsonAsync("/agro/repaletizados", new
+        {
+            Fecha = Dia.AddDays(1), Motivo = "Palés rotos", CerrarDestino = true,
+            Lineas = new object[] { new { OrigenPaleId = a.Id }, new { OrigenPaleId = b.Id, PartidaId = partida, Kilos = 150m } },
+        }));
+        rep.Kilos.Should().Be(750m);
+        rep.Lineas.Should().HaveCount(2);
+        var pales = (await e.Api.GetFromJsonAsync<List<PaleResp>>("/agro/pales"))!;
+        pales.Single(p => p.Id == a.Id).Kilos.Should().Be(0m);
+        pales.Single(p => p.Id == b.Id).Kilos.Should().Be(250m);
+        pales.Single(p => p.Id == rep.DestinoPaleId).Should().Match<PaleResp>(p => p.Kilos == 750m && p.Estado == "Cerrado");
+        (await e.Api.GetFromJsonAsync<List<RepaletizadoResp>>($"/agro/repaletizados?paleId={a.Id}"))!.Should().ContainSingle(x => x.Id == rep.Id);
+        (await e.Api.GetFromJsonAsync<TrazaResp>($"/agro/trazabilidad/atras?sscc={rep.DestinoSscc}"))!.Origenes.Should().ContainSingle(o => o.Agricultor == "Finca La Vega");
+
+        // Ni se modifica ni se hacen movimientos de repaletizado sin su documento.
+        (await RechazoAsync(e.Empresa, $"UPDATE agro.linea_repaletizado SET kilos = 1 WHERE repaletizado_id = '{rep.Id}'")).Hint.Should().Be("repaletizado.inmutable");
+        (await RechazoAsync(e.Empresa, $"""
+            INSERT INTO agro.movimiento_partida (id, empresa_id, partida_id, fecha, tipo, kilos, pale_id, documento_tipo, documento_id, creado_en)
+            VALUES (gen_random_uuid(), '{e.Empresa}', '{partida}', '{Dia.AddDays(2):yyyy-MM-dd}', 'Paletizado', -10, '{b.Id}', 'Repaletizado', gen_random_uuid(), now())
+            """)).Hint.Should().Be("repaletizado.sin_documento");
     }
 }

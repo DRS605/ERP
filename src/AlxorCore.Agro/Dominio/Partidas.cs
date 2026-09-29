@@ -157,6 +157,9 @@ public enum TipoMovimientoPartida
 
     /// <summary>Inversión de otro movimiento al anular la recepción o el parte de confección que lo creó.</summary>
     Anulacion = 6,
+
+    /// <summary>Corrección del neto de una recepción ya confirmada (rectificación), sobre la misma partida y sus palés.</summary>
+    Rectificacion = 7,
 }
 
 /// <summary>
@@ -634,6 +637,23 @@ public sealed class ConfiguracionAgro : RaizAgregadoEmpresa<Guid>
 
     /// <summary>Los envases retornables se mueven en el inventario: lo entregado a terceros sale del almacén y lo recogido entra.</summary>
     public bool ReflejarEnvasesEnInventario { get; private set; }
+
+    /// <summary>
+    /// Merma máxima admitida en la confección (% de lo consumido que no sale como producto ni destrío). Por encima, el parte
+    /// no se valida sin una aprobación con motivo. Sin valor, no hay límite general (puede haberlo por regla).
+    /// </summary>
+    public decimal? ToleranciaMermaPct { get; private set; }
+
+    public Resultado FijarToleranciaMerma(decimal? porcentaje)
+    {
+        if (porcentaje is < 0m or > 100m)
+        {
+            return Resultado.Fallo(Error.Validacion("agro.tolerancia_merma", "La tolerancia de merma va de 0 a 100 %."));
+        }
+
+        ToleranciaMermaPct = porcentaje;
+        return Resultado.Ok();
+    }
 
     public void FijarInventario(bool partidas, bool envases)
     {

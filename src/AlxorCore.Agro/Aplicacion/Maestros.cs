@@ -54,7 +54,8 @@ public sealed record TarifaDto(Guid Id, string Recurso, string Categoria, string
     public static TarifaDto De(TarifaCoste t) => new(t.Id, t.Recurso.ToString(), t.Categoria, t.TipoHora.ToString(), t.Desde, t.Hasta, t.CosteUnitario);
 }
 
-public sealed record ConfiguracionAgroDto(string PrefijoGs1, int DigitoExtension, bool? ReflejarPartidasEnInventario = null, bool? ReflejarEnvasesEnInventario = null);
+public sealed record ConfiguracionAgroDto(string PrefijoGs1, int DigitoExtension, bool? ReflejarPartidasEnInventario = null, bool? ReflejarEnvasesEnInventario = null,
+    decimal? ToleranciaMermaPct = null);
 
 public sealed record DatosCampana(string? Codigo, string? Nombre, DateOnly Desde, DateOnly Hasta);
 
@@ -772,7 +773,7 @@ public sealed class MaestrosAgro
     {
         var c = await _repo.ConfiguracionAsync(empresaId, ct).ConfigureAwait(false);
         return c is null ? new ConfiguracionAgroDto(ConfiguracionAgro.PrefijoPruebas, 0, false, false)
-            : new ConfiguracionAgroDto(c.PrefijoGs1, c.DigitoExtension, c.ReflejarPartidasEnInventario, c.ReflejarEnvasesEnInventario);
+            : new ConfiguracionAgroDto(c.PrefijoGs1, c.DigitoExtension, c.ReflejarPartidasEnInventario, c.ReflejarEnvasesEnInventario, c.ToleranciaMermaPct);
     }
 
     public async Task<Resultado<ConfiguracionAgroDto>> ActualizarConfiguracionAsync(Guid empresaId, ConfiguracionAgroDto datos, CancellationToken ct = default)
@@ -792,7 +793,13 @@ public sealed class MaestrosAgro
         }
 
         c.FijarInventario(datos.ReflejarPartidasEnInventario ?? c.ReflejarPartidasEnInventario, datos.ReflejarEnvasesEnInventario ?? c.ReflejarEnvasesEnInventario);
+        var tolerancia = c.FijarToleranciaMerma(datos.ToleranciaMermaPct);
+        if (tolerancia.EsFallo)
+        {
+            return Resultado.Fallo<ConfiguracionAgroDto>(tolerancia.Error);
+        }
+
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
-        return Resultado.Ok(new ConfiguracionAgroDto(c.PrefijoGs1, c.DigitoExtension, c.ReflejarPartidasEnInventario, c.ReflejarEnvasesEnInventario));
+        return Resultado.Ok(new ConfiguracionAgroDto(c.PrefijoGs1, c.DigitoExtension, c.ReflejarPartidasEnInventario, c.ReflejarEnvasesEnInventario, c.ToleranciaMermaPct));
     }
 }

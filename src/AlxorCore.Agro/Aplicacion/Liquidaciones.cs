@@ -412,11 +412,12 @@ public sealed class LiquidacionesAgro
         var candidatas = recepciones.SelectMany(r => r.Lineas.Select(l => (r, l))).ToList();
         var ocupadas = await _repo.LineasEnLiquidacionAsync(candidatas.Select(x => x.l.Id).ToList(), ct).ConfigureAwait(false);
         var propias = propia?.Lineas.Select(x => x.LineaRecepcionId).ToHashSet() ?? [];
+        var rectificaciones = await _repo.RectificacionesAsync(candidatas.Select(x => x.l.Id).ToList(), ct).ConfigureAwait(false);
         return candidatas
             .Where(x => !ocupadas.Contains(x.l.Id) || propias.Contains(x.l.Id))
             .OrderBy(x => x.r.Fecha).ThenBy(x => x.r.Numero).ThenBy(x => x.l.NumeroLinea)
             .Select(x => new LineaALiquidar(x.l.Id, x.r.Id, x.l.PartidaId!.Value, $"{x.r.NumeroCompleto} línea {x.l.NumeroLinea} ({x.l.ProductoNombre})",
-                x.l.ProductoId, x.r.Fecha, x.l.KilosALiquidar ?? 0m, x.l.EnvaseProductoId, x.l.Envases ?? 0))
+                x.l.ProductoId, x.r.Fecha, RectificacionRecepcion.KilosALiquidar(x.l, rectificaciones), x.l.EnvaseProductoId, x.l.Envases ?? 0))
             .ToList();
     }
 

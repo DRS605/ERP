@@ -354,6 +354,10 @@ public static class EndpointsAgro
         g.MapPost("/recepciones/{id:guid}/lineas/{lineaId:guid}/pesadas", async (Guid id, Guid lineaId, DatosPesada d, RecepcionesAgro r, CancellationToken ct) =>
                 (await r.AgregarPesadaAsync(id, lineaId, d, ct).ConfigureAwait(false)).AOk())
             .WithSummary("Añade una pesada de báscula (bruto, tara, envases).").RequierePermiso(Permisos.AgroGestionar);
+        g.MapPost("/recepciones/{id:guid}/lineas/{lineaId:guid}/rectificar", async (Guid id, Guid lineaId, DatosRectificacion d, HttpContext http, RecepcionesAgro r,
+                CancellationToken ct) => (await r.RectificarAsync(id, lineaId, d, http.User.ObtenerUsuarioId(), ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Rectifica una línea confirmada (neto real y/o kilos de liquidación) sobre la misma partida, con motivo; no se borra ni se rehace nada.")
+            .RequierePermiso(Permisos.AgroGestionar);
         g.MapPost("/recepciones/{id:guid}/lineas/{lineaId:guid}/pales", async (Guid id, Guid lineaId, DatosPaleEntrada d, RecepcionesAgro r, CancellationToken ct) =>
                 (await r.AgregarPaleEntradaAsync(id, lineaId, d, ct).ConfigureAwait(false)).AOk())
             .WithSummary("Registra un palé o palot que llega en la línea (serie de su etiqueta, envases reales, kilos si se pesó solo).").RequierePermiso(Permisos.AgroGestionar);
@@ -438,6 +442,28 @@ public static class EndpointsAgro
             .WithSummary("Elimina un borrador.").RequierePermiso(Permisos.AgroGestionar);
         g.MapPost("/partes/{id:guid}/valorar", async (Guid id, ConfeccionAgro p, CancellationToken ct) => (await p.ValorarAsync(id, ct).ConfigureAwait(false)).AOk())
             .WithSummary("Valora sin validar: costes y reparto entre salidas, o todos los errores.").RequierePermiso(Permisos.AgroLeer);
+        g.MapPost("/partes/{id:guid}/aprobar-merma", async (Guid id, EndpointsLogistica.PeticionMotivo m, HttpContext http, ConfeccionAgro p, CancellationToken ct) =>
+            {
+                var yo = http.User.ObtenerIdentidad();
+                return (await p.AprobarMermaAsync(id, m?.Motivo, yo?.Id, string.IsNullOrWhiteSpace(yo?.Nombre) ? yo?.Email : yo.Nombre, ct).ConfigureAwait(false)).AOk();
+            })
+            .WithSummary("Aprueba (con motivo, a nombre del usuario) una merma por encima de la tolerancia en un parte en borrador.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapGet("/transformaciones", (IContextoEmpresa c, TransformacionesAgro t, CancellationToken ct) => ConEmpresa(c, async e => Results.Ok(await t.ReglasAsync(e, ct).ConfigureAwait(false))))
+            .WithSummary("Qué producto puede salir de cuál en la confección, con su merma máxima.").RequierePermiso(Permisos.AgroLeer);
+        g.MapPost("/transformaciones", (DatosReglaTransformacion d, IContextoEmpresa c, TransformacionesAgro t, CancellationToken ct) =>
+                ConEmpresa(c, async e => Creado(await t.CrearReglaAsync(e, d, ct).ConfigureAwait(false), "transformaciones")))
+            .WithSummary("Permite una transformación (producto de origen → producto de destino) con su merma máxima.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapPut("/transformaciones/{id:guid}", async (Guid id, DatosReglaTransformacion d, TransformacionesAgro t, CancellationToken ct) =>
+                (await t.CambiarReglaAsync(id, d, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Cambia la merma máxima de una transformación.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapDelete("/transformaciones/{id:guid}", async (Guid id, TransformacionesAgro t, CancellationToken ct) => (await t.EliminarReglaAsync(id, ct).ConfigureAwait(false)).ASinContenido())
+            .WithSummary("Quita una transformación permitida.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapGet("/repaletizados", (Guid? paleId, IContextoEmpresa c, TransformacionesAgro t, CancellationToken ct) =>
+                ConEmpresa(c, async e => Results.Ok(await t.RepaletizadosAsync(e, paleId, ct).ConfigureAwait(false))))
+            .WithSummary("Repaletizados (de todos o de un palé): qué pasó de qué palé a cuál.").RequierePermiso(Permisos.AgroLeer);
+        g.MapPost("/repaletizados", (DatosRepaletizado d, HttpContext http, IContextoEmpresa c, TransformacionesAgro t, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await t.RepaletizarAsync(e, d, http.User.ObtenerUsuarioId(), ct).ConfigureAwait(false)).AOk()))
+            .WithSummary("Pasa kilos (o palés enteros) de unos palés a otro, sin cambiar de partida, en una operación registrada.").RequierePermiso(Permisos.AgroGestionar);
         g.MapPost("/partes/{id:guid}/validar", (Guid id, IContextoEmpresa c, ConfeccionAgro p, CancellationToken ct) => ConEmpresa(c, async e => (await p.ValidarAsync(e, id, ct).ConfigureAwait(false)).AOk()))
             .WithSummary("Valida: consume las partidas, crea las de salida con su coste y registra la genealogía.").RequierePermiso(Permisos.AgroGestionar);
         g.MapPost("/partes/{id:guid}/anular", async (Guid id, ConfeccionAgro p, CancellationToken ct) => (await p.AnularAsync(id, ct).ConfigureAwait(false)).AOk())

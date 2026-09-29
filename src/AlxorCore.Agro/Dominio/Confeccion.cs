@@ -118,6 +118,44 @@ public sealed class ParteConfeccion : RaizAgregadoEmpresa<Guid>
     /// <summary>Merma: kilos consumidos que no salen como producto (ni como destrío).</summary>
     public decimal Merma => KilosConsumidos - KilosObtenidos;
 
+    /// <summary>Merma en % de lo consumido.</summary>
+    public decimal PorcentajeMerma => KilosConsumidos == 0m ? 0m : decimal.Round(Merma * 100m / KilosConsumidos, 2);
+
+    /// <summary>Quién aprobó una merma por encima de la tolerancia, y por qué.</summary>
+    public Guid? MermaAprobadaPorId { get; private set; }
+
+    public string? MermaAprobadaPor { get; private set; }
+
+    public string? MotivoMerma { get; private set; }
+
+    public DateTimeOffset? MermaAprobadaEn { get; private set; }
+
+    /// <summary>Merma (en %) que se aprobó: si el parte cambia y la merma sube, la aprobación ya no vale.</summary>
+    public decimal? MermaAprobadaPct { get; private set; }
+
+    public bool MermaAprobada => MermaAprobadaPct is { } a && PorcentajeMerma <= a;
+
+    /// <summary>Aprueba la merma actual del borrador (por encima de la tolerancia), con motivo.</summary>
+    public Resultado AprobarMerma(Guid? usuarioId, string? usuario, string? motivo, DateTimeOffset ahora)
+    {
+        if (Estado != EstadoParte.Borrador)
+        {
+            return Resultado.Fallo(Error.Conflicto("parte.no_borrador", "El parte ya está validado o anulado."));
+        }
+
+        if (string.IsNullOrWhiteSpace(motivo))
+        {
+            return Resultado.Fallo(Error.Validacion("parte.motivo_merma", "Indica el motivo de la merma (destrío en campo, podrido, calibre…)."));
+        }
+
+        MermaAprobadaPorId = usuarioId;
+        MermaAprobadaPor = string.IsNullOrWhiteSpace(usuario) ? null : usuario.Trim().Length > 150 ? usuario.Trim()[..150] : usuario.Trim();
+        MotivoMerma = motivo.Trim().Length > 300 ? motivo.Trim()[..300] : motivo.Trim();
+        MermaAprobadaEn = ahora;
+        MermaAprobadaPct = PorcentajeMerma;
+        return Resultado.Ok();
+    }
+
     public static ParteConfeccion Crear(Guid empresaId, DateOnly fecha, IReloj reloj)
     {
         ArgumentNullException.ThrowIfNull(reloj);

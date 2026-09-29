@@ -22,6 +22,9 @@ public sealed class AgroDbContext : DbContextEmpresaBase, IUnidadDeTrabajoAgro
 
     /// <summary>Tablas raíz del módulo (las líneas caen en cascada con su cabecera).</summary>
     private const string SqlBorradoEmpresa = """
+        DELETE FROM agro.rectificacion_recepcion WHERE empresa_id = {0};
+        DELETE FROM agro.repaletizado WHERE empresa_id = {0};
+        DELETE FROM agro.regla_transformacion WHERE empresa_id = {0};
         DELETE FROM agro.descalificacion_partida WHERE empresa_id = {0};
         DELETE FROM agro.tara_envase WHERE empresa_id = {0};
         DELETE FROM agro.certificado_agro WHERE empresa_id = {0};
@@ -234,6 +237,7 @@ internal sealed class ConfiguracionAjustes : IEntityTypeConfiguration<Configurac
         b.Property(x => x.ReflejarPartidasEnInventario).HasColumnName("reflejar_partidas_inventario").IsRequired();
         b.Property(x => x.ReflejarEnvasesEnInventario).HasColumnName("reflejar_envases_inventario").IsRequired();
         b.Property(x => x.DigitoExtension).HasColumnName("digito_extension").IsRequired();
+        b.Property(x => x.ToleranciaMermaPct).HasColumnName("tolerancia_merma_pct").HasColumnType("numeric(5,2)");
         b.HasIndex(x => x.EmpresaId).IsUnique().HasDatabaseName("ux_configuracion_empresa");
     }
 }
@@ -349,6 +353,75 @@ internal sealed class ConfiguracionRecepcion : IEntityTypeConfiguration<Recepcio
         b.Navigation(x => x.Pesadas).UsePropertyAccessMode(PropertyAccessMode.Field);
         b.Navigation(x => x.EnvasesPesadas).UsePropertyAccessMode(PropertyAccessMode.Field);
         b.Navigation(x => x.PalesEntrada).UsePropertyAccessMode(PropertyAccessMode.Field);
+    }
+}
+
+internal sealed class ConfiguracionRectificacion : IEntityTypeConfiguration<RectificacionRecepcion>
+{
+    public void Configure(EntityTypeBuilder<RectificacionRecepcion> b)
+    {
+        Columnas.Base(b, "rectificacion_recepcion");
+        b.Property(x => x.RecepcionId).HasColumnName("recepcion_id").IsRequired();
+        b.Property(x => x.LineaRecepcionId).HasColumnName("linea_recepcion_id").IsRequired();
+        b.Property(x => x.PartidaId).HasColumnName("partida_id").IsRequired();
+        b.Property(x => x.Fecha).HasColumnName("fecha").IsRequired();
+        b.Property(x => x.NetoAnteriorKg).HasColumnName("neto_anterior_kg").HasColumnType(Columnas.Kilos).IsRequired();
+        b.Property(x => x.DiferenciaKg).HasColumnName("diferencia_kg").HasColumnType(Columnas.Kilos).IsRequired();
+        b.Property(x => x.KilosLiquidacion).HasColumnName("kilos_liquidacion").HasColumnType(Columnas.Kilos);
+        b.Property(x => x.BrutoKg).HasColumnName("bruto_kg").HasColumnType(Columnas.Kilos);
+        b.Property(x => x.TaraKg).HasColumnName("tara_kg").HasColumnType(Columnas.Kilos);
+        b.Property(x => x.Motivo).HasColumnName("motivo").HasMaxLength(300).IsRequired();
+        b.Property(x => x.UsuarioId).HasColumnName("usuario_id");
+        b.Property(x => x.CreadaEn).HasColumnName("creada_en").IsRequired();
+        b.Ignore(x => x.NetoNuevoKg);
+        b.HasIndex(x => x.RecepcionId).HasDatabaseName("ix_rectificacion_recepcion_recepcion");
+        b.HasIndex(x => x.LineaRecepcionId).HasDatabaseName("ix_rectificacion_recepcion_linea");
+        b.HasIndex(x => x.PartidaId).HasDatabaseName("ix_rectificacion_recepcion_partida");
+        b.HasIndex(x => x.UsuarioId).HasDatabaseName("ix_rectificacion_recepcion_usuario");
+    }
+}
+
+internal sealed class ConfiguracionReglaTransformacion : IEntityTypeConfiguration<ReglaTransformacion>
+{
+    public void Configure(EntityTypeBuilder<ReglaTransformacion> b)
+    {
+        Columnas.Base(b, "regla_transformacion");
+        b.Property(x => x.ProductoOrigenId).HasColumnName("producto_origen_id").IsRequired();
+        b.Property(x => x.ProductoDestinoId).HasColumnName("producto_destino_id").IsRequired();
+        b.Property(x => x.MermaMaximaPct).HasColumnName("merma_maxima_pct").HasColumnType("numeric(5,2)");
+        b.HasIndex(x => new { x.EmpresaId, x.ProductoOrigenId, x.ProductoDestinoId }).IsUnique().HasDatabaseName("ux_regla_transformacion");
+        b.HasIndex(x => x.ProductoOrigenId).HasDatabaseName("ix_regla_transformacion_origen");
+        b.HasIndex(x => x.ProductoDestinoId).HasDatabaseName("ix_regla_transformacion_destino");
+    }
+}
+
+internal sealed class ConfiguracionRepaletizado : IEntityTypeConfiguration<Repaletizado>
+{
+    public void Configure(EntityTypeBuilder<Repaletizado> b)
+    {
+        Columnas.Base(b, "repaletizado");
+        b.Property(x => x.Fecha).HasColumnName("fecha").IsRequired();
+        b.Property(x => x.DestinoPaleId).HasColumnName("destino_pale_id").IsRequired();
+        b.Property(x => x.Motivo).HasColumnName("motivo").HasMaxLength(300);
+        b.Property(x => x.UsuarioId).HasColumnName("usuario_id");
+        b.Property(x => x.CreadoEn).HasColumnName("creado_en").IsRequired();
+        b.Ignore(x => x.Kilos);
+        b.HasIndex(x => x.DestinoPaleId).HasDatabaseName("ix_repaletizado_destino");
+        b.HasIndex(x => x.UsuarioId).HasDatabaseName("ix_repaletizado_usuario");
+        b.OwnsMany(x => x.Lineas, l =>
+        {
+            l.ToTable("linea_repaletizado");
+            l.WithOwner().HasForeignKey("repaletizado_id");
+            l.HasKey(x => x.Id);
+            l.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+            l.Property(x => x.OrigenPaleId).HasColumnName("origen_pale_id").IsRequired();
+            l.Property(x => x.PartidaId).HasColumnName("partida_id").IsRequired();
+            l.Property(x => x.Kilos).HasColumnName("kilos").HasColumnType(Columnas.Kilos).IsRequired();
+            l.Property(x => x.Cajas).HasColumnName("cajas").IsRequired();
+            l.HasIndex(x => x.OrigenPaleId).HasDatabaseName("ix_linea_repaletizado_origen");
+            l.HasIndex(x => x.PartidaId).HasDatabaseName("ix_linea_repaletizado_partida");
+        });
+        b.Navigation(x => x.Lineas).UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }
 
@@ -820,6 +893,14 @@ internal sealed class ConfiguracionParte : IEntityTypeConfiguration<ParteConfecc
 
         b.Property(x => x.CreadoEn).HasColumnName("creado_en").IsRequired();
         b.Property(x => x.ValidadoEn).HasColumnName("validado_en");
+        b.Property(x => x.MermaAprobadaPorId).HasColumnName("merma_aprobada_por_id");
+        b.Property(x => x.MermaAprobadaPor).HasColumnName("merma_aprobada_por").HasMaxLength(150);
+        b.Property(x => x.MotivoMerma).HasColumnName("motivo_merma").HasMaxLength(300);
+        b.Property(x => x.MermaAprobadaEn).HasColumnName("merma_aprobada_en");
+        b.Property(x => x.MermaAprobadaPct).HasColumnName("merma_aprobada_pct").HasColumnType("numeric(7,2)");
+        b.Ignore(x => x.PorcentajeMerma);
+        b.Ignore(x => x.MermaAprobada);
+        b.HasIndex(x => x.MermaAprobadaPorId).HasDatabaseName("ix_parte_confeccion_aprobador");
         b.Ignore(x => x.NumeroCompleto);
         b.Ignore(x => x.KilosConsumidos);
         b.Ignore(x => x.KilosObtenidos);
@@ -1018,6 +1099,18 @@ internal sealed class RepositorioAgro : IRepositorioAgro
         await _ctx.Set<Parcela>().Where(x => x.EmpresaId == empresaId && (agricultorId == null || x.AgricultorId == agricultorId)).ToListAsync(ct).ConfigureAwait(false);
 
     public Task<Parcela?> ParcelaAsync(Guid id, CancellationToken ct = default) => _ctx.Set<Parcela>().SingleOrDefaultAsync(x => x.Id == id, ct);
+
+    public async Task<IReadOnlyList<RectificacionRecepcion>> RectificacionesAsync(IReadOnlyCollection<Guid> lineaRecepcionIds, CancellationToken ct = default) =>
+        await _ctx.Set<RectificacionRecepcion>().Where(r => lineaRecepcionIds.Contains(r.LineaRecepcionId)).OrderBy(r => r.CreadaEn).ToListAsync(ct).ConfigureAwait(false);
+
+    public async Task<IReadOnlyList<ReglaTransformacion>> ReglasTransformacionAsync(Guid empresaId, CancellationToken ct = default) =>
+        await _ctx.Set<ReglaTransformacion>().Where(r => r.EmpresaId == empresaId).ToListAsync(ct).ConfigureAwait(false);
+
+    public Task<ReglaTransformacion?> ReglaTransformacionAsync(Guid id, CancellationToken ct = default) => _ctx.Set<ReglaTransformacion>().SingleOrDefaultAsync(x => x.Id == id, ct);
+
+    public async Task<IReadOnlyList<Repaletizado>> RepaletizadosAsync(Guid empresaId, Guid? paleId, CancellationToken ct = default) =>
+        await _ctx.Set<Repaletizado>().Where(r => r.EmpresaId == empresaId && (paleId == null || r.DestinoPaleId == paleId || r.Lineas.Any(l => l.OrigenPaleId == paleId)))
+            .OrderByDescending(r => r.CreadoEn).Take(500).ToListAsync(ct).ConfigureAwait(false);
 
     public async Task<IReadOnlyList<TaraEnvase>> TarasAsync(Guid empresaId, Guid? envaseProductoId, CancellationToken ct = default) =>
         await _ctx.Set<TaraEnvase>().Where(t => t.EmpresaId == empresaId && (envaseProductoId == null || t.EnvaseProductoId == envaseProductoId))
