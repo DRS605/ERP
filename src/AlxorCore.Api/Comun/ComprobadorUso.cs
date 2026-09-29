@@ -51,6 +51,7 @@ public static class ReferenciasRegistros
                 ("recepcion.factura_recibida.proveedor_id", "facturas recibidas"),
                 ("compras.pedido_compra.proveedor_id", "pedidos de compra"),
                 ("agro.agricultor.proveedor_id", "ficha de agricultor"),
+                ("cooperativa.socio.proveedor_id", "ficha de socio de la cooperativa"),
                 ("tesoreria.entrega_cuenta_proveedor.proveedor_id", "entregas a cuenta"),
                 ("tesoreria.liquidacion_pagos.proveedor_id", "liquidaciones de pagos"),
                 ("agro.cuenta_envases.tercero_id", "cuenta de envases"),

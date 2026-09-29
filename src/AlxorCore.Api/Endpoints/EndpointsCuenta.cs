@@ -91,6 +91,7 @@ public static class EndpointsCuenta
         OrganizacionDbContext organizacion,
         AlxorCore.Agro.Infraestructura.AgroDbContext agro,
         AlxorCore.Logistica.Infraestructura.LogisticaDbContext logistica,
+        AlxorCore.Cooperativa.Infraestructura.CooperativaDbContext cooperativa,
         AlxorCore.Migracion.Infraestructura.MigracionDbContext migracion,
         AlxorCore.Analisis.Infraestructura.AnalisisDbContext analisis,
         CancellationToken ct)
@@ -126,6 +127,7 @@ public static class EndpointsCuenta
         }, ct).ConfigureAwait(false);
         await BorradoEmpresa.EjecutarAsync(agro, id, () => agro.BorrarEmpresaAsync(id, ct), ct).ConfigureAwait(false);
         await BorradoEmpresa.EjecutarAsync(logistica, id, () => logistica.BorrarEmpresaAsync(id, ct), ct).ConfigureAwait(false);
+        await BorradoEmpresa.EjecutarAsync(cooperativa, id, () => cooperativa.BorrarEmpresaAsync(id, ct), ct).ConfigureAwait(false);
 
         // Los maestros de Terceros son del grupo (compartidos): se borran por grupo.
         var grupo = contexto.GrupoId ?? Guid.Empty;

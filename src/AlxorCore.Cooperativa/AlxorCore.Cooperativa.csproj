@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AlxorCore.Cooperativa</RootNamespace>
+    <AssemblyName>AlxorCore.Cooperativa</AssemblyName>
+  </PropertyGroup>
+
+  <!-- Cooperativas y SAT: socios, capital social, reparto de excedentes con retorno cooperativo, libros y actas. La
+       actividad de cada socio (lo entregado) y los asientos llegan por puertos: no depende de agro ni de contabilidad. -->
+  <ItemGroup>
+    <ProjectReference Include="..\AlxorCore.Nucleo\AlxorCore.Nucleo.csproj" />
+    <ProjectReference Include="..\AlxorCore.Terceros\AlxorCore.Terceros.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -41,6 +41,7 @@ public static class CatalogoModulos
     public const string Integraciones = "integraciones";
     public const string Agro = "agro";
     public const string Logistica = "logistica";
+    public const string Cooperativa = "cooperativa";
 
     public const string EdicionStart = "start";
     public const string EdicionGestion = "gestion";
@@ -70,6 +71,9 @@ public static class CatalogoModulos
             + "(por caducidad) o desde fabricación, etiqueta GS1 y lectura con pistola o móvil.", [Inventario]),
         new(Agro, "Agro (hortofrutícola)", "Recepción de fruta con pesadas y envases, partidas, clasificación, liquidación al agricultor con autofactura (REAGP), "
             + "confección con coste por kilo, palés SSCC, expedición y trazabilidad del campo al cliente.", [], Vertical: true),
+        new(Cooperativa, "Cooperativas y SAT", "Socios, capital social (suscripciones, desembolsos, reembolsos con deducción y transmisiones), reparto del excedente "
+            + "con fondos obligatorios, intereses y retorno cooperativo por actividad (o por capital en una SAT), retenciones, libros registro de socios y "
+            + "de aportaciones y libros de actas.", [], Vertical: true),
     ];
 
     public static IReadOnlyList<EdicionAlxor> Ediciones { get; } =

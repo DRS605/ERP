@@ -44,6 +44,7 @@ generalista no debe ver menús de otro sector. Se contratan aparte (por ejemplo,
 | Aprobaciones | `aprobaciones` | — |
 | Integraciones (API pública y webhooks) | `integraciones` | — |
 | **Agro** (sectorial): recepción de fruta, liquidación al agricultor, confección, palés SSCC, trazabilidad — [agro.md](agro.md) | `agro` | — |
+| **Cooperativas y SAT** (sectorial): socios, capital social, reparto del excedente con retorno cooperativo, retenciones, libros registro y actas — [cooperativa.md](cooperativa.md) | `cooperativa` | — |
 
 Un plan al que le falta una dependencia se **rechaza** (no se añade sola, porque es de pago):
 *"Producción necesita Inventario."*

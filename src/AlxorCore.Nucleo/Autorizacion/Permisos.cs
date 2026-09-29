@@ -65,6 +65,10 @@ public static class Permisos
     public const string AgroCampo = "agro.campo";
     public const string AgroPlanificar = "agro.planificar";
 
+    // Cooperativas y SAT (socios, capital, repartos y libros)
+    public const string CooperativaLeer = "cooperativa.leer";
+    public const string CooperativaGestionar = "cooperativa.gestionar";
+
     // Terceros y catálogo
     public const string ClienteGestionar = "cliente.gestionar";
     public const string ProductoGestionar = "producto.gestionar";
@@ -104,6 +108,7 @@ public static class Permisos
         PersonalLeer, PersonalGestionar,
         ProyectoLeer, ProyectoGestionar,
         AgroLeer, AgroGestionar, AgroLiquidar, AgroCorregir, AgroRecepcionar, AgroConfeccionar, AgroExpedir, AgroCalidad, AgroCampo, AgroPlanificar,
+        CooperativaLeer, CooperativaGestionar,
         ClienteGestionar, ProductoGestionar,
         InformeLeer, DatosExportar,
         AprobacionConfigurar, AprobacionAprobar,

@@ -112,6 +112,7 @@ Para no amontonar funciones en una misma pantalla:
   - Ventas: Comercial / Posventa / Facturación.
   - Tesorería: Cobros / Pagos / Bancos.
   - Agro: Almacén / Campo y calidad / Campaña.
+  - Cooperativa (módulo aparte): Socios / Capital social / Excedentes y retornos / Libros y actas (con pestañas) / Ajustes.
 - **Pestañas dentro de la pantalla.** `pestanas(clave, [[título, html], …])` reparte en pestañas las áreas de una
   pantalla. Las áreas vacías no se muestran, y si solo queda una se pinta sin pestañas. La pestaña elegida se recuerda
   por pantalla en `localStorage`, con la clave `alxor.pestana.<clave>`.

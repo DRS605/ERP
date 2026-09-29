@@ -43,6 +43,7 @@ public static class RutasModulos
             ("/api/v1", CatalogoModulos.Integraciones),
             ("/agro", CatalogoModulos.Agro),
             ("/logistica", CatalogoModulos.Logistica),
+            ("/cooperativa", CatalogoModulos.Cooperativa),
         }.OrderByDescending(x => x.Prefijo.Length).ToList();
 
     /// <summary>Prefijos de la base (en todas las ediciones). Solo sirven para el test de clasificación.</summary>

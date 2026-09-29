@@ -80,6 +80,10 @@ builder.Services.AddScoped<AlxorCore.Logistica.Aplicacion.IExistenciasLogistica,
 builder.Services.AddScoped<AlxorCore.Logistica.Aplicacion.IArticulosLogistica, AlxorCore.Api.Comun.ArticulosLogisticaCatalogo>();
 builder.Services.AddScoped<AlxorCore.Logistica.Aplicacion.IPedidosLogistica, AlxorCore.Api.Comun.PedidosLogisticaFacturacion>();
 builder.Services.AddScoped<AlxorCore.Logistica.Aplicacion.IFabricacionLogistica, AlxorCore.Api.Comun.FabricacionLogisticaProduccion>();
+// Cooperativas y SAT: la actividad de cada socio sale de las liquidaciones de agro y los asientos van a contabilidad.
+AlxorCore.Cooperativa.Infraestructura.RegistroServicios.AgregarModuloCooperativa(builder.Services, builder.Configuration);
+builder.Services.AddScoped<AlxorCore.Cooperativa.Aplicacion.IActividadSocios, AlxorCore.Api.Comun.ActividadSociosAgro>();
+builder.Services.AddScoped<AlxorCore.Cooperativa.Aplicacion.IContabilidadCooperativa, AlxorCore.Api.Comun.ContabilidadCooperativa>();
 builder.Services.AgregarModuloMigracion(builder.Configuration);
 builder.Services.AgregarModuloDocumentos();
 builder.Services.AgregarModuloInformes();
@@ -238,6 +242,7 @@ if (app.Environment.IsDevelopment())
     await ambito.ServiceProvider.GetRequiredService<AlxorCore.Tesoreria.Infraestructura.TesoreriaDbContext>().Database.MigrateAsync().ConfigureAwait(false);
     await ambito.ServiceProvider.GetRequiredService<AgroDbContext>().Database.MigrateAsync().ConfigureAwait(false);
     await ambito.ServiceProvider.GetRequiredService<AlxorCore.Logistica.Infraestructura.LogisticaDbContext>().Database.MigrateAsync().ConfigureAwait(false);
+    await ambito.ServiceProvider.GetRequiredService<AlxorCore.Cooperativa.Infraestructura.CooperativaDbContext>().Database.MigrateAsync().ConfigureAwait(false);
     await ambito.ServiceProvider.GetRequiredService<MigracionDbContext>().Database.MigrateAsync().ConfigureAwait(false);
     await ambito.ServiceProvider.GetRequiredService<AlxorCore.Auditoria.Infraestructura.AuditoriaDbContext>().Database.MigrateAsync().ConfigureAwait(false);
     await ambito.ServiceProvider.GetRequiredService<AlxorCore.Divisas.Infraestructura.DivisasDbContext>().Database.MigrateAsync().ConfigureAwait(false);
@@ -315,6 +320,7 @@ app.MapearBancos();
 app.MapearAnalisis();
 app.MapearAgro();
 app.MapearLogistica();
+app.MapearCooperativa();
 app.MapearMigracion();
 app.MapearCobranza();
 app.MapearLiquidacionesPagos();
