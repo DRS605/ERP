@@ -238,6 +238,44 @@ public sealed class OperacionesIntragrupo
     private sealed record DatosTraspasoParcial(string Origen, Guid PedidoVentaId, string Numero, DateOnly Fecha, IReadOnlyList<LineaTraspaso> LineasPedido,
         IReadOnlyList<EntregaTraspaso> Entregas);
 
+    /// <summary>
+    /// Antes de anular un albarán de venta que es un traspaso: la receptora tiene que tener aún en su almacén lo que
+    /// entró con él; si no, no se anula (`albaran.existencias_usadas`) para no dejar su recepción viva.
+    /// </summary>
+    public async Task<Resultado> ComprobarAnulacionTraspasoAsync(Guid empresaOrigenId, Guid albaranId, CancellationToken ct = default)
+    {
+        EmpresaGrupoDto destino;
+        await using (var origen = await AmbitoAsync(empresaOrigenId, ct).ConfigureAwait(false))
+        {
+            var albaran = await Servicio<IRepositorioAlbaranesVenta>(origen).ObtenerPorIdAsync(albaranId, ct).ConfigureAwait(false);
+            var vinculada = albaran is null || albaran.AnuladoEn is not null || albaran.PedidoId is null
+                ? null
+                : await EmpresaDelClienteAsync(origen, empresaOrigenId, albaran.ClienteId, ct).ConfigureAwait(false);
+            if (vinculada is null)
+            {
+                return Resultado.Ok();
+            }
+
+            destino = vinculada.Value.Destino;
+        }
+
+        await using var receptora = await AmbitoAsync(destino.Id, ct).ConfigureAwait(false);
+        var salidas = await Servicio<TraspasoIntragrupoCompras>(receptora).SalidasAlAnularAsync(destino.Id, albaranId, ct).ConfigureAwait(false);
+        var consultas = Servicio<AlxorCore.Inventario.Aplicacion.ConsultasInventario>(receptora);
+        foreach (var (almacen, producto, descripcion, cantidad) in salidas)
+        {
+            var hay = (await consultas.StockDeProductoAsync(destino.Id, producto, ct).ConfigureAwait(false))
+                .Where(e => e.AlmacenId == almacen).Sum(e => e.Cantidad);
+            if (hay < cantidad)
+            {
+                return Resultado.Fallo(Error.Conflicto("albaran.existencias_usadas",
+                    $"No se puede anular: {destino.RazonSocial} ya ha gastado las existencias de «{descripcion}» que entraron con este albarán (quedan {hay:0.###} de {cantidad:0.###}). Regulariza su almacén primero."));
+            }
+        }
+
+        return Resultado.Ok();
+    }
+
     /// <summary>El albarán de venta de origen se anuló: en la receptora se anula su recepción (y sale del almacén); sin recepciones vivas, el pedido se cancela.</summary>
     public async Task<Resultado<Guid?>> AnularTraspasoAsync(Guid empresaOrigenId, Guid albaranId, string motivo, CancellationToken ct = default)
     {

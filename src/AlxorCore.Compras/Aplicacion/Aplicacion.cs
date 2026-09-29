@@ -680,6 +680,20 @@ public sealed class TraspasoIntragrupoCompras
     /// El albarán de venta de origen se anuló: se anula su albarán de recepción (sale del almacén y vuelve a quedar
     /// pendiente). Si el pedido se queda sin recepciones vivas, se cancela; la siguiente entrega abre otro.
     /// </summary>
+    /// <summary>Lo que tiene que salir del almacén de la receptora si se anula el traspaso del albarán de venta (vacío si no entró nada).</summary>
+    public async Task<IReadOnlyList<(Guid AlmacenId, Guid ProductoId, string Descripcion, decimal Cantidad)>> SalidasAlAnularAsync(Guid empresaId,
+        Guid albaranVentaId, CancellationToken ct = default)
+    {
+        var albaran = await _albaranes.PorAlbaranVentaOrigenAsync(empresaId, albaranVentaId, ct).ConfigureAwait(false);
+        if (albaran is null || albaran.AnuladoEn is not null || albaran.AlmacenId is not { } almacen)
+        {
+            return [];
+        }
+
+        return albaran.Lineas.Where(l => l.ProductoId is not null).GroupBy(l => l.ProductoId!.Value)
+            .Select(g => (almacen, g.Key, g.First().Descripcion, g.Sum(l => l.Cantidad))).ToList();
+    }
+
     public async Task<Resultado<PedidoDto?>> AnularAsync(Guid empresaId, Guid albaranVentaId, string motivo, CancellationToken ct = default)
     {
         var albaran = await _albaranes.PorAlbaranVentaOrigenAsync(empresaId, albaranVentaId, ct).ConfigureAwait(false);

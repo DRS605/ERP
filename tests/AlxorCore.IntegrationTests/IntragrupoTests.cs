@@ -407,16 +407,19 @@ public sealed class IntragrupoTests : IClassFixture<FabricaApiPruebas>
         var todos = (await g.Api.GetFromJsonAsync<List<PedidoCompraResp>>("/compras/pedidos"))!.Where(p => p.PedidoVentaOrigenId == pv.Id).ToList();
         todos.Should().ContainSingle().Which.Lineas.Single().CantidadRecibida.Should().Be(100m);
 
-        // B vende 70 kg; A anula la entrega de 60: en B no se deshace (ya no están) y se repite tras regularizar.
+        // B vende 70 kg: A no puede anular la entrega de 60 (en B ya no están) hasta que B regulariza.
         (await g.Api.PostAsJsonAsync("/inventario/salida", new { ProductoId = naranja, AlmacenId = traspasos, Cantidad = 70m })).EnsureSuccessStatusCode();
         var segundo = (await g.Api.GetFromJsonAsync<List<AlbaranCompraResp>>($"/compras/pedidos/{pc.Id}/albaranes"))!.Single(a => a.AlbaranVentaOrigenId == sesenta);
         await SeleccionarAsync(g.Api, g.A);
-        (await g.Api.PostAsJsonAsync($"/pedidos-venta/{pv.Id}/albaranes/{sesenta}/anular", new { Motivo = "Devuelto" })).EnsureSuccessStatusCode();
+        var bloqueada = await g.Api.PostAsJsonAsync($"/pedidos-venta/{pv.Id}/albaranes/{sesenta}/anular", new { Motivo = "Devuelto" });
+        bloqueada.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await bloqueada.Content.ReadFromJsonAsync<ProblemaResp>())!.Codigo.Should().Be("albaran.existencias_usadas");
+        (await g.Api.PostAsJsonAsync($"/albaranes-venta/{sesenta}/anular", new { Motivo = "Devuelto" })).StatusCode.Should().Be(HttpStatusCode.Conflict);
         await SeleccionarAsync(g.Api, g.B);
         (await g.Api.GetFromJsonAsync<List<AlbaranCompraResp>>($"/compras/pedidos/{pc.Id}/albaranes"))!.Single(a => a.Id == segundo.Id).Anulado.Should().BeFalse();
         (await g.Api.PostAsJsonAsync("/inventario/entrada", new { ProductoId = naranja, AlmacenId = traspasos, Cantidad = 70m })).EnsureSuccessStatusCode();
         await SeleccionarAsync(g.Api, g.A);
-        (await g.Api.PostAsync(new Uri($"/intragrupo/albaranes/{sesenta}/deshacer-traspaso", UriKind.Relative), null)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+        (await g.Api.PostAsJsonAsync($"/pedidos-venta/{pv.Id}/albaranes/{sesenta}/anular", new { Motivo = "Devuelto" })).EnsureSuccessStatusCode();
         await SeleccionarAsync(g.Api, g.B);
         (await g.Api.GetFromJsonAsync<List<AlbaranCompraResp>>($"/compras/pedidos/{pc.Id}/albaranes"))!.Single(a => a.Id == segundo.Id).Anulado.Should().BeTrue();
         (await g.Api.GetFromJsonAsync<List<PedidoCompraResp>>("/compras/pedidos"))!.Single(p => p.Id == pc.Id).Lineas.Single().CantidadRecibida.Should().Be(40m);

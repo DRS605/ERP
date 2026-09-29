@@ -48,8 +48,11 @@ public static class EndpointsVentas
             .WithSummary("Registra un albarán de entrega contra el pedido.")
             .RequierePermiso(Permisos.FacturaEmitir);
 
-        pedidos.MapPost("/{id:guid}/albaranes/{albaranId:guid}/anular", async (Guid id, Guid albaranId, AnularAlbaranPeticion? peticion, AnularAlbaranVenta caso, CancellationToken ct) =>
-                (await caso.EjecutarAsync(id, albaranId, peticion?.Motivo, ct).ConfigureAwait(false)).AOk())
+        pedidos.MapPost("/{id:guid}/albaranes/{albaranId:guid}/anular", async (Guid id, Guid albaranId, AnularAlbaranPeticion? peticion, IContextoEmpresa contexto,
+                OperacionesIntragrupo intragrupo, AnularAlbaranVenta caso, CancellationToken ct) =>
+                contexto.EmpresaId is { } empresa && await intragrupo.ComprobarAnulacionTraspasoAsync(empresa, albaranId, ct).ConfigureAwait(false) is { EsFallo: true } bloqueo
+                    ? ResultadosHttp.AProblema(bloqueo.Error)
+                    : (await caso.EjecutarAsync(id, albaranId, peticion?.Motivo, ct).ConfigureAwait(false)).AOk())
             .WithSummary("Anula un albarán de entrega: sus cantidades vuelven a quedar pendientes de servir (si el pedido no está facturado).")
             .RequierePermiso(Permisos.FacturaEmitir);
 
@@ -119,8 +122,11 @@ public static class EndpointsVentas
             .WithSummary("Fija los precios de un albarán entregado a precio por fijar.")
             .RequierePermiso(Permisos.FacturaEmitir);
 
-        albaranes.MapPost("/{id:guid}/anular", async (Guid id, AnularAlbaranPeticion? peticion, AnularAlbaranVenta caso, CancellationToken ct) =>
-                (await caso.EjecutarAsync(null, id, peticion?.Motivo, ct).ConfigureAwait(false)).AOk())
+        albaranes.MapPost("/{id:guid}/anular", async (Guid id, AnularAlbaranPeticion? peticion, IContextoEmpresa contexto, OperacionesIntragrupo intragrupo,
+                AnularAlbaranVenta caso, CancellationToken ct) =>
+                contexto.EmpresaId is { } empresa && await intragrupo.ComprobarAnulacionTraspasoAsync(empresa, id, ct).ConfigureAwait(false) is { EsFallo: true } bloqueo
+                    ? ResultadosHttp.AProblema(bloqueo.Error)
+                    : (await caso.EjecutarAsync(null, id, peticion?.Motivo, ct).ConfigureAwait(false)).AOk())
             .WithSummary("Anula un albarán sin facturar: la mercancía vuelve al almacén.")
             .RequierePermiso(Permisos.FacturaEmitir);
 

@@ -165,12 +165,14 @@ Al **anular un albarán de venta** en la empresa de origen, en la receptora:
 
 El albarán de compra del traspaso no se anula desde la receptora (409 `albaran.intragrupo`).
 
-Si la receptora ya ha gastado esas existencias, en ella no se deshace nada (`albaran.existencias_usadas`): el albarán
-de venta queda anulado en origen y la recepción sigue viva en destino. El fallo queda en el registro de la API. Hay
-que regularizar el almacén de la receptora y repetir la anulación con
-`POST /intragrupo/albaranes/{id}/deshacer-traspaso`, que solo funciona con el albarán de venta ya anulado.
+Antes de anular, se comprueba que la receptora aún tiene en ese almacén lo que entró con el albarán. Si ya lo ha
+gastado, **no se anula nada** (409 `albaran.existencias_usadas`, en las dos rutas de anulación): hay que regularizar su
+almacén y volver a anular.
+
+Si aun así la anulación en destino falla (por ejemplo, las existencias salen entre la comprobación y el traspaso), el
+albarán de venta queda anulado en origen y la recepción sigue viva en destino. El fallo queda en el registro de la API.
+Se repite con `POST /intragrupo/albaranes/{id}/deshacer-traspaso`, que solo funciona con el albarán de venta ya anulado.
 
 ## 7. Pendiente
 
-- Comprobar las existencias de la receptora **antes** de anular el albarán de venta, para no dejar la recepción viva.
 - Consolidación en cadena (participaciones indirectas) y por fecha de adquisición a mitad de ejercicio.
