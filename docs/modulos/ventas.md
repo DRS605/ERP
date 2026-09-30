@@ -53,6 +53,44 @@ documenta qué, cuánto y a qué precio se entrega. Numera por empresa · ejerci
 - Los albaranes anteriores a este cambio no sacaron la mercancía (`stock_descontado = false`): si se
   facturan ahora, la factura sí la saca.
 
+## Venta en comisión (liquidación del cliente)
+
+*Ventas → Venta en comisión* (`/liquidaciones-comision`). Es la venta habitual del exportador de fruta al importador que
+vende por cuenta de él: se envía a **precio por fijar** y el cliente manda después su liquidación (*account sale*) con lo
+que vendió de cada albarán, el precio bruto y lo que descuenta.
+
+- **Pendientes** (`GET …/pendientes?clienteId=`): las líneas de sus albaranes enviadas a precio por fijar que ninguna
+  liquidación recoge.
+- **La liquidación** (borrador, `POST`/`PUT`/`DELETE`):
+  - de cada línea, lo **vendido** (hasta lo enviado; lo que falta es merma o destrío en destino) y el **precio bruto**;
+  - los **gastos** que descuenta el cliente: comisión, transporte, aduanas, manipulación, frío, publicidad u otros, cada uno
+    en porcentaje sobre el bruto o en importe;
+  - los gastos se reparten entre las líneas por su importe bruto, al céntimo.
+- **Dos formas de valorar:**
+  - **Precio neto**: cada línea del albarán queda a (bruto − gastos) / cantidad enviada, y se factura el líquido. No admite
+    líneas con más gastos que venta.
+  - **Bruto con factura de gastos**: la línea queda a bruto / cantidad enviada y, al confirmar, se registra la **factura del
+    comisionista** (su ficha de proveedor e IVA) con una línea por gasto: comisión a la 623, transporte a la 624,
+    publicidad a la 627 y el resto a la 629.
+- **Confirmar** (`…/{id}/confirmar`): numera (`LC-2026-000001`) y valora los albaranes, que pasan a pendientes de facturar y
+  se facturan como cualquier otro. El precio que queda es el que usa la liquidación a resultas del agricultor. Las líneas
+  tienen que seguir por valorar y no estar en otra liquidación.
+- **Anular** (con motivo): los albaranes vuelven a su precio estimado (y a estar por valorar) y se anula la factura de
+  gastos. Con algún albarán ya facturado no se anula: se anula antes la factura.
+- Lo que valora una liquidación no se valora a mano desde el albarán (409 `albaranventa.en_liquidacion_comision`).
+- **Resultado** (`GET …/rentabilidad?desde=&hasta=&clienteId=`): por cliente y producto, lo enviado y vendido, la merma, el
+  bruto, los gastos, el neto y los precios medios: bruto y neto por unidad vendida y **neto por unidad enviada**, que es lo
+  que queda de verdad y sirve para comparar clientes y destinos.
+- **Base de datos:**
+  - RLS en la liquidación y en sus líneas y gastos por su padre.
+  - Valores válidos, y el número solo en las confirmadas.
+  - Transiciones borrador → confirmada → anulada; la confirmada no cambia ni se borra.
+  - Al confirmar la transacción:
+    - una línea de albarán está en una sola liquidación viva;
+    - su albarán es del cliente de la liquidación;
+    - en las confirmadas, el albarán sigue vigente y la línea tiene el precio que le puso la liquidación. Por eso tampoco se
+      anula un albarán liquidado.
+
 ## Devoluciones de venta
 
 Siguen `DevolucionesVenta` de Hispatec. Una **devolución** (serie `DV`, numerada por ejercicio) se registra sobre un

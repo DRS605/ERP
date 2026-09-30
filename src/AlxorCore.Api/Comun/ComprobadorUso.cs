@@ -38,6 +38,7 @@ public static class ReferenciasRegistros
                 ("logistica.unidad_logistica.cliente_id", "palés y unidades logísticas"),
                 ("integraciones.socio_edi.cliente_id", "socios EDI"),
                 ("facturacion.devolucion_venta.cliente_id", "devoluciones de venta"),
+                ("facturacion.liquidacion_comision.cliente_id", "liquidaciones de venta en comisión"),
                 ("facturacion.reclamacion_venta.cliente_id", "reclamaciones"),
                 ("agro.cuenta_envases.tercero_id", "cuenta de envases"),
                 ("contabilidad.cuenta.tercero_id", "movimientos en su subcuenta contable"),
@@ -49,6 +50,7 @@ public static class ReferenciasRegistros
             [TiposRegistro.Proveedor] =
             [
                 ("gastos.gasto.proveedor_id", "facturas de gasto"),
+                ("facturacion.liquidacion_comision.proveedor_id", "liquidaciones de venta en comisión (como comisionista)"),
                 ("recepcion.factura_recibida.proveedor_id", "facturas recibidas"),
                 ("compras.pedido_compra.proveedor_id", "pedidos de compra"),
                 ("agro.agricultor.proveedor_id", "ficha de agricultor"),
@@ -74,6 +76,7 @@ public static class ReferenciasRegistros
                 ("catalogo.asignacion_concepto.producto_id", "conceptos de línea que se le ponen solos"),
                 ("facturacion.linea_albaran_venta.producto_id", "albaranes de venta"),
                 ("facturacion.linea_devolucion_venta.producto_id", "devoluciones de venta"),
+                ("facturacion.linea_liquidacion_comision.producto_id", "liquidaciones de venta en comisión"),
                 ("facturacion.linea_pedido_venta.producto_id", "pedidos de venta"),
                 ("facturacion.linea_presupuesto.producto_id", "presupuestos"),
                 ("facturacion.linea_recurrente.producto_id", "facturas periódicas"),

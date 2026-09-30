@@ -229,11 +229,13 @@ public sealed class ValorarAlbaranVenta
 {
     private readonly IRepositorioAlbaranesVenta _albaranes;
     private readonly IUnidadDeTrabajoFacturacion _unidad;
+    private readonly IRepositorioLiquidacionesComision? _comision;
 
-    public ValorarAlbaranVenta(IRepositorioAlbaranesVenta albaranes, IUnidadDeTrabajoFacturacion unidad)
+    public ValorarAlbaranVenta(IRepositorioAlbaranesVenta albaranes, IUnidadDeTrabajoFacturacion unidad, IRepositorioLiquidacionesComision? comision = null)
     {
         _albaranes = albaranes;
         _unidad = unidad;
+        _comision = comision;
     }
 
     public async Task<Resultado<AlbaranVentaDto>> EjecutarAsync(Guid albaranId, ValorarAlbaranVentaComando comando, CancellationToken ct = default)
@@ -243,6 +245,18 @@ public sealed class ValorarAlbaranVenta
         if (albaran is null)
         {
             return Resultado.Fallo<AlbaranVentaDto>(Error.NoEncontrado("albaranventa.no_encontrado", "El albarán no existe."));
+        }
+
+        // Lo que valora una liquidación de venta en comisión no se valora a mano: se cambia la liquidación.
+        if (_comision is not null && comando.Lineas is { Count: > 0 } pedidas)
+        {
+            var enComision = (await _comision.VivasDeAlbaranesAsync([albaranId], ct).ConfigureAwait(false))
+                .SelectMany(l => l.Lineas.Where(x => x.AlbaranVentaId == albaranId).Select(x => (x.OrdenAlbaran, Liquidacion: l.NumeroCompleto ?? "en borrador"))).ToList();
+            if (enComision.FirstOrDefault(x => pedidas.Any(p => p.Orden == x.OrdenAlbaran)) is { Liquidacion: not null } ocupada)
+            {
+                return Resultado.Fallo<AlbaranVentaDto>(Error.Conflicto("albaranventa.en_liquidacion_comision",
+                    $"La línea {ocupada.OrdenAlbaran} está en la liquidación de venta en comisión {ocupada.Liquidacion}: se valora desde ella."));
+            }
         }
 
         var r = albaran.Valorar((comando.Lineas ?? []).Select(l => (l.Orden, l.PrecioUnitario, l.PorcentajeDescuento)).ToList());

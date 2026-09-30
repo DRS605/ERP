@@ -65,6 +65,7 @@ public static class EndpointsVentas
             .RequierePermiso(Permisos.FacturaEmitir);
 
         MapearAlbaranes(rutas);
+        MapearLiquidacionesComision(rutas);
         return rutas;
     }
 
@@ -72,6 +73,45 @@ public static class EndpointsVentas
     /// Albaranes de venta como documento central: directos o de pedido, con salida de stock al emitirse, valoración a
     /// posteriori y facturación de varios albaranes en una factura o masiva por cliente.
     /// </summary>
+    private static void MapearLiquidacionesComision(IEndpointRouteBuilder rutas)
+    {
+        var g = rutas.MapGroup("/liquidaciones-comision").WithTags("Ventas");
+        static IResult SinEmpresa() => ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+
+        g.MapGet("", async (Guid? clienteId, DateOnly? desde, DateOnly? hasta, IContextoEmpresa c, LiquidacionesComision q, CancellationToken ct) =>
+                c.EmpresaId is { } e ? Results.Ok(await q.ListarAsync(e, clienteId, desde, hasta, ct).ConfigureAwait(false)) : SinEmpresa())
+            .WithSummary("Liquidaciones de venta en comisión (account sales) de los clientes.").RequierePermiso(Permisos.FacturaLeer);
+        g.MapGet("/pendientes", async (Guid clienteId, IContextoEmpresa c, LiquidacionesComision q, CancellationToken ct) =>
+                c.EmpresaId is { } e ? Results.Ok(await q.PendientesAsync(e, clienteId, ct).ConfigureAwait(false)) : SinEmpresa())
+            .WithSummary("Líneas de albarán del cliente enviadas a precio por fijar que ninguna liquidación recoge.").RequierePermiso(Permisos.FacturaLeer);
+        g.MapGet("/rentabilidad", async (DateOnly desde, DateOnly hasta, Guid? clienteId, IContextoEmpresa c, LiquidacionesComision q, CancellationToken ct) =>
+                c.EmpresaId is { } e ? Results.Ok(await q.RentabilidadAsync(e, desde, hasta, clienteId, ct).ConfigureAwait(false)) : SinEmpresa())
+            .WithSummary("Resultado de la venta en comisión por cliente y producto: mermas, gastos y precio neto medio.").RequierePermiso(Permisos.FacturaLeer);
+        g.MapGet("/{id:guid}", async (Guid id, IContextoEmpresa c, LiquidacionesComision q, CancellationToken ct) =>
+                c.EmpresaId is { } e ? (await q.ObtenerAsync(e, id, ct).ConfigureAwait(false) is { } l ? Results.Ok(l) : Results.NotFound()) : SinEmpresa())
+            .WithSummary("Liquidación de venta en comisión con sus líneas y gastos.").RequierePermiso(Permisos.FacturaLeer);
+        g.MapPost("", async (DatosNuevaLiquidacionComision d, IContextoEmpresa c, LiquidacionesComision q, CancellationToken ct) =>
+                c.EmpresaId is { } e ? (await q.CrearAsync(e, d, ct).ConfigureAwait(false)).ACreado("/liquidaciones-comision") : SinEmpresa())
+            .WithSummary("Registra la liquidación del cliente (en borrador): lo vendido de cada albarán, el precio bruto y sus gastos.")
+            .RequierePermiso(Permisos.FacturaEmitir);
+        g.MapPut("/{id:guid}", async (Guid id, DatosNuevaLiquidacionComision d, IContextoEmpresa c, LiquidacionesComision q, CancellationToken ct) =>
+                c.EmpresaId is { } e ? (await q.CambiarAsync(e, id, d, ct).ConfigureAwait(false)).AOk() : SinEmpresa())
+            .WithSummary("Cambia una liquidación en borrador.").RequierePermiso(Permisos.FacturaEmitir);
+        g.MapDelete("/{id:guid}", async (Guid id, IContextoEmpresa c, LiquidacionesComision q, CancellationToken ct) =>
+                c.EmpresaId is { } e ? (await q.EliminarAsync(e, id, ct).ConfigureAwait(false)).ASinContenido() : SinEmpresa())
+            .WithSummary("Elimina una liquidación en borrador.").RequierePermiso(Permisos.FacturaEmitir);
+        g.MapPost("/{id:guid}/confirmar", async (Guid id, IContextoEmpresa c, LiquidacionesComision q, CancellationToken ct) =>
+                c.EmpresaId is { } e ? (await q.ConfirmarAsync(e, id, ct).ConfigureAwait(false)).AOk() : SinEmpresa())
+            .WithSummary("Confirma la liquidación: valora sus albaranes (a neto o a bruto) y, a bruto, registra la factura de gastos del comisionista.")
+            .RequierePermiso(Permisos.FacturaEmitir);
+        g.MapPost("/{id:guid}/anular", async (Guid id, PeticionAnularLiquidacionComision d, IContextoEmpresa c, LiquidacionesComision q, CancellationToken ct) =>
+                c.EmpresaId is { } e ? (await q.AnularAsync(e, id, d.Motivo, ct).ConfigureAwait(false)).AOk() : SinEmpresa())
+            .WithSummary("Anula la liquidación: sus albaranes sin facturar vuelven al precio estimado y se anula la factura de gastos.")
+            .RequierePermiso(Permisos.FacturaEmitir);
+    }
+
+    public sealed record PeticionAnularLiquidacionComision(string? Motivo);
+
     private static void MapearAlbaranes(IEndpointRouteBuilder rutas)
     {
         var albaranes = rutas.MapGroup("/albaranes-venta").WithTags("Ventas");

@@ -90,6 +90,15 @@ public sealed class LineaAlbaranVenta
         // Los porcentajes se recalculan sobre el nuevo precio; los importes por unidad, por kilo y fijos se conservan.
         PonerConceptos(ConceptosLinea.RecalcularPorcentajes(Conceptos, BaseBruta));
     }
+
+    /// <summary>Vuelve a dejar la línea por valorar, con su precio estimado anterior.</summary>
+    internal void QuitarValoracion(decimal precioEstimado, decimal descuento)
+    {
+        PrecioUnitario = Math.Round(precioEstimado, 4, MidpointRounding.AwayFromZero);
+        PorcentajeDescuento = Redondeo.Dos(descuento);
+        PrecioFijado = false;
+        PonerConceptos(ConceptosLinea.RecalcularPorcentajes(Conceptos, BaseBruta));
+    }
 }
 
 /// <summary>Datos de una línea al crear un albarán. Sin precio (o con <c>PrecioEstimado</c>), la línea queda por valorar.</summary>
@@ -234,6 +243,31 @@ public sealed class AlbaranVenta : RaizAgregadoEmpresa<Guid>
         foreach (var (orden, precio, descuento) in precios)
         {
             _lineas.Single(l => l.Orden == orden).Valorar(precio, descuento);
+        }
+
+        return Resultado.Ok();
+    }
+
+    /// <summary>
+    /// Deshace la valoración de unas líneas (al anular la liquidación que las valoró): vuelven a su precio estimado y el
+    /// albarán queda pendiente de valorar. Solo antes de facturar.
+    /// </summary>
+    public Resultado QuitarValoracion(IReadOnlyList<(int Orden, decimal PrecioEstimado, decimal Descuento)> lineas)
+    {
+        ArgumentNullException.ThrowIfNull(lineas);
+        if (AnuladoEn is not null || FacturaId is not null)
+        {
+            return Resultado.Fallo(Error.Conflicto("albaranventa.facturado", $"El albarán {NumeroCompleto} ya está facturado o anulado: anula antes la factura."));
+        }
+
+        foreach (var (orden, precio, descuento) in lineas)
+        {
+            if (_lineas.SingleOrDefault(l => l.Orden == orden) is not { } linea)
+            {
+                return Resultado.Fallo(Error.Validacion("albaranventa.linea_desconocida", $"El albarán no tiene la línea {orden}."));
+            }
+
+            linea.QuitarValoracion(precio, descuento);
         }
 
         return Resultado.Ok();
