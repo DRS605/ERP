@@ -2834,7 +2834,7 @@
     async function vContabilidad() {
       view('<div class="muted">Cargando…</div>');
       const anio=_contAnio;
-      const [cfg,diario,balance,pendientes,reglas,cuentas,pyg,balsit,anuales,is200,diarios,periodos,periodif,existencias,ctasExist]=await Promise.all([
+      const [cfg,diario,balance,pendientes,reglas,cuentas,pyg,balsit,anuales,is200,diarios,periodos,periodif,existencias,ctasExist,deposito]=await Promise.all([
         api("/contabilidad/config"),
         api("/contabilidad/diario?ejercicio="+anio),
         api("/contabilidad/balance?ejercicio="+anio),
@@ -2850,6 +2850,7 @@
         api("/contabilidad/periodificaciones").catch(()=>[]),
         api("/contabilidad/existencias/"+anio).catch(()=>null),
         api("/contabilidad/existencias/cuentas").catch(()=>[]),
+        api("/contabilidad/cuentas-anuales/deposito?ejercicio="+anio).catch(()=>null),
       ]);
       window._ctasExist=ctasExist;
       window._periodif=periodif;
@@ -3015,7 +3016,19 @@
           +panel("Balance de sumas y saldos · "+anio,(balance.length?'<p class="muted" style="margin:0 0 10px">Pulsa una cuenta para ver su libro mayor.</p>':'')+balTabla,`<button class="btn small ghost" onclick="vMayor('',${anio})">Libro mayor</button>`)],
         ["Periodos y diarios",modo==="Completo"?panelPeriodificaciones(periodif)+panelPeriodos(periodos,anio)+panelDiarios(diarios):""],
         ["Estados financieros",panelPyg+panelBalSit],
-        ["Cierre y cuentas anuales",(modo==="Completo"?panelExistencias(existencias,ctasExist):"")+panelCierre+panelAnuales+panelIS]]));
+        ["Cierre y cuentas anuales",(modo==="Completo"?panelExistencias(existencias,ctasExist):"")+panelCierre+panelDeposito(deposito,anio)+panelAnuales+panelIS]]));
+    }
+    // ---- Cuentas anuales con las claves del modelo de depósito y paquete de legalización de libros ----
+    function panelDeposito(d,anio){
+      if(!d) return "";
+      const tabla=(lista)=>`<table data-totales="no"><thead><tr><th style="width:70px">Clave</th><th>Partida</th><th class="num">${anio}</th><th class="num">${anio-1}</th></tr></thead><tbody>
+        ${lista.map(p=>`<tr${p.nivel<=1?' style="font-weight:650"':''}><td class="muted">${p.clave}</td><td style="padding-left:${8+p.nivel*12}px">${agEsc(p.concepto)}</td><td class="num">${eur(p.actual)}</td><td class="num">${eur(p.anterior)}</td></tr>`).join("")}</tbody></table>`;
+      const aviso=(d.cuentasSinClasificar||[]).length?`<p class="muted" style="font-size:12.5px;margin:8px 0 0">⚠️ Cuentas sin partida: ${d.cuentasSinClasificar.map(agEsc).join(", ")} (las de gestión van a «12. Otros resultados»; revisa las de balance).</p>`:"";
+      return panel("Depósito de cuentas y legalización de libros · "+anio,
+        `<p class="muted" style="margin:0 0 10px">Balance y pérdidas y ganancias abreviados con las claves del modelo de depósito del Registro Mercantil y el ejercicio anterior ${d.cuadra?'<span class="pill ok">Cuadra</span>':'<span class="pill wait">Descuadre</span>'}. Copia las cifras en el programa del Registro (D2). La legalización prepara el Diario y el de Inventarios y Cuentas Anuales en PDF para Legalia (plazo: cuatro meses desde el cierre).</p>
+         ${pestanas("deposito",[["Balance",tabla(d.balance)],["Pérdidas y ganancias",tabla(d.perdidasGanancias)]])}${aviso}`,
+        agBotones(`<button class="btn small ghost" onclick="descargarRuta('/contabilidad/cuentas-anuales/deposito/csv?ejercicio=${anio}')">↓ CSV del depósito</button>`,
+          `<button class="btn small secondary" onclick="descargarRuta('/contabilidad/legalizacion?ejercicio=${anio}')">↓ Libros para legalizar</button>`));
     }
     // ---- Regularización de existencias (grupo 3 contra 61x/71x) a 31/12, antes del cierre ----
     function panelExistencias(r,ctas){

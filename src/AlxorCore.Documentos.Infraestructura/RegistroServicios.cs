@@ -19,6 +19,7 @@ public static class RegistroServicios
         servicios.AddScoped<IGeneradorPdfCartaPorte, GeneradorPdfCartaPorteQuestPdf>();
         servicios.AddScoped<IGeneradorEtiquetaLogistica, GeneradorEtiquetaLogisticaQuestPdf>();
         servicios.AddScoped<IGeneradorPdfDocumento, GeneradorPdfDocumentoQuestPdf>();
+        servicios.AddScoped<IGeneradorPdfLibro, GeneradorPdfLibroQuestPdf>();
         servicios.AddScoped<IServicioCorreo, ServicioCorreoStub>();
         servicios.AddScoped<GenerarPdfCartaPorte>();
         servicios.AddScoped<GenerarPdfFactura>();

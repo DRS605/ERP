@@ -248,7 +248,7 @@ public sealed class CierreMensual
         var config = await _config.ObtenerAsync(empresaId, ct).ConfigureAwait(false);
         if (config is null)
         {
-            config = new ConfiguracionContabilidad(empresaId, ModoContabilidad.Simple);
+            config = new ConfiguracionContabilidad(empresaId, await _config.ModoPorDefectoAsync(empresaId, ct).ConfigureAwait(false));
             _config.Agregar(config);
         }
 

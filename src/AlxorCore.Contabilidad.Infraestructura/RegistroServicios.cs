@@ -4,6 +4,7 @@ using AlxorCore.Recepcion.Aplicacion;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace AlxorCore.Contabilidad.Infraestructura;
 
@@ -33,6 +34,7 @@ public static class RegistroServicios
         servicios.AddScoped<IRepositorioPeriodificaciones, RepositorioPeriodificaciones>();
         servicios.AddScoped<IRepositorioCuentasExistencias, RepositorioCuentasExistencias>();
         servicios.AddScoped<IRepositorioConfigContabilidad, RepositorioConfigContabilidad>();
+        servicios.TryAddScoped<IFormaJuridicaEmpresa, FormaJuridicaDesconocida>();
         servicios.AddScoped<IRepositorioDocumentosPendientes, RepositorioDocumentosPendientes>();
         servicios.AddScoped<IRepositorioReglasContabilizacion, RepositorioReglasContabilizacion>();
 
@@ -55,6 +57,8 @@ public static class RegistroServicios
         servicios.AddScoped<CierreMensual>();
         servicios.AddScoped<GestionPeriodificaciones>();
         servicios.AddScoped<RegularizacionExistencias>();
+        servicios.AddScoped<GenerarModeloDeposito>();
+        servicios.AddScoped<LibrosLegalizacion>();
         servicios.AddScoped<MayorCuenta>();
         servicios.AddScoped<BalanceSumasYSaldos>();
         servicios.AddScoped<GenerarPerdidasGanancias>();

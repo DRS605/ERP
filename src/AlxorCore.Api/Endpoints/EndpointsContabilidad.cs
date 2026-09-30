@@ -179,6 +179,43 @@ public static class EndpointsContabilidad
             .WithSummary("Cuentas Anuales normalizadas (balance y PyG, PGC-Pymes).")
             .RequierePermiso(Permisos.ContabilidadLeer);
 
+        grupo.MapGet("/cuentas-anuales/deposito", async (int? ejercicio, IContextoEmpresa contexto, GenerarModeloDeposito caso, IReloj reloj, CancellationToken ct) =>
+                contexto.EmpresaId is { } e ? Results.Ok(await caso.EjecutarAsync(e, Ejercicio(ejercicio, reloj), ct).ConfigureAwait(false)) : SinEmpresa())
+            .WithSummary("Balance y pérdidas y ganancias abreviados con las claves del modelo de depósito en el Registro Mercantil (ejercicio y anterior).")
+            .RequierePermiso(Permisos.ContabilidadLeer);
+        grupo.MapGet("/cuentas-anuales/deposito/csv", async (int? ejercicio, IContextoEmpresa contexto, GenerarModeloDeposito caso, IReloj reloj, CancellationToken ct) =>
+            {
+                if (contexto.EmpresaId is not { } e)
+                {
+                    return SinEmpresa();
+                }
+
+                var m = await caso.EjecutarAsync(e, Ejercicio(ejercicio, reloj), ct).ConfigureAwait(false);
+                return Results.File(System.Text.Encoding.UTF8.GetBytes(LegalizacionLibros.DepositoCsv(m)), "text/csv", $"cuentas-anuales-{m.Ejercicio}.csv");
+            })
+            .WithSummary("Las partidas del modelo de depósito en CSV, para copiarlas en el programa del Registro.")
+            .RequierePermiso(Permisos.ContabilidadLeer);
+        grupo.MapGet("/legalizacion", async (int? ejercicio, IContextoEmpresa contexto, LibrosLegalizacion caso, AlxorCore.Organizacion.Aplicacion.Puertos.IConsultaEmpresas empresas,
+                AlxorCore.Documentos.Aplicacion.IGeneradorPdfLibro pdf, IReloj reloj, CancellationToken ct) =>
+            {
+                if (contexto.EmpresaId is not { } e)
+                {
+                    return SinEmpresa();
+                }
+
+                var anio = ejercicio ?? reloj.AhoraUtc.Year - 1;
+                var libros = await caso.EjecutarAsync(e, anio, ct).ConfigureAwait(false);
+                if (libros.Diario.Count == 0)
+                {
+                    return ResultadosHttp.AProblema(Error.Validacion("legalizacion.sin_asientos", $"El ejercicio {anio} no tiene asientos que legalizar."));
+                }
+
+                var emp = await empresas.ObtenerAsync(e, ct).ConfigureAwait(false);
+                return Results.File(LegalizacionLibros.Zip(libros, emp?.RazonSocial ?? "Empresa", emp?.Nif ?? string.Empty, pdf), "application/zip", $"legalizacion-libros-{anio}.zip");
+            })
+            .WithSummary("Paquete para legalizar el Diario y el de Inventarios y Cuentas Anuales en el Registro Mercantil (PDF para Legalia).")
+            .RequierePermiso(Permisos.ContabilidadLeer);
+
         grupo.MapGet("/modelo-200", Modelo200Async)
             .WithSummary("Liquidación del Impuesto de Sociedades (modelo 200) desde la contabilidad.")
             .RequierePermiso(Permisos.ContabilidadLeer);

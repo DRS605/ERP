@@ -176,10 +176,12 @@ public sealed record SaldoContable(string Codigo, string Nombre, int Grupo, deci
 internal static class SaldosContables
 {
     public static async Task<IReadOnlyList<SaldoContable>> CalcularAsync(
-        Guid empresaId, int ejercicio, IRepositorioAsientos asientos, IRepositorioCuentas cuentas, CancellationToken ct)
+        Guid empresaId, int ejercicio, IRepositorioAsientos asientos, IRepositorioCuentas cuentas, CancellationToken ct, bool antesDelCierre = false)
     {
         // La suma por cuenta la hace la base de datos (GROUP BY): no se cargan los apuntes en memoria.
-        var agregados = await asientos.SaldosAgregadosAsync(empresaId, ejercicio, ct).ConfigureAwait(false);
+        var agregados = antesDelCierre
+            ? await asientos.SaldosAntesDelCierreAsync(empresaId, ejercicio, ct).ConfigureAwait(false)
+            : await asientos.SaldosAgregadosAsync(empresaId, ejercicio, ct).ConfigureAwait(false);
         var plan = await cuentas.ListarAsync(empresaId, ct).ConfigureAwait(false);
         var nombres = plan.ToDictionary(c => c.Codigo, c => c.Nombre, StringComparer.Ordinal);
 

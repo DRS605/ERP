@@ -84,6 +84,13 @@ public interface IRepositorioAsientos
     /// </summary>
     Task<IReadOnlyList<SaldoCuentaAgregado>> SaldosAgregadosAsync(Guid empresaId, int ejercicio, CancellationToken ct = default);
 
+    /// <summary>
+    /// Saldos del ejercicio sin la regularización ni el cierre (con los grupos 6 y 7 vivos): la base de las cuentas anuales,
+    /// también de un ejercicio ya cerrado.
+    /// </summary>
+    Task<IReadOnlyList<SaldoCuentaAgregado>> SaldosAntesDelCierreAsync(Guid empresaId, int ejercicio, CancellationToken ct = default) =>
+        SaldosAgregadosAsync(empresaId, ejercicio, ct);
+
     /// <summary>Apuntes de los asientos contabilizados de unos documentos de origen (incluidas sus anulaciones).</summary>
     Task<IReadOnlyList<ApunteOrigen>> ApuntesDeOrigenesAsync(Guid empresaId, IReadOnlyCollection<Guid> origenIds, CancellationToken ct = default) =>
         Task.FromResult<IReadOnlyList<ApunteOrigen>>([]);
@@ -107,6 +114,30 @@ public interface IRepositorioConfigContabilidad
     Task<ConfiguracionContabilidad?> ObtenerAsync(Guid empresaId, CancellationToken ct = default);
 
     void Agregar(ConfiguracionContabilidad config);
+
+    /// <summary>Modo de una empresa que aún no lo ha elegido: Completo para las sociedades, Simple para las personas físicas.</summary>
+    Task<ModoContabilidad> ModoPorDefectoAsync(Guid empresaId, CancellationToken ct = default) => Task.FromResult(ModoContabilidad.Simple);
+}
+
+/// <summary>
+/// Puerto hacia los datos de la empresa: si es una persona jurídica (NIF que empieza por letra, salvo los NIE X/Y/Z y
+/// los K/L/M), obligada a la contabilidad del Código de Comercio. Lo implementa la API.
+/// </summary>
+public interface IFormaJuridicaEmpresa
+{
+    Task<bool> EsPersonaJuridicaAsync(Guid empresaId, CancellationToken ct = default);
+}
+
+public sealed class FormaJuridicaDesconocida : IFormaJuridicaEmpresa
+{
+    public Task<bool> EsPersonaJuridicaAsync(Guid empresaId, CancellationToken ct = default) => Task.FromResult(false);
+}
+
+public static class ModosContables
+{
+    /// <summary>Persona jurídica por su NIF: letra inicial de las de sociedades y entidades (A-H, J, N, P, Q, R, S, U, V, W).</summary>
+    public static bool EsPersonaJuridica(string? nif) =>
+        nif is { Length: > 0 } n && "ABCDEFGHJNPQRSUVW".Contains(char.ToUpperInvariant(n.Trim()[0]), StringComparison.Ordinal);
 }
 
 public interface IUnidadDeTrabajoContabilidad : IUnidadDeTrabajo;
@@ -337,7 +368,7 @@ public sealed class ObtenerModoContabilidad
     public async Task<ModoContabilidad> EjecutarAsync(Guid empresaId, CancellationToken ct = default)
     {
         var config = await _config.ObtenerAsync(empresaId, ct).ConfigureAwait(false);
-        return config?.Modo ?? ModoContabilidad.Simple;
+        return config?.Modo ?? await _config.ModoPorDefectoAsync(empresaId, ct).ConfigureAwait(false);
     }
 }
 

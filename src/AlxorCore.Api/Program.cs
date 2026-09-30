@@ -85,6 +85,7 @@ AlxorCore.Cooperativa.Infraestructura.RegistroServicios.AgregarModuloCooperativa
 builder.Services.AddScoped<AlxorCore.Cooperativa.Aplicacion.IActividadSocios, AlxorCore.Api.Comun.ActividadSociosAgro>();
 builder.Services.AddScoped<AlxorCore.Cooperativa.Aplicacion.IContabilidadCooperativa, AlxorCore.Api.Comun.ContabilidadCooperativa>();
 builder.Services.AddScoped<AlxorCore.Informes.Aplicacion.IRendimientosCapitalMobiliario, AlxorCore.Api.Comun.RendimientosCapitalCooperativa>();
+builder.Services.AddScoped<AlxorCore.Contabilidad.Aplicacion.IFormaJuridicaEmpresa, AlxorCore.Api.Comun.FormaJuridicaPorNif>();
 builder.Services.AddScoped<AlxorCore.Contabilidad.Aplicacion.IValoracionExistencias, AlxorCore.Api.Comun.ValoracionExistenciasInventario>();
 builder.Services.AgregarModuloMigracion(builder.Configuration);
 builder.Services.AgregarModuloDocumentos();

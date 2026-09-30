@@ -360,7 +360,7 @@ public sealed class EncolarDocumento : IColaContabilizacion
         // La cola de contabilización (partida doble) solo aplica en modo Completo. En modo Simple la
         // empresa solo lleva Libro de IVA (el gasto/factura ya lo alimentan): no hay asientos ni panel.
         var config = await _config.ObtenerAsync(empresaId, ct).ConfigureAwait(false);
-        if ((config?.Modo ?? ModoContabilidad.Simple) != ModoContabilidad.Completo)
+        if ((config?.Modo ?? await _config.ModoPorDefectoAsync(empresaId, ct).ConfigureAwait(false)) != ModoContabilidad.Completo)
         {
             return;
         }
@@ -402,7 +402,7 @@ public sealed class ObtenerConfigContabilidad
     {
         var c = await _config.ObtenerAsync(empresaId, ct).ConfigureAwait(false);
         return new ConfigContabilidadDto(
-            (c?.Modo ?? ModoContabilidad.Simple).ToString(),
+            (c?.Modo ?? await _config.ModoPorDefectoAsync(empresaId, ct).ConfigureAwait(false)).ToString(),
             c?.ContabilizacionAutomatica ?? false,
             c?.LongitudSubcuenta ?? ConfiguracionContabilidad.LongitudSubcuentaDefecto);
     }
@@ -425,7 +425,7 @@ public sealed class CambiarLongitudSubcuenta
         var config = await _config.ObtenerAsync(empresaId, ct).ConfigureAwait(false);
         if (config is null)
         {
-            config = new ConfiguracionContabilidad(empresaId, ModoContabilidad.Simple);
+            config = new ConfiguracionContabilidad(empresaId, await _config.ModoPorDefectoAsync(empresaId, ct).ConfigureAwait(false));
             config.CambiarLongitudSubcuenta(longitud);
             _config.Agregar(config);
         }
@@ -455,7 +455,7 @@ public sealed class CambiarContabilizacionAutomatica
         var config = await _config.ObtenerAsync(empresaId, ct).ConfigureAwait(false);
         if (config is null)
         {
-            config = new ConfiguracionContabilidad(empresaId, ModoContabilidad.Simple);
+            config = new ConfiguracionContabilidad(empresaId, await _config.ModoPorDefectoAsync(empresaId, ct).ConfigureAwait(false));
             config.CambiarContabilizacionAutomatica(automatica);
             _config.Agregar(config);
         }

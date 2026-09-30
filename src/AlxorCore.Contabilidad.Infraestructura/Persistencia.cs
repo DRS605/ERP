@@ -560,6 +560,14 @@ internal sealed class RepositorioAsientos : IRepositorioAsientos
             .Select(g => new SaldoCuentaAgregado(g.Key, g.Sum(x => x.Debe), g.Sum(x => x.Haber)))
             .ToListAsync(ct).ConfigureAwait(false);
 
+    public async Task<IReadOnlyList<SaldoCuentaAgregado>> SaldosAntesDelCierreAsync(Guid empresaId, int ejercicio, CancellationToken ct = default) =>
+        await _contexto.Asientos.AsNoTracking()
+            .Where(a => a.EmpresaId == empresaId && a.Ejercicio == ejercicio && a.Origen != "Regularizacion" && a.Origen != "Cierre")
+            .SelectMany(a => a.Apuntes)
+            .GroupBy(p => p.CuentaCodigo)
+            .Select(g => new SaldoCuentaAgregado(g.Key, g.Sum(x => x.Debe), g.Sum(x => x.Haber)))
+            .ToListAsync(ct).ConfigureAwait(false);
+
     public async Task<IReadOnlyList<ApunteOrigen>> ApuntesDeOrigenesAsync(Guid empresaId, IReadOnlyCollection<Guid> origenIds, CancellationToken ct = default)
     {
         if (origenIds.Count == 0)
@@ -584,13 +592,20 @@ internal sealed class RepositorioAsientos : IRepositorioAsientos
 internal sealed class RepositorioConfigContabilidad : IRepositorioConfigContabilidad
 {
     private readonly ContabilidadDbContext _contexto;
+    private readonly IFormaJuridicaEmpresa _forma;
 
-    public RepositorioConfigContabilidad(ContabilidadDbContext contexto) => _contexto = contexto;
+    public RepositorioConfigContabilidad(ContabilidadDbContext contexto, IFormaJuridicaEmpresa forma)
+    {
+        _contexto = contexto; _forma = forma;
+    }
 
     public Task<ConfiguracionContabilidad?> ObtenerAsync(Guid empresaId, CancellationToken ct = default) =>
         _contexto.Configuraciones.SingleOrDefaultAsync(c => c.Id == empresaId, ct);
 
     public void Agregar(ConfiguracionContabilidad config) => _contexto.Configuraciones.Add(config);
+
+    public async Task<ModoContabilidad> ModoPorDefectoAsync(Guid empresaId, CancellationToken ct = default) =>
+        await _forma.EsPersonaJuridicaAsync(empresaId, ct).ConfigureAwait(false) ? ModoContabilidad.Completo : ModoContabilidad.Simple;
 }
 
 /// <summary>Factoría en tiempo de diseño para migraciones.</summary>

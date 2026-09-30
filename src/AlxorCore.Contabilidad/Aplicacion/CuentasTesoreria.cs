@@ -55,7 +55,7 @@ public sealed class PlanCuentasTesoreria : IPlanCuentasTesoreria
     {
         ArgumentNullException.ThrowIfNull(codigos);
         var config = await _config.ObtenerAsync(empresaId, ct).ConfigureAwait(false);
-        if ((config?.Modo ?? ModoContabilidad.Simple) != ModoContabilidad.Completo)
+        if ((config?.Modo ?? await _config.ModoPorDefectoAsync(empresaId, ct).ConfigureAwait(false)) != ModoContabilidad.Completo)
         {
             return null;
         }

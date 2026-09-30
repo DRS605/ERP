@@ -9,9 +9,13 @@ puede además generar su asiento, según el **modo de contabilidad** de la empre
 
 Cada empresa elige su modo (`GET`/`PUT /contabilidad/modo`):
 
-- **Simple** (por defecto): contabilizar = registrar un **gasto** con IVA soportado (Libro de IVA,
+- **Simple**: contabilizar = registrar un **gasto** con IVA soportado (Libro de IVA,
   303/130). Es lo que necesita un autónomo. No genera asientos ni usa el panel de pendientes.
 - **Completo**: además del gasto, genera el **asiento** de partida doble (libro diario y mayor).
+
+Mientras la empresa no elige, el modo es **Completo si es una sociedad o entidad** (NIF que empieza por A-H, J, N,
+P, Q, R, S, U, V o W: obligada a la contabilidad del Código de Comercio) y **Simple si es una persona física**. La
+API lo resuelve con el puerto `IFormaJuridicaEmpresa` (el NIF de la empresa); una vez elegido, manda lo elegido.
 
 El adaptador `ContabilizadorSegunModo` implementa el puerto `IContabilizador` de Recepción y registra
 el gasto; el **asiento** ya no se genera aquí en línea, sino a través de la **cola de
@@ -351,6 +355,9 @@ Todos sus asientos van al diario `PER`, con origen `Periodificacion`, y respetan
 | `GET` | `/contabilidad/pyg?ejercicio=` | `contabilidad.leer` | Cuenta de Pérdidas y Ganancias (grupos 6 y 7). |
 | `GET` | `/contabilidad/balance-situacion?ejercicio=` | `contabilidad.leer` | Balance de situación por masas patrimoniales. |
 | `POST` | `/contabilidad/cierre?ejercicio=` | `contabilidad.gestionar` | Cierra el ejercicio (regularización + cierre + apertura). |
+| `GET` | `/contabilidad/cuentas-anuales/deposito?ejercicio=` | `contabilidad.leer` | Balance y PyG abreviados con claves del depósito (y el año anterior). |
+| `GET` | `/contabilidad/cuentas-anuales/deposito/csv?ejercicio=` | `contabilidad.leer` | Las partidas del depósito en CSV. |
+| `GET` | `/contabilidad/legalizacion?ejercicio=` | `contabilidad.leer` | ZIP con el Diario y el de Inventarios y Cuentas Anuales en PDF. |
 | `GET` | `/contabilidad/existencias/{ejercicio}` | `contabilidad.leer` | Regularización de existencias: previsión o la contabilizada. |
 | `POST` | `/contabilidad/existencias/{ejercicio}` | `contabilidad.gestionar` | La contabiliza a 31/12 (con `ajustes` por cuenta). |
 | `POST` | `/contabilidad/existencias/{ejercicio}/anular` | `contabilidad.gestionar` | Contraasiento de la regularización. |
@@ -476,6 +483,31 @@ validar con la gestoría):
   toman del saldo deudor de la 473 si no se indican). No es el modelo 200 oficial completo con todas
   sus casillas: es la liquidación calculada desde la contabilidad.
 
+Las cuentas anuales se calculan **sin la regularización ni el cierre**: un ejercicio ya cerrado muestra sus cifras.
+
+### Modelo de depósito (Registro Mercantil)
+
+`GET /contabilidad/cuentas-anuales/deposito?ejercicio=` da el balance y la cuenta de pérdidas y ganancias
+**abreviados** con las **claves de partida** de los modelos oficiales de depósito (activo 11000-12700 y total 10000;
+patrimonio neto y pasivo 20000-32600 y total 30000; PyG 40100-41900 con los resultados 49100, 49200, 49300 y 49500),
+del ejercicio y del anterior. Cada cuenta va a una sola partida, la de su prefijo del PGC más largo; las de tesorería y
+relación (57, 43, 47, 55…) van al activo o al pasivo según su saldo. Las de gestión sin partida propia van a «12. Otros
+resultados» y todas las que no encajan se listan en `cuentasSinClasificar`. La 129 que llega de la apertura es
+resultado de ejercicios anteriores sin aplicar (V). `…/deposito/csv` las exporta para copiarlas en el programa del
+Registro (D2), que es con el que se presenta el depósito.
+
+### Legalización de libros
+
+`GET /contabilidad/legalizacion?ejercicio=` (por defecto, el anterior) devuelve un ZIP para **Legalia 2**:
+
+- `Libro_Diario_{año}.pdf`: todos los asientos, numerados, con sus apuntes y el total del ejercicio.
+- `Libro_Inventarios_y_Cuentas_Anuales_{año}.pdf`: los balances de comprobación de sumas y saldos de cada trimestre
+  (sin regularización ni cierre), el inventario de cierre (saldos de balance a 31/12) y las cuentas anuales abreviadas.
+- `LEEME.txt`: cómo darlos de alta, firmarlos y enviarlos (plazo: cuatro meses desde el cierre).
+
+Los PDF salen del generador genérico de libros de Documentos (`IGeneradorPdfLibro`): hojas numeradas y la empresa en
+cada cabecera. Sin asientos en el ejercicio, 400 `legalizacion.sin_asientos`.
+
 ## Inmovilizado y amortizaciones
 
 La amortización del inmovilizado (contable y fiscal, impuesto diferido, baja y enajenación) es un
@@ -492,5 +524,4 @@ cerrado usa un `EXISTS` (`TieneCierreAsync`) en lugar de traer los asientos de c
 
 ## Futuro (documentado)
 
-Modelo oficial de PyG y balance con todos los epígrafes normalizados del PGC (activo/pasivo/PN
-abreviado y normal), y numeración de asientos 100 % sin huecos ante fallos.
+Modelo normal (no abreviado) de las cuentas anuales, memoria y fichero XBRL del depósito, y numeración de asientos 100 % sin huecos ante fallos.

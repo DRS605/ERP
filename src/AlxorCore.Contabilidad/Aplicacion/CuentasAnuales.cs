@@ -54,7 +54,8 @@ public sealed class GenerarCuentasAnuales
 
     public async Task<CuentasAnualesDto> EjecutarAsync(Guid empresaId, int ejercicio, CancellationToken ct = default)
     {
-        var saldos = await SaldosContables.CalcularAsync(empresaId, ejercicio, _asientos, _cuentas, ct).ConfigureAwait(false);
+        // Sin la regularización ni el cierre: un ejercicio cerrado muestra sus cuentas, no ceros.
+        var saldos = await SaldosContables.CalcularAsync(empresaId, ejercicio, _asientos, _cuentas, ct, antesDelCierre: true).ConfigureAwait(false);
         return new CuentasAnualesDto(ejercicio, Balance(saldos), PyG(saldos));
     }
 

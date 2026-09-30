@@ -122,7 +122,7 @@ public sealed class ObtenerSiguienteSubcuenta
         }
 
         var config = await _config.ObtenerAsync(empresaId, ct).ConfigureAwait(false);
-        var modo = config?.Modo ?? ModoContabilidad.Simple;
+        var modo = config?.Modo ?? await _config.ModoPorDefectoAsync(empresaId, ct).ConfigureAwait(false);
         var longitud = config?.LongitudSubcuenta ?? ConfiguracionContabilidad.LongitudSubcuentaDefecto;
         var raiz = SubcuentasTerceros.Raiz(tipo);
         if (modo != ModoContabilidad.Completo)
@@ -164,7 +164,7 @@ public sealed class ObtenerSubcuentaTercero
     public async Task<SubcuentaTerceroDto> EjecutarAsync(Guid empresaId, TipoTerceroContable tipo, Guid terceroId, CancellationToken ct = default)
     {
         var config = await _config.ObtenerAsync(empresaId, ct).ConfigureAwait(false);
-        var modo = config?.Modo ?? ModoContabilidad.Simple;
+        var modo = config?.Modo ?? await _config.ModoPorDefectoAsync(empresaId, ct).ConfigureAwait(false);
         var raiz = SubcuentasTerceros.Raiz(tipo);
         if (modo != ModoContabilidad.Completo)
         {
@@ -202,7 +202,7 @@ public sealed class AsignarSubcuentaTercero
         await SembradorPlan.AsegurarAsync(empresaId, _cuentas, ct).ConfigureAwait(false);
 
         var config = await _config.ObtenerAsync(empresaId, ct).ConfigureAwait(false);
-        var modo = config?.Modo ?? ModoContabilidad.Simple;
+        var modo = config?.Modo ?? await _config.ModoPorDefectoAsync(empresaId, ct).ConfigureAwait(false);
         var longitud = config?.LongitudSubcuenta ?? ConfiguracionContabilidad.LongitudSubcuentaDefecto;
         var raiz = SubcuentasTerceros.Raiz(comando.Tipo);
 
