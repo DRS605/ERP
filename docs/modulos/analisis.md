@@ -6,7 +6,8 @@ el **periodo** (relativo: «este año», «últimos 12 meses»…), la **compara
 **filtros** por dimensión y por cifra, el orden y los **N primeros** (el resto se agrupa en «Resto»). El resultado se
 recalcula al cambiar cualquier cosa, con KPI del total (y su variación), gráfico y tabla.
 
-Menú: **Informes → Análisis de datos**. Módulos: `src/AlxorCore.Analisis` (catálogo, motor, informes guardados) y
+Menú: **Informes → Análisis de datos**; las plantillas también se abren desde el **Centro de informes** (ver
+`docs/frontend-spa.md`). Módulos: `src/AlxorCore.Analisis` (catálogo, motor, informes guardados) y
 `src/AlxorCore.Analisis.Infraestructura` (ejecución en PostgreSQL y persistencia, esquema `analisis`). La pantalla es
 un módulo React (`frontend/src/analisis`, compilado con `npx vite build -c vite.analisis.config.ts` en
 `wwwroot/app-analisis/analisis.js`) que la interfaz clásica monta en su vista (`irAnalisis`).
@@ -23,6 +24,9 @@ un módulo React (`frontend/src/analisis`, compilado con `npx vite build -c vite
 | `contabilidad` | Apuntes: debe, haber, saldo por cuenta, cuenta de 3 dígitos, subgrupo, grupo del PGC, diario, origen | contabilidad | `contabilidad.leer` |
 | `almacen` | Movimientos de almacén: entradas, salidas, variación de stock y de valor | inventario | `inventario.leer` |
 | `agro` | Entradas de fruta confirmadas: kilos, envases, importe estimado por agricultor, producto, calibre, campaña | agro | `agro.leer` |
+| `albaranes` | Líneas de albaranes de venta no anulados (expediciones): cantidad, kilos, importe, sin facturar, precio por fijar, coste, €/kg; por cliente, artículo, familia y estado | ventas | `factura.leer` |
+| `produccion` | Salidas de los partes de confección validados: kilos, cajas, consumido (repartido entre las salidas por kilos), merma, rendimiento %, coste, coste por kilo y por caja; por producto, calibre, categoría, campaña y parte | agro | `agro.leer` |
+| `envases` | Libro de envases por tercero: entregados (+), recogidos (−) y neto, por tercero, tipo de cuenta, envase y origen | agro | `agro.leer` |
 
 Todos tienen además las dimensiones de fecha: año, trimestre, mes, mes sin año, semana, día y día de la semana.
 
@@ -47,7 +51,10 @@ Todos tienen además las dimensiones de fecha: año, trimestre, mes, mes sin añ
 - **Galería**: mis informes (propios y compartidos), informes listos para usar (`PlantillasAnalisis`: ventas por
   cliente y mes, evolución y margen, margen por familia y artículo, top artículos por kilos, ventas por país, gastos
   por cuenta, compras por proveedor y mes, deuda por antigüedad, cobros y pagos por banco, cartera de pedidos, saldos
-  por grupo contable, gastos e ingresos por mes, movimientos de almacén, entradas de fruta por agricultor y calibre) y
+  por grupo contable, gastos e ingresos por mes, movimientos de almacén, entradas de fruta por agricultor y calibre, rankings de clientes,
+  artículos y proveedores, ventas por semana y artículo o por cliente y artículo, expediciones por cliente y semana,
+  albaranes sin facturar, control de producción diaria, rendimiento y merma, coste de confección, producción por línea
+  y mes, entradas por proveedor y mes, por parcela y por semana, y envases por tercero y por mes) y
   «Nuevo análisis» por conjunto.
 - **Fila**: al pulsarla, *Ver los registros* (el detalle, con enlace al documento), *Filtrar: solo esto*, *Excluir* y
   *Desglosar por…* otra dimensión. En la tabla dinámica, pulsar una celda abre sus registros. Los niveles se pliegan.

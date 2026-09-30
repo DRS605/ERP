@@ -56,7 +56,8 @@ public sealed partial class InterfazClasicaTests : IClassFixture<FabricaApiPrueb
 
         var titulos = js[js.IndexOf("const TITULOS", StringComparison.Ordinal)..];
         titulos = titulos[..titulos.IndexOf('\n', StringComparison.Ordinal)];
-        var vistas = Regex.Matches(nav, @"\[""(\w+)"",""[^""]+""\]").Select(m => m.Groups[1].Value)
+        // «vista~Pestaña» abre una pestaña de la vista: se comprueba la vista.
+        var vistas = Regex.Matches(nav, @"\[""(\w+)(?:~[^""]+)?"",""[^""]+""\]").Select(m => m.Groups[1].Value)
             .Concat(entradas.Where(e => e.Tipo == "item").Select(e => e.Clave)).Distinct().ToList();
         vistas.Where(v => !Regex.IsMatch(titulos, $@"\b{v}:")).Should().BeEmpty("cada vista del menú necesita su título en TITULOS");
         var mapa = Regex.Match(js, @"\(\{cartera:vCartera[^}]+\}\[k\]\)").Value;

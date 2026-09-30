@@ -483,27 +483,55 @@
     ICON.bancos = '<svg viewBox="0 0 24 24"><path d="M3 10l9-6 9 6"/><path d="M5 10v8M9.5 10v8M14.5 10v8M19 10v8"/><path d="M3 20h18"/></svg>';
     ICON.actividades = '<svg viewBox="0 0 24 24"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg>';
 
-    // Menú agrupado en carpetas: Ventas, Compras y Artículos.
+    // Menú agrupado en carpetas y secciones. «vista~Pestaña» abre esa pestaña de la pantalla.
     const NAV = [
       { t:"item", k:"inicio", l:"Inicio" },
-      { t:"grupo", k:"ventas", l:"Ventas", items:["Comercial",["clientes","Clientes"],["presupuestos","Presupuestos"],["pedidosventa","Pedidos de venta"],["albaranesventa","Albaranes"],["liquidacionescomision","Venta en comisión"],"Posventa",["devolucionesventa","Devoluciones"],["reclamaciones","Reclamaciones"],"Facturación",["facturas","Facturas"],["tpv","TPV · Tickets"],["recurrentes","Facturación periódica"],["anticipos","Anticipos"]] },
-      { t:"grupo", k:"compras", l:"Compras", items:[["proveedores","Proveedores"],["solicitudes","Solicitudes"],["pedidos","Pedidos de compra"],["recepcion","Buzón de facturas"],["gastos","Facturas de proveedor"],["cargosacreedor","Cargos de acreedores"]] },
-      { t:"grupo", k:"articulos", l:"Artículos y almacén", items:[["productos","Artículos"],["familias","Familias"],["tarifas","Tarifas de precios"],["conceptoslinea","Conceptos de línea"],["inventario","Inventario / Almacenes"],["produccion","Producción"]] },
-      { t:"grupo", k:"logistica", l:"Logística y expedición", items:[["logterminal","Terminal (móvil / pistola)"],["logunidades","Palés y unidades SSCC"],["logcalculo","Cálculo de palés"],["logmaestros","Fichas, soportes y plantillas"],["cartasporte","Cartas de porte · CMR"],["aduanas","Aduanas · Intrastat"]] },
-      { t:"grupo", k:"agro", l:"Agro", items:["Almacén",["agrorecepciones","Recepciones"],["agroconfeccion","Confección"],["agropartidas","Partidas y palés"],["agroordenescarga","Órdenes de carga"],["agroenvases","Envases"],"Campo y calidad",["agrocuaderno","Cuaderno de campo"],["agrosiex","Cuaderno digital (SIEX)"],["agrofitos","Fitosanitarios"],["agroglobalgap","GlobalG.A.P."],"Planta",["agroplanta","Líneas y calibrado"],"Campaña",["agroplanificacion","Planificación"],["agrotrazabilidad","Trazabilidad"],["agroliquidaciones","Liquidaciones"],["agroinforme","Informe de campaña"],["agromaestros","Maestros agro"]] },
-      { t:"grupo", k:"cooperativa", l:"Cooperativa", items:[["coopsocios","Socios"],["coopcapital","Capital social"],["coopreparto","Excedentes y retornos"],["cooplibros","Libros y actas"],["coopajustes","Ajustes de la cooperativa"]] },
-      { t:"grupo", k:"tesoreria", l:"Tesorería", items:["Cobros",["cobros","Cobros"],["cartera","Efectos de cartera"],["impagados","Impagados"],["remesas","Remesas SEPA"],"Pagos",["pagos","Pagos"],["liquidacionespagos","Liquidaciones y entregas a cuenta"],"Bancos",["bancos","Bancos y cajas"],["conciliacion","Conciliación bancaria"],["prevision","Previsión de tesorería"],["divisas","Divisas"]] },
-      { t:"grupo", k:"contabilidad", l:"Contabilidad", items:[["contabilidad","Contabilidad y libros"],["inmovilizado","Inmovilizado"],["analitica","Analítica · resultados"],["analiticapend","Analítica · pendientes"],["analiticamaestros","Centros, partidas y reglas"],["presupuestoscont","Presupuestos contables"]] },
-      { t:"grupo", k:"informes", l:"Informes", items:[["analisis","Análisis de datos"],["informes","Informes y modelos"],["gestion","Análisis de gestión"]] },
+      { t:"grupo", k:"ventas", l:"Ventas", items:["Comercial",["clientes","Clientes"],["presupuestos","Presupuestos"],["pedidosventa","Pedidos de venta"],["albaranesventa","Albaranes"],["tarifas","Tarifas de precios"],
+        "Venta en comisión",["liquidacionescomision","Liquidaciones de comisión"],
+        "Facturación",["facturas","Facturas"],["tpv","TPV · Tickets"],["recurrentes","Facturación periódica"],["anticipos","Anticipos"],
+        "Posventa",["devolucionesventa","Devoluciones"],["reclamaciones~Reclamaciones","Reclamaciones"],["reclamaciones~Informe","Informe de reclamaciones"],["reclamaciones~Conceptos","Conceptos de reclamación"],
+        "Informes",["centroinformes~Ventas","Informes de ventas"]] },
+      { t:"grupo", k:"compras", l:"Compras", items:["Compras",["proveedores","Proveedores"],["solicitudes","Solicitudes"],["pedidos","Pedidos de compra"],
+        "Facturas y cargos",["recepcion","Buzón de facturas"],["gastos","Facturas de proveedor"],["cargosacreedor","Cargos de acreedores"],
+        "Informes",["centroinformes~Compras","Informes de compras"]] },
+      { t:"grupo", k:"articulos", l:"Artículos y almacén", items:["Artículos",["productos","Artículos"],["familias","Familias"],["conceptoslinea","Conceptos de línea"],
+        "Almacén",["inventario","Inventario / Almacenes"],["produccion","Producción"],
+        "Informes",["centroinformes~Almacén","Informes de almacén"]] },
+      { t:"grupo", k:"logistica", l:"Logística y expedición", items:["Operativa",["logterminal","Terminal (móvil / pistola)"],["logunidades","Palés y unidades SSCC"],["logcalculo","Cálculo de palés"],
+        "Transporte y exportación",["cartasporte","Cartas de porte · CMR"],["aduanas","Aduanas · Intrastat"],
+        "Maestros logísticos",["logmaestros~Fichas logísticas","Fichas logísticas"],["logmaestros~Soportes","Soportes"],["logmaestros~Plantillas de paletizado","Plantillas de paletizado"],["logmaestros~Numeración SSCC","Numeración SSCC"]] },
+      { t:"grupo", k:"agro", l:"Agro", items:["Entrada de fruta",["agrorecepciones","Recepciones"],["agropartidas~Partidas","Partidas"],["agropartidas~Palés","Palés en almacén"],["agropartidas~Plantillas de palé","Plantillas de palé"],
+        "Planta y confección",["agroconfeccion","Partes de confección"],["agroplanta~Carga","Carga de las líneas"],["agroplanta~Órdenes","Órdenes por línea"],["agroplanta~Calibrados","Calibrados"],["agroplanta~Paradas","Paradas"],["agroplanta~Líneas","Líneas de planta"],
+        "Expedición",["agroordenescarga","Órdenes de carga"],["agroenvases","Envases"],
+        "Liquidación",["agroliquidaciones","Liquidaciones al agricultor"],
+        "Campo y calidad",["agrocuaderno","Cuaderno de campo"],["agrosiex~Estado del cuaderno","SIEX · estado del cuaderno"],["agrosiex~Explotación","SIEX · explotación"],["agrosiex~Plan de abonado","SIEX · plan de abonado"],["agrosiex~Análisis","SIEX · análisis"],["agrofitos","Fitosanitarios"],["agroglobalgap","GlobalG.A.P."],
+        "Campaña",["agroplanificacion","Planificación"],["agrotrazabilidad","Trazabilidad"],["agroinforme","Informe de campaña"],["centroinformes~Agro · entradas","Informes de entradas"],["centroinformes~Agro · producción","Informes de producción"],
+        "Maestros agro",["agromaestros~Campañas y agricultores","Campañas y agricultores"],["agromaestros~Precios y liquidación","Precios y liquidación"],["agromaestros~Confección","Maestros de confección"],["agromaestros~Calidad y certificación","Calidad y certificación"],["agromaestros~Envases y taras","Envases y taras"],["agromaestros~Palés e inventario","Palés e inventario"]] },
+      { t:"grupo", k:"cooperativa", l:"Cooperativa", items:["Socios y capital",["coopsocios","Socios"],["coopcapital","Capital social"],["coopreparto","Excedentes y retornos"],
+        "Libros",["cooplibros~Registro de socios","Registro de socios"],["cooplibros~Aportaciones al capital","Libro de aportaciones"],["cooplibros~Actas","Actas"],
+        "Configuración",["coopajustes","Ajustes de la cooperativa"],["centroinformes~Cooperativa","Informes de la cooperativa"]] },
+      { t:"grupo", k:"tesoreria", l:"Tesorería", items:["Cobros",["cobros","Cobros"],["cartera","Efectos de cartera"],["remesas","Remesas SEPA"],
+        "Impagados",["impagados~Facturas vencidas","Facturas vencidas"],["impagados~Impagados y dudosos","Impagados y dudosos"],["impagados~Renovaciones","Renovaciones"],
+        "Pagos",["pagos","Pagos"],["liquidacionespagos~Pendiente de pagar","Pendiente de pagar"],["liquidacionespagos~Entregas a cuenta","Entregas a cuenta"],["liquidacionespagos~Liquidaciones emitidas","Liquidaciones emitidas"],
+        "Bancos",["bancos","Bancos y cajas"],["conciliacion","Conciliación bancaria"],["prevision","Previsión de tesorería"],
+        "Divisas",["divisas~Tipos de cambio","Tipos de cambio"],["divisas~Conversor","Conversor"],["divisas~Diferencias de cambio","Diferencias de cambio"],
+        "Informes",["centroinformes~Tesorería","Informes de tesorería"]] },
+      { t:"grupo", k:"contabilidad", l:"Contabilidad", items:["Contabilidad",["contabilidad~Pendientes","Pendientes de contabilizar"],["contabilidad~Diario y saldos","Diario y saldos"],["contabilidad~Periodos y diarios","Periodos y diarios"],["contabilidad~Estados financieros","Estados financieros"],["contabilidad~Cierre y cuentas anuales","Cierre y cuentas anuales"],["inmovilizado","Inmovilizado"],
+        "Impuestos",["informes","Libros de IVA y modelos"],["centroinformes~Contabilidad e impuestos","Informes contables"],
+        "Analítica",["analitica","Resultados analíticos"],["analiticapend","Pendientes de imputar"],["analiticamaestros~Centros y partidas","Centros y partidas"],["analiticamaestros~Reparto y reglas","Reparto y reglas"],["analiticamaestros~Periodos (campañas)","Periodos (campañas)"],["presupuestoscont","Presupuestos contables"]] },
+      { t:"grupo", k:"informes", l:"Informes", items:["Centro de informes",["centroinformes~Favoritos","Favoritos"],["centroinformes","Todos los informes"],
+        "Análisis",["analisis","Análisis de datos"],["gestion~Evolución","Gestión · evolución"],["gestion~Ventas","Gestión · ventas"],["gestion~Compras","Gestión · compras"],["gestion~Cobros pendientes","Gestión · cobros pendientes"],["gestion~Existencias","Gestión · existencias"],["gestion~Extracto de tercero","Extracto de tercero"]] },
       { t:"grupo", k:"intragrupo", l:"Grupo de empresas", items:[["intragrupo","Operaciones entre empresas"],["actividades","Actividades de negocio"]] },
       { t:"item", k:"proyectos", l:"Proyectos" },
-      { t:"grupo", k:"ajustes", l:"Configuración", items:[["ajustes","Ajustes"],["aprobaciones","Aprobaciones"],["integraciones","API, webhooks y EDI"]] },
+      { t:"grupo", k:"ajustes", l:"Configuración", items:["Empresa",["ajustes~Empresa y plan","Empresa y plan"],["ajustes~Numeración","Numeración"],["ajustes~Cobros y riesgo","Cobros y riesgo"],["ajustes~Inventario","Inventario"],
+        "Usuarios y datos",["ajustes~Usuarios y roles","Usuarios y roles"],["ajustes~Datos e importación","Datos e importación"],["ajustes~Actividad","Actividad"],["aprobaciones","Aprobaciones"],
+        "Integraciones",["integraciones~API","API"],["integraciones~Webhooks","Webhooks"],["integraciones~EDI","EDI"]] },
     ];
-    const TITULOS = { liquidacionescomision:"Venta en comisión · liquidaciones de los clientes", agroplanta:"Agro · planta: líneas, carga, calibrado y paradas", agrosiex:"Agro · cuaderno digital de explotación (SIEX)", coopsocios:"Cooperativa · socios", coopcapital:"Cooperativa · capital social", coopreparto:"Cooperativa · excedentes y retorno cooperativo", cooplibros:"Cooperativa · libros registro y actas", coopajustes:"Cooperativa · ajustes", logterminal:"Logística · terminal de palés", logunidades:"Logística · palés y unidades SSCC", logcalculo:"Logística · cálculo de palés", logmaestros:"Logística · fichas, soportes y plantillas", agrofitos:"Agro · registro de fitosanitarios", agroglobalgap:"Agro · autoevaluaciones GlobalG.A.P.", agrocuaderno:"Agro · cuaderno de campo", agroordenescarga:"Agro · órdenes de carga", devolucionesventa:"Devoluciones de venta", reclamaciones:"Reclamaciones sobre ventas", liquidacionespagos:"Liquidaciones de pagos y entregas a cuenta", agroenvases:"Agro · envases por tercero", cargosacreedor:"Cargos de acreedores (portes, comisiones)", albaranesventa:"Albaranes de venta", analisis:"Análisis de datos", bancos:"Bancos y cajas", cartera:"Efectos de cartera", agrorecepciones:"Agro · recepciones de fruta", agropartidas:"Agro · partidas y palés", agroconfeccion:"Agro · confección", agroliquidaciones:"Agro · liquidaciones al agricultor", agrotrazabilidad:"Agro · trazabilidad", agroplanificacion:"Agro · planificación y seguimiento", agroinforme:"Agro · informe de campaña", agromaestros:"Agro · campañas, agricultores y precios", analitica:"Analítica · resultados", analiticapend:"Analítica · pendientes de imputar", analiticamaestros:"Analítica · centros, partidas y reglas", presupuestoscont:"Presupuestos contables", impagados:"Impagados y reclamaciones", anticipos:"Anticipos de clientes", cartasporte:"Cartas de porte · CMR", aduanas:"Aduanas e Intrastat", intragrupo:"Operaciones entre empresas del grupo", actividades:"Actividades de negocio", inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Facturas de proveedor y gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos",tarifas:"Tarifas de precios", conceptoslinea:"Conceptos de línea", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", gestion:"Análisis de gestión", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", divisas:"Divisas y tipos de cambio", aprobaciones:"Aprobaciones y control de firmas", integraciones:"API pública, webhooks y EDI", ajustes:"Ajustes" };
+    const TITULOS = { centroinformes:"Centro de informes", liquidacionescomision:"Venta en comisión · liquidaciones de los clientes", agroplanta:"Agro · planta: líneas, carga, calibrado y paradas", agrosiex:"Agro · cuaderno digital de explotación (SIEX)", coopsocios:"Cooperativa · socios", coopcapital:"Cooperativa · capital social", coopreparto:"Cooperativa · excedentes y retorno cooperativo", cooplibros:"Cooperativa · libros registro y actas", coopajustes:"Cooperativa · ajustes", logterminal:"Logística · terminal de palés", logunidades:"Logística · palés y unidades SSCC", logcalculo:"Logística · cálculo de palés", logmaestros:"Logística · fichas, soportes y plantillas", agrofitos:"Agro · registro de fitosanitarios", agroglobalgap:"Agro · autoevaluaciones GlobalG.A.P.", agrocuaderno:"Agro · cuaderno de campo", agroordenescarga:"Agro · órdenes de carga", devolucionesventa:"Devoluciones de venta", reclamaciones:"Reclamaciones sobre ventas", liquidacionespagos:"Liquidaciones de pagos y entregas a cuenta", agroenvases:"Agro · envases por tercero", cargosacreedor:"Cargos de acreedores (portes, comisiones)", albaranesventa:"Albaranes de venta", analisis:"Análisis de datos", bancos:"Bancos y cajas", cartera:"Efectos de cartera", agrorecepciones:"Agro · recepciones de fruta", agropartidas:"Agro · partidas y palés", agroconfeccion:"Agro · confección", agroliquidaciones:"Agro · liquidaciones al agricultor", agrotrazabilidad:"Agro · trazabilidad", agroplanificacion:"Agro · planificación y seguimiento", agroinforme:"Agro · informe de campaña", agromaestros:"Agro · campañas, agricultores y precios", analitica:"Analítica · resultados", analiticapend:"Analítica · pendientes de imputar", analiticamaestros:"Analítica · centros, partidas y reglas", presupuestoscont:"Presupuestos contables", impagados:"Impagados y reclamaciones", anticipos:"Anticipos de clientes", cartasporte:"Cartas de porte · CMR", aduanas:"Aduanas e Intrastat", intragrupo:"Operaciones entre empresas del grupo", actividades:"Actividades de negocio", inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Facturas de proveedor y gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos",tarifas:"Tarifas de precios", conceptoslinea:"Conceptos de línea", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", gestion:"Análisis de gestión", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", divisas:"Divisas y tipos de cambio", aprobaciones:"Aprobaciones y control de firmas", integraciones:"API pública, webhooks y EDI", ajustes:"Ajustes" };
     // Plan contratado de la empresa activa (lo devuelve /empresas/{id}/seleccionar).
     let plan = null;
     // Vista → módulo contratable que necesita. Las vistas que no están aquí son de la base.
-    const MODULO_VISTA = { liquidacionescomision:"ventas", agroplanta:"agro", logterminal:"logistica", logunidades:"logistica", logcalculo:"logistica", logmaestros:"logistica", agrofitos:"agro", agroglobalgap:"agro", agrocuaderno:"agro", agrosiex:"agro", agroenvases:"agro", albaranesventa:"ventas", cargosacreedor:"compras", tarifas:"ventas", presupuestos:"ventas", pedidosventa:"ventas", remesas:"tesoreria_avanzada",
+    const MODULO_VISTA = { "centroinformes~Agro · entradas":"agro", "centroinformes~Agro · producción":"agro", "centroinformes~Cooperativa":"cooperativa", liquidacionescomision:"ventas", agroplanta:"agro", logterminal:"logistica", logunidades:"logistica", logcalculo:"logistica", logmaestros:"logistica", agrofitos:"agro", agroglobalgap:"agro", agrocuaderno:"agro", agrosiex:"agro", agroenvases:"agro", albaranesventa:"ventas", cargosacreedor:"compras", tarifas:"ventas", presupuestos:"ventas", pedidosventa:"ventas", remesas:"tesoreria_avanzada",
       solicitudes:"compras", pedidos:"compras", conciliacion:"tesoreria_avanzada", inventario:"inventario",
       produccion:"produccion", personal:"personal", proyectos:"proyectos", prevision:"tesoreria_avanzada",
       contabilidad:"contabilidad", inmovilizado:"inmovilizado", divisas:"divisas", aprobaciones:"aprobaciones",
@@ -514,7 +542,9 @@
       personal:"Personal", proyectos:"Proyectos", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado",
       tesoreria_avanzada:"Tesorería avanzada", divisas:"Divisas", aprobaciones:"Aprobaciones", integraciones:"Integraciones" };
     // Sin plan en el token (tokens antiguos) no se oculta nada.
-    const contratado = k => !plan || !plan.edicion || !MODULO_VISTA[k] || plan.modulos.has(MODULO_VISTA[k]);
+    // Una entrada del menú puede abrir una pestaña concreta de su pantalla: «vista~Título de la pestaña».
+    const vistaBase = k => String(k).split("~")[0];
+    const contratado = k => { const m=MODULO_VISTA[k]||MODULO_VISTA[vistaBase(k)]; return !plan || !plan.edicion || !m || plan.modulos.has(m); };
     // En los grupos, un texto suelto entre las vistas es un rótulo de sección; solo se pinta si le sigue alguna vista contratada.
     const vistasGrupo = n => n.items.filter(Array.isArray);
     function renderNav() {
@@ -525,7 +555,7 @@
           const [k,l] = it; if (!contratado(k)) return "";
           const r = rotulo ? `<div class="navsec">${rotulo}</div>` : ""; rotulo = null;
           return r + `<a class="navsub" data-k="${k}" onclick="ir('${k}')"><span>${l}</span></a>`; }).join("");
-        return `<div class="navgroup${vistasGrupo(n).some(([k])=>k===vista)?"":" closed"}" data-g="${n.k}"><div class="navhead" onclick="toggleGrupo('${n.k}')">${ICON[n.k]}<span>${n.l}</span><svg class="chev" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6"/></svg></div><div class="subnav">${links}</div></div>`;
+        return `<div class="navgroup${vistasGrupo(n).some(([k])=>vistaBase(k)===vista)?"":" closed"}" data-g="${n.k}"><div class="navhead" onclick="toggleGrupo('${n.k}')">${ICON[n.k]}<span>${n.l}</span><svg class="chev" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6"/></svg></div><div class="subnav">${links}</div></div>`;
       }).join("");
     }
     function toggleGrupo(g){ document.querySelector(`.navgroup[data-g="${g}"]`).classList.toggle("closed"); }
@@ -624,14 +654,17 @@
 
     function toggleMenu(){ const s=document.querySelector(".sidebar"), b=document.getElementById("backdrop"); const abierto=s.classList.toggle("open"); b.classList.toggle("show",abierto); }
     function closeMenu(){ const s=document.querySelector(".sidebar"), b=document.getElementById("backdrop"); if(s)s.classList.remove("open"); if(b)b.classList.remove("show"); }
-    function ir(k){ closeMenu(); if(vista==="tpv" && k!=="tpv" && typeof tpvParar==="function") tpvParar(); vista=k;
-      document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("active",a.dataset.k===k));
+    function ir(entrada){ closeMenu(); const [k,pestana]=String(entrada).split("~"); window._pestanaPedida=pestana||null;
+      if(vista==="tpv" && k!=="tpv" && typeof tpvParar==="function") tpvParar(); vista=k;
+      // Se marca la entrada exacta; si se llega por otro camino, la primera entrada de la pantalla.
+      const marca=document.querySelector(`#nav a[data-k="${entrada}"]`)?entrada:(document.querySelector(`#nav a[data-k="${k}"]`)?k:(document.querySelector(`#nav a[data-k^="${k}~"]`)||{}).dataset?.k);
+      document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("active",a.dataset.k===marca));
       // Solo queda desplegado el grupo de la pantalla abierta; los demás se pliegan.
-      document.querySelectorAll("#nav .navgroup").forEach(g=>g.classList.toggle("closed",!g.querySelector(`a[data-k="${k}"]`)));
-      document.getElementById("viewTitle").textContent=TITULOS[k]||k;
+      document.querySelectorAll("#nav .navgroup").forEach(g=>g.classList.toggle("closed",!g.querySelector(`a[data-k="${marca}"]`)));
+      document.getElementById("viewTitle").textContent=TITULOS[entrada]||TITULOS[k]||k;
       if(!contratado(k)){ const m=NOMBRE_MODULO[MODULO_VISTA[k]]||MODULO_VISTA[k];
         view(panel("No incluido en tu plan",`<p class="muted" style="margin:0 0 14px">Esta pantalla forma parte del módulo <strong>${m}</strong>, que tu plan no incluye.</p><button class="btn small" onclick="ir('ajustes')">Ver planes en Ajustes →</button>`)); return; }
-      ({cartera:vCartera,liquidacionescomision:vLiquidacionesComision,agroplanta:()=>vAgroPlanta(),agrosiex:()=>vAgroSiex(),coopsocios:()=>vCoopSocios(),coopcapital:vCoopCapital,coopreparto:vCoopReparto,cooplibros:vCoopLibros,coopajustes:vCoopAjustes,logterminal:vLogTerminal,logunidades:vLogUnidades,logcalculo:vLogCalculo,logmaestros:vLogMaestros,agrofitos:vAgroFitos,agroglobalgap:vAgroGlobalGap,agrocuaderno:vAgroCuaderno,agroordenescarga:vAgroOrdenesCarga,devolucionesventa:vDevolucionesVenta,reclamaciones:vReclamaciones,liquidacionespagos:vLiquidacionesPagos,agroenvases:vAgroEnvases,albaranesventa:vAlbaranesVenta,cargosacreedor:vCargosAcreedor,analisis:()=>irAnalisis(),bancos:vBancos,agrorecepciones:vAgroRecepciones,agropartidas:vAgroPartidas,agroconfeccion:vAgroConfeccion,agroliquidaciones:vAgroLiquidaciones,agrotrazabilidad:vAgroTrazabilidad,agroplanificacion:()=>vAgroPlanificacion(),agroinforme:()=>vAgroInforme(),agromaestros:()=>vAgroMaestros(),analitica:vAnalitica,analiticapend:vAnaliticaPend,analiticamaestros:vAnaliticaMaestros,presupuestoscont:vPresupuestosCont,impagados:vImpagados,anticipos:vAnticipos,cartasporte:vCartasPorte,aduanas:vAduanas,intragrupo:vIntragrupo,actividades:vActividades,inicio:vInicio,presupuestos:()=>irDocumento("presupuesto"),facturas:()=>irDocumento("factura"),tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:()=>irDocumento("pedido"),clientes:vClientes,productos:vProductos,familias:vFamilias,tarifas:vTarifas,conceptoslinea:vConceptosLinea,gastos:()=>irDocumento("gasto"),solicitudes:vSolicitudes,pedidos:()=>irDocumento("compra"),inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,gestion:vGestion,contabilidad:vContabilidad,inmovilizado:vInmovilizado,divisas:vDivisas,aprobaciones:vAprobaciones,integraciones:vIntegraciones,ajustes:vAjustes}[k])();
+      ({cartera:vCartera,centroinformes:()=>vCentroInformes(),liquidacionescomision:vLiquidacionesComision,agroplanta:()=>vAgroPlanta(),agrosiex:()=>vAgroSiex(),coopsocios:()=>vCoopSocios(),coopcapital:vCoopCapital,coopreparto:vCoopReparto,cooplibros:vCoopLibros,coopajustes:vCoopAjustes,logterminal:vLogTerminal,logunidades:vLogUnidades,logcalculo:vLogCalculo,logmaestros:vLogMaestros,agrofitos:vAgroFitos,agroglobalgap:vAgroGlobalGap,agrocuaderno:vAgroCuaderno,agroordenescarga:vAgroOrdenesCarga,devolucionesventa:vDevolucionesVenta,reclamaciones:vReclamaciones,liquidacionespagos:vLiquidacionesPagos,agroenvases:vAgroEnvases,albaranesventa:vAlbaranesVenta,cargosacreedor:vCargosAcreedor,analisis:()=>irAnalisis(),bancos:vBancos,agrorecepciones:vAgroRecepciones,agropartidas:vAgroPartidas,agroconfeccion:vAgroConfeccion,agroliquidaciones:vAgroLiquidaciones,agrotrazabilidad:vAgroTrazabilidad,agroplanificacion:()=>vAgroPlanificacion(),agroinforme:()=>vAgroInforme(),agromaestros:()=>vAgroMaestros(),analitica:vAnalitica,analiticapend:vAnaliticaPend,analiticamaestros:vAnaliticaMaestros,presupuestoscont:vPresupuestosCont,impagados:vImpagados,anticipos:vAnticipos,cartasporte:vCartasPorte,aduanas:vAduanas,intragrupo:vIntragrupo,actividades:vActividades,inicio:vInicio,presupuestos:()=>irDocumento("presupuesto"),facturas:()=>irDocumento("factura"),tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:()=>irDocumento("pedido"),clientes:vClientes,productos:vProductos,familias:vFamilias,tarifas:vTarifas,conceptoslinea:vConceptosLinea,gastos:()=>irDocumento("gasto"),solicitudes:vSolicitudes,pedidos:()=>irDocumento("compra"),inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,gestion:vGestion,contabilidad:vContabilidad,inmovilizado:vInmovilizado,divisas:vDivisas,aprobaciones:vAprobaciones,integraciones:vIntegraciones,ajustes:vAjustes}[k])();
     }
     const view = h => { desmontarDocs(); document.getElementById("view").innerHTML=h; try{ mejorarTablas(); }catch(e){} };
 
@@ -1167,8 +1200,11 @@
     // Pestañas: una pantalla con varias áreas muestra una sola a la vez (y recuerda la última). Todo el contenido está en
     // la página, así que los botones y lo que se carga después de pintarla siguen funcionando.
     function pestanas(clave,grupos){
-      const gs=grupos.filter(g=>g&&g[1]); if(!gs.length) return ""; if(gs.length===1) return gs[0][1];
+      // Una pestaña vacía no se pinta, salvo la que se ha pedido desde el menú (se abre con un aviso).
+      const gs=grupos.filter(g=>g&&(g[1]||(window._pestanaPedida&&g[0]===window._pestanaPedida))).map(g=>g[1]?g:[g[0],'<p class="muted" style="margin:0">No hay nada que mostrar aquí todavía.</p>']); if(!gs.length) return ""; if(gs.length===1) return gs[0][1];
       let activa=0; try{ const t=localStorage.getItem("alxor.pestana."+clave); const i=gs.findIndex(g=>g[0]===t); if(i>=0) activa=i; }catch(_){}
+      // La pestaña que pidió el menú (la primera lista de pestañas que la tiene), y se recuerda.
+      if(window._pestanaPedida){ const i=gs.findIndex(g=>g[0]===window._pestanaPedida); if(i>=0){ activa=i; window._pestanaPedida=null; try{ localStorage.setItem("alxor.pestana."+clave,gs[i][0]); }catch(_){} } }
       return `<div class="pestanas" data-clave="${clave}" role="tablist">${gs.map((g,i)=>`<button class="pestana${i===activa?" activa":""}" role="tab" onclick="verPestana('${clave}',${i},this)">${g[0]}</button>`).join("")}</div>`
         +gs.map((g,i)=>`<div class="pestana-cuerpo" data-pestana="${clave}:${i}" data-titulo="${String(g[0]).replace(/"/g,"&quot;")}"${i===activa?"":' style="display:none"'}>${g[1]}</div>`).join("");
     }
@@ -4812,6 +4848,109 @@
       const m420=IMP.siglas==="IGIC"?await api(`/impuestos/modelo-420?anio=${anio}&trimestre=${trimSel}`).catch(()=>null):null;
       view(barra+panelGraficos+(benef?panelBeneficio(benef,anio):"")+(benef&&benef.porProducto.length?panelRanking(benef,anio):"")+(m420?panel420(m420,anio):"")+(resumen?panelResumen(resumen,anio):"")+((m111||m190)?panelRetenciones(m111,m190,anio):"")+panelOtrasRetenciones(m115,m180,m123,m193,anio)+(m349?panelIntracomunitarias(m349,anio):"")+(anual?panelAnual(anual,anio):"")+panelLibro+panelSii);
       pintarCertificadoSii();
+    }
+
+    /* ---------- Centro de informes: los informes de todo el ERP ordenados por carpetas ----------
+       Cada informe abre una pantalla (o una pestaña suya, «vista~Pestaña») o una plantilla del análisis de
+       datos. Se puede buscar en todas las carpetas y marcar favoritos (se guardan en este navegador). */
+    const CI_CARPETAS=["Ventas","Compras","Almacén","Agro · entradas","Agro · producción","Envases","Tesorería","Contabilidad e impuestos","Cooperativa"];
+    const CI_INFORMES=[
+      ["Ventas","an:ventas_cliente_mes","Ventas por cliente y mes","Facturación de cada cliente mes a mes."],
+      ["Ventas","an:ventas_evolucion","Evolución de ventas y margen","Ventas, coste y margen por mes, comparado con el año anterior."],
+      ["Ventas","an:ranking_clientes","Ranking de clientes","Clientes ordenados por importe con su margen."],
+      ["Ventas","an:ranking_articulos","Ranking de artículos","Artículos ordenados por importe vendido."],
+      ["Ventas","an:top_articulos_kilos","Top 20 artículos por kilos","Los artículos que más kilos mueven."],
+      ["Ventas","an:margen_familia","Margen por familia y artículo","Rentabilidad de cada familia y de sus artículos."],
+      ["Ventas","an:ventas_semana_articulo","Ventas por semana y artículo","Seguimiento semanal de la campaña comercial."],
+      ["Ventas","an:ventas_cliente_articulo","Ventas por cliente y artículo","Qué compra cada cliente."],
+      ["Ventas","an:ventas_pais","Ventas por país y cliente","Mercado nacional, UE y exportación."],
+      ["Ventas","an:pedidos_pendientes","Cartera de pedidos pendiente","Pedidos de venta por servir."],
+      ["Ventas","an:expedicion_cliente_semana","Expediciones por cliente y semana","Kilos y albaranes expedidos a cada cliente."],
+      ["Ventas","an:albaranes_sin_facturar","Albaranes sin facturar","Albaranes entregados pendientes de factura o de precio."],
+      ["Ventas","ir:liquidacionescomision~Resultado por cliente","Resultado de la venta en comisión","Bruto, gastos y neto liquidado por cliente comisionista."],
+      ["Ventas","ir:reclamaciones~Informe","Informe de reclamaciones","Reclamaciones por cliente, motivo y estado."],
+      ["Ventas","ir:gestion~Ventas","Análisis de gestión · ventas","Resumen de ventas por cliente y artículo."],
+      ["Compras","an:compras_mes","Compras por proveedor y mes","Importe comprado a cada proveedor mes a mes."],
+      ["Compras","an:compras_cuenta","Gastos por cuenta y proveedor","Gasto de cada cuenta contable y quién lo factura."],
+      ["Compras","an:ranking_proveedores","Ranking de proveedores","Proveedores ordenados por importe."],
+      ["Compras","ir:gestion~Compras","Análisis de gestión · compras","Resumen de compras por proveedor."],
+      ["Almacén","an:almacen_articulo","Movimientos por almacén y artículo","Entradas, salidas y saldo de cada artículo."],
+      ["Almacén","ir:gestion~Existencias","Existencias valoradas","Stock actual y su valor por artículo."],
+      ["Almacén","ir:inventario","Inventario y almacenes","Existencias, movimientos y recuentos."],
+      ["Agro · entradas","an:agro_entradas_mes","Entradas por proveedor y mes","Kilos entregados por cada agricultor mes a mes."],
+      ["Agro · entradas","an:agro_entradas_semana","Entradas de fruta por semana y producto","Curva de entradas de la campaña."],
+      ["Agro · entradas","an:agro_entradas_parcela","Entradas por parcela y producto","Producción de cada parcela."],
+      ["Agro · entradas","an:agro_agricultor_calibre","Entradas por agricultor y calibre","Clasificación de la fruta de cada agricultor."],
+      ["Agro · entradas","ir:agroinforme","Informe de campaña","Resumen de entradas, confección, ventas y liquidaciones."],
+      ["Agro · entradas","ir:agrotrazabilidad","Trazabilidad","Del agricultor al cliente y del cliente al agricultor."],
+      ["Agro · producción","an:produccion_diaria","Control de producción diaria","Kilos, cajas y merma de los partes validados por día."],
+      ["Agro · producción","an:produccion_rendimiento","Rendimiento y merma por producto","Kilos confeccionados sobre los consumidos."],
+      ["Agro · producción","an:produccion_coste","Coste de confección por producto","Coste por kilo y por caja."],
+      ["Agro · producción","an:produccion_linea_mes","Producción por línea y mes","Lo que produce cada parte de confección por mes."],
+      ["Agro · producción","ir:agroplanta~Carga","Carga de las líneas","Horas planificadas frente a capacidad de cada línea."],
+      ["Agro · producción","ir:agroplanta~Calibrados","Calibrados","Resultados de la calibradora por calibre y categoría."],
+      ["Agro · producción","ir:agroplanta~Paradas","Paradas de línea","Tiempo parado por línea y motivo."],
+      ["Agro · producción","ir:agroplanificacion","Planificación y seguimiento","Plan de producción frente a lo real."],
+      ["Envases","an:envases_tercero","Movimientos de envases por tercero","Entregados, recogidos y saldo de cada tercero."],
+      ["Envases","an:envases_mes","Envases por mes y tipo de tercero","Evolución del parque de envases."],
+      ["Envases","ir:agroenvases","Saldos de envases","Cuentas de envases, límites y justificantes."],
+      ["Tesorería","an:deuda_antiguedad","Deuda de clientes por antigüedad","Pendiente de cobro por tramos de vencimiento."],
+      ["Tesorería","an:tesoreria_banco_mes","Cobros y pagos por banco y mes","Movimiento de cada banco."],
+      ["Tesorería","ir:gestion~Cobros pendientes","Cobros pendientes","Facturas pendientes de cobro por cliente."],
+      ["Tesorería","ir:impagados~Facturas vencidas","Facturas vencidas","Vencidos sin cobrar para reclamar."],
+      ["Tesorería","ir:impagados~Impagados y dudosos","Impagados y dudosos","Efectos devueltos y clientes de dudoso cobro."],
+      ["Tesorería","ir:liquidacionespagos~Pendiente de pagar","Pendiente de pagar","Proveedores con facturas por pagar."],
+      ["Tesorería","ir:prevision","Previsión de tesorería","Saldo previsto con cobros y pagos futuros."],
+      ["Tesorería","ir:divisas~Diferencias de cambio","Diferencias de cambio","Resultados por divisa."],
+      ["Contabilidad e impuestos","ir:contabilidad~Diario y saldos","Diario, mayor y sumas y saldos","Libros contables del ejercicio."],
+      ["Contabilidad e impuestos","ir:contabilidad~Estados financieros","Balance y pérdidas y ganancias","Estados financieros del periodo."],
+      ["Contabilidad e impuestos","ir:contabilidad~Cierre y cuentas anuales","Cuentas anuales y legalización","Depósito en el Registro Mercantil y libros legalizados."],
+      ["Contabilidad e impuestos","an:contabilidad_grupos","Saldos por grupo y cuenta","Saldos del plan contable por grupos."],
+      ["Contabilidad e impuestos","an:gastos_ingresos_mes","Gastos e ingresos por mes","Grupos 6 y 7 mes a mes."],
+      ["Contabilidad e impuestos","ir:informes","Libros de IVA y modelos fiscales","303, 111, 115, 123, 180, 190, 193, 347, 349, SII…"],
+      ["Contabilidad e impuestos","ir:gestion~Extracto de tercero","Extracto de tercero","Movimientos y saldo de un cliente o proveedor."],
+      ["Contabilidad e impuestos","ir:inmovilizado","Inmovilizado y amortizaciones","Fichas de activos y cuadro de amortización."],
+      ["Contabilidad e impuestos","ir:analitica","Resultados analíticos","Resultado por centro y partida."],
+      ["Contabilidad e impuestos","ir:presupuestoscont","Presupuestos contables","Presupuesto frente a real."],
+      ["Cooperativa","ir:cooplibros~Registro de socios","Libro registro de socios","Altas, bajas y datos de los socios."],
+      ["Cooperativa","ir:cooplibros~Aportaciones al capital","Libro de aportaciones al capital","Movimientos del capital de cada socio."],
+      ["Cooperativa","ir:coopcapital","Capital social","Saldo de capital y aportaciones pendientes."],
+      ["Cooperativa","ir:coopreparto","Excedentes y retornos","Reparto del excedente y retorno por socio."],
+    ];
+    let _ciPlantillas=null, _ciBusca="";
+    const ciFavoritos=()=>{ try{ return JSON.parse(localStorage.getItem("alxor.informes.favoritos")||"[]"); }catch(_){ return []; } };
+    function ciFavorito(accion){ const f=ciFavoritos(); const i=f.indexOf(accion); if(i>=0) f.splice(i,1); else f.push(accion);
+      try{ localStorage.setItem("alxor.informes.favoritos",JSON.stringify(f)); }catch(_){} vCentroInformes(); }
+    function ciAbrir(accion){ const [t,v]=[accion.slice(0,2),accion.slice(3)];
+      if(t==="an"){ vista="analisis"; document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("active",a.dataset.k==="analisis")); document.getElementById("viewTitle").textContent=TITULOS.analisis||"Análisis de datos"; irAnalisis({plantilla:v}); }
+      else ir(v); }
+    // Solo los informes que la empresa puede abrir: pantallas de su plan y plantillas que el análisis le ofrece.
+    const ciDisponibles=()=>CI_INFORMES.filter(([,a])=>a.startsWith("an:")?(!_ciPlantillas||_ciPlantillas.has(a.slice(3))):contratado(a.slice(3)));
+    function ciTarjetas(lista){
+      if(!lista.length) return `<p class="muted" style="margin:0">No hay informes.</p>`;
+      const fav=ciFavoritos();
+      return `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">${lista.map(([c,a,n,d])=>`
+        <div style="border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--surface);display:flex;flex-direction:column;gap:6px">
+          <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><a href="#" onclick="ciAbrir('${a}');return false" style="font-weight:600;color:var(--ink);text-decoration:none">${agEsc(n)}</a>
+            <button class="btn small ghost" title="${fav.includes(a)?"Quitar de favoritos":"Añadir a favoritos"}" onclick="ciFavorito('${a}')" style="padding:2px 8px">${fav.includes(a)?"★":"☆"}</button></div>
+          <div class="muted" style="font-size:13px">${agEsc(d)}</div>
+          <div class="muted" style="font-size:12px">${agEsc(c)} · ${a.startsWith("an:")?"análisis de datos":"pantalla"}</div></div>`).join("")}</div>`;
+    }
+    function ciBuscar(v){ _ciBusca=v; const q=_norm(v), el=document.getElementById("ci_resultados"), tabs=document.getElementById("ci_carpetas");
+      if(!q){ el.innerHTML=""; tabs.style.display=""; return; }
+      tabs.style.display="none";
+      el.innerHTML=ciTarjetas(ciDisponibles().filter(([c,,n,d])=>_norm(c+" "+n+" "+d).includes(q))); }
+    async function vCentroInformes(abrir){
+      if(abrir) window._pestanaPedida=abrir;
+      if(window._pestanaPedida) _ciBusca=""; // al entrar por una carpeta del menú se olvida la búsqueda
+      if(!_ciPlantillas){ try{ const cat=await api("/analisis/catalogo"); _ciPlantillas=new Set((cat.plantillas||[]).map(p=>p.clave)); }catch(_){ _ciPlantillas=null; } }
+      const disp=ciDisponibles(), fav=ciFavoritos();
+      const favs=disp.filter(([,a])=>fav.includes(a));
+      const grupos=[["Favoritos",favs.length?ciTarjetas(favs):`<p class="muted" style="margin:0">Marca con ☆ los informes que más uses para tenerlos aquí.</p>`]]
+        .concat(CI_CARPETAS.map(c=>[c,disp.some(x=>x[0]===c)?ciTarjetas(disp.filter(x=>x[0]===c)):""]));
+      const busca=`<div style="margin-bottom:14px"><input id="ci_busca" placeholder="Buscar un informe en todas las carpetas…" value="${agEsc(_ciBusca)}" oninput="ciBuscar(this.value)" style="max-width:420px"></div>`;
+      view(panel("Centro de informes",busca+`<div id="ci_resultados"></div><div id="ci_carpetas">${pestanas("centroinformes",grupos)}</div>`,`<button class="btn small ghost" onclick="ir('analisis')">Diseñar un análisis →</button>`));
+      if(_ciBusca) ciBuscar(_ciBusca);
     }
 
     /* ---------- Analítica: centros × partidas, reglas, repartos y presupuestos ---------- */

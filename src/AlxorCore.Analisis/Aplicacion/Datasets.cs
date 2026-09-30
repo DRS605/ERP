@@ -82,6 +82,9 @@ public static class CatalogoDatasets
         Contabilidad(),
         Existencias(),
         RecepcionesAgro(),
+        Albaranes(),
+        Produccion(),
+        Envases(),
     ];
 
     public static DatasetAnalisis? Buscar(string? clave) => Todos.FirstOrDefault(d => d.Clave == clave);
@@ -459,5 +462,137 @@ public static class CatalogoDatasets
             new("Calibre", "lr.calibre"),
             new("Kilos", "lr.neto_kg", TipoDato.Numero),
             new("Envases", "lr.envases", TipoDato.Numero),
+        ]);
+
+    private const string ImporteAlbaran = "round(l.cantidad * l.precio_unitario * (1 - coalesce(l.porcentaje_descuento, 0) / 100), 2) + coalesce(l.importe_conceptos, 0)";
+
+    private const string EstadoLineaAlbaran = "CASE WHEN a.factura_id IS NOT NULL THEN 'Facturado' WHEN l.precio_fijado THEN 'Pendiente de facturar' ELSE 'Precio por fijar' END";
+
+    private static DatasetAnalisis Albaranes() => new(
+        "albaranes",
+        "Albaranes de venta (expediciones)",
+        "Líneas de los albaranes de venta no anulados: lo expedido a cada cliente, con precio por fijar, pendiente de facturar o facturado.",
+        "ventas",
+        """
+        facturacion.linea_albaran_venta l
+        JOIN facturacion.albaran_venta a ON a.id = l.albaran_venta_id
+        LEFT JOIN catalogo.producto p ON p.id = l.producto_id
+        LEFT JOIN catalogo.familia fa ON fa.id = p.familia_id
+        """,
+        "a.anulado_en IS NULL",
+        "a.fecha",
+        [
+            new("cliente", "Cliente", "a.cliente_nombre", "Cliente"),
+            new("articulo", "Artículo", "coalesce(p.nombre, l.descripcion)", "Artículo"),
+            new("familia", "Familia", "coalesce(fa.nombre, p.familia)", "Artículo"),
+            new("estado", "Situación", EstadoLineaAlbaran, "Documento"),
+            new("albaran", "Albarán", "coalesce(a.serie, '') || a.numero", "Documento"),
+        ],
+        [
+            new("albaranes", "Nº albaranes", "count(DISTINCT a.id)", TipoDato.Numero, false),
+            new("cantidad", "Cantidad", "sum(l.cantidad)", TipoDato.Numero),
+            new("kilos", "Kilos", $"sum({KilosLinea})", TipoDato.Numero),
+            new("importe", "Importe (estimado si está por fijar)", $"sum({ImporteAlbaran})"),
+            new("sin_facturar", "Importe sin facturar", $"sum(CASE WHEN a.factura_id IS NULL THEN {ImporteAlbaran} ELSE 0 END)"),
+            new("por_fijar", "Cantidad a precio por fijar", "sum(CASE WHEN a.factura_id IS NULL AND NOT l.precio_fijado THEN l.cantidad ELSE 0 END)", TipoDato.Numero),
+            new("coste", "Coste", "sum(round(coalesce(l.coste_unitario, 0) * l.cantidad, 2) + coalesce(l.coste_conceptos, 0))"),
+            new("precio_kilo", "Precio por kilo", $"round(sum({ImporteAlbaran}) / nullif(sum({KilosLinea}), 0), 4)", TipoDato.Moneda, false),
+            new("clientes", "Nº clientes", "count(DISTINCT a.cliente_id)", TipoDato.Numero, false),
+        ],
+        ["cliente"],
+        ["kilos", "importe", "sin_facturar"],
+        [
+            new("Albarán", "coalesce(a.serie, '') || a.numero"),
+            new("Fecha", "a.fecha", TipoDato.Fecha),
+            new("Cliente", "a.cliente_nombre"),
+            new("Artículo", "coalesce(p.nombre, l.descripcion)"),
+            new("Cantidad", "l.cantidad", TipoDato.Numero),
+            new("Precio", "l.precio_unitario", TipoDato.Moneda),
+            new("Situación", EstadoLineaAlbaran),
+        ]);
+
+    // Lo consumido en el parte se reparte entre sus salidas por kilos: así cada salida tiene su rendimiento y su merma.
+    private const string ConsumoSalida =
+        "coalesce((SELECT sum(c.kilos) FROM agro.consumo_parte c WHERE c.parte_id = pc.id), 0) * s.kilos / nullif((SELECT sum(x.kilos) FROM agro.salida_parte x WHERE x.parte_id = pc.id), 0)";
+
+    private static DatasetAnalisis Produccion() => new(
+        "produccion",
+        "Producción (partes de confección)",
+        "Salidas de los partes de confección validados: kilos y cajas obtenidos, lo consumido, el rendimiento, la merma y el coste por kilo.",
+        "agro",
+        """
+        agro.salida_parte s
+        JOIN agro.parte_confeccion pc ON pc.id = s.parte_id
+        LEFT JOIN agro.categoria k ON k.id = s.categoria_id
+        LEFT JOIN agro.campana ca ON ca.id = pc.campana_id
+        """,
+        "pc.estado = 'Validado'",
+        "pc.fecha",
+        [
+            new("producto", "Producto confeccionado", "s.nombre", "Producto"),
+            new("calibre", "Calibre", "s.calibre", "Producto"),
+            new("categoria", "Categoría", "k.nombre", "Producto"),
+            new("campana", "Campaña", "ca.nombre", "Campaña"),
+            new("descripcion", "Línea o descripción del parte", "pc.descripcion", "Parte"),
+            new("parte", "Parte", "'PC-' || pc.ejercicio || '-' || lpad(pc.numero::text, 6, '0')", "Parte"),
+        ],
+        [
+            new("partes", "Nº partes", "count(DISTINCT pc.id)", TipoDato.Numero, false),
+            new("kilos", "Kilos obtenidos", "sum(s.kilos)", TipoDato.Numero),
+            new("cajas", "Cajas", "sum(coalesce(s.cajas, 0))", TipoDato.Numero),
+            new("consumido", "Kilos consumidos", $"round(sum({ConsumoSalida}), 3)", TipoDato.Numero),
+            new("merma", "Merma (kg)", $"round(sum({ConsumoSalida}) - sum(s.kilos), 3)", TipoDato.Numero),
+            new("rendimiento", "Rendimiento %", $"round(100 * sum(s.kilos) / nullif(sum({ConsumoSalida}), 0), 2)", TipoDato.Porcentaje, false),
+            new("coste", "Coste total", "sum(s.coste)"),
+            new("coste_confeccion", "Coste de confección", "sum(coalesce(s.coste_confeccion, 0))"),
+            new("coste_kg", "Coste por kilo", "round(sum(s.coste) / nullif(sum(s.kilos), 0), 4)", TipoDato.Moneda, false),
+            new("coste_caja", "Coste por caja", "round(sum(s.coste) / nullif(sum(coalesce(s.cajas, 0)), 0), 4)", TipoDato.Moneda, false),
+        ],
+        ["producto"],
+        ["kilos", "rendimiento", "coste_kg"],
+        [
+            new("Parte", "'PC-' || pc.ejercicio || '-' || lpad(pc.numero::text, 6, '0')"),
+            new("Fecha", "pc.fecha", TipoDato.Fecha),
+            new("Producto", "s.nombre"),
+            new("Calibre", "s.calibre"),
+            new("Kilos", "s.kilos", TipoDato.Numero),
+            new("Cajas", "s.cajas", TipoDato.Numero),
+            new("Coste", "s.coste", TipoDato.Moneda),
+        ]);
+
+    private static DatasetAnalisis Envases() => new(
+        "envases",
+        "Envases por tercero",
+        "Libro de envases retornables de clientes, proveedores, transportistas y pools: entregados (+), recogidos (−) y el neto del periodo.",
+        "agro",
+        """
+        agro.linea_movimiento_envases l
+        JOIN agro.movimiento_envases m ON m.id = l.movimiento_envases_id
+        JOIN agro.cuenta_envases c ON c.id = m.cuenta_id
+        LEFT JOIN catalogo.producto p ON p.id = l.envase_producto_id
+        """,
+        "true",
+        "m.fecha",
+        [
+            new("tercero", "Tercero", "c.nombre", "Tercero"),
+            new("tipo_cuenta", "Tipo de tercero", "c.tipo", "Tercero"),
+            new("envase", "Envase", "p.nombre", "Envase"),
+            new("origen", "Origen del movimiento", "m.origen", "Documento"),
+        ],
+        [
+            new("movimientos", "Nº movimientos", "count(DISTINCT m.id)", TipoDato.Numero, false),
+            new("entregados", "Entregados", "sum(CASE WHEN l.cantidad > 0 THEN l.cantidad ELSE 0 END)", TipoDato.Numero),
+            new("recogidos", "Recogidos", "sum(CASE WHEN l.cantidad < 0 THEN -l.cantidad ELSE 0 END)", TipoDato.Numero),
+            new("neto", "Neto del periodo", "sum(l.cantidad)", TipoDato.Numero),
+        ],
+        ["tercero"],
+        ["entregados", "recogidos", "neto"],
+        [
+            new("Movimiento", "'ENV-' || m.ejercicio || '-' || lpad(m.numero::text, 6, '0')"),
+            new("Fecha", "m.fecha", TipoDato.Fecha),
+            new("Tercero", "c.nombre"),
+            new("Envase", "p.nombre"),
+            new("Cantidad", "l.cantidad", TipoDato.Numero),
+            new("Origen", "m.origen"),
         ]);
 }

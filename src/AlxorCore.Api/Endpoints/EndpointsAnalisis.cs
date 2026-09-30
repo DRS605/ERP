@@ -27,6 +27,9 @@ public sealed class PermisosAnalisisHttp : IPermisosAnalisis
         ["contabilidad"] = Permisos.ContabilidadLeer,
         ["almacen"] = Permisos.InventarioLeer,
         ["agro"] = Permisos.AgroLeer,
+        ["albaranes"] = Permisos.FacturaLeer,
+        ["produccion"] = Permisos.AgroLeer,
+        ["envases"] = Permisos.AgroLeer,
     };
 
     private readonly IHttpContextAccessor _http;

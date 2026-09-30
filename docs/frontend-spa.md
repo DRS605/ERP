@@ -109,10 +109,20 @@ Para no amontonar funciones en una misma pantalla:
 
 - **Menú por secciones.** En `NAV`, un texto suelto entre las vistas de un grupo es un rótulo de sección. Solo se pinta
   si debajo hay alguna vista contratada. Así están ahora los grupos:
-  - Ventas: Comercial / Posventa / Facturación.
-  - Tesorería: Cobros / Pagos / Bancos.
-  - Agro: Almacén / Campo y calidad / Campaña.
-  - Cooperativa (módulo aparte): Socios / Capital social / Excedentes y retornos / Libros y actas (con pestañas) / Ajustes.
+  - Ventas: Comercial / Venta en comisión / Facturación / Posventa / Informes.
+  - Compras: Compras / Facturas y cargos / Informes. Artículos y almacén: Artículos / Almacén / Informes.
+  - Logística: Operativa / Transporte y exportación / Maestros logísticos.
+  - Agro: Entrada de fruta / Planta y confección / Expedición / Liquidación / Campo y calidad / Campaña / Maestros agro.
+  - Cooperativa (módulo aparte): Socios y capital / Libros / Configuración.
+  - Tesorería: Cobros / Impagados / Pagos / Bancos / Divisas / Informes.
+  - Contabilidad: Contabilidad / Impuestos / Analítica. Informes: Centro de informes / Análisis. Configuración: Empresa /
+    Usuarios y datos / Integraciones.
+- **Entradas que abren una pestaña.** Una entrada del menú puede ser `"vista~Título de la pestaña"`: `ir()` abre la
+  vista y deja la pestaña pedida en `window._pestanaPedida`, que `pestanas()` activa (y recuerda) la primera vez que
+  encuentra ese título. Así cada área de una pantalla con pestañas tiene su propio punto de menú (p. ej.
+  «Contabilidad → Estados financieros», «Agro → Calibrados», «Tesorería → Entregas a cuenta»). La pestaña pedida se
+  muestra aunque esté vacía, con un aviso. `MODULO_VISTA` admite la clave completa (`"centroinformes~Cooperativa"`)
+  para ocultar una entrada concreta sin el módulo; si no, manda el de la vista.
 - **Pestañas dentro de la pantalla.** `pestanas(clave, [[título, html], …])` reparte en pestañas las áreas de una
   pantalla. Las áreas vacías no se muestran, y si solo queda una se pinta sin pestañas. La pestaña elegida se recuerda
   por pantalla en `localStorage`, con la clave `alxor.pestana.<clave>`.
@@ -134,3 +144,16 @@ Pantallas con pestañas:
 | Liquidaciones de pagos | pendiente de pagar · entregas a cuenta · liquidaciones emitidas |
 | Divisas | tipos de cambio · conversor · diferencias de cambio |
 | Impagados | facturas vencidas · impagados y dudosos · renovaciones |
+| Centro de informes | favoritos · ventas · compras · almacén · agro · entradas · agro · producción · envases · tesorería · contabilidad e impuestos · cooperativa |
+
+## Centro de informes
+
+**Informes → Centro de informes** (y un acceso «Informes de …» al final de cada grupo del menú) reúne los informes del
+ERP por carpetas. `CI_INFORMES` en `index.html` es el catálogo: `[carpeta, acción, nombre, descripción]`, donde la acción
+es `ir:vista~Pestaña` (una pantalla o una pestaña suya) o `an:clave` (una plantilla de `PlantillasAnalisis`, que se abre
+en el análisis de datos con `irAnalisis({plantilla})`). Solo se ven los informes de las pantallas contratadas y las
+plantillas que `/analisis/catalogo` ofrece a la empresa y al usuario; las carpetas vacías no se pintan. Hay un buscador
+que mira en todas las carpetas (nombre, descripción y carpeta, sin acentos) y **favoritos** (☆), que se guardan en el
+navegador (`alxor.informes.favoritos`). Para añadir un informe: una línea en `CI_INFORMES` (y, si es una plantilla
+nueva, su definición en `PlantillasAnalisis`, que `AnalisisTests` ejecuta).
+
