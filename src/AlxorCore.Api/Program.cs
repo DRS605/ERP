@@ -113,6 +113,7 @@ builder.Services.AddScoped<AlxorCore.Informes.Aplicacion.RegularizarBienesInvers
 builder.Services.AddScoped<AlxorCore.Agro.Aplicacion.IAutofacturas, AlxorCore.Api.Comun.AutofacturasGastos>();
 builder.Services.AddScoped<AlxorCore.Agro.Aplicacion.IDocumentosExpedicion, AlxorCore.Api.Comun.DocumentosExpedicionFacturacion>();
 builder.Services.AddSingleton<AlxorCore.Api.Comun.OperacionesIntragrupo>();
+builder.Services.AddSingleton<AlxorCore.Api.Comun.CopiaConfiguracion>();
 builder.Services.AddSingleton<AlxorCore.Api.Comun.ConsolidacionGrupo>();
 builder.Services.AddScoped<AlxorCore.Api.Comun.Intrastat>();
 builder.Services.AddScoped<AlxorCore.Catalogo.Aplicacion.IUsoConceptosLinea, AlxorCore.Api.Comun.UsoConceptosLinea>();
@@ -310,6 +311,7 @@ app.MapearVentas();
 app.MapearCartasPorte();
 app.MapearTransporteYAduanas();
 app.MapearIntragrupo();
+app.MapearCopiaConfiguracion();
 app.MapearGastos();
 app.MapearRecepcion();
 app.MapearContabilidad();

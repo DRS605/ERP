@@ -128,3 +128,33 @@ Compras para gastos); en caso contrario responde **403**. «Sin actividad» (nul
 agrega **ventas y compras en base imponible por actividad** en un periodo, con una fila «Sin
 actividad» para los documentos sin clasificar y el resultado (ventas − compras) por actividad y
 total. Los nombres de actividad se resuelven en el grupo.
+
+## Copiar la configuración de otra empresa
+
+Lo que es **de cada empresa** (no del grupo) se puede copiar de otra empresa del usuario a la activa desde
+**Configuración → Copiar de otra empresa** (también en **Grupo de empresas → Copiar configuración**). Sirve para montar
+una empresa hermana sin volver a dar de alta su configuración.
+
+| Bloque | Qué copia | Se compara por |
+|---|---|---|
+| Plan de cuentas | las cuentas y subcuentas que faltan | código |
+| Diarios contables | los diarios propios con sus orígenes (los de sistema ya los tiene cada empresa) | código |
+| Formas de pago | las activas, con sus días de vencimiento | nombre |
+| Series de numeración | las del ejercicio en curso y siguientes, empezando en el 1 | tipo, ejercicio y prefijo |
+| Almacenes y ubicaciones | los almacenes activos y las ubicaciones que falten (sin existencias) | código |
+| Transportistas y vehículos | los activos; el vehículo va con el transportista copiado | nombre / matrícula |
+| Soportes logísticos | medidas, tara y carga máxima (el envase, solo dentro del grupo) | código |
+| Campañas, categorías y conceptos de liquidación (agro) | los generales; los de un agricultor concreto no | código |
+| Taras de envases (agro) | la tara vigente de cada envase; **solo entre empresas del mismo grupo** | envase |
+
+- **Primero la vista previa** (`POST /empresas/actual/copia/vista-previa`): qué se crearía, qué ya estaba y qué no se
+  copia y por qué. No cambia nada. Luego la copia (`POST /empresas/actual/copia`), con el mismo cuerpo
+  `{ origenEmpresaId, elementos: [...] }`. `GET /empresas/actual/copia` da los bloques y las empresas de origen.
+- **Solo añade**: nunca cambia ni borra lo que la empresa de destino ya tiene, así que se puede repetir sin duplicar.
+  Cada alta pasa por su caso de uso normal (con sus validaciones); un error en una no para las demás y se informa.
+- **Acceso**: el usuario tiene que pertenecer a la empresa de origen y tener el permiso `empresa.ajustes` en la activa.
+  Los bloques de un módulo que la empresa activa no tiene contratado no se copian.
+- **Aislamiento**: cada empresa se lee y se escribe en su propio ámbito, con su empresa activa (`CopiaConfiguracion`,
+  igual que las operaciones intragrupo), así que la RLS de la base de datos se cumple.
+- **Fuera del grupo**: lo que apunta a artículos (maestros del grupo) no existe en la otra empresa: las taras no se
+  copian, los soportes pierden el envase y los conceptos ligados a un artículo se saltan.
