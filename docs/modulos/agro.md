@@ -417,6 +417,77 @@ Tres tipos de plan por campaña (`/agro/planes`; *Agro → Planificación*), cad
   - Transiciones borrador → aprobado → cerrado. Solo se borra un plan en borrador.
   - Las líneas solo cambian en borrador, dentro de la campaña y con los datos de su tipo.
 
+## Planta: líneas, calibrado, órdenes y paradas
+
+*Agro → Planta → Líneas y calibrado* (`/agro/planta/*`).
+
+### Líneas
+
+Cada línea de la planta (`/agro/planta/lineas`) es una **calibradora**, una línea de **confección** o de **envasado**,
+con su capacidad en kg/h, las horas de cada turno y los turnos (de 1 a 3, sin pasar de 24 horas). Su capacidad del día es
+kg/h × horas × turnos. El **código** es el mismo que se escribe en «línea de confección» del plan de producción.
+
+Una calibradora tiene **salidas** (canales), cada una con el calibre y la categoría que recoge, o el destrío. Una línea con
+calibrados, órdenes o paradas no se elimina ni cambia de tipo: se da de baja.
+
+### Calibrados
+
+El paso de una partida por la calibradora (`/agro/planta/calibrados`): los kilos que entraron y cómo salieron por salida
+(o por calibre y categoría), con las piezas si la máquina las da, que dan el peso medio del fruto. Es una **medida**:
+no mueve kilos de la partida.
+
+- **Fichero de la calibradora** (`POST …/leer-fichero`): CSV con «;» o «,». La cabecera dice qué es cada columna
+  (salida o canal, calibre, categoría por su nombre, kilos o peso, piezas o frutos). Sin cabecera se lee
+  `salida;kilos;piezas`. Devuelve las líneas para revisarlas antes de guardar.
+- **Reglas:** lo que sale no pasa de lo que entró (la diferencia es la merma) y lo que entró no pasa de los kilos de la
+  partida. Dos salidas que recogen lo mismo se suman. La línea tiene que ser una calibradora.
+- **Confirmar** (`…/{id}/confirmar`): ya no se cambia. Con `clasificar` (por defecto), los kilos de cada categoría pasan a
+  la **clasificación de la partida**, provisional o `definitiva`, que es con la que se liquida al agricultor. Así se paga
+  por lo que dio la calibradora.
+- **Anular** (con motivo): no toca la clasificación que generó, que se sustituye desde la partida.
+- **Reparto por calibres** (`GET /agro/planta/calibres?desde=&hasta=&productoId=&agricultorId=`): kilos, porcentaje y peso
+  medio del fruto de cada calibre y categoría de lo calibrado y confirmado en el periodo.
+
+### Órdenes de las líneas
+
+Una orden (`/agro/planta/ordenes`) dice qué producto confeccionar, cuántos kilos y cajas, en qué línea, qué día, en qué
+turno y en qué posición dentro del turno, y para qué cliente o pedido. Las horas previstas son kilos / capacidad.
+
+- **Estados:** planificada → en curso → terminada, o cancelada. Solo la planificada se cambia, se mueve (de línea, día,
+  turno o posición) o se elimina. Una en curso o terminada por error se **reabre**.
+- **Terminar** enlaza la orden con su **parte de confección** validado, del mismo día o posterior, y un parte cierra una sola
+  orden. Los kilos obtenidos en el parte son lo **real** de la orden.
+- **Desde el plan** (`POST …/desde-plan`): del plan de producción aprobado (o el indicado), cada línea del plan cuya línea
+  de confección es el código de una línea de la planta reparte sus kilos (y cajas) por igual entre sus días, en el turno 1.
+  No repite un día que ya tiene su orden de esa línea del plan.
+
+### Paradas y carga
+
+Una **parada** (`/agro/planta/paradas`) son los minutos de un turno de una línea que no trabajó, con su motivo (avería,
+limpieza, cambio de formato, falta de fruta o de personal, mantenimiento u otro). Las de un turno no pasan de su duración.
+
+La **carga** (`GET /agro/planta/carga?desde=&hasta=`) da, por línea (salvo las calibradoras) y día:
+
+- la capacidad (kg/h × horas de los turnos menos las paradas);
+- lo planificado, su **ocupación** y si hay **sobrecarga**;
+- lo real (los partes de las órdenes terminadas);
+- la **disponibilidad** (tiempo sin paradas);
+- el **rendimiento** (lo real sobre la capacidad).
+
+La pantalla lo muestra por semanas, con una celda por línea y día para añadir órdenes.
+
+### Base de datos
+
+- RLS en las cuatro tablas y en las salidas y líneas de calibrado por su padre.
+- Valores válidos, y claves ajenas a partida, clasificación, categoría, parte y línea del plan.
+- Transiciones del calibrado: confirmado solo se anula; sus salidas no cambian; no se borra.
+- Al confirmar la transacción:
+  - la salida no pasa de la entrada ni la entrada de la partida;
+  - la línea es una calibradora;
+  - la clasificación es de la misma partida.
+- Transiciones de la orden; sus datos solo cambian planificada; el parte que la cierra está validado y no es anterior.
+- El turno existe en la línea y las paradas de un turno no pasan de su duración.
+
 ## 8. Informe de campaña
 
 `GET /agro/informes/campana/{id}`:

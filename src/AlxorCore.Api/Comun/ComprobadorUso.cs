@@ -33,6 +33,7 @@ public static class ReferenciasRegistros
                 ("agro.pale.cliente_id", "palés expedidos"),
                 ("agro.plantilla_pale.cliente_id", "plantillas de palé"),
                 ("agro.linea_plan.cliente_id", "planes comerciales"),
+                ("agro.orden_linea.cliente_id", "órdenes de las líneas de la planta"),
                 ("logistica.plantilla_paletizado.cliente_id", "plantillas de paletizado"),
                 ("logistica.unidad_logistica.cliente_id", "palés y unidades logísticas"),
                 ("integraciones.socio_edi.cliente_id", "socios EDI"),
@@ -105,6 +106,7 @@ public static class ReferenciasRegistros
                 ("agro.tara_envase.envase_producto_id", "taras de envases"),
                 ("agro.plantilla_calidad.producto_id", "plantillas de control de calidad"),
                 ("agro.linea_plan.producto_id", "planes comerciales, de producción o de entradas"),
+                ("agro.orden_linea.producto_id", "órdenes de las líneas de la planta"),
                 ("agro.regla_transformacion.producto_origen_id", "transformaciones permitidas (como origen)"),
                 ("agro.regla_transformacion.producto_destino_id", "transformaciones permitidas (como destino)"),
                 ("agro.pesada_envase.envase_producto_id", "pesadas (envases contados)"),
@@ -151,6 +153,7 @@ public static class ReferenciasRegistros
                 ("contabilidad.centro_analitico.padre_id", "centros que cuelgan de él"),
                 ("agro.parte_confeccion.centro_analitico_id", "partes de confección"),
                 ("agro.parcela.centro_analitico_id", "parcelas"),
+                ("agro.linea_planta.centro_analitico_id", "líneas de la planta"),
             ],
             [TiposRegistro.PartidaAnalitica] =
             [
@@ -174,6 +177,8 @@ public static class ReferenciasRegistros
             [TiposRegistro.Categoria] =
             [
                 ("agro.linea_clasificacion.categoria_id", "clasificaciones"),
+                ("agro.salida_calibradora.categoria_id", "salidas de calibradoras"),
+                ("agro.linea_calibrado.categoria_id", "calibrados"),
                 ("agro.salida_parte.categoria_id", "partes de confección"),
                 ("agro.linea_liquidacion.categoria_id", "liquidaciones"),
                 ("agro.precio_liquidacion.categoria_id", "precios de liquidación"),

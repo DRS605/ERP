@@ -187,6 +187,91 @@ public static class EndpointsAgro
                 (await q.EvaluarEficaciaAsync(id, p.Eficacia, ct).ConfigureAwait(false)).AOk())
             .WithSummary("Anota la eficacia observada de un tratamiento fitosanitario (Buena, Regular o Mala).").RequiereAlgunPermiso(Permisos.AgroGestionar, Permisos.AgroCampo);
 
+        // ---------------------------------------------------------------- Planta: líneas, calibrados, órdenes y paradas
+        g.MapGet("/planta/lineas", (IContextoEmpresa c, PlantaAgro q, CancellationToken ct) =>
+                ConEmpresa(c, async e => Results.Ok(await q.LineasAsync(e, ct).ConfigureAwait(false))))
+            .WithSummary("Líneas de la planta (calibradoras, confección y envasado) con su capacidad, turnos y salidas.").RequierePermiso(Permisos.AgroLeer);
+        g.MapPost("/planta/lineas", (DatosLineaPlanta d, IContextoEmpresa c, PlantaAgro q, CancellationToken ct) =>
+                ConEmpresa(c, async e => Creado(await q.CrearLineaAsync(e, d, ct).ConfigureAwait(false), "planta/lineas")))
+            .WithSummary("Da de alta una línea de la planta.").RequierePermiso(Permisos.AgroGestionar);
+        g.MapPut("/planta/lineas/{id:guid}", (Guid id, PeticionLineaPlanta d, IContextoEmpresa c, PlantaAgro q, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await q.CambiarLineaAsync(e, id, d.Datos(), d.Activa, ct).ConfigureAwait(false)).AOk()))
+            .WithSummary("Cambia una línea (y su alta o baja con «activa»).").RequierePermiso(Permisos.AgroGestionar);
+        g.MapDelete("/planta/lineas/{id:guid}", (Guid id, IContextoEmpresa c, PlantaAgro q, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await q.EliminarLineaAsync(e, id, ct).ConfigureAwait(false)).ASinContenido()))
+            .WithSummary("Elimina una línea sin uso (la usada se da de baja).").RequierePermiso(Permisos.AgroGestionar);
+
+        g.MapGet("/planta/calibrados", (Guid? partidaId, DateOnly? desde, DateOnly? hasta, IContextoEmpresa c, PlantaAgro q, CancellationToken ct) =>
+                ConEmpresa(c, async e => Results.Ok(await q.CalibradosAsync(e, partidaId, desde, hasta, ct).ConfigureAwait(false))))
+            .WithSummary("Calibrados de una partida o de un periodo, con su reparto por calibre y categoría.").RequierePermiso(Permisos.AgroLeer);
+        g.MapPost("/planta/calibrados", (PeticionCalibrado d, IContextoEmpresa c, PlantaAgro q, CancellationToken ct) =>
+                ConEmpresa(c, async e => Creado(await q.CrearCalibradoAsync(e, d.LineaId, d.PartidaId, d.Datos(), ct).ConfigureAwait(false), "planta/calibrados")))
+            .WithSummary("Registra el paso de una partida por la calibradora (en borrador).").RequiereAlgunPermiso(Permisos.AgroGestionar, Permisos.AgroConfeccionar);
+        g.MapPost("/planta/calibrados/leer-fichero", (PeticionFicheroCalibradora d, IContextoEmpresa c, PlantaAgro q, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await q.LeerFicheroAsync(e, d.Contenido, ct).ConfigureAwait(false)).AOk()))
+            .WithSummary("Lee el fichero de resultados de la calibradora y devuelve sus líneas, para revisarlas antes de guardar el calibrado.")
+            .RequiereAlgunPermiso(Permisos.AgroGestionar, Permisos.AgroConfeccionar);
+        g.MapPut("/planta/calibrados/{id:guid}", (Guid id, DatosCalibrado d, IContextoEmpresa c, PlantaAgro q, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await q.CambiarCalibradoAsync(e, id, d, ct).ConfigureAwait(false)).AOk()))
+            .WithSummary("Cambia un calibrado en borrador.").RequiereAlgunPermiso(Permisos.AgroGestionar, Permisos.AgroConfeccionar);
+        g.MapPost("/planta/calibrados/{id:guid}/confirmar", (Guid id, DatosConfirmarCalibrado? d, IContextoEmpresa c, PlantaAgro q, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await q.ConfirmarCalibradoAsync(e, id, d ?? new DatosConfirmarCalibrado(), ct).ConfigureAwait(false)).AOk()))
+            .WithSummary("Confirma el calibrado y, si se pide, lo pasa a la clasificación de la partida (provisional o definitiva).")
+            .RequiereAlgunPermiso(Permisos.AgroGestionar, Permisos.AgroConfeccionar);
+        g.MapPost("/planta/calibrados/{id:guid}/anular", (Guid id, PeticionMotivoPlanta d, IContextoEmpresa c, PlantaAgro q, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await q.AnularCalibradoAsync(e, id, d.Motivo, ct).ConfigureAwait(false)).AOk()))
+            .WithSummary("Anula un calibrado (su clasificación se sustituye desde la partida).").RequiereAlgunPermiso(Permisos.AgroGestionar, Permisos.AgroConfeccionar);
+        g.MapGet("/planta/calibres", (DateOnly desde, DateOnly hasta, Guid? productoId, Guid? agricultorId, IContextoEmpresa c, PlantaAgro q, CancellationToken ct) =>
+                ConEmpresa(c, async e => Results.Ok(await q.ResumenCalibresAsync(e, desde, hasta, productoId, agricultorId, ct).ConfigureAwait(false))))
+            .WithSummary("Reparto por calibre y categoría de lo calibrado en un periodo, de un producto o un agricultor, con el peso medio del fruto.")
+            .RequierePermiso(Permisos.AgroLeer);
+
+        g.MapGet("/planta/ordenes", (DateOnly desde, DateOnly hasta, Guid? lineaId, IContextoEmpresa c, PlantaAgro q, CancellationToken ct) =>
+                ConEmpresa(c, async e => Results.Ok(await q.OrdenesAsync(e, desde, hasta, lineaId, ct).ConfigureAwait(false))))
+            .WithSummary("Órdenes de las líneas en un periodo, por día, línea, turno y secuencia, con lo real de las terminadas.").RequierePermiso(Permisos.AgroLeer);
+        g.MapPost("/planta/ordenes", (PeticionOrdenLinea d, IContextoEmpresa c, PlantaAgro q, CancellationToken ct) =>
+                ConEmpresa(c, async e => Creado(await q.CrearOrdenAsync(e, d.LineaId, d.Datos(), ct).ConfigureAwait(false), "planta/ordenes")))
+            .WithSummary("Planifica una orden en una línea, un día y un turno.").RequiereAlgunPermiso(Permisos.AgroGestionar, Permisos.AgroPlanificar);
+        g.MapPost("/planta/ordenes/desde-plan", (DatosOrdenesDesdePlan d, IContextoEmpresa c, PlantaAgro q, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await q.DesdePlanAsync(e, d, ct).ConfigureAwait(false)).AOk()))
+            .WithSummary("Genera las órdenes del periodo desde el plan de producción aprobado (por la línea de confección de cada línea del plan).")
+            .RequiereAlgunPermiso(Permisos.AgroGestionar, Permisos.AgroPlanificar);
+        g.MapPut("/planta/ordenes/{id:guid}", (Guid id, PeticionOrdenLinea d, IContextoEmpresa c, PlantaAgro q, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await q.CambiarOrdenAsync(e, id, d.LineaId, d.Datos(), ct).ConfigureAwait(false)).AOk()))
+            .WithSummary("Cambia o mueve una orden planificada (otra línea, día, turno o posición).").RequiereAlgunPermiso(Permisos.AgroGestionar, Permisos.AgroPlanificar);
+        g.MapPost("/planta/ordenes/{id:guid}/iniciar", (Guid id, IContextoEmpresa c, PlantaAgro q, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await q.IniciarOrdenAsync(e, id, ct).ConfigureAwait(false)).AOk()))
+            .WithSummary("Empieza una orden.").RequiereAlgunPermiso(Permisos.AgroGestionar, Permisos.AgroConfeccionar);
+        g.MapPost("/planta/ordenes/{id:guid}/terminar", (Guid id, PeticionTerminarOrden? d, IContextoEmpresa c, PlantaAgro q, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await q.TerminarOrdenAsync(e, id, d?.ParteConfeccionId, ct).ConfigureAwait(false)).AOk()))
+            .WithSummary("Termina una orden y la enlaza con su parte de confección validado, que da lo real.").RequiereAlgunPermiso(Permisos.AgroGestionar, Permisos.AgroConfeccionar);
+        g.MapPost("/planta/ordenes/{id:guid}/cancelar", (Guid id, IContextoEmpresa c, PlantaAgro q, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await q.CancelarOrdenAsync(e, id, ct).ConfigureAwait(false)).AOk()))
+            .WithSummary("Cancela una orden planificada o en curso.").RequiereAlgunPermiso(Permisos.AgroGestionar, Permisos.AgroPlanificar);
+        g.MapPost("/planta/ordenes/{id:guid}/reabrir", (Guid id, IContextoEmpresa c, PlantaAgro q, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await q.ReabrirOrdenAsync(e, id, ct).ConfigureAwait(false)).AOk()))
+            .WithSummary("Devuelve a planificada una orden en curso o terminada por error (se desenlaza su parte).").RequiereAlgunPermiso(Permisos.AgroGestionar, Permisos.AgroPlanificar);
+        g.MapDelete("/planta/ordenes/{id:guid}", (Guid id, IContextoEmpresa c, PlantaAgro q, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await q.EliminarOrdenAsync(e, id, ct).ConfigureAwait(false)).ASinContenido()))
+            .WithSummary("Elimina una orden planificada.").RequiereAlgunPermiso(Permisos.AgroGestionar, Permisos.AgroPlanificar);
+        g.MapGet("/planta/carga", (DateOnly desde, DateOnly hasta, IContextoEmpresa c, PlantaAgro q, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await q.CargaAsync(e, desde, hasta, ct).ConfigureAwait(false)).AOk()))
+            .WithSummary("Carga de cada línea por día: capacidad menos paradas, planificado y ocupación, real, disponibilidad y rendimiento.")
+            .RequierePermiso(Permisos.AgroLeer);
+
+        g.MapGet("/planta/paradas", (DateOnly desde, DateOnly hasta, IContextoEmpresa c, PlantaAgro q, CancellationToken ct) =>
+                ConEmpresa(c, async e => Results.Ok(await q.ParadasAsync(e, desde, hasta, ct).ConfigureAwait(false))))
+            .WithSummary("Paradas de las líneas en un periodo.").RequierePermiso(Permisos.AgroLeer);
+        g.MapPost("/planta/paradas", (PeticionParada d, IContextoEmpresa c, PlantaAgro q, CancellationToken ct) =>
+                ConEmpresa(c, async e => Creado(await q.CrearParadaAsync(e, d.LineaId, d.Datos(), ct).ConfigureAwait(false), "planta/paradas")))
+            .WithSummary("Anota una parada de una línea (minutos de un turno y motivo).").RequiereAlgunPermiso(Permisos.AgroGestionar, Permisos.AgroConfeccionar);
+        g.MapPut("/planta/paradas/{id:guid}", (Guid id, DatosParada d, IContextoEmpresa c, PlantaAgro q, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await q.CambiarParadaAsync(e, id, d, ct).ConfigureAwait(false)).AOk()))
+            .WithSummary("Cambia una parada.").RequiereAlgunPermiso(Permisos.AgroGestionar, Permisos.AgroConfeccionar);
+        g.MapDelete("/planta/paradas/{id:guid}", (Guid id, IContextoEmpresa c, PlantaAgro q, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await q.EliminarParadaAsync(e, id, ct).ConfigureAwait(false)).ASinContenido()))
+            .WithSummary("Elimina una parada.").RequiereAlgunPermiso(Permisos.AgroGestionar, Permisos.AgroConfeccionar);
+
         // ---------------------------------------------------------------- Cuaderno digital (SIEX)
         g.MapGet("/siex/explotaciones/{agricultorId:guid}", (Guid agricultorId, IContextoEmpresa c, SiexAgro q, CancellationToken ct) =>
                 ConEmpresa(c, async e => (await q.ExplotacionAsync(e, agricultorId, ct).ConfigureAwait(false)).AOk()))
@@ -724,6 +809,34 @@ public static class EndpointsAgro
         g.MapGet("/trazabilidad/adelante", (Guid? partidaId, Guid? recepcionId, IContextoEmpresa c, TrazabilidadAgro t, CancellationToken ct) =>
                 ConEmpresa(c, async e => (await t.HaciaAdelanteAsync(e, partidaId, recepcionId, ct).ConfigureAwait(false)).AOk()))
             .WithSummary("De una recepción o partida hasta los palés y los clientes a los que salió.").RequierePermiso(Permisos.AgroLeer);
+    }
+
+    public sealed record PeticionLineaPlanta(string? Codigo, string? Nombre, TipoLineaPlanta Tipo, decimal CapacidadKgHora, decimal HorasTurno = 8m, int Turnos = 1,
+        Guid? CentroAnaliticoId = null, IReadOnlyList<DatosSalidaCalibradora>? Salidas = null, bool? Activa = null)
+    {
+        public DatosLineaPlanta Datos() => new(Codigo, Nombre, Tipo, CapacidadKgHora, HorasTurno, Turnos, CentroAnaliticoId, Salidas);
+    }
+
+    public sealed record PeticionCalibrado(Guid LineaId, Guid PartidaId, DateOnly Fecha, IReadOnlyList<DatosLineaCalibrado> Lineas, decimal? KilosEntrada = null, string? Referencia = null)
+    {
+        public DatosCalibrado Datos() => new(Fecha, Lineas, KilosEntrada, Referencia);
+    }
+
+    public sealed record PeticionFicheroCalibradora(string? Contenido);
+
+    public sealed record PeticionMotivoPlanta(string? Motivo);
+
+    public sealed record PeticionOrdenLinea(Guid LineaId, DateOnly Fecha, Guid ProductoId, decimal Kilos, int Turno = 1, int? Secuencia = null, int? Cajas = null, Guid? ClienteId = null,
+        Guid? PedidoVentaId = null, string? Notas = null)
+    {
+        public DatosOrdenLinea Datos() => new(Fecha, ProductoId, Kilos, Turno, Secuencia, Cajas, ClienteId, PedidoVentaId, Notas);
+    }
+
+    public sealed record PeticionTerminarOrden(Guid? ParteConfeccionId);
+
+    public sealed record PeticionParada(Guid LineaId, DateOnly Fecha, decimal Minutos, MotivoParada Motivo, int Turno = 1, string? Notas = null)
+    {
+        public DatosParada Datos() => new(Fecha, Minutos, Motivo, Turno, Notas);
     }
 
     private static async Task<IResult> ConEmpresa(IContextoEmpresa contexto, Func<Guid, Task<IResult>> accion) =>

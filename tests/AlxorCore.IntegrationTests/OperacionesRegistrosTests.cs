@@ -82,6 +82,8 @@ public sealed class OperacionesRegistrosTests : IClassFixture<FabricaApiPruebas>
         ["/contabilidad/cierre"] = "cierre del ejercicio",
         ["/contabilidad/periodos/cerrar"] = "cierre mensual: se deshace con /contabilidad/periodos/reabrir",
         ["/contabilidad/periodos/reabrir"] = "es la corrección del cierre mensual",
+        ["/agro/planta/calibrados/leer-fichero"] = "solo lee el fichero de la calibradora: no guarda nada",
+        ["/agro/planta/ordenes/desde-plan"] = "crea órdenes, que se cambian, cancelan o eliminan una a una en /agro/planta/ordenes/{id}",
         ["/contabilidad/existencias/{ejercicio}"] = "la regularización del ejercicio se anula en /contabilidad/existencias/{ejercicio}/anular",
         ["/contabilidad/periodificaciones/generar"] = "cuotas del periodo: se deshacen anulando la periodificación",
         ["/contabilidad/inmovilizado/amortizar"] = "dotaciones del periodo (asientos de amortización)",
