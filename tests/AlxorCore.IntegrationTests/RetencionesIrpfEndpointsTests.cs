@@ -108,4 +108,33 @@ public sealed class RetencionesIrpfEndpointsTests : IClassFixture<FabricaApiPrue
         var fichero = await cliente.GetAsync("/informes/modelo-190/fichero?anio=2026");
         fichero.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
+
+    private sealed record Modelo115Resp(string Modelo, int Trimestre, int NumeroPerceptores, decimal BaseRetenciones, decimal Retenciones);
+    private sealed record Modelo180Resp(string Modelo, decimal TotalBase, decimal TotalRetenciones, List<PerceptorResp> Perceptores, List<PerceptorResp> PerceptoresSinNif);
+
+    [Fact]
+    public async Task El_alquiler_con_retencion_del_19_va_al_115_y_180_y_no_al_111()
+    {
+        var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+        var casero = (await (await cliente.PostAsJsonAsync("/proveedores",
+            new { Nombre = "Inmuebles Huerta SL", NifFiscal = "B12345674", Provincia = "Valencia" })).Content.ReadFromJsonAsync<IdResp>())!;
+        var abogada = (await (await cliente.PostAsJsonAsync("/proveedores",
+            new { Nombre = "Ana Abogada", NifFiscal = "11111111H", Provincia = "Valencia" })).Content.ReadFromJsonAsync<IdResp>())!;
+        foreach (var (mes, prov, pct, concepto) in new[] { (2, casero.Id, 19m, "Alquiler almacén febrero"), (3, casero.Id, 19m, "Alquiler almacén marzo"), (3, abogada.Id, 15m, "Honorarios") })
+        {
+            (await cliente.PostAsJsonAsync("/gastos", new { Concepto = concepto, BaseImponible = 1000m, CodigoIva = "IVA21", ProveedorId = prov, PorcentajeIrpf = pct, Fecha = $"2026-0{mes}-10" }))
+                .StatusCode.Should().Be(HttpStatusCode.Created);
+        }
+
+        var m115 = await cliente.GetFromJsonAsync<Modelo115Resp>("/informes/modelo-115?anio=2026&trimestre=1");
+        m115.Should().Be(new Modelo115Resp("115", 1, 1, 2000m, 380m));
+        (await cliente.GetFromJsonAsync<Modelo111Resp>("/informes/modelo-111?anio=2026&trimestre=1"))!.Retenciones.Should().Be(150m, "el alquiler no va al 111");
+        (await cliente.GetFromJsonAsync<Modelo190Resp>("/informes/modelo-190?anio=2026"))!.Perceptores.Should().ContainSingle(p => p.Nif == "11111111H");
+
+        var m180 = (await cliente.GetFromJsonAsync<Modelo180Resp>("/informes/modelo-180?anio=2026"))!;
+        m180.Perceptores.Should().ContainSingle().Which.Should().Be(new PerceptorResp("A", "Inmuebles Huerta SL", "B12345674", 2000m, 380m));
+        var csv = await cliente.GetStringAsync("/informes/modelo-180/csv?anio=2026");
+        csv.Should().Contain("B12345674;Inmuebles Huerta SL").And.Contain("380,00");
+        (await cliente.GetAsync("/informes/modelo-115?anio=2026&trimestre=5")).StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
 }

@@ -87,7 +87,7 @@ El pago de lo que se devuelve (552) o de los retornos (526) se hace en tesorerí
    base de datos no lo deja.
 
 **Retenciones** (`/retenciones?ejercicio=`): lo retenido a cada socio en el año, con su NIF. Sirve de base de los
-modelos 123 (trimestral) y 193 (resumen anual).
+modelos 123 (trimestral) y 193 (resumen anual), que salen en Informes (`/informes/modelo-123`, `/informes/modelo-193`).
 
 ## Libros
 

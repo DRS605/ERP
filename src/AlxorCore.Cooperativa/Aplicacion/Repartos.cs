@@ -249,11 +249,16 @@ public sealed class RepartosCooperativa
     /// Lo retenido en el año a cada socio por retornos e intereses (repartos contabilizados con fecha en ese año): la base
     /// de los modelos 123 (trimestral) y 193 (resumen anual). Lo capitalizado no lleva retención.
     /// </summary>
-    public async Task<RetencionesDto> RetencionesAsync(Guid empresaId, int ejercicio, CancellationToken ct = default)
+    public Task<RetencionesDto> RetencionesAsync(Guid empresaId, int ejercicio, CancellationToken ct = default) =>
+        RetencionesAsync(empresaId, new DateOnly(ejercicio, 1, 1), new DateOnly(ejercicio, 12, 31), ct);
+
+    /// <summary>Lo retenido entre dos fechas (por la fecha del reparto): el trimestre del modelo 123.</summary>
+    public async Task<RetencionesDto> RetencionesAsync(Guid empresaId, DateOnly desde, DateOnly hasta, CancellationToken ct = default)
     {
+        var ejercicio = hasta.Year;
         var socios = (await _repo.SociosAsync(empresaId, ct).ConfigureAwait(false)).ToDictionary(s => s.Id);
         var lineas = (await _repo.RepartosAsync(empresaId, ct).ConfigureAwait(false))
-            .Where(r => r.Estado == EstadoReparto.Contabilizado && r.Fecha.Year == ejercicio).SelectMany(r => r.Lineas).ToList();
+            .Where(r => r.Estado == EstadoReparto.Contabilizado && r.Fecha >= desde && r.Fecha <= hasta).SelectMany(r => r.Lineas).ToList();
         var lista = new List<RetencionSocioDto>();
         foreach (var g in lineas.GroupBy(l => l.SocioId))
         {

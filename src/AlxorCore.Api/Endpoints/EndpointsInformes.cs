@@ -72,6 +72,39 @@ public static class EndpointsInformes
             .WithSummary("Genera el fichero telemático (diseño AEAT) del modelo 190.")
             .RequierePermiso(Permisos.DatosExportar);
 
+        informes.MapGet("/modelo-115", async (IContextoEmpresa c, GenerarRetencionesIrpf caso, CancellationToken ct, int? anio, int trimestre = 1) =>
+                await TrimestralAsync(c, trimestre, (e, t) => caso.Modelo115Async(e, anio ?? DateTime.UtcNow.Year, t, ct), false).ConfigureAwait(false))
+            .WithSummary("Modelo 115 (retenciones sobre alquileres del trimestre): gastos con retención del 19 %.")
+            .RequierePermiso(Permisos.InformeLeer);
+        informes.MapGet("/modelo-115/csv", async (IContextoEmpresa c, GenerarRetencionesIrpf caso, CancellationToken ct, int? anio, int trimestre = 1) =>
+                await TrimestralAsync(c, trimestre, (e, t) => caso.Modelo115Async(e, anio ?? DateTime.UtcNow.Year, t, ct), true).ConfigureAwait(false))
+            .WithSummary("Exporta las casillas del modelo 115 a CSV (gestoría).")
+            .RequierePermiso(Permisos.DatosExportar);
+        informes.MapGet("/modelo-180", async (IContextoEmpresa c, GenerarRetencionesIrpf caso, CancellationToken ct, int? anio) =>
+                await AnualAsync(c, e => caso.Modelo180Async(e, anio ?? DateTime.UtcNow.Year, ct), false).ConfigureAwait(false))
+            .WithSummary("Modelo 180 (resumen anual de retenciones sobre alquileres): detalle por arrendador.")
+            .RequierePermiso(Permisos.InformeLeer);
+        informes.MapGet("/modelo-180/csv", async (IContextoEmpresa c, GenerarRetencionesIrpf caso, CancellationToken ct, int? anio) =>
+                await AnualAsync(c, e => caso.Modelo180Async(e, anio ?? DateTime.UtcNow.Year, ct), true).ConfigureAwait(false))
+            .WithSummary("Exporta el detalle del modelo 180 a CSV (gestoría).")
+            .RequierePermiso(Permisos.DatosExportar);
+        informes.MapGet("/modelo-123", async (IContextoEmpresa c, GenerarRetencionesCapital caso, CancellationToken ct, int? anio, int trimestre = 1) =>
+                await TrimestralAsync(c, trimestre, (e, t) => caso.Modelo123Async(e, anio ?? DateTime.UtcNow.Year, t, ct), false).ConfigureAwait(false))
+            .WithSummary("Modelo 123 (retenciones sobre rendimientos del capital mobiliario del trimestre): retornos e intereses a socios.")
+            .RequierePermiso(Permisos.InformeLeer);
+        informes.MapGet("/modelo-123/csv", async (IContextoEmpresa c, GenerarRetencionesCapital caso, CancellationToken ct, int? anio, int trimestre = 1) =>
+                await TrimestralAsync(c, trimestre, (e, t) => caso.Modelo123Async(e, anio ?? DateTime.UtcNow.Year, t, ct), true).ConfigureAwait(false))
+            .WithSummary("Exporta las casillas del modelo 123 a CSV (gestoría).")
+            .RequierePermiso(Permisos.DatosExportar);
+        informes.MapGet("/modelo-193", async (IContextoEmpresa c, GenerarRetencionesCapital caso, CancellationToken ct, int? anio) =>
+                await AnualAsync(c, e => caso.Modelo193Async(e, anio ?? DateTime.UtcNow.Year, ct), false).ConfigureAwait(false))
+            .WithSummary("Modelo 193 (resumen anual de retenciones sobre capital mobiliario): detalle por socio.")
+            .RequierePermiso(Permisos.InformeLeer);
+        informes.MapGet("/modelo-193/csv", async (IContextoEmpresa c, GenerarRetencionesCapital caso, CancellationToken ct, int? anio) =>
+                await AnualAsync(c, e => caso.Modelo193Async(e, anio ?? DateTime.UtcNow.Year, ct), true).ConfigureAwait(false))
+            .WithSummary("Exporta el detalle del modelo 193 a CSV (gestoría).")
+            .RequierePermiso(Permisos.DatosExportar);
+
         informes.MapGet("/beneficio", BeneficioAsync)
             .WithSummary("Beneficio del periodo: margen bruto (venta − compra) y neto (menos gastos).")
             .RequierePermiso(Permisos.InformeLeer);
@@ -206,6 +239,33 @@ public static class EndpointsInformes
 
         var ejercicio = anio ?? DateTime.UtcNow.Year;
         return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, ejercicio, ct).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> TrimestralAsync(IContextoEmpresa contexto, int trimestre, Func<Guid, int, Task<ResumenRetencionesDto>> calcular, bool csv)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        if (trimestre is < 1 or > 4)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("trimestre.invalido", "El trimestre debe estar entre 1 y 4."));
+        }
+
+        var m = await calcular(contexto.EmpresaId.Value, trimestre).ConfigureAwait(false);
+        return csv ? CsvFile(ExportadorModelosCsv.Resumen(m), $"modelo-{m.Modelo}-{m.Anio}-{m.Trimestre}T.csv") : Results.Ok(m);
+    }
+
+    private static async Task<IResult> AnualAsync(IContextoEmpresa contexto, Func<Guid, Task<AnualRetencionesDto>> calcular, bool csv)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        var m = await calcular(contexto.EmpresaId.Value).ConfigureAwait(false);
+        return csv ? CsvFile(ExportadorModelosCsv.Anual(m), $"modelo-{m.Modelo}-{m.Anio}.csv") : Results.Ok(m);
     }
 
     private static IResult CsvFile(string csv, string nombre)

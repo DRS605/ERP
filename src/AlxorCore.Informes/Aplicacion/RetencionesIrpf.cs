@@ -48,6 +48,27 @@ public sealed record Modelo190Dto(
     IReadOnlyList<PerceptorRetencionDto> Perceptores,
     IReadOnlyList<PerceptorRetencionDto> PerceptoresSinNif);
 
+/// <summary>Resumen de una autoliquidación de retenciones del periodo (115 o 123).</summary>
+public sealed record ResumenRetencionesDto(string Modelo, int Anio, int Trimestre, int NumeroPerceptores, decimal BaseRetenciones, decimal Retenciones, decimal TotalAIngresar)
+{
+    public static ResumenRetencionesDto De(string modelo, int anio, int trimestre, IReadOnlyCollection<PerceptorRetencionDto> p)
+    {
+        var ret = Redondeo.Dos(p.Sum(x => x.Retenciones));
+        return new(modelo, anio, trimestre, p.Count, Redondeo.Dos(p.Sum(x => x.BasePercepciones)), ret, ret);
+    }
+}
+
+/// <summary>Resumen anual por perceptor (180 o 193). Los que no tienen NIF van aparte: no se pueden declarar así.</summary>
+public sealed record AnualRetencionesDto(string Modelo, int Anio, int NumeroPerceptores, decimal TotalBase, decimal TotalRetenciones,
+    IReadOnlyList<PerceptorRetencionDto> Perceptores, IReadOnlyList<PerceptorRetencionDto> PerceptoresSinNif)
+{
+    public static AnualRetencionesDto De(string modelo, int anio, IReadOnlyList<PerceptorRetencionDto> conNif, IReadOnlyList<PerceptorRetencionDto> sinNif)
+    {
+        var todos = conNif.Concat(sinNif).ToList();
+        return new(modelo, anio, todos.Count, Redondeo.Dos(todos.Sum(x => x.BasePercepciones)), Redondeo.Dos(todos.Sum(x => x.Retenciones)), conNif, sinNif);
+    }
+}
+
 /// <summary>
 /// Caso de uso: calcula los modelos 111 (trimestral) y 190 (anual) de retenciones de IRPF a partir
 /// de los gastos con retención y del maestro de proveedores. Es una <b>ayuda</b> para preparar la
@@ -80,6 +101,15 @@ public sealed class GenerarRetencionesIrpf
         };
     }
 
+    /// <summary>
+    /// Retención del 19 %: la de los arrendamientos de inmuebles urbanos, que van al 115/180 y no al 111/190.
+    /// </summary>
+    public static bool EsArrendamiento(decimal baseImponible, decimal retencion)
+    {
+        var tipo = baseImponible == 0m ? 0m : Math.Round(retencion / baseImponible * 100m, 1, MidpointRounding.AwayFromZero);
+        return tipo is > 18.5m and <= 19.5m;
+    }
+
     private readonly IConsultaGastos _gastos;
     private readonly IConsultaProveedores _proveedores;
     private readonly IConsultaEmpresas _empresas;
@@ -94,7 +124,7 @@ public sealed class GenerarRetencionesIrpf
     public async Task<Modelo111Dto> Modelo111Async(Guid empresaId, int anio, int trimestre, CancellationToken ct = default)
     {
         var (desde, hasta) = RangoTrimestre(anio, trimestre);
-        var perceptores = await PerceptoresAsync(empresaId, desde, hasta, ct).ConfigureAwait(false);
+        var perceptores = await PerceptoresAsync(empresaId, desde, hasta, false, ct).ConfigureAwait(false);
         var todos = perceptores.ConNif.Concat(perceptores.SinNif).ToList();
 
         var basePercepciones = Redondeo.Dos(todos.Sum(p => p.BasePercepciones));
@@ -106,7 +136,7 @@ public sealed class GenerarRetencionesIrpf
     {
         var desde = new DateOnly(anio, 1, 1);
         var hasta = new DateOnly(anio, 12, 31);
-        var perceptores = await PerceptoresAsync(empresaId, desde, hasta, ct).ConfigureAwait(false);
+        var perceptores = await PerceptoresAsync(empresaId, desde, hasta, false, ct).ConfigureAwait(false);
 
         var totalPercepciones = Redondeo.Dos(perceptores.ConNif.Concat(perceptores.SinNif).Sum(p => p.BasePercepciones));
         var totalRetenciones = Redondeo.Dos(perceptores.ConNif.Concat(perceptores.SinNif).Sum(p => p.Retenciones));
@@ -136,16 +166,35 @@ public sealed class GenerarRetencionesIrpf
         return FicheroModelo190.Generar(declarante, modelo);
     }
 
-    /// <summary>Agrupa los gastos con retención del periodo por perceptor, resolviendo NIF y datos del maestro.</summary>
+    /// <summary>Modelo 115: retenciones del trimestre sobre alquileres de inmuebles urbanos (gastos con retención del 19 %).</summary>
+    public async Task<ResumenRetencionesDto> Modelo115Async(Guid empresaId, int anio, int trimestre, CancellationToken ct = default)
+    {
+        var (desde, hasta) = RangoTrimestre(anio, trimestre);
+        var p = await PerceptoresAsync(empresaId, desde, hasta, true, ct).ConfigureAwait(false);
+        return ResumenRetencionesDto.De("115", anio, trimestre, p.ConNif.Concat(p.SinNif).ToList());
+    }
+
+    /// <summary>Modelo 180: resumen anual de las retenciones sobre alquileres, por arrendador.</summary>
+    public async Task<AnualRetencionesDto> Modelo180Async(Guid empresaId, int anio, CancellationToken ct = default)
+    {
+        var p = await PerceptoresAsync(empresaId, new DateOnly(anio, 1, 1), new DateOnly(anio, 12, 31), true, ct).ConfigureAwait(false);
+        return AnualRetencionesDto.De("180", anio, p.ConNif, p.SinNif);
+    }
+
+    /// <summary>
+    /// Agrupa los gastos con retención del periodo por perceptor, resolviendo NIF y datos del maestro: los de
+    /// arrendamiento (19 %) o el resto.
+    /// </summary>
     private async Task<(List<PerceptorRetencionDto> ConNif, List<PerceptorRetencionDto> SinNif)> PerceptoresAsync(
-        Guid empresaId, DateOnly desde, DateOnly hasta, CancellationToken ct)
+        Guid empresaId, DateOnly desde, DateOnly hasta, bool arrendamientos, CancellationToken ct)
     {
         var gastos = await _gastos.ListarAsync(empresaId, ct).ConfigureAwait(false);
         var proveedores = await _proveedores.ListarAsync(empresaId, true, ct: ct).ConfigureAwait(false);
         var mapa = proveedores.ToDictionary(p => p.Id);
 
         var conRetencion = gastos
-            .Where(g => g.Estado != "Anulado" && g.RetencionIrpf > 0m && g.Fecha >= desde && g.Fecha <= hasta)
+            .Where(g => g.Estado != "Anulado" && g.RetencionIrpf > 0m && g.Fecha >= desde && g.Fecha <= hasta
+                && EsArrendamiento(g.BaseImponible, g.RetencionIrpf) == arrendamientos)
             .ToList();
 
         // Un perceptor por proveedor y clave: un mismo proveedor puede cobrar como profesional y como agricultor.
@@ -170,7 +219,7 @@ public sealed class GenerarRetencionesIrpf
                 }
 
                 return new PerceptorRetencionDto(
-                    grupo.Key.Clave.Clave,
+                    arrendamientos ? "A" : grupo.Key.Clave.Clave,
                     primero.ProveedorId,
                     nombre,
                     nif,
@@ -187,7 +236,7 @@ public sealed class GenerarRetencionesIrpf
         return (conNif, sinNif);
     }
 
-    private static (DateOnly Desde, DateOnly Hasta) RangoTrimestre(int anio, int trimestre)
+    internal static (DateOnly Desde, DateOnly Hasta) RangoTrimestre(int anio, int trimestre)
     {
         var mesInicio = ((trimestre - 1) * 3) + 1;
         var desde = new DateOnly(anio, mesInicio, 1);

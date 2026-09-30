@@ -1,4 +1,4 @@
-# Modelos 111 y 190 — Retenciones de IRPF
+# Modelos de retenciones — 111/190, 115/180 y 123/193
 
 Dentro del módulo **Informes**. Calculan las retenciones de IRPF que la empresa ha **practicado** a
 sus perceptores (profesionales/proveedores) y generan los modelos **111** (autoliquidación
@@ -73,3 +73,22 @@ Convenciones **oficiales** aplicadas:
 
 En **Informes**, panel «Retenciones de IRPF» con el 111 del trimestre elegido, el detalle del 190 y
 el botón **↓ Fichero oficial 190**, con el aviso de validar en la AEAT.
+
+## Modelos 115 y 180 — Retenciones sobre alquileres
+
+Los gastos con retención del **19 %** son alquileres de inmuebles urbanos: van al **115** (trimestral) y al **180**
+(resumen anual por arrendador, clave `A`) y **no** al 111/190. Hay resumen (`GET /informes/modelo-115?anio=&trimestre=`,
+`GET /informes/modelo-180?anio=`) y CSV para la gestoría (`/csv`). El 180 pide además la referencia catastral y la
+situación del inmueble, que el ERP no guarda: se completan al presentarlo.
+
+## Modelos 123 y 193 — Retenciones sobre el capital mobiliario
+
+Los retornos cooperativos y los intereses de las aportaciones al capital pagados con retención (repartos
+contabilizados de la cooperativa, por la fecha del reparto) van al **123** (trimestral) y al **193** (resumen anual por
+socio, clave `A`): `GET /informes/modelo-123?anio=&trimestre=`, `GET /informes/modelo-193?anio=` y sus `/csv`. Lo
+capitalizado no lleva retención. Informes lee los rendimientos por el puerto `IRendimientosCapitalMobiliario`, que la
+API implementa sobre la cooperativa (sin módulo, no hay rendimientos). La naturaleza de cada percepción del 193 se
+revisa con la gestoría antes de presentarlo.
+
+En **Informes**, el panel «Otras retenciones» aparece cuando hay alguna: el trimestral elegido, el detalle anual y los
+CSV.

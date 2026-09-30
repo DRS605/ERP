@@ -4698,6 +4698,12 @@
         api("/gastos").catch(()=>[]),
       ]);
       const m349=await api(`/informes/modelo-349?anio=${anio}&trimestre=${trimSel}`).catch(()=>null);
+      const [m115,m180,m123,m193]=await Promise.all([
+        api(`/informes/modelo-115?anio=${anio}&trimestre=${trimSel}`).catch(()=>null),
+        api(`/informes/modelo-180?anio=${anio}`).catch(()=>null),
+        api(`/informes/modelo-123?anio=${anio}&trimestre=${trimSel}`).catch(()=>null),
+        api(`/informes/modelo-193?anio=${anio}`).catch(()=>null),
+      ]);
       const panelGraficos=graficosHtml(facturas,gastos,anio);
       const rep=infLibro==="Repercutido";
       const filas=libro.asientos.map(a=>`<tr><td class="muted">${fdate(a.fecha)}</td><td><strong>${agEsc(a.documento)}</strong></td><td>${agEsc(a.tercero)}</td><td class="muted">${agEsc(a.nif||"—")}</td><td class="num">${eur(a.base)}</td><td class="num">${eur(a.cuota)}</td></tr>`).join("");
@@ -4719,7 +4725,7 @@
          <div id="sii_situacion" style="margin-top:12px"></div>`);
       const barra=`<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:16px">${selectorEjercicio("inf",anio)}<span class="muted">Trimestre</span> ${selTrim(anio)}</div>`;
       const m420=IMP.siglas==="IGIC"?await api(`/impuestos/modelo-420?anio=${anio}&trimestre=${trimSel}`).catch(()=>null):null;
-      view(barra+panelGraficos+(benef?panelBeneficio(benef,anio):"")+(benef&&benef.porProducto.length?panelRanking(benef,anio):"")+(m420?panel420(m420,anio):"")+(resumen?panelResumen(resumen,anio):"")+((m111||m190)?panelRetenciones(m111,m190,anio):"")+(m349?panelIntracomunitarias(m349,anio):"")+(anual?panelAnual(anual,anio):"")+panelLibro+panelSii);
+      view(barra+panelGraficos+(benef?panelBeneficio(benef,anio):"")+(benef&&benef.porProducto.length?panelRanking(benef,anio):"")+(m420?panel420(m420,anio):"")+(resumen?panelResumen(resumen,anio):"")+((m111||m190)?panelRetenciones(m111,m190,anio):"")+panelOtrasRetenciones(m115,m180,m123,m193,anio)+(m349?panelIntracomunitarias(m349,anio):"")+(anual?panelAnual(anual,anio):"")+panelLibro+panelSii);
       pintarCertificadoSii();
     }
 
@@ -5207,6 +5213,21 @@
         <div><h4 style="margin:0 0 8px">Modelo 190 · Resumen anual de retenciones</h4>${t190}</div></div>
         <p class="muted" style="font-size:12px;margin:14px 0 0">Recoge las retenciones de IRPF practicadas a profesionales/proveedores (gastos con retención). El fichero del 190 sigue el diseño de la AEAT; <strong>valídalo con el servicio de predeclaración de la AEAT</strong> antes de presentarlo. Ayuda informativa, no es un envío oficial.</p>`;
       return panel(`Retenciones de IRPF · ${anio}`,cuerpo,selTrim(anio)+" "+botonFichero);
+    }
+    // Retenciones sobre alquileres (115/180, gastos con retención del 19 %) y capital mobiliario (123/193, retornos e intereses a socios).
+    function panelOtrasRetenciones(m115,m180,m123,m193,anio){
+      const hay=m=>m&&(m.retenciones>0||m.totalRetenciones>0);
+      if(!hay(m115)&&!hay(m180)&&!hay(m123)&&!hay(m193)) return "";
+      const bloque=(titulo,tri,anu,modTri,modAnu)=>{
+        const filas=anu?anu.perceptores.concat(anu.perceptoresSinNif).map(p=>`<tr><td><strong>${agEsc(p.nombre)}</strong>${p.nif?` <span class="muted">${agEsc(p.nif)}</span>`:' <span class="pill wait">Sin NIF</span>'}</td><td class="num">${eur(p.basePercepciones)}</td><td class="num"><strong>${eur(p.retenciones)}</strong></td></tr>`).join(""):"";
+        return `<div><h4 style="margin:0 0 8px">${titulo}</h4>
+          <table><tbody><tr><td>Modelo ${modTri} · ${trimSel}T · base</td><td class="num">${eur(tri?tri.baseRetenciones:0)}</td></tr>
+            <tr><td><strong>Retenciones a ingresar</strong></td><td class="num"><strong>${eur(tri?tri.totalAIngresar:0)}</strong></td></tr></tbody></table>
+          ${filas?`<table style="margin-top:10px"><thead><tr><th>Modelo ${modAnu} · ${anio}</th><th class="num">Base</th><th class="num">Retenciones</th></tr></thead><tbody>${filas}</tbody></table>`:`<p class="muted">Sin retenciones en ${anio}.</p>`}
+          <div style="margin-top:8px"><button class="btn small ghost" onclick="descargarRuta('/informes/modelo-${modTri}/csv?anio=${anio}&trimestre=${trimSel}')">↓ CSV ${modTri}</button> <button class="btn small ghost" onclick="descargarRuta('/informes/modelo-${modAnu}/csv?anio=${anio}')">↓ CSV ${modAnu}</button></div></div>`;
+      };
+      return panel(`Otras retenciones · ${anio}`,`<div class="grid2">${(hay(m115)||hay(m180))?bloque("Alquileres de inmuebles",m115,m180,"115","180"):""}${(hay(m123)||hay(m193))?bloque("Capital mobiliario (retornos e intereses a socios)",m123,m193,"123","193"):""}</div>
+        <p class="muted" style="font-size:12px;margin:14px 0 0">Los gastos con retención del 19 % se tratan como alquileres (115/180) y no van al 111/190. Los retornos cooperativos y los intereses de las aportaciones con retención van al 123/193 (clave A). El 180 pide además la referencia catastral y la situación del inmueble: complétalas con la gestoría.</p>`,selTrim(anio));
     }
     async function descargarModelo190(anio){
       try{ const r=await fetch(`/informes/modelo-190/fichero?anio=${anio}`,{headers:{Authorization:"Bearer "+token}});

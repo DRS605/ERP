@@ -36,6 +36,9 @@ public sealed class CooperativaTests : IClassFixture<FabricaApiPruebas>
     private sealed record RepartoResp(Guid Id, int Ejercicio, string Estado, string Base, decimal Excedente, decimal ImporteFro, decimal ImporteFep, decimal ReservasVoluntarias,
         decimal ImporteIntereses, decimal ImporteRetorno, decimal TotalRetencion, decimal TotalCapitalizado, decimal TotalNeto, Guid? AsientoId, List<LineaRepartoResp> Lineas);
     private sealed record RetencionResp(Guid SocioId, string? Nif, decimal Integro, decimal Retencion);
+    private sealed record Modelo123Resp(string Modelo, int NumeroPerceptores, decimal BaseRetenciones, decimal Retenciones);
+    private sealed record Perceptor193Resp(string Clave, string Nombre, string? Nif, decimal BasePercepciones, decimal Retenciones);
+    private sealed record Modelo193Resp(decimal TotalRetenciones, List<Perceptor193Resp> Perceptores, List<Perceptor193Resp> PerceptoresSinNif);
     private sealed record RetencionesResp(decimal Integro, decimal Retencion, List<RetencionResp> Socios);
     private sealed record ActaResp(Guid Id, string Organo, int? Numero, string Estado);
     private sealed record ConfigResp(string Forma, decimal PorcentajeFroMinimo, decimal PorcentajeFepMinimo, string Base);
@@ -263,6 +266,15 @@ public sealed class CooperativaTests : IClassFixture<FabricaApiPruebas>
         ret.Retencion.Should().Be(476.58m);
         ret.Socios.Single(s => s.SocioId == b.Id).Should().Match<RetencionResp>(s => s.Integro == 2358.33m && s.Retencion == 448.08m && s.Nif != null);
         ret.Socios.Single(s => s.SocioId == a.Id).Integro.Should().Be(50m, "lo capitalizado no lleva retención");
+
+        // Modelos 123 (el trimestre del reparto, el 4.º) y 193 (anual, por socio con clave A).
+        (await OkAsync<Modelo123Resp>(api.GetAsync($"/informes/modelo-123?anio={Anio}&trimestre=4"))).Should()
+            .Match<Modelo123Resp>(m => m.Modelo == "123" && m.NumeroPerceptores == 3 && m.Retenciones == 476.58m && m.BaseRetenciones == ret.Integro);
+        (await OkAsync<Modelo123Resp>(api.GetAsync($"/informes/modelo-123?anio={Anio}&trimestre=3"))).Retenciones.Should().Be(0m);
+        var m193 = await OkAsync<Modelo193Resp>(api.GetAsync($"/informes/modelo-193?anio={Anio}"));
+        m193.TotalRetenciones.Should().Be(476.58m);
+        m193.Perceptores.Concat(m193.PerceptoresSinNif).Should().OnlyContain(p => p.Clave == "A").And.HaveCount(3);
+        (await api.GetStringAsync($"/informes/modelo-193/csv?anio={Anio}")).Should().Contain("448,08");
 
         // Anular: contraasiento y el retorno capitalizado sale del capital; se puede rehacer.
         (await FalloAsync(api.PostAsJsonAsync($"/cooperativa/repartos/{r.Id}/anular", new { Motivo = "", Fecha = fecha }), HttpStatusCode.BadRequest)).Should().Be("reparto.motivo");

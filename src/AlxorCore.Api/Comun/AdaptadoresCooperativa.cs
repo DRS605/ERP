@@ -52,3 +52,15 @@ public sealed class ContabilidadCooperativa : IContabilidadCooperativa
         return r.EsFallo ? Resultado.Fallo(r.Error) : Resultado.Ok();
     }
 }
+
+/// <summary>Retornos e intereses pagados a los socios con retención: los rendimientos del capital mobiliario de los modelos 123 y 193.</summary>
+public sealed class RendimientosCapitalCooperativa : AlxorCore.Informes.Aplicacion.IRendimientosCapitalMobiliario
+{
+    private readonly RepartosCooperativa _repartos;
+
+    public RendimientosCapitalCooperativa(RepartosCooperativa repartos) => _repartos = repartos;
+
+    public async Task<IReadOnlyList<AlxorCore.Informes.Aplicacion.RendimientoCapitalDto>> RendimientosAsync(Guid empresaId, DateOnly desde, DateOnly hasta, CancellationToken ct = default) =>
+        (await _repartos.RetencionesAsync(empresaId, desde, hasta, ct).ConfigureAwait(false)).Socios
+            .Select(s => new AlxorCore.Informes.Aplicacion.RendimientoCapitalDto(s.SocioId, s.Socio, s.Nif, null, s.Integro, s.Retencion)).ToList();
+}

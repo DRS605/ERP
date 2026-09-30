@@ -3,6 +3,7 @@ using AlxorCore.Persistencia;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace AlxorCore.Informes.Infraestructura;
 
@@ -22,6 +23,8 @@ public static class RegistroServicios
         servicios.AddScoped<GenerarModelo425>();
         servicios.AddScoped<GenerarDeclaracionAnual>();
         servicios.AddScoped<GenerarRetencionesIrpf>();
+        servicios.AddScoped<GenerarRetencionesCapital>();
+        servicios.TryAddScoped<IRendimientosCapitalMobiliario, SinRendimientosCapitalMobiliario>();
         servicios.AddScoped<GenerarModelo349>();
         servicios.AddScoped<GenerarBeneficio>();
         servicios.AddScoped<GenerarCierreCaja>();
