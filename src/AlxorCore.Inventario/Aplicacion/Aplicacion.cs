@@ -578,6 +578,12 @@ public sealed record ValoracionInventarioDto(string Metodo, decimal ValorTotal, 
 public interface IInformeValoracion
 {
     Task<ValoracionInventarioDto> EjecutarAsync(Guid empresaId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Existencias a una fecha (los movimientos hasta ese día) valoradas con el método de la empresa, contando solo las
+    /// entradas con coste hasta ese día: la base de la regularización de existencias del cierre.
+    /// </summary>
+    Task<ValoracionInventarioDto> AFechaAsync(Guid empresaId, DateOnly fecha, CancellationToken ct = default);
 }
 
 /// <summary>

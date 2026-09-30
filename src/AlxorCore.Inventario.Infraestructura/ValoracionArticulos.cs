@@ -26,7 +26,11 @@ internal sealed class ValoracionArticulos : IValoracionArticulos, IInformeValora
         _ctx = ctx; _productos = productos; _configuracion = configuracion;
     }
 
-    public async Task<decimal> ValorUnitarioAsync(Guid empresaId, Guid productoId, MetodoValoracion? metodo = null, CancellationToken ct = default)
+    public Task<decimal> ValorUnitarioAsync(Guid empresaId, Guid productoId, MetodoValoracion? metodo = null, CancellationToken ct = default) =>
+        CosteAsync(empresaId, productoId, metodo, null, null, ct);
+
+    /// <summary>Coste unitario hasta una fecha (solo las entradas hasta ese día) y, en FIFO, para las existencias que se indiquen.</summary>
+    private async Task<decimal> CosteAsync(Guid empresaId, Guid productoId, MetodoValoracion? metodo, DateOnly? hasta, decimal? existencias, CancellationToken ct)
     {
         var m = metodo ?? await _configuracion.MetodoValoracionAsync(empresaId, ct).ConfigureAwait(false);
         var estandar = await CosteEstandarAsync(productoId, ct).ConfigureAwait(false);
@@ -37,7 +41,8 @@ internal sealed class ValoracionArticulos : IValoracionArticulos, IInformeValora
         }
 
         var entradas = await _ctx.Movimientos.AsNoTracking()
-            .Where(x => x.EmpresaId == empresaId && x.ProductoId == productoId && x.Tipo == TipoMovimientoInventario.Entrada && x.CosteUnitario != null && x.Cantidad > 0m)
+            .Where(x => x.EmpresaId == empresaId && x.ProductoId == productoId && x.Tipo == TipoMovimientoInventario.Entrada && x.CosteUnitario != null && x.Cantidad > 0m
+                && (hasta == null || x.Fecha <= hasta))
             .OrderBy(x => x.Fecha).ThenBy(x => x.CreadoEn)
             .Select(x => new { x.Cantidad, Coste = x.CosteUnitario!.Value })
             .ToListAsync(ct).ConfigureAwait(false);
@@ -66,7 +71,7 @@ internal sealed class ValoracionArticulos : IValoracionArticulos, IInformeValora
             case MetodoValoracion.Fifo:
             {
                 // Existencias actuales del artículo (todas las ubicaciones/lotes).
-                var onHand = await _ctx.Existencias.AsNoTracking()
+                var onHand = existencias ?? await _ctx.Existencias.AsNoTracking()
                     .Where(e => e.EmpresaId == empresaId && e.ProductoId == productoId)
                     .SumAsync(e => (decimal?)e.Cantidad, ct).ConfigureAwait(false) ?? 0m;
                 if (onHand <= 0m)
@@ -117,6 +122,27 @@ internal sealed class ValoracionArticulos : IValoracionArticulos, IInformeValora
         }
 
         return new ValoracionInventarioDto(metodo.ToString(), Redondeo.Dos(total), lineas.OrderByDescending(l => l.Valor).ToList());
+    }
+
+    public async Task<ValoracionInventarioDto> AFechaAsync(Guid empresaId, DateOnly fecha, CancellationToken ct = default)
+    {
+        var metodo = await _configuracion.MetodoValoracionAsync(empresaId, ct).ConfigureAwait(false);
+        var stock = await _ctx.Movimientos.AsNoTracking()
+            .Where(x => x.EmpresaId == empresaId && x.Fecha <= fecha)
+            .GroupBy(x => x.ProductoId)
+            .Select(g => new { ProductoId = g.Key, Cantidad = g.Sum(x => x.Cantidad) })
+            .Where(x => x.Cantidad != 0m)
+            .ToListAsync(ct).ConfigureAwait(false);
+
+        var lineas = new List<ValoracionLineaDto>();
+        foreach (var s in stock.Where(x => x.Cantidad > 0m))
+        {
+            var coste = await CosteAsync(empresaId, s.ProductoId, metodo, fecha, s.Cantidad, ct).ConfigureAwait(false);
+            var prod = await _productos.ObtenerAsync(s.ProductoId, ct).ConfigureAwait(false);
+            lineas.Add(new ValoracionLineaDto(s.ProductoId, prod?.Nombre ?? "(artículo)", s.Cantidad, coste, Redondeo.Dos(coste * s.Cantidad)));
+        }
+
+        return new ValoracionInventarioDto(metodo.ToString(), Redondeo.Dos(lineas.Sum(l => l.Valor)), lineas.OrderByDescending(l => l.Valor).ToList());
     }
 
     private async Task<decimal> CosteEstandarAsync(Guid productoId, CancellationToken ct)

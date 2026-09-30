@@ -54,6 +54,8 @@ public sealed class ContabilidadDbContext : DbContextEmpresaBase, IUnidadDeTraba
 
     public DbSet<Periodificacion> Periodificaciones => Set<Periodificacion>();
 
+    public DbSet<CuentaExistencias> CuentasExistencias => Set<CuentaExistencias>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Esquema);
@@ -196,6 +198,36 @@ internal sealed class ConfiguracionPeriodificacion : IEntityTypeConfiguration<Pe
         builder.HasIndex(p => p.AsientoCancelacionId).HasDatabaseName("ix_periodificacion_asiento_cancelacion");
         builder.Ignore(p => p.EventosDominio);
     }
+}
+
+internal sealed class ConfiguracionCuentaExistencias : IEntityTypeConfiguration<CuentaExistencias>
+{
+    public void Configure(EntityTypeBuilder<CuentaExistencias> builder)
+    {
+        builder.ToTable("cuenta_existencias");
+        builder.HasKey(c => c.Id);
+        builder.Property(c => c.Id).HasColumnName("id").ValueGeneratedNever();
+        builder.Property(c => c.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        builder.Property(c => c.Familia).HasColumnName("familia").HasMaxLength(CuentaExistencias.LongitudFamilia);
+        builder.Property(c => c.CuentaStock).HasColumnName("cuenta_stock").HasMaxLength(Cuenta.LongitudMaximaCodigo).IsRequired();
+        builder.Property(c => c.CuentaVariacion).HasColumnName("cuenta_variacion").HasMaxLength(Cuenta.LongitudMaximaCodigo).IsRequired();
+        builder.HasIndex(c => c.EmpresaId).HasDatabaseName("ix_cuenta_existencias_empresa");
+        builder.Ignore(c => c.EventosDominio);
+    }
+}
+
+internal sealed class RepositorioCuentasExistencias : IRepositorioCuentasExistencias
+{
+    private readonly ContabilidadDbContext _contexto;
+
+    public RepositorioCuentasExistencias(ContabilidadDbContext contexto) => _contexto = contexto;
+
+    public async Task<IReadOnlyList<CuentaExistencias>> ListarAsync(Guid empresaId, CancellationToken ct = default) =>
+        await _contexto.CuentasExistencias.Where(c => c.EmpresaId == empresaId).ToListAsync(ct).ConfigureAwait(false);
+
+    public void Agregar(CuentaExistencias cuenta) => _contexto.CuentasExistencias.Add(cuenta);
+
+    public void Eliminar(CuentaExistencias cuenta) => _contexto.CuentasExistencias.Remove(cuenta);
 }
 
 internal sealed class RepositorioPeriodificaciones : IRepositorioPeriodificaciones

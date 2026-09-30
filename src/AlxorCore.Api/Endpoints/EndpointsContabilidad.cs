@@ -125,6 +125,27 @@ public static class EndpointsContabilidad
             .WithSummary("Elimina una periodificación sin asientos.")
             .RequierePermiso(Permisos.ContabilidadGestionar);
 
+        grupo.MapGet("/existencias/cuentas", async (IContextoEmpresa contexto, RegularizacionExistencias caso, CancellationToken ct) =>
+                contexto.EmpresaId is { } e ? Results.Ok(await caso.CuentasAsync(e, ct).ConfigureAwait(false)) : SinEmpresa())
+            .WithSummary("Cuenta de existencias (grupo 3) y de variación (61x/71x) de cada familia de artículos; sin familia, la de por defecto.")
+            .RequierePermiso(Permisos.ContabilidadLeer);
+        grupo.MapPut("/existencias/cuentas", async (IReadOnlyList<CuentaExistenciasDto> cuentas, IContextoEmpresa contexto, RegularizacionExistencias caso, CancellationToken ct) =>
+                contexto.EmpresaId is { } e ? (await caso.FijarCuentasAsync(e, cuentas, ct).ConfigureAwait(false)).AOk() : SinEmpresa())
+            .WithSummary("Sustituye las cuentas de existencias por familia.")
+            .RequierePermiso(Permisos.ContabilidadGestionar);
+        grupo.MapGet("/existencias/{ejercicio:int}", async (int ejercicio, IContextoEmpresa contexto, RegularizacionExistencias caso, CancellationToken ct) =>
+                contexto.EmpresaId is { } e ? Results.Ok(await caso.ConsultarAsync(e, ejercicio, null, ct).ConfigureAwait(false)) : SinEmpresa())
+            .WithSummary("Regularización de existencias del ejercicio: la contabilizada o la previsión (saldo inicial del grupo 3 y stock valorado a 31/12).")
+            .RequierePermiso(Permisos.ContabilidadLeer);
+        grupo.MapPost("/existencias/{ejercicio:int}", async (int ejercicio, PeticionRegularizarExistencias? peticion, IContextoEmpresa contexto, RegularizacionExistencias caso, CancellationToken ct) =>
+                contexto.EmpresaId is { } e ? (await caso.ContabilizarAsync(e, ejercicio, peticion?.Ajustes, ct).ConfigureAwait(false)).AOk() : SinEmpresa())
+            .WithSummary("Contabiliza la regularización de existencias a 31/12 (con valores finales corregidos por cuenta, si se indican).")
+            .RequierePermiso(Permisos.ContabilidadGestionar);
+        grupo.MapPost("/existencias/{ejercicio:int}/anular", async (int ejercicio, IContextoEmpresa contexto, RegularizacionExistencias caso, CancellationToken ct) =>
+                contexto.EmpresaId is { } e ? (await caso.AnularAsync(e, ejercicio, ct).ConfigureAwait(false)).AOk() : SinEmpresa())
+            .WithSummary("Anula la regularización de existencias con un contraasiento.")
+            .RequierePermiso(Permisos.ContabilidadGestionar);
+
         grupo.MapGet("/periodos", async (int? ejercicio, IContextoEmpresa contexto, CierreMensual caso, IReloj reloj, CancellationToken ct) =>
                 contexto.EmpresaId is { } e ? Results.Ok(await caso.EstadoAsync(e, Ejercicio(ejercicio, reloj), ct).ConfigureAwait(false)) : SinEmpresa())
             .WithSummary("Meses del ejercicio: cerrados o abiertos, con sus asientos y documentos pendientes de contabilizar.")
@@ -537,6 +558,8 @@ public static class EndpointsContabilidad
     public sealed record PeticionGenerarPeriodificaciones(DateOnly Hasta);
 
     public sealed record PeticionFechaPeriodificacion(DateOnly Fecha);
+
+    public sealed record PeticionRegularizarExistencias(IReadOnlyList<AjusteExistencias>? Ajustes);
 
     private static IResult SinEmpresa() => ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
 }

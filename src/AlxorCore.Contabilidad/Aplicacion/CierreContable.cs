@@ -252,18 +252,17 @@ public sealed class CerrarEjercicio
                 continue;
             }
 
-            if (s.Grupo == 7)
+            // Cada cuenta se salda por su saldo, sea cual sea su grupo: las de variación de existencias (610-612, 71x)
+            // pueden quedar deudoras o acreedoras. Saldo deudor se abona; acreedor, se carga.
+            if (neto > 0m)
             {
-                // Ingreso: saldo acreedor → se salda cargándolo (Debe) por su saldo acreedor.
-                var acreedor = Redondeo.Dos(-neto);
-                lineasReg.Add(new LineaAsiento(s.Codigo, acreedor, 0m, "Regularización"));
-                ingresos += acreedor;
+                lineasReg.Add(new LineaAsiento(s.Codigo, 0m, neto, "Regularización"));
+                gastos += neto;
             }
             else
             {
-                // Gasto: saldo deudor → se salda abonándolo (Haber) por su saldo deudor.
-                lineasReg.Add(new LineaAsiento(s.Codigo, 0m, neto, "Regularización"));
-                gastos += neto;
+                lineasReg.Add(new LineaAsiento(s.Codigo, Redondeo.Dos(-neto), 0m, "Regularización"));
+                ingresos += Redondeo.Dos(-neto);
             }
         }
 
@@ -278,7 +277,7 @@ public sealed class CerrarEjercicio
         }
 
         var numReg = await _asientos.SiguienteNumeroAsync(empresaId, ejercicio, ct).ConfigureAwait(false);
-        var regularizacion = Asiento.Crear(empresaId, ejercicio, numReg, finAnio, "Regularización de existencias, gastos e ingresos", "Regularizacion", lineasReg, _reloj);
+        var regularizacion = Asiento.Crear(empresaId, ejercicio, numReg, finAnio, "Regularización de gastos e ingresos", "Regularizacion", lineasReg, _reloj);
         if (regularizacion.EsFallo)
         {
             return Resultado.Fallo<CierreEjercicioDto>(regularizacion.Error);

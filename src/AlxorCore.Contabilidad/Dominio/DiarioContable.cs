@@ -25,7 +25,7 @@ public static class DiariosContables
         new("TES", "Cobros y pagos", ["Cobro", "Pago"]),
         new("INM", "Inmovilizado", ["Amortizacion", "BajaInmovilizado", "Enajenacion", "ImpuestoDiferido"]),
         new("PER", "Periodificaciones", ["Periodificacion"]),
-        new("CIE", "Regularización y cierre", ["Regularizacion", "Cierre"]),
+        new("CIE", "Regularización y cierre", ["Existencias", "Regularizacion", "Cierre"]),
         new("APE", "Apertura", ["Apertura"]),
     ];
 

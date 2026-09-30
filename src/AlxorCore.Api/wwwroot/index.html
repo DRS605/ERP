@@ -2834,7 +2834,7 @@
     async function vContabilidad() {
       view('<div class="muted">Cargando…</div>');
       const anio=_contAnio;
-      const [cfg,diario,balance,pendientes,reglas,cuentas,pyg,balsit,anuales,is200,diarios,periodos,periodif]=await Promise.all([
+      const [cfg,diario,balance,pendientes,reglas,cuentas,pyg,balsit,anuales,is200,diarios,periodos,periodif,existencias,ctasExist]=await Promise.all([
         api("/contabilidad/config"),
         api("/contabilidad/diario?ejercicio="+anio),
         api("/contabilidad/balance?ejercicio="+anio),
@@ -2848,7 +2848,10 @@
         api("/contabilidad/diarios").catch(()=>[]),
         api("/contabilidad/periodos?ejercicio="+anio).catch(()=>null),
         api("/contabilidad/periodificaciones").catch(()=>[]),
+        api("/contabilidad/existencias/"+anio).catch(()=>null),
+        api("/contabilidad/existencias/cuentas").catch(()=>[]),
       ]);
+      window._ctasExist=ctasExist;
       window._periodif=periodif;
       window._diarios=diarios; window._diarioTodos=diario;
       window._ctaOpts=cuentas;
@@ -2959,7 +2962,7 @@
         const actual=new Date().getFullYear();
         const terminados=[1,2,3,4,5].map(i=>actual-i);
         const defecto=anio<actual&&!yaCerrado?anio:actual-1;
-        const explicacion=`<p class="muted" style="margin:0 0 10px">Cerrar un ejercicio regulariza los grupos 6 y 7 contra la cuenta de resultado (129), genera el asiento de cierre de todas las cuentas patrimoniales y abre esos saldos en el ejercicio siguiente. Después, el ejercicio cerrado no admite más asientos.</p>`;
+        const explicacion=`<p class="muted" style="margin:0 0 10px">Regulariza antes las existencias (arriba). Cerrar un ejercicio regulariza los grupos 6 y 7 contra la cuenta de resultado (129), genera el asiento de cierre de todas las cuentas patrimoniales y abre esos saldos en el ejercicio siguiente. Después, el ejercicio cerrado no admite más asientos.</p>`;
         const estado=yaCerrado
           ? `<p class="muted" style="margin:0 0 10px">El ejercicio <strong>${anio}</strong> ya está cerrado (regularización, cierre y apertura de ${anio+1} generados).</p>`
           : (anio>=actual?`<p class="muted" style="margin:0 0 10px">El ejercicio en curso (<strong>${anio}</strong>) no se puede cerrar hasta que termine: a partir del 1 de enero de ${anio+1}.</p>`:"");
@@ -3012,7 +3015,54 @@
           +panel("Balance de sumas y saldos · "+anio,(balance.length?'<p class="muted" style="margin:0 0 10px">Pulsa una cuenta para ver su libro mayor.</p>':'')+balTabla,`<button class="btn small ghost" onclick="vMayor('',${anio})">Libro mayor</button>`)],
         ["Periodos y diarios",modo==="Completo"?panelPeriodificaciones(periodif)+panelPeriodos(periodos,anio)+panelDiarios(diarios):""],
         ["Estados financieros",panelPyg+panelBalSit],
-        ["Cierre y cuentas anuales",panelCierre+panelAnuales+panelIS]]));
+        ["Cierre y cuentas anuales",(modo==="Completo"?panelExistencias(existencias,ctasExist):"")+panelCierre+panelAnuales+panelIS]]));
+    }
+    // ---- Regularización de existencias (grupo 3 contra 61x/71x) a 31/12, antes del cierre ----
+    function panelExistencias(r,ctas){
+      if(!r) return "";
+      const filas=r.lineas.map(l=>`<tr><td><strong>${agEsc(l.cuentaStock)}</strong> <span class="muted">↔ ${agEsc(l.cuentaVariacion)}</span></td>
+        <td class="num">${eur(l.inicial)}</td>
+        <td class="num">${r.contabilizada?eur(l.final):`<input type="number" step="0.01" min="0" class="rex_fin" data-cuenta="${agEsc(l.cuentaStock)}" data-calc="${l.calculado}" value="${l.final}" style="width:120px;text-align:right;padding:4px 6px"/>`}</td>
+        <td class="num">${eur(l.variacion)}</td>
+        <td class="muted" style="font-size:12px">${(l.articulos||[]).slice(0,4).map(a=>`${agEsc(a.nombre)} ${kg(a.cantidad)} × ${eur(a.costeUnitario)}`).join(" · ")}${(l.articulos||[]).length>4?` · y ${(l.articulos.length-4)} más`:""}</td></tr>`).join("");
+      const estado=r.contabilizada
+        ? `<span class="pill ok">Contabilizada · asiento ${r.numeroAsiento}</span>`
+        : `<span class="pill wait">Sin contabilizar</span>`;
+      const ctaTxt=(ctas||[]).map(c=>`${c.familia?agEsc(c.familia):"Por defecto"} → ${agEsc(c.cuentaStock)}/${agEsc(c.cuentaVariacion)}`).join(" · ");
+      const acciones=r.ejercicioCerrado?"":(r.contabilizada
+        ? `<button class="btn small ghost" onclick="anularExistencias(${r.ejercicio})">Anular</button>`
+        : (r.lineas.length?`<button class="btn small" onclick="regularizarExistencias(${r.ejercicio})">Contabilizar a 31/12</button>`:""));
+      return panel("Regularización de existencias · "+r.ejercicio,
+        `<p class="muted" style="margin:0 0 10px">${estado} La existencia inicial (saldo de cada cuenta del grupo 3) se da de baja contra su cuenta de variación y la final (el stock del inventario a 31/12, valorado con el método de la empresa) se da de alta. Corrige el valor final con el recuento o el deterioro si hace falta. Hazla antes de cerrar el ejercicio.</p>
+         ${filas?`<table data-totales="no"><thead><tr><th>Cuenta</th><th class="num">Inicial</th><th class="num">Final</th><th class="num">Variación</th><th>Artículos</th></tr></thead><tbody>${filas}
+           <tr style="border-top:2px solid var(--line)"><td><strong>Total</strong></td><td class="num"><strong>${eur(r.inicial)}</strong></td><td class="num"><strong>${eur(r.final)}</strong></td><td class="num"><strong>${eur(r.final-r.inicial)}</strong></td><td></td></tr></tbody></table>`
+           :'<p class="muted" style="margin:0">Sin saldo en el grupo 3 ni stock valorado a 31/12.</p>'}
+         <p class="muted" style="margin:10px 0 0;font-size:12.5px">Cuentas por familia: ${ctaTxt}</p>`,
+        agBotones(`<button class="btn small ghost" onclick="modalCuentasExistencias()">Cuentas por familia</button>`,acciones));
+    }
+    async function regularizarExistencias(anio){
+      const ajustes=[...document.querySelectorAll(".rex_fin")].filter(i=>Number(i.value)!==Number(i.dataset.calc)).map(i=>({cuentaStock:i.dataset.cuenta,final:Number(i.value||0)}));
+      if(!confirm(`¿Contabilizar la regularización de existencias de ${anio} a 31/12?`+(ajustes.length?`\n\nCon ${ajustes.length} valor(es) final(es) corregido(s) a mano.`:""))) return;
+      try{ await api(`/contabilidad/existencias/${anio}`,{method:"POST",body:JSON.stringify({ajustes})}); toast("Existencias regularizadas.","ok"); vContabilidad(); }catch(e){ toast(e.message,"err"); }
+    }
+    async function anularExistencias(anio){
+      if(!confirm(`¿Anular la regularización de existencias de ${anio}? Se registrará un contraasiento.`)) return;
+      try{ await api(`/contabilidad/existencias/${anio}/anular`,{method:"POST"}); toast("Regularización anulada.","ok"); vContabilidad(); }catch(e){ toast(e.message,"err"); }
+    }
+    function filaCuentaExist(c){
+      return `<div class="rex_cta" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:6px"><input placeholder="Familia (vacío = por defecto)" class="rex_fam" value="${agEsc(c.familia||"")}"/>
+        <input placeholder="Existencias (3xx)" class="rex_stk" value="${agEsc(c.cuentaStock||"")}"/><input placeholder="Variación (61x/71x, opcional)" class="rex_var" value="${agEsc(c.cuentaVariacion||"")}"/></div>`;
+    }
+    function modalCuentasExistencias(){
+      abrir("Cuentas de existencias por familia",
+        `<p class="muted" style="margin:0 0 10px">El stock de cada familia va a su cuenta del grupo 3 (30 comerciales, 31 materias primas, 32 otros aprovisionamientos, 35 productos terminados…). Sin cuenta de variación se usa la del PGC (610, 611, 612, 710-713).</p>
+         <div id="rex_ctas">${(window._ctasExist||[]).map(filaCuentaExist).join("")}</div>
+         <button class="btn small ghost" type="button" onclick="document.getElementById('rex_ctas').insertAdjacentHTML('beforeend',filaCuentaExist({}))">+ Familia</button>`,
+        async()=>{
+          const cuentas=[...document.querySelectorAll(".rex_cta")].map(d=>({familia:d.querySelector(".rex_fam").value.trim()||null,cuentaStock:d.querySelector(".rex_stk").value.trim(),cuentaVariacion:d.querySelector(".rex_var").value.trim()||null}))
+            .filter(c=>c.cuentaStock);
+          await api("/contabilidad/existencias/cuentas",{method:"PUT",body:JSON.stringify(cuentas)}); toast("Cuentas guardadas.","ok"); vContabilidad();
+        });
     }
     async function cerrarEjercicio(anio){
       if(!confirm("¿Cerrar el ejercicio "+anio+"?\n\nSe generarán los asientos de regularización, cierre y apertura de "+(anio+1)+". El ejercicio "+anio+" quedará bloqueado para nuevos asientos.")) return;

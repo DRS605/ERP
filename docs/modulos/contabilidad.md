@@ -181,6 +181,32 @@ cerrar dos veces** (409 `cierre.ya_cerrado`) ni cerrar un ejercicio **sin movimi
 responde 409 `cierre.ejercicio_abierto` (cerrar a mitad de año regularizaría resultados incompletos y abriría el
 siguiente con saldos parciales). La interfaz solo ofrece los ejercicios anteriores al actual.
 
+### Regularización de existencias
+
+Antes del cierre, `POST /contabilidad/existencias/{ejercicio}` registra a 31/12 (origen `Existencias`, diario
+`CIE`) la variación de existencias del PGC:
+
+- **Existencia inicial**: el saldo de cada cuenta del grupo 3 (menos la 39) en el ejercicio, sin contar la propia
+  regularización ni sus anulaciones. Va al haber de la cuenta de existencias contra el debe de su variación.
+- **Existencia final**: el stock del inventario a 31/12 (los movimientos hasta ese día) valorado con el método de
+  la empresa (estándar, última compra, PMP o FIFO), contando solo las entradas hasta ese día. Va al debe de la
+  cuenta de existencias contra el haber de su variación. Se puede corregir por cuenta con
+  `{ajustes: [{cuentaStock, final}]}` (recuento físico, deterioro…).
+- **Cuentas por familia** (`GET/PUT /contabilidad/existencias/cuentas`): cada familia de artículos va a su cuenta
+  del grupo 3 (30 comerciales, 31 materias primas, 32 otros aprovisionamientos, 35 productos terminados…); sin
+  familia asignada, a la `300`. La variación, si no se indica, es la del PGC: 30→610, 31→611, 32→612, 33→710,
+  34→711, 35→712, 36→713. Las cuentas que falten se crean en el plan.
+
+`GET /contabilidad/existencias/{ejercicio}` devuelve la previsión (o la contabilizada) con el detalle por artículo.
+Solo hay una vigente por ejercicio (409 `existencias.ya_regularizado`); se anula con
+`POST /contabilidad/existencias/{ejercicio}/anular` (contraasiento, con diciembre abierto) y no desde el diario
+(409 `asiento.de_documento`). Con el ejercicio cerrado, ni se contabiliza ni se anula (409
+`asiento.ejercicio_cerrado`). Como la regularización y el cierre, se admite a 31/12 aunque diciembre esté cerrado
+(el trigger `asiento_diario` lo exime).
+
+La regularización del cierre salda cada cuenta de los grupos 6 y 7 por su saldo, sea deudor o acreedor: la 610 queda
+acreedora cuando suben las existencias.
+
 ## Asientos manuales y plan de cuentas
 
 `POST /contabilidad/asientos` (asiento manual) exige que **cada cuenta exista en el plan** de la empresa (el plan
@@ -325,6 +351,10 @@ Todos sus asientos van al diario `PER`, con origen `Periodificacion`, y respetan
 | `GET` | `/contabilidad/pyg?ejercicio=` | `contabilidad.leer` | Cuenta de Pérdidas y Ganancias (grupos 6 y 7). |
 | `GET` | `/contabilidad/balance-situacion?ejercicio=` | `contabilidad.leer` | Balance de situación por masas patrimoniales. |
 | `POST` | `/contabilidad/cierre?ejercicio=` | `contabilidad.gestionar` | Cierra el ejercicio (regularización + cierre + apertura). |
+| `GET` | `/contabilidad/existencias/{ejercicio}` | `contabilidad.leer` | Regularización de existencias: previsión o la contabilizada. |
+| `POST` | `/contabilidad/existencias/{ejercicio}` | `contabilidad.gestionar` | La contabiliza a 31/12 (con `ajustes` por cuenta). |
+| `POST` | `/contabilidad/existencias/{ejercicio}/anular` | `contabilidad.gestionar` | Contraasiento de la regularización. |
+| `GET`/`PUT` | `/contabilidad/existencias/cuentas` | `contabilidad.leer` / `gestionar` | Cuenta de existencias y de variación por familia. |
 | `POST` | `/contabilidad/asientos` | `contabilidad.gestionar` | Crea un asiento manual. **201** |
 | `GET` | `/contabilidad/modo` | `contabilidad.leer` | Modo de contabilidad actual. |
 | `PUT` | `/contabilidad/modo` | `contabilidad.gestionar` | Cambia el modo (Simple / Completo). |

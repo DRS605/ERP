@@ -84,6 +84,7 @@ builder.Services.AddScoped<AlxorCore.Logistica.Aplicacion.IFabricacionLogistica,
 AlxorCore.Cooperativa.Infraestructura.RegistroServicios.AgregarModuloCooperativa(builder.Services, builder.Configuration);
 builder.Services.AddScoped<AlxorCore.Cooperativa.Aplicacion.IActividadSocios, AlxorCore.Api.Comun.ActividadSociosAgro>();
 builder.Services.AddScoped<AlxorCore.Cooperativa.Aplicacion.IContabilidadCooperativa, AlxorCore.Api.Comun.ContabilidadCooperativa>();
+builder.Services.AddScoped<AlxorCore.Contabilidad.Aplicacion.IValoracionExistencias, AlxorCore.Api.Comun.ValoracionExistenciasInventario>();
 builder.Services.AgregarModuloMigracion(builder.Configuration);
 builder.Services.AgregarModuloDocumentos();
 builder.Services.AgregarModuloInformes();
