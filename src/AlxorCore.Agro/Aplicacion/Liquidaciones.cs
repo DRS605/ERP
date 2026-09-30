@@ -289,8 +289,11 @@ public sealed class LiquidacionesAgro
         var numero = await _repo.UltimoNumeroAsync(empresaId, Liquidacion.Serie, l.Ejercicio, ct).ConfigureAwait(false) + 1;
         var numeroCompleto = $"{Liquidacion.Serie}-{l.Ejercicio}-{numero:D6}";
         var campana = await _repo.CampanaAsync(l.CampanaId, ct).ConfigureAwait(false);
+        // La fruta es una compra (600/601, o la cuenta de los ajustes de agro), no un servicio.
+        var cuentaCompras = (await _repo.ConfiguracionAsync(empresaId, ct).ConfigureAwait(false))?.CuentaComprasFruta ?? "600";
         var gasto = await _autofacturas.RegistrarAsync(empresaId, new AutofacturaAgro(agricultor.ProveedorId,
-            $"Liquidación {numeroCompleto} · campaña {campana?.Codigo} (autofactura)", l.Fecha, l.BaseImponible, l.CodigoImpuesto, l.PorcentajeRetencion), ct).ConfigureAwait(false);
+            $"Liquidación {numeroCompleto} · campaña {campana?.Codigo} (autofactura)", l.Fecha, l.BaseImponible, l.CodigoImpuesto, l.PorcentajeRetencion, cuentaCompras), ct)
+            .ConfigureAwait(false);
         if (gasto.EsFallo)
         {
             return Resultado.Fallo<LiquidacionDto>(gasto.Error);

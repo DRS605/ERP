@@ -159,7 +159,7 @@ public sealed class EmitirTicket
         _encolarSalida.Contabilizacion(empresaId, new DocumentoContabilizable(
             SentidoContable.Venta, "Ticket", t.Id, t.NumeroCompleto, comando.ClienteId, t.ClienteNombre,
             t.FechaEmision, t.BaseImponible, codigoIva, t.CuotaIva, t.PorcentajeIrpf, t.RetencionIrpf, t.Total, productoId, familia, tipoTercero,
-            ActividadNegocioId: t.ActividadNegocioId));
+            ActividadNegocioId: t.ActividadNegocioId, Lineas: EmitirFactura.LineasConCuenta(t, await EmitirFactura.ProductosAsync(_productos, t, ct).ConfigureAwait(false))));
 
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
         await _despacharSalida.EjecutarAsync(ct: ct).ConfigureAwait(false);

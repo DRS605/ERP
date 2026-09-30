@@ -227,6 +227,10 @@ Un **muestreo** dice cuántos kilos de la muestra salieron de cada categoría. P
 
 ## 5. Liquidación al agricultor
 
+> **Cuenta de compras.** La autofactura de cada liquidación lleva la fruta a la cuenta de compras de los ajustes de agro
+> (`cuentaComprasFruta`, `600` por defecto; `601` si se contabiliza como materia prima, o una subcuenta). No va a la
+> `629` de servicios.
+
 La liquidación reúne las entregas confirmadas del agricultor en la campaña y el periodo, siempre que no
 estén ya en otra liquidación. Así se valora (portado de `growerSettlement.ts`):
 

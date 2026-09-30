@@ -31,7 +31,10 @@ public sealed class AutofacturasGastos : IAutofacturas
         ArgumentNullException.ThrowIfNull(autofactura);
         var gasto = await _registrar.EjecutarAsync(empresaId, new RegistrarGastoComando(
             autofactura.Concepto, autofactura.BaseImponible, autofactura.ProveedorId, CodigoIva: autofactura.CodigoImpuesto,
-            PorcentajeIrpf: autofactura.PorcentajeRetencion, Fecha: autofactura.Fecha), ct).ConfigureAwait(false);
+            PorcentajeIrpf: autofactura.PorcentajeRetencion, Fecha: autofactura.Fecha,
+            Lineas: autofactura.CuentaCompras is { } cuenta
+                ? [new LineaGastoComando(autofactura.BaseImponible, autofactura.CodigoImpuesto, autofactura.Concepto, CuentaGasto: cuenta)]
+                : null), ct).ConfigureAwait(false);
         return gasto.EsFallo
             ? Resultado.Fallo<(Guid, decimal)>(gasto.Error)
             : Resultado.Ok((gasto.Valor.Id, gasto.Valor.Total));

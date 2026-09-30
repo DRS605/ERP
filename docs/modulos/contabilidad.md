@@ -84,11 +84,22 @@ La cuenta de resultado (ingreso 7xx en ventas, gasto 6xx en compras) se elige co
 configurables** en lugar de una única cuenta genérica. Cada regla fija una cuenta para una
 combinación de:
 
-- **Familia del artículo** (campo `familia` del producto; se toma la del primer artículo de la venta), y/o
+- **Familia del artículo** (campo `familia` del producto; en las ventas, la de cada línea), y/o
 - **Tipo del tercero** (campo `tipo` del cliente/proveedor).
 
 La regla **más específica gana**: familia + tipo (3) &gt; familia (2) &gt; tipo (1) &gt; genérica (0).
-Si ninguna regla encaja se usa la cuenta genérica (`705` ventas, `629` compras). El resolutor
+**Ventas línea a línea.** Cada línea de la factura (o del ticket) va a su propia cuenta de ingreso, por este orden:
+
+1. la cuenta propia de la línea o de su concepto;
+2. la regla que encaje con la familia de su artículo;
+3. la cuenta de la plantilla;
+4. si no hay nada de lo anterior, la **700** si el artículo es un bien y la **705** si es un servicio.
+
+Así, una factura con fruta, envases y portes lleva cada importe a su cuenta. Si al redondear por cuenta el asiento no
+cuadra por céntimos, la diferencia va a la cuenta de más importe.
+
+Sin ninguna regla, las compras van a la `629`, salvo las que traen su cuenta en la línea. Las autofacturas de fruta
+de agro van a la cuenta de compras de los ajustes de agro (`600` por defecto). El resolutor
 `ResolverCuentasReglas` implementa el puerto `IResolverCuentas` que usa `PosterDocumento` al construir
 el asiento, de modo que la elección de cuenta es transparente para el resto del flujo. La cuenta de una
 regla debe existir en el plan de la empresa.

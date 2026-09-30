@@ -31,7 +31,11 @@ public sealed class ResolverCuentasReglas : IResolverCuentas
 
     public ResolverCuentasReglas(IRepositorioReglasContabilizacion reglas) => _reglas = reglas;
 
-    public async Task<string> CuentaResultadoAsync(Guid empresaId, SentidoContable sentido, string? familia, string? tipoTercero, CancellationToken ct = default)
+    public async Task<string> CuentaResultadoAsync(Guid empresaId, SentidoContable sentido, string? familia, string? tipoTercero, CancellationToken ct = default) =>
+        await CuentaDeReglaAsync(empresaId, sentido, familia, tipoTercero, ct).ConfigureAwait(false)
+        ?? (sentido == SentidoContable.Venta ? PlanBasico.CuentaVentas : PlanBasico.CuentaCompras);
+
+    public async Task<string?> CuentaDeReglaAsync(Guid empresaId, SentidoContable sentido, string? familia, string? tipoTercero, CancellationToken ct = default)
     {
         var reglas = await _reglas.ListarAsync(empresaId, ct).ConfigureAwait(false);
         var mejor = reglas
@@ -42,12 +46,7 @@ public sealed class ResolverCuentasReglas : IResolverCuentas
             .ThenByDescending(r => r.Familia is not null)
             .FirstOrDefault();
 
-        if (mejor is not null)
-        {
-            return mejor.CuentaCodigo;
-        }
-
-        return sentido == SentidoContable.Venta ? PlanBasico.CuentaVentas : PlanBasico.CuentaCompras;
+        return mejor?.CuentaCodigo;
     }
 }
 

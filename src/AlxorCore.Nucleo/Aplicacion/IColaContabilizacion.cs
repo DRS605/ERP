@@ -49,6 +49,8 @@ public sealed record DocumentoContabilizable(
 /// Línea de una factura recibida con varias bases: su base, tipo e impuesto, la parte deducible (antes de la prorrata),
 /// el recargo de equivalencia soportado, si la cuota la autoliquida la empresa (inversión del sujeto pasivo o adquisición
 /// intracomunitaria: se carga en la 472 y se abona en la 477) y la cuenta de gasto propia de la línea (null: la regla).
+/// En las ventas, la familia del artículo de la línea y si es un bien eligen su cuenta de ingreso (la regla de su
+/// familia; sin regla, 700 si es un bien y 705 si es un servicio).
 /// </summary>
 public sealed record LineaContable(
     decimal Base,
@@ -57,7 +59,9 @@ public sealed record LineaContable(
     decimal CuotaDeducible,
     decimal Recargo = 0m,
     bool Autoliquidada = false,
-    string? CuentaGasto = null);
+    string? CuentaGasto = null,
+    string? Familia = null,
+    bool? EsBien = null);
 
 /// <summary>
 /// Cola de contabilización: recibe los documentos contabilizables y los deja <b>pendientes</b> de que

@@ -601,6 +601,8 @@ public sealed class AgroEndpointsTests : IClassFixture<FabricaApiPruebas>
         }
 
         (await MayorAsync("472")).Should().Be((300m, 0m, 1L), "la compensación REAGP del 12 % sobre 2.500 € es IVA soportado deducible");
+        (await MayorAsync("600")).Should().Be((2500m, 0m, 1L), "la fruta es una compra (600), no un servicio");
+        (await MayorAsync("629")).Asientos.Should().Be(0);
         (await OkAsync<LiquidacionResp>(await e.Api.PostAsJsonAsync($"/agro/liquidaciones/{liq.Id}/anular", new { Motivo = "Duplicada" }))).Estado.Should().Be("Anulada");
         (await MayorAsync("472")).Should().Be((300m, 300m, 2L), "el contraasiento deja la 472 a cero");
         var proveedor = await MayorAsync("40");

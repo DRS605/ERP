@@ -251,6 +251,7 @@ internal sealed class ConfiguracionAjustes : IEntityTypeConfiguration<Configurac
         b.Property(x => x.DigitoExtension).HasColumnName("digito_extension").IsRequired();
         b.Property(x => x.ToleranciaMermaPct).HasColumnName("tolerancia_merma_pct").HasColumnType("numeric(5,2)");
         b.Property(x => x.CertificacionPorParcela).HasColumnName("certificacion_por_parcela").IsRequired();
+        b.Property(x => x.CuentaComprasFruta).HasColumnName("cuenta_compras_fruta").HasMaxLength(20).IsRequired().HasDefaultValue("600");
         b.HasIndex(x => x.EmpresaId).IsUnique().HasDatabaseName("ux_configuracion_empresa");
     }
 }

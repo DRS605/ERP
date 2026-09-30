@@ -211,6 +211,40 @@ public sealed class ContabilidadEndpointsTests : IClassFixture<FabricaApiPruebas
     }
 
     [Fact]
+    public async Task Cada_linea_de_la_venta_va_a_su_cuenta_de_ingreso()
+    {
+        var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+        await PonerModoCompletoAsync(cliente);
+        await cliente.PutAsJsonAsync("/contabilidad/contabilizacion-automatica", new { Automatica = true });
+        await cliente.PostAsJsonAsync("/contabilidad/cuentas", new { Codigo = "7040", Nombre = "Ventas de envases" });
+        (await cliente.PostAsJsonAsync("/contabilidad/reglas", new { Sentido = "Venta", Familia = "Envases", TipoTercero = (string?)null, CuentaCodigo = "7040" }))
+            .StatusCode.Should().Be(HttpStatusCode.Created);
+
+        // Un bien sin regla (700), un bien de una familia con regla (7040) y un servicio (705), en la misma factura.
+        var naranja = (await (await cliente.PostAsJsonAsync("/productos", new { Nombre = "Naranja", PrecioUnitario = 1m, CodigoIva = "IVA4", Tipo = "Bien" })).Content.ReadFromJsonAsync<FacturaResp>())!;
+        var caja = (await (await cliente.PostAsJsonAsync("/productos", new { Nombre = "Caja", PrecioUnitario = 1m, CodigoIva = "IVA21", Tipo = "Bien", Familia = "Envases" })).Content.ReadFromJsonAsync<FacturaResp>())!;
+        var porte = (await (await cliente.PostAsJsonAsync("/productos", new { Nombre = "Porte", PrecioUnitario = 1m, CodigoIva = "IVA21", Tipo = "Servicio" })).Content.ReadFromJsonAsync<FacturaResp>())!;
+        var clienteId = (await (await cliente.PostAsJsonAsync("/clientes", new { Nombre = "Mercado SL", NifFiscal = "B12345674" })).Content.ReadFromJsonAsync<FacturaResp>())!.Id;
+        (await cliente.PostAsJsonAsync("/facturas", new
+        {
+            ClienteId = clienteId,
+            FechaEmision = "2026-08-12",
+            Lineas = new[]
+            {
+                new { Cantidad = 1000m, Descripcion = "Naranja", PrecioUnitario = 0.80m, CodigoIva = "IVA4", ProductoId = naranja.Id },
+                new { Cantidad = 100m, Descripcion = "Caja", PrecioUnitario = 0.50m, CodigoIva = "IVA21", ProductoId = caja.Id },
+                new { Cantidad = 1m, Descripcion = "Porte", PrecioUnitario = 60m, CodigoIva = "IVA21", ProductoId = porte.Id },
+            },
+        })).EnsureSuccessStatusCode();
+
+        var asiento = (await cliente.GetFromJsonAsync<List<AsientoResp>>("/contabilidad/diario?ejercicio=2026"))!.Single(a => a.Origen == "Venta");
+        asiento.Apuntes.Sum(x => x.Debe).Should().Be(asiento.Apuntes.Sum(x => x.Haber));
+        asiento.Apuntes.Should().Contain(x => x.CuentaCodigo == "700" && x.Haber == 800m);
+        asiento.Apuntes.Should().Contain(x => x.CuentaCodigo == "7040" && x.Haber == 50m);
+        asiento.Apuntes.Should().Contain(x => x.CuentaCodigo == "705" && x.Haber == 60m);
+    }
+
+    [Fact]
     public async Task Una_regla_por_familia_elige_la_cuenta_de_ingreso_al_contabilizar_una_venta()
     {
         var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);

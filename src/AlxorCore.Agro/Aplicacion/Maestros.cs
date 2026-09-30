@@ -55,7 +55,7 @@ public sealed record TarifaDto(Guid Id, string Recurso, string Categoria, string
 }
 
 public sealed record ConfiguracionAgroDto(string PrefijoGs1, int DigitoExtension, bool? ReflejarPartidasEnInventario = null, bool? ReflejarEnvasesEnInventario = null,
-    decimal? ToleranciaMermaPct = null, bool? CertificacionPorParcela = null);
+    decimal? ToleranciaMermaPct = null, bool? CertificacionPorParcela = null, string? CuentaComprasFruta = null);
 
 public sealed record DatosCampana(string? Codigo, string? Nombre, DateOnly Desde, DateOnly Hasta);
 
@@ -772,8 +772,9 @@ public sealed class MaestrosAgro
     public async Task<ConfiguracionAgroDto> ConfiguracionAsync(Guid empresaId, CancellationToken ct = default)
     {
         var c = await _repo.ConfiguracionAsync(empresaId, ct).ConfigureAwait(false);
-        return c is null ? new ConfiguracionAgroDto(ConfiguracionAgro.PrefijoPruebas, 0, false, false)
-            : new ConfiguracionAgroDto(c.PrefijoGs1, c.DigitoExtension, c.ReflejarPartidasEnInventario, c.ReflejarEnvasesEnInventario, c.ToleranciaMermaPct, c.CertificacionPorParcela);
+        return c is null ? new ConfiguracionAgroDto(ConfiguracionAgro.PrefijoPruebas, 0, false, false, CuentaComprasFruta: "600")
+            : new ConfiguracionAgroDto(c.PrefijoGs1, c.DigitoExtension, c.ReflejarPartidasEnInventario, c.ReflejarEnvasesEnInventario, c.ToleranciaMermaPct, c.CertificacionPorParcela,
+                c.CuentaComprasFruta);
     }
 
     public async Task<Resultado<ConfiguracionAgroDto>> ActualizarConfiguracionAsync(Guid empresaId, ConfiguracionAgroDto datos, CancellationToken ct = default)
@@ -800,7 +801,13 @@ public sealed class MaestrosAgro
             return Resultado.Fallo<ConfiguracionAgroDto>(tolerancia.Error);
         }
 
+        if (datos.CuentaComprasFruta is not null && c.FijarCuentaComprasFruta(datos.CuentaComprasFruta) is { EsFallo: true } cuenta)
+        {
+            return Resultado.Fallo<ConfiguracionAgroDto>(cuenta.Error);
+        }
+
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
-        return Resultado.Ok(new ConfiguracionAgroDto(c.PrefijoGs1, c.DigitoExtension, c.ReflejarPartidasEnInventario, c.ReflejarEnvasesEnInventario, c.ToleranciaMermaPct, c.CertificacionPorParcela));
+        return Resultado.Ok(new ConfiguracionAgroDto(c.PrefijoGs1, c.DigitoExtension, c.ReflejarPartidasEnInventario, c.ReflejarEnvasesEnInventario, c.ToleranciaMermaPct, c.CertificacionPorParcela,
+            c.CuentaComprasFruta));
     }
 }

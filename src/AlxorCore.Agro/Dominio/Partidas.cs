@@ -702,6 +702,21 @@ public sealed class ConfiguracionAgro : RaizAgregadoEmpresa<Guid>
 
     public void FijarCertificacionPorParcela(bool porParcela) => CertificacionPorParcela = porParcela;
 
+    /// <summary>Cuenta de compras de las autofacturas de las liquidaciones (600 mercaderías o 601 materias primas, o una subcuenta).</summary>
+    public string CuentaComprasFruta { get; private set; } = "600";
+
+    public Resultado FijarCuentaComprasFruta(string? cuenta)
+    {
+        var c = cuenta?.Trim();
+        if (string.IsNullOrEmpty(c) || c.Length > 20 || !c.All(char.IsAsciiDigit) || c[0] != '6')
+        {
+            return Resultado.Fallo(Error.Validacion("agro.cuenta_compras", "La cuenta de compras de fruta es una cuenta de gastos (empieza por 6) de hasta 20 dígitos."));
+        }
+
+        CuentaComprasFruta = c;
+        return Resultado.Ok();
+    }
+
     public void FijarInventario(bool partidas, bool envases)
     {
         ReflejarPartidasEnInventario = partidas;

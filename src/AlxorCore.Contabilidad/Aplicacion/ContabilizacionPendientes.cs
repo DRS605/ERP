@@ -38,6 +38,10 @@ public interface IRepositorioDocumentosPendientes
 public interface IResolverCuentas
 {
     Task<string> CuentaResultadoAsync(Guid empresaId, SentidoContable sentido, string? familia, string? tipoTercero, CancellationToken ct = default);
+
+    /// <summary>La cuenta de la regla que encaja, o null si ninguna (para elegir entonces la genérica de la línea).</summary>
+    Task<string?> CuentaDeReglaAsync(Guid empresaId, SentidoContable sentido, string? familia, string? tipoTercero, CancellationToken ct = default) =>
+        Task.FromResult<string?>(null);
 }
 
 /// <summary>Resolutor básico: cuenta genérica de ingresos/gastos, sin reglas.</summary>
@@ -143,9 +147,24 @@ public sealed class PosterDocumento
             papel => plantilla?.CuentaDe(papel),
             (papel, defecto) => plantilla?.ConceptoDe(papel) is { } t ? Texto(t) : defecto,
             concepto);
+        // Ventas con líneas: cada una a su cuenta. La propia de la línea; si no, la regla de su familia; si no, la de la
+        // plantilla; si no, 700 si es un bien y 705 si es un servicio (sin saberlo, la del documento).
+        var ingresos = new List<(string Cuenta, decimal Base)>();
+        if (doc.Sentido == SentidoContable.Venta)
+        {
+            foreach (var l in doc.Lineas)
+            {
+                var cuenta = !string.IsNullOrWhiteSpace(l.CuentaGasto) ? l.CuentaGasto!
+                    : await _resolver.CuentaDeReglaAsync(doc.EmpresaId, doc.Sentido, l.Familia ?? doc.Familia, doc.TipoTercero, ct).ConfigureAwait(false)
+                      ?? plantilla?.CuentaDe(PapelApunte.Resultado)
+                      ?? (l.EsBien is { } bien ? bien ? PlanBasico.CuentaVentasMercaderias : PlanBasico.CuentaVentas : cuentaResultado);
+                ingresos.Add((cuenta, l.Base));
+            }
+        }
+
         var lineas = doc.Sentido switch
         {
-            SentidoContable.Venta => LineasVenta(doc, cuentaResultado, cuentaTercero, p),
+            SentidoContable.Venta => LineasVenta(doc, cuentaResultado, cuentaTercero, p, ingresos),
             SentidoContable.Compra when doc.Lineas.Count > 0 => LineasCompraDesglosada(doc, cuentaResultado, cuentaTercero, p, cuotaDeducible),
             SentidoContable.Compra => LineasCompra(doc, cuentaResultado, cuentaTercero, p, cuotaDeducible),
             SentidoContable.Cobro => [new LineaAsiento(tesoreria, doc.Total, 0m, p.Concepto(PapelApunte.Tesoreria)), new LineaAsiento(cuentaTercero, 0m, doc.Total, p.Concepto(PapelApunte.Tercero))],
@@ -206,7 +225,7 @@ public sealed class PosterDocumento
         public string Concepto(PapelApunte papel, string? defecto = null) => ConceptoPlantilla(papel, defecto ?? ConceptoAsiento);
     }
 
-    private static List<LineaAsiento> LineasVenta(DocumentoPendiente d, string cuentaIngreso, string cuentaCliente, Papeles p)
+    private static List<LineaAsiento> LineasVenta(DocumentoPendiente d, string cuentaIngreso, string cuentaCliente, Papeles p, IReadOnlyList<(string Cuenta, decimal Base)> ingresos)
     {
         var concepto = p.Concepto(PapelApunte.Resultado);
         // Debe: cliente (total a cobrar) + retención soportada. Haber: ingreso (base) + IVA repercutido.
@@ -216,13 +235,22 @@ public sealed class PosterDocumento
             lineas.Add(new LineaAsiento(p.Cuenta(PapelApunte.RetencionVenta, PlanBasico.CuentaRetencionVenta), d.RetencionIrpf, 0m, p.Concepto(PapelApunte.RetencionVenta, "Retención IRPF")));
         }
 
-        // Con líneas con cuenta propia (anticipos: 438) su base va a esa cuenta; el resto, a la de ventas. La línea que
-        // descuenta un anticipo tiene base negativa: queda al debe de la 438 (cancela el anticipo facturado).
-        if (d.Lineas.Any(l => !string.IsNullOrWhiteSpace(l.CuentaGasto)))
+        // Con líneas, cada base a su cuenta (la de un anticipo, 438, con base negativa queda al debe: cancela el anticipo
+        // facturado; un suplido, fuera de la base, va al haber de su cuenta). Si al redondear por cuenta el asiento no
+        // cuadra por céntimos, la diferencia va a la cuenta de más importe.
+        if (ingresos.Count > 0)
         {
-            foreach (var g in d.Lineas.GroupBy(l => string.IsNullOrWhiteSpace(l.CuentaGasto) ? cuentaIngreso : l.CuentaGasto!))
+            var grupos = ingresos.GroupBy(x => x.Cuenta).Select(g => (Cuenta: g.Key, Base: Math.Round(g.Sum(x => x.Base), 2))).Where(g => g.Base != 0m).ToList();
+            var diferencia = d.Total + d.RetencionIrpf - d.CuotaIva - grupos.Sum(g => g.Base);
+            if (diferencia != 0m && grupos.Count > 0)
             {
-                lineas.Add(new LineaAsiento(g.Key, 0m, Math.Round(g.Sum(l => l.Base), 2), concepto));
+                var i = grupos.FindIndex(g => Math.Abs(g.Base) == grupos.Max(x => Math.Abs(x.Base)));
+                grupos[i] = (grupos[i].Cuenta, grupos[i].Base + diferencia);
+            }
+
+            foreach (var (cuenta, importe) in grupos)
+            {
+                lineas.Add(importe >= 0m ? new LineaAsiento(cuenta, 0m, importe, concepto) : new LineaAsiento(cuenta, -importe, 0m, concepto));
             }
         }
         else

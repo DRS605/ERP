@@ -123,6 +123,7 @@ public static class PlanBasico
     public const string CuentaRetencion = "4751";   // H.P. acreedora por retenciones (compras)
     public const string CuentaProveedores = "400";  // Proveedores
     public const string CuentaVentas = "705";        // Prestaciones de servicios (ingreso genérico)
+    public const string CuentaVentasMercaderias = "700"; // Ventas de mercaderías (lo que se vende es un bien)
     public const string CuentaClientes = "430";      // Clientes
     public const string CuentaAnticiposClientes = "438"; // Anticipos de clientes
     public const string CuentaAnticiposProveedores = "407"; // Anticipos a proveedores (entregas a cuenta)

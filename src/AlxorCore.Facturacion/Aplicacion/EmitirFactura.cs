@@ -114,12 +114,16 @@ public sealed class EmitirFactura
     /// tiene (portes cobrados a la 759, envases…): la parte del concepto va a su cuenta y el resto de la línea a la suya o
     /// a la de ventas. Si nada lleva cuenta, null y el asiento va entero a la cuenta de ventas de la regla.
     /// </summary>
-    internal static IReadOnlyList<LineaContable>? LineasConCuenta(Factura f)
+    /// <summary>
+    /// Líneas para el asiento: cada una con la familia de su artículo y si es un bien (su cuenta de ingreso), la cuenta
+    /// propia de la línea o de sus conceptos, y los suplidos aparte.
+    /// </summary>
+    internal static IReadOnlyList<LineaContable>? LineasConCuenta(Factura f, IReadOnlyDictionary<Guid, ProductoDto>? productos = null)
     {
         static IEnumerable<ConceptoAplicado> Propios(LineaFactura l) =>
             l.Conceptos.Where(c => c.Efecto == EfectoConcepto.Precio && !string.IsNullOrWhiteSpace(c.CuentaContable));
         static IEnumerable<ConceptoAplicado> Suplidos(LineaFactura l) => l.Conceptos.Where(c => c.Efecto == EfectoConcepto.Suplido && c.Importe != 0m);
-        if (!f.Lineas.Any(l => l.CuentaContable is not null || Propios(l).Any() || Suplidos(l).Any()))
+        if (f.Lineas.Count == 0)
         {
             return null;
         }
@@ -128,13 +132,30 @@ public sealed class EmitirFactura
         foreach (var l in f.Lineas)
         {
             var propios = Propios(l).ToList();
-            lineas.Add(new LineaContable(l.Base - propios.Sum(c => c.Importe), l.CodigoIva, l.CuotaIva, l.CuotaIva, l.CuotaRecargo, CuentaGasto: l.CuentaContable));
+            var producto = l.ProductoId is { } pid ? productos?.GetValueOrDefault(pid) : null;
+            lineas.Add(new LineaContable(l.Base - propios.Sum(c => c.Importe), l.CodigoIva, l.CuotaIva, l.CuotaIva, l.CuotaRecargo, CuentaGasto: l.CuentaContable,
+                Familia: producto?.Familia, EsBien: producto is null ? null : producto.Tipo == AlxorCore.Catalogo.Dominio.TipoProducto.Bien));
             lineas.AddRange(propios.Select(c => new LineaContable(c.Importe, l.CodigoIva, 0m, 0m, 0m, CuentaGasto: c.CuentaContable)));
             // Suplidos: al haber de su cuenta, sin impuesto (el cliente los paga en el total).
             lineas.AddRange(Suplidos(l).Select(c => new LineaContable(c.Importe, l.CodigoIva, 0m, 0m, 0m, CuentaGasto: c.CuentaContable ?? "4709")));
         }
 
         return lineas;
+    }
+
+    /// <summary>Los artículos de las líneas de la factura (para elegir la cuenta de ingreso de cada una).</summary>
+    internal static async Task<IReadOnlyDictionary<Guid, ProductoDto>> ProductosAsync(IConsultaProductos consulta, Factura f, CancellationToken ct)
+    {
+        var productos = new Dictionary<Guid, ProductoDto>();
+        foreach (var id in f.Lineas.Where(l => l.ProductoId is not null).Select(l => l.ProductoId!.Value).Distinct())
+        {
+            if (await consulta.ObtenerAsync(id, ct).ConfigureAwait(false) is { } p)
+            {
+                productos[id] = p;
+            }
+        }
+
+        return productos;
     }
 
     public Task<Resultado<FacturaDto>> EjecutarAsync(Guid empresaId, EmitirFacturaComando comando, CancellationToken ct = default) =>
@@ -335,7 +356,7 @@ public sealed class EmitirFactura
         _encolarSalida.Contabilizacion(empresaId, new DocumentoContabilizable(
             SentidoContable.Venta, "FacturaVenta", f.Id, f.NumeroCompleto, f.ClienteId, f.ClienteNombre,
             f.FechaEmision, f.BaseImponible, codigoIva, f.CuotaIva, f.PorcentajeIrpf, f.RetencionIrpf, f.Total, productoId, familia, cliente.Tipo,
-            ActividadNegocioId: f.ActividadNegocioId, Lineas: LineasConCuenta(f)));
+            ActividadNegocioId: f.ActividadNegocioId, Lineas: LineasConCuenta(f, await ProductosAsync(_productos, f, ct).ConfigureAwait(false))));
 
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
 

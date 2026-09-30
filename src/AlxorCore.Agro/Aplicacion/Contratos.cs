@@ -160,7 +160,8 @@ public interface IRepositorioAgro
 }
 
 /// <summary>Datos de la autofactura de una liquidación, para registrarla como gasto.</summary>
-public sealed record AutofacturaAgro(Guid ProveedorId, string Concepto, DateOnly Fecha, decimal BaseImponible, string CodigoImpuesto, decimal PorcentajeRetencion);
+public sealed record AutofacturaAgro(Guid ProveedorId, string Concepto, DateOnly Fecha, decimal BaseImponible, string CodigoImpuesto, decimal PorcentajeRetencion,
+    string? CuentaCompras = null);
 
 /// <summary>
 /// Registro de la autofactura de una liquidación en Gastos (y, por la cola, en contabilidad y los libros de
