@@ -34,7 +34,35 @@ public static class EndpointsCopiaConfiguracion
             .WithSummary("Copia a la empresa activa lo que le falta de la configuración elegida de la otra empresa. Se puede repetir: no duplica.")
             .RequierePermiso(Permisos.EmpresaAjustes);
 
+        // Unir al grupo de la empresa activa otra empresa del usuario que está sola en su grupo (fusiona sus maestros).
+        var u = rutas.MapGroup("/grupos/actual/union").WithTags("Empresas");
+        u.MapGet("", async (IContextoEmpresa contexto, ClaimsPrincipal usuario, UnionGrupo union, CancellationToken ct) =>
+                contexto.EmpresaId is not { } empresa || usuario.ObtenerUsuarioId() is not { } id
+                    ? SinEmpresa()
+                    : Results.Ok(await union.CandidatasAsync(empresa, id, ct).ConfigureAwait(false)))
+            .WithSummary("Empresas del usuario de otros grupos y si se pueden unir a este (solo las que están solas en su grupo).")
+            .RequierePermiso(Permisos.EmpresaAjustes);
+        u.MapPost("/vista-previa", (PeticionUnion peticion, IContextoEmpresa contexto, ClaimsPrincipal usuario, UnionGrupo union, CancellationToken ct) =>
+                UnirAsync(peticion, contexto, usuario, union, false, ct))
+            .WithSummary("Cuántos maestros pasarían al grupo y cuáles coinciden con uno que ya tiene (se darían de baja). No cambia nada.")
+            .RequierePermiso(Permisos.EmpresaAjustes);
+        u.MapPost("", (PeticionUnion peticion, IContextoEmpresa contexto, ClaimsPrincipal usuario, UnionGrupo union, CancellationToken ct) =>
+                UnirAsync(peticion, contexto, usuario, union, true, ct))
+            .WithSummary("Une la empresa al grupo: sus clientes, proveedores, artículos… pasan a ser del grupo; los repetidos quedan de baja.")
+            .RequierePermiso(Permisos.EmpresaAjustes);
+
         return rutas;
+    }
+
+    private static async Task<IResult> UnirAsync(PeticionUnion peticion, IContextoEmpresa contexto, ClaimsPrincipal usuario, UnionGrupo union, bool ejecutar,
+        CancellationToken ct)
+    {
+        if (contexto.EmpresaId is not { } empresa || usuario.ObtenerUsuarioId() is not { } u)
+        {
+            return SinEmpresa();
+        }
+
+        return (await union.UnirAsync(empresa, u, peticion, ejecutar, ct).ConfigureAwait(false)).AOk();
     }
 
     private static async Task<IResult> EjecutarAsync(PeticionCopia peticion, IContextoEmpresa contexto, ClaimsPrincipal usuario, CopiaConfiguracion copia, bool ejecutar,

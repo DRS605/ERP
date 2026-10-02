@@ -85,6 +85,8 @@ public sealed class OperacionesRegistrosTests : IClassFixture<FabricaApiPruebas>
         ["/agro/planta/calibrados/leer-fichero"] = "solo lee el fichero de la calibradora: no guarda nada",
         ["/agro/planta/ordenes/desde-plan"] = "crea órdenes, que se cambian, cancelan o eliminan una a una en /agro/planta/ordenes/{id}",
         ["/empresas/actual/copia/vista-previa"] = "solo calcula lo que se copiaría: no guarda nada",
+        ["/grupos/actual/union/vista-previa"] = "solo calcula lo que pasaría al grupo: no guarda nada",
+        ["/grupos/actual/union"] = "mueve la empresa y sus maestros al grupo; cada maestro se corrige o da de baja en su pantalla",
         ["/empresas/actual/copia"] = "da de alta cuentas, formas de pago, series, almacenes…, que se corrigen cada una en su pantalla",
         ["/contabilidad/existencias/{ejercicio}"] = "la regularización del ejercicio se anula en /contabilidad/existencias/{ejercicio}/anular",
         ["/contabilidad/periodificaciones/generar"] = "cuotas del periodo: se deshacen anulando la periodificación",

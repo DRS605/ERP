@@ -33,7 +33,10 @@ empresas dentro del **mismo grupo**.
 ## API
 
 - `POST /empresas` acepta un `grupoId` opcional: si se indica, la nueva empresa **se une a ese grupo**
-  (y comparte sus maestros); si se omite, se crea un grupo nuevo para ella.
+  (y comparte sus maestros); si se omite, se crea un grupo nuevo para ella. Solo puede indicarlo quien tenga el
+  permiso `empresa.ajustes` en alguna empresa de ese grupo (si no, **403** `grupo.sin_acceso`): entrar en un grupo da
+  acceso a sus clientes, proveedores y artículos. En la pantalla es la casilla «En el mismo grupo que…» de
+  **+ Nueva empresa**; al crearla se ofrece copiarle la configuración (ver más abajo).
 - `GET /grupos/actual` devuelve el grupo de la empresa activa.
 - Los endpoints de clientes/proveedores (`/clientes`, `/proveedores`, y `/api/v1/clientes`) operan
   sobre el **grupo** de la empresa activa; el aislamiento lo garantiza el filtro global + RLS.
@@ -158,3 +161,30 @@ una empresa hermana sin volver a dar de alta su configuración.
   igual que las operaciones intragrupo), así que la RLS de la base de datos se cumple.
 - **Fuera del grupo**: lo que apunta a artículos (maestros del grupo) no existe en la otra empresa: las taras no se
   copian, los soportes pierden el envase y los conceptos ligados a un artículo se saltan.
+
+## Unir al grupo una empresa que ya existe
+
+**Grupo de empresas → Unir una empresa al grupo** pasa al grupo de la empresa activa otra empresa del usuario que hoy
+va por su cuenta (`GET /grupos/actual/union` da las candidatas; `POST /grupos/actual/union/vista-previa` y
+`POST /grupos/actual/union` con `{ empresaId }`).
+
+- **Qué pasa**: la empresa cambia de grupo y todos sus maestros compartidos (clientes, proveedores, artículos y su
+  histórico de precios, familias, tarifas, conceptos de línea, centros, partidas y claves de reparto, actividades y su
+  visibilidad, perímetro y correspondencias de consolidación) pasan al grupo **con el mismo identificador**, así que
+  facturas, albaranes, cartera, asientos y stock siguen apuntando a ellos sin tocarlos. Su grupo antiguo desaparece.
+- **Repetidos**: los que coinciden con uno del grupo (clientes y proveedores por NIF, artículos por referencia, familias
+  por código o nombre, tarifas, conceptos y analítica por código, actividades por nombre) se **dan de baja** en la
+  empresa que se une: sus documentos antiguos los conservan y los nuevos usan la ficha del grupo. Los que tienen un
+  código único en el grupo (tarifas, conceptos, centros, partidas, claves) cambian de código con un sufijo («MAYOR-2»).
+  No se reescriben documentos: las facturas emitidas y la contabilidad no se pueden cambiar.
+- **Condiciones**: la empresa tiene que estar **sola en su grupo** (si comparte grupo con otras, se uniría sin ellas y
+  se quedarían sin sus maestros) y el usuario tiene que tener `empresa.ajustes` en las dos. **No se puede deshacer**;
+  por eso hay vista previa. Quien tenga abierta esa empresa debe volver a seleccionarla (el grupo viaja en el token).
+- **Base de datos**: la RLS por grupo no deja que una fila salga de su grupo. La unión, en una sola transacción, fija
+  `app.grupo_fusion` (`RlsSql.ParametroFusionGrupo`) con el grupo de destino, y las políticas `pol_grupo_*` admiten ese
+  grupo además del activo (migración `FusionGrupos`). Ninguna otra operación fija ese parámetro.
+
+## Baja de una empresa del grupo
+
+Al eliminar una empresa (`DELETE /cuenta`) los maestros del grupo **solo se borran si es la última empresa del grupo**;
+si quedan otras, siguen siendo suyos.

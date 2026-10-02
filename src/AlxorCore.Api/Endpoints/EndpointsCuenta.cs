@@ -129,18 +129,26 @@ public static class EndpointsCuenta
         await BorradoEmpresa.EjecutarAsync(logistica, id, () => logistica.BorrarEmpresaAsync(id, ct), ct).ConfigureAwait(false);
         await BorradoEmpresa.EjecutarAsync(cooperativa, id, () => cooperativa.BorrarEmpresaAsync(id, ct), ct).ConfigureAwait(false);
 
-        // Los maestros de Terceros son del grupo (compartidos): se borran por grupo.
+        // Los maestros (clientes, proveedores, artículos) son del grupo: solo se borran si es la última empresa del grupo;
+        // si quedan otras, siguen siendo suyos.
         var grupo = contexto.GrupoId ?? Guid.Empty;
-        await terceros.Clientes.Where(c => c.GrupoId == grupo).ExecuteDeleteAsync(ct).ConfigureAwait(false);
-        await terceros.Proveedores.Where(p => p.GrupoId == grupo).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+        var ultima = !await organizacion.Empresas.AnyAsync(e => e.GrupoId == grupo && e.Id != id, ct).ConfigureAwait(false);
+        if (ultima)
+        {
+            await terceros.Clientes.Where(c => c.GrupoId == grupo).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+            await terceros.Proveedores.Where(p => p.GrupoId == grupo).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+        }
 
         // El catálogo (artículos, familias, histórico de precios) es del grupo; las existencias y sus
         // movimientos son por empresa.
         await catalogo.Existencias.Where(e => e.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
         await BorradoEmpresa.EjecutarAsync(catalogo, id, () => catalogo.MovimientosStock.Where(m => m.EmpresaId == id).ExecuteDeleteAsync(ct), ct).ConfigureAwait(false);
-        await catalogo.HistoricoPrecios.Where(h => h.GrupoId == grupo).ExecuteDeleteAsync(ct).ConfigureAwait(false);
-        await catalogo.Productos.Where(p => p.GrupoId == grupo).ExecuteDeleteAsync(ct).ConfigureAwait(false);
-        await catalogo.Familias.Where(f => f.GrupoId == grupo).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+        if (ultima)
+        {
+            await catalogo.HistoricoPrecios.Where(h => h.GrupoId == grupo).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+            await catalogo.Productos.Where(p => p.GrupoId == grupo).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+            await catalogo.Familias.Where(f => f.GrupoId == grupo).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+        }
         await analisis.Informes.Where(i => i.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
         await BorradoEmpresa.EjecutarAsync(auditoria, id, () => auditoria.Registros.Where(a => a.EmpresaId == id).ExecuteDeleteAsync(ct), ct).ConfigureAwait(false);
         await organizacion.Series.Where(s => s.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);

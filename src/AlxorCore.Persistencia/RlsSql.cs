@@ -43,8 +43,36 @@ public static class RlsSql
             ALTER TABLE {cualificada} FORCE ROW LEVEL SECURITY;
             DROP POLICY IF EXISTS "{nombrePolitica}" ON {cualificada};
             CREATE POLICY "{nombrePolitica}" ON {cualificada}
-                USING (grupo_id = NULLIF(current_setting('app.grupo_actual', true), '')::uuid)
-                WITH CHECK (grupo_id = NULLIF(current_setting('app.grupo_actual', true), '')::uuid);
+                USING (grupo_id = NULLIF(current_setting('app.grupo_actual', true), '')::uuid
+                    OR grupo_id = NULLIF(current_setting('{ParametroFusionGrupo}', true), '')::uuid)
+                WITH CHECK (grupo_id = NULLIF(current_setting('app.grupo_actual', true), '')::uuid
+                    OR grupo_id = NULLIF(current_setting('{ParametroFusionGrupo}', true), '')::uuid);
+            """;
+    }
+
+    /// <summary>
+    /// Grupo de destino de una fusión de grupos. Solo lo fija, dentro de su transacción, la operación que une una empresa
+    /// a otro grupo: deja pasar las filas del grupo activo a ese grupo. Sin él, nada sale del grupo ni se ve el de otro.
+    /// </summary>
+    public const string ParametroFusionGrupo = "app.grupo_fusion";
+
+    /// <summary>
+    /// Recrea la condición de escritura de las políticas por grupo que ya existen (las <c>pol_grupo_*</c>), con o sin el
+    /// grupo de fusión (en la lectura, porque PostgreSQL también comprueba la fila movida, y en la escritura). Idempotente.
+    /// </summary>
+    public static string ActualizarPoliticasPorGrupo(bool conFusion)
+    {
+        var fusion = conFusion ? $" OR grupo_id = NULLIF(current_setting(''{ParametroFusionGrupo}'', true), '''')::uuid" : "";
+        return $$"""
+            DO $f$
+            DECLARE p record;
+            BEGIN
+                FOR p IN SELECT schemaname, tablename, policyname FROM pg_policies WHERE policyname LIKE 'pol_grupo_%' LOOP
+                    EXECUTE format('ALTER POLICY %I ON %I.%I USING (%s) WITH CHECK (%s)', p.policyname, p.schemaname, p.tablename,
+                        'grupo_id = NULLIF(current_setting(''app.grupo_actual'', true), '''')::uuid{{fusion}}',
+                        'grupo_id = NULLIF(current_setting(''app.grupo_actual'', true), '''')::uuid{{fusion}}');
+                END LOOP;
+            END $f$;
             """;
     }
 

@@ -194,12 +194,19 @@ public static class EndpointsOrganizacion
         return r.EsCorrecto ? Results.NoContent() : ResultadosHttp.AProblema(r.Error);
     }
 
-    private static async Task<IResult> CrearAsync(CrearEmpresaPeticion peticion, ClaimsPrincipal usuario, CrearEmpresa caso, CancellationToken ct)
+    private static async Task<IResult> CrearAsync(CrearEmpresaPeticion peticion, ClaimsPrincipal usuario, CrearEmpresa caso, AlxorCore.Api.Comun.UnionGrupo union,
+        CancellationToken ct)
     {
         var usuarioId = usuario.ObtenerUsuarioId();
         if (usuarioId is null)
         {
             return ResultadosHttp.AProblema(Error.NoAutenticado("auth.token_invalido", "El token no identifica al usuario."));
+        }
+
+        // Entrar en un grupo da acceso a sus clientes, proveedores y artículos: solo quien gestiona una de sus empresas.
+        if (peticion.GrupoId is { } grupo && !await union.PuedeGestionarGrupoAsync(usuarioId.Value, grupo, ct).ConfigureAwait(false))
+        {
+            return ResultadosHttp.AProblema(Error.Prohibido("grupo.sin_acceso", "Solo puedes crear la empresa en un grupo en el que gestionas alguna empresa."));
         }
 
         var comando = new CrearEmpresaComando(
