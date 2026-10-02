@@ -24,7 +24,7 @@ public static class EndpointsImpuestosIndirectos
             .WithSummary("Prorrata del ejercicio: porcentaje provisional y definitivo (con las ventas del año), deducción y regularización, y aviso si la especial es obligatoria.")
             .RequierePermiso(Permisos.InformeLeer);
         g.MapPut("/prorrata/{ejercicio:int}", ConfigurarProrrataAsync)
-            .WithSummary("Fija la prorrata del ejercicio (Regimen: General o Especial; PorcentajeProvisional 0-100). Regimen nulo la quita.")
+            .WithSummary("Fija la prorrata del ejercicio (Regimen: General o Especial; PorcentajeProvisional 0-100; Impuesto: IVA o IGIC, por defecto el de la empresa). Regimen nulo la quita.")
             .RequierePermiso(Permisos.EmpresaAjustes);
         g.MapPost("/prorrata/{ejercicio:int}/regularizar", RegularizarProrrataAsync)
             .WithSummary("Asiento de la regularización anual de la prorrata a 31/12: 472 a 639 si se deduce más, 634 a 472 si menos. Una sola vez por ejercicio.")
@@ -48,16 +48,16 @@ public static class EndpointsImpuestosIndirectos
     private static Error SinEmpresa() => Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero.");
 
     private static async Task<IResult> ProrrataAsync(
-        IContextoEmpresa contexto, IConsultaEmpresas empresas, CalcularProrrata caso, CancellationToken ct, int? ejercicio = null)
+        IContextoEmpresa contexto, IConsultaEmpresas empresas, CalcularProrrata caso, CancellationToken ct, int? ejercicio = null, TipoImpuesto? impuesto = null)
     {
         if (contexto.EmpresaId is not { } empresaId)
         {
             return ResultadosHttp.AProblema(SinEmpresa());
         }
 
-        var impuesto = (await empresas.ObtenerAsync(empresaId, ct).ConfigureAwait(false))?.ImpuestoIndirecto ?? TipoImpuesto.Iva;
+        impuesto ??= (await empresas.ObtenerAsync(empresaId, ct).ConfigureAwait(false))?.ImpuestoIndirecto ?? TipoImpuesto.Iva;
         var anio = ejercicio ?? DateTime.UtcNow.Year;
-        return Results.Ok(await caso.EjecutarAsync(empresaId, anio, impuesto, ct).ConfigureAwait(false));
+        return Results.Ok(await caso.EjecutarAsync(empresaId, anio, impuesto.Value, ct).ConfigureAwait(false));
     }
 
     private static async Task<IResult> ConfigurarProrrataAsync(
@@ -70,15 +70,16 @@ public static class EndpointsImpuestosIndirectos
     public static string ConceptoRegularizacion(int ejercicio, TipoImpuesto impuesto) => $"Regularización de la prorrata {ejercicio} ({impuesto.Siglas()})";
 
     private static async Task<IResult> RegularizarProrrataAsync(int ejercicio, IContextoEmpresa contexto, IConsultaEmpresas empresas, CalcularProrrata prorrata,
-        AlxorCore.Contabilidad.Aplicacion.CrearAsiento crear, AlxorCore.Contabilidad.Aplicacion.IRepositorioAsientos asientos, CancellationToken ct)
+        AlxorCore.Contabilidad.Aplicacion.CrearAsiento crear, AlxorCore.Contabilidad.Aplicacion.IRepositorioAsientos asientos, CancellationToken ct,
+        TipoImpuesto? impuesto = null)
     {
         if (contexto.EmpresaId is not { } empresaId)
         {
             return ResultadosHttp.AProblema(SinEmpresa());
         }
 
-        var impuesto = (await empresas.ObtenerAsync(empresaId, ct).ConfigureAwait(false))?.ImpuestoIndirecto ?? TipoImpuesto.Iva;
-        var calculo = await prorrata.EjecutarAsync(empresaId, ejercicio, impuesto, ct).ConfigureAwait(false);
+        impuesto ??= (await empresas.ObtenerAsync(empresaId, ct).ConfigureAwait(false))?.ImpuestoIndirecto ?? TipoImpuesto.Iva;
+        var calculo = await prorrata.EjecutarAsync(empresaId, ejercicio, impuesto.Value, ct).ConfigureAwait(false);
         if (calculo.Regimen is null)
         {
             return ResultadosHttp.AProblema(Error.Validacion("prorrata.sin_configurar", $"El ejercicio {ejercicio} no tiene prorrata configurada."));
@@ -90,7 +91,7 @@ public static class EndpointsImpuestosIndirectos
                 $"El porcentaje definitivo ({calculo.PorcentajeDefinitivo} %) no cambia lo deducido: no hay nada que regularizar."));
         }
 
-        var concepto = ConceptoRegularizacion(ejercicio, impuesto);
+        var concepto = ConceptoRegularizacion(ejercicio, impuesto.Value);
         if ((await asientos.DiarioAsync(empresaId, ejercicio, ct).ConfigureAwait(false)).Any(a => a.Concepto == concepto && a.AnuladoPorId is null && a.AnulaAsientoId is null))
         {
             return ResultadosHttp.AProblema(Error.Conflicto("prorrata.regularizada", $"La prorrata de {ejercicio} ya está regularizada en contabilidad (anula ese asiento para rehacerlo)."));

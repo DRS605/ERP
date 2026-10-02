@@ -48,6 +48,11 @@ internal static class PlantillaImpreso
             col.Item().Text(e.RazonSocial).Bold().FontSize(16).FontColor(color);
         }
 
+        if (!string.IsNullOrWhiteSpace(e.NombreComercial) && !string.Equals(e.NombreComercial, e.RazonSocial, StringComparison.OrdinalIgnoreCase))
+        {
+            col.Item().Text(e.NombreComercial).FontSize(9).Italic();
+        }
+
         col.Item().Text($"NIF: {e.Nif}").FontSize(9);
         var dir = LineaDireccion(e);
         if (dir is not null) col.Item().Text(dir).FontSize(9);
@@ -55,9 +60,17 @@ internal static class PlantillaImpreso
         if (contacto is not null) col.Item().Text(contacto).FontSize(9).FontColor(Colors.Grey.Darken1);
     }
 
-    /// <summary>Pie de página: el texto configurado por la empresa, o el pie por defecto de ALXOR.</summary>
+    /// <summary>
+    /// Pie de página: los datos registrales (obligatorios en las facturas de las sociedades) y el texto configurado por la
+    /// empresa, o el pie por defecto de ALXOR.
+    /// </summary>
     public static void EscribirPie(TextDescriptor texto, EmpresaDto e)
     {
+        if (!string.IsNullOrWhiteSpace(e.DatosRegistrales))
+        {
+            texto.Line($"{e.RazonSocial} · {e.DatosRegistrales}").FontColor(Colors.Grey.Darken1).FontSize(7);
+        }
+
         if (!string.IsNullOrWhiteSpace(e.TextoPie))
         {
             texto.Span(e.TextoPie).FontColor(Colors.Grey.Darken1).FontSize(8);

@@ -100,5 +100,5 @@ public interface IRepositorioProrratas
 
     void Eliminar(ProrrataEjercicio prorrata);
 
-    Task<ProrrataEjercicio?> ObtenerAsync(Guid empresaId, int ejercicio, CancellationToken ct = default);
+    Task<ProrrataEjercicio?> ObtenerAsync(Guid empresaId, int ejercicio, AlxorCore.Nucleo.Comun.TipoImpuesto impuesto, CancellationToken ct = default);
 }

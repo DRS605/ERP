@@ -12,12 +12,19 @@ namespace AlxorCore.Api.Comun;
 public sealed class DeduccionImpuestoProrrata : IDeduccionImpuesto
 {
     private readonly IConsultaProrrata _prorratas;
+    private readonly IConsultaEmpresas _empresas;
 
-    public DeduccionImpuestoProrrata(IConsultaProrrata prorratas) => _prorratas = prorratas;
-
-    public async Task<decimal> CuotaDeducibleAsync(Guid empresaId, int ejercicio, decimal cuota, string? afectacion, CancellationToken ct = default)
+    public DeduccionImpuestoProrrata(IConsultaProrrata prorratas, IConsultaEmpresas empresas)
     {
-        var prorrata = await _prorratas.ObtenerAsync(empresaId, ejercicio, ct).ConfigureAwait(false);
+        _prorratas = prorratas;
+        _empresas = empresas;
+    }
+
+    public async Task<decimal> CuotaDeducibleAsync(Guid empresaId, int ejercicio, decimal cuota, string? afectacion,
+        AlxorCore.Nucleo.Comun.TipoImpuesto? impuesto = null, CancellationToken ct = default)
+    {
+        var de = impuesto ?? (await _empresas.ObtenerAsync(empresaId, ct).ConfigureAwait(false))?.ImpuestoIndirecto ?? AlxorCore.Nucleo.Comun.TipoImpuesto.Iva;
+        var prorrata = await _prorratas.ObtenerAsync(empresaId, ejercicio, de, ct).ConfigureAwait(false);
         if (prorrata is null)
         {
             return cuota;

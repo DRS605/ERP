@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useDocs } from "./contexto";
 import { Dialogo, EditorConceptos, SelectorTercero } from "./Componentes";
 import { Rejilla, lineaVacia, type CalculoLinea } from "./Rejilla";
-import { anticiposDisponibles, anticiposFacturados, repartoAnticipos, type Anticipo, type ConceptoAplicado, type ConceptoCatalogo, type ConceptoSolicitado, type Factura, type FormaPago, type LineaEdicion, type Producto, type Tercero, type TipoIva, type TipoVenta } from "./tipos";
+import { anticiposDisponibles, tipoEquivalente, anticiposFacturados, repartoAnticipos, type Anticipo, type ConceptoAplicado, type ConceptoCatalogo, type ConceptoSolicitado, type Factura, type FormaPago, type LineaEdicion, type Producto, type Tercero, type TipoIva, type TipoVenta } from "./tipos";
 import { eur, hoyIso, nuevaClave, num2, redondear2, useRetardado, useUltimaPeticion } from "./util";
 
 export const NOMBRE_TIPO: Record<TipoVenta, string> = { presupuesto: "presupuesto", pedido: "pedido de venta", factura: "factura" };
@@ -64,6 +64,9 @@ export function EditorVenta(props: { tipo: TipoVenta; id?: string | null; semill
   const [motivo, setMotivo] = useState("");
   const [lineas, setLineas] = useState<LineaEdicion[]>([lineaVacia()]);
   const [conceptosDoc, setConceptosDoc] = useState<ConceptoSolicitado[]>([]);
+  // Empresa con actividad en la Península y en Canarias (mismo NIF): cada factura va con IVA o con IGIC.
+  const [ambos, setAmbos] = useState(false);
+  const [territorio, setTerritorio] = useState<"Iva" | "Igic">("Iva");
 
   const [calculo, setCalculo] = useState<Factura | null>(null);
   const [errorCalculo, setErrorCalculo] = useState("");
@@ -85,7 +88,17 @@ export function EditorVenta(props: { tipo: TipoVenta; id?: string | null; semill
     api.get<FormaPago[]>("/formas-pago").then((f) => setFormas(f.filter((x) => x.activo))).catch(() => setFormas([]));
     api.get<{ prefijo: string; tipoDocumento: string }[]>("/series").then((s) => setSeries([...new Set(s.filter((x) => x.tipoDocumento === "Factura").map((x) => x.prefijo))])).catch(() => setSeries([]));
     api.get<ConceptoCatalogo[]>("/conceptos-linea?ambito=Ventas&activos=true").then(setCatalogo).catch(() => setCatalogo([]));
+    api.get<{ territorioFiscal: string; operaEnAmbosTerritorios?: boolean }>("/empresas/actual")
+      .then((e) => { setAmbos(!!e.operaEnAmbosTerritorios); setTerritorio(e.territorioFiscal === "Canarias" ? "Igic" : "Iva"); })
+      .catch(() => setAmbos(false));
   }, [api]);
+
+  // Al cambiar de territorio, las líneas pasan al tipo equivalente del otro impuesto (las de artículo, al del artículo).
+  function cambiarTerritorio(t: "Iva" | "Igic") {
+    setTerritorio(t);
+    setLineas((ls) => ls.map((l) => ({ ...l, iva: l.productoId ? null : tipoEquivalente(l.iva, t) })));
+  }
+  const ivasTerritorio = useMemo(() => (ambos ? ivas.filter((t) => (t.impuesto ?? "Iva") === territorio) : ivas), [ambos, ivas, territorio]);
 
   // Documento de partida (editar, duplicar, rectificar…): líneas con sus precios fijados y sus conceptos.
   useEffect(() => {
@@ -142,6 +155,7 @@ export function EditorVenta(props: { tipo: TipoVenta; id?: string | null; semill
       recargoEquivalencia: recargo,
       porcentajeIrpf: irpf,
       conceptosDocumento: conceptosDoc,
+      impuesto: ambos && props.tipo === "factura" ? territorio : null,
       descontarAnticipos: descontar && facturados.length ? facturados.map((a) => ({ anticipoId: a.id })) : null,
       lineas: validas.map(({ l }) => ({
         cantidad: l.cantidad,
@@ -153,7 +167,7 @@ export function EditorVenta(props: { tipo: TipoVenta; id?: string | null; semill
         ...(rectificativa ? { conceptos: [] } : l.conceptos === undefined ? {} : { conceptos: l.conceptos }),
       })),
     }),
-    [clienteId, fecha, serie, dias, formaPagoId, recargo, irpf, conceptosDoc, validas, props.tipo, rectificativa, descontar, facturados],
+    [clienteId, fecha, serie, dias, formaPagoId, recargo, irpf, conceptosDoc, validas, props.tipo, rectificativa, descontar, facturados, ambos, territorio],
   );
   const comandoRetardado = useRetardado(comando, 350);
 
@@ -304,6 +318,15 @@ export function EditorVenta(props: { tipo: TipoVenta; id?: string | null; semill
                   </select>
                 </div>
               )}
+              {props.tipo === "factura" && ambos && (
+                <div>
+                  <label>Territorio de la operación</label>
+                  <select value={territorio} onChange={(e) => cambiarTerritorio(e.target.value as "Iva" | "Igic")}>
+                    <option value="Iva">Península y Baleares · IVA</option>
+                    <option value="Igic">Canarias · IGIC</option>
+                  </select>
+                </div>
+              )}
               {props.tipo === "factura" && series.length > 0 && (
                 <div>
                   <label>Serie</label>
@@ -387,7 +410,7 @@ export function EditorVenta(props: { tipo: TipoVenta; id?: string | null; semill
       </div>
 
       <div className="panel">
-        <Rejilla modo="venta" lineas={lineas} alCambiar={setLineas} calculos={calculos} ivas={ivas} catalogo={rectificativa ? [] : catalogo} sugeridos={sugeridos} alElegirArticulo={elegirArticulo} />
+        <Rejilla modo="venta" lineas={lineas} alCambiar={setLineas} calculos={calculos} ivas={ivasTerritorio} catalogo={rectificativa ? [] : catalogo} sugeridos={sugeridos} alElegirArticulo={elegirArticulo} />
         {!rectificativa && catalogo.length > 0 && (
           <div style={{ marginTop: 10 }}>
             <EditorConceptos catalogo={catalogo} lista={conceptosDoc} alCambiar={(l) => setConceptosDoc(l ?? [])} documento />

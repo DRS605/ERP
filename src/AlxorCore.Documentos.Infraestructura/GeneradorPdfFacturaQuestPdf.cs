@@ -235,6 +235,10 @@ internal sealed class GeneradorPdfFacturaQuestPdf : IGeneradorPdfFactura
 
                     col.Item().PaddingVertical(4).LineHorizontal(0.5f).LineColor(Colors.Grey.Medium);
                     col.Item().AlignCenter().Text(string.IsNullOrWhiteSpace(emisor.TextoPie) ? "¡Gracias por su compra!" : emisor.TextoPie).Bold();
+                    if (!string.IsNullOrWhiteSpace(emisor.DatosRegistrales))
+                    {
+                        col.Item().PaddingTop(3).AlignCenter().Text(emisor.DatosRegistrales).FontSize(6).FontColor(Colors.Grey.Darken1);
+                    }
                 });
             });
         });

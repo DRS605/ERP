@@ -10,7 +10,7 @@ using AlxorCore.Organizacion.Dominio;
 namespace AlxorCore.Api.Endpoints;
 
 /// <summary>Prorrata del ejercicio en curso, tal como la pide la ficha fiscal (régimen nulo: sin prorrata).</summary>
-public sealed record ProrrataFicha(RegimenProrrata? Regimen, int PorcentajeProvisional);
+public sealed record ProrrataFicha(RegimenProrrata? Regimen, int PorcentajeProvisional, TipoImpuesto? Impuesto = null);
 
 /// <summary>Ficha fiscal y prorrata del ejercicio en curso.</summary>
 public sealed record PeticionPerfilFiscal(PerfilFiscal Perfil, ProrrataFicha? Prorrata);
@@ -51,10 +51,14 @@ public static class EndpointsPerfilFiscal
 
                 var empresa = await empresas.ObtenerAsync(id, ct).ConfigureAwait(false);
                 var anio = DateTime.Today.Year;
+                var principal = empresa?.ImpuestoIndirecto ?? TipoImpuesto.Iva;
+                var otro = principal == TipoImpuesto.Igic ? TipoImpuesto.Iva : TipoImpuesto.Igic;
                 return Results.Ok(new
                 {
                     Perfil = perfil.Valor,
-                    Prorrata = await prorratas.ObtenerAsync(id, anio, ct).ConfigureAwait(false),
+                    Prorrata = await prorratas.ObtenerAsync(id, anio, principal, ct).ConfigureAwait(false),
+                    // Con actividad en los dos territorios, la prorrata del otro impuesto.
+                    ProrrataOtroImpuesto = perfil.Valor.OperaEnAmbosTerritorios ? await prorratas.ObtenerAsync(id, anio, otro, ct).ConfigureAwait(false) : null,
                     Ejercicio = anio,
                     Modelos = PerfilFiscal.Catalogo,
                     Sugeridos = PerfilFiscal.Sugeridos(empresa?.Nif, empresa?.TerritorioFiscal ?? TerritorioFiscal.Comun, perfil.Valor.Sii, perfil.Valor.OperaEnAmbosTerritorios),
@@ -79,7 +83,7 @@ public static class EndpointsPerfilFiscal
 
                 if (peticion.Prorrata is { } p)
                 {
-                    var rp = await prorrata.EjecutarAsync(id, DateTime.Today.Year, new ConfigurarProrrataComando(p.Regimen, p.PorcentajeProvisional), ct).ConfigureAwait(false);
+                    var rp = await prorrata.EjecutarAsync(id, DateTime.Today.Year, new ConfigurarProrrataComando(p.Regimen, p.PorcentajeProvisional, p.Impuesto), ct).ConfigureAwait(false);
                     if (rp.EsFallo)
                     {
                         return ResultadosHttp.AProblema(rp.Error);

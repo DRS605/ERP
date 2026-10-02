@@ -109,6 +109,20 @@ public sealed class Impuesto
     public static TipoImpuesto TipoDeCodigo(string? codigo) =>
         !string.IsNullOrWhiteSpace(codigo) && PorCodigo.TryGetValue(codigo, out var i) ? i.Tipo : TipoImpuesto.Iva;
 
+    /// <summary>
+    /// Tipo del IGIC que corresponde a uno del IVA, para vender en Canarias un artículo que tiene puesto el del IVA: el
+    /// general (21 %) al general del IGIC (7 %), el reducido (10 %) al reducido (3 %), el superreducido (4 %) y el exento al
+    /// tipo cero, y la compensación del REAGP a la del IGIC. Un código del IGIC (o desconocido) se devuelve tal cual.
+    /// </summary>
+    public static string EquivalenteIgic(string codigo) => (codigo ?? string.Empty).Trim().ToUpperInvariant() switch
+    {
+        "IVA21" => IgicGeneral.Codigo,
+        "IVA10" => IgicReducido.Codigo,
+        "IVA4" or "IVA0" => IgicCero.Codigo,
+        "REAGP12" or "REAGP105" => ReagpIgic.Codigo,
+        var otro => otro,
+    };
+
     /// <summary>Resuelve un impuesto por su código.</summary>
     public static Resultado<Impuesto> PorCodigoImpuesto(string? codigo)
     {

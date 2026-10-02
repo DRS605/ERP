@@ -41,7 +41,8 @@ public sealed record EmitirFacturaComando(
     Guid? FormaPagoId = null,
     Guid? ActividadNegocioId = null,
     IReadOnlyList<ConceptoSolicitado>? ConceptosDocumento = null,
-    IReadOnlyList<DescuentoAnticipoSolicitado>? DescontarAnticipos = null);
+    IReadOnlyList<DescuentoAnticipoSolicitado>? DescontarAnticipos = null,
+    TipoImpuesto? Impuesto = null);
 
 /// <summary>
 /// Caso de uso estrella: emitir una factura. Compone cliente (Terceros), productos/impuestos
@@ -55,12 +56,17 @@ public sealed class EmitirFactura
     /// tipos que lleven las líneas (IGIC en una venta desde Canarias, IVA en una desde la Península); sin tipos, el de su
     /// territorio principal. Una misma factura nunca mezcla los dos impuestos.
     /// </summary>
-    public static TipoImpuesto ImpuestoDeLaOperacion(EmpresaDto? empresa, IEnumerable<string?> codigosLineas)
+    public static TipoImpuesto ImpuestoDeLaOperacion(EmpresaDto? empresa, IEnumerable<string?> codigosLineas, TipoImpuesto? elegido = null)
     {
         var principal = empresa?.ImpuestoIndirecto ?? TipoImpuesto.Iva;
         if (empresa is not { OperaEnAmbosTerritorios: true })
         {
             return principal;
+        }
+
+        if (elegido is { } e)
+        {
+            return e;
         }
 
         var primero = codigosLineas.FirstOrDefault(c => !string.IsNullOrWhiteSpace(c));
@@ -201,7 +207,14 @@ public sealed class EmitirFactura
         }
 
         var fechaPrecio = comando.FechaOperacion ?? comando.FechaEmision ?? DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
-        var impuesto = ImpuestoDeLaOperacion(await _empresas.ObtenerAsync(empresaId, ct).ConfigureAwait(false), comando.Lineas.Select(l => l.CodigoIva));
+        var empresaFactura = await _empresas.ObtenerAsync(empresaId, ct).ConfigureAwait(false);
+        if (comando.Impuesto is { } pedido && empresaFactura is { OperaEnAmbosTerritorios: false } && pedido != empresaFactura.ImpuestoIndirecto)
+        {
+            return Resultado.Fallo<FacturaDto>(Error.Validacion("factura.territorio",
+                $"La empresa solo tributa por {empresaFactura.ImpuestoIndirecto.Siglas()}. Si también opera en el otro territorio, márcalo en Ajustes → Datos fiscales."));
+        }
+
+        var impuesto = ImpuestoDeLaOperacion(empresaFactura, comando.Lineas.Select(l => l.CodigoIva), comando.Impuesto);
         var resolucion = await ResolucionLineasFactura.ResolverAsync(comando.Lineas, _productos, ct, comando.RecargoEquivalencia, empresaId, _resolverIva,
             (producto, cantidad, c) => _precios.ResolverAsync(cliente.TarifaId, producto, cantidad, fechaPrecio, c), impuesto).ConfigureAwait(false);
         if (resolucion.EsFallo)
@@ -472,7 +485,10 @@ internal static class ResolucionLineasFactura
                 }
 
                 precio ??= producto.PrecioUnitario;
-                codigoIva ??= producto.CodigoIva;
+                // En una factura con IGIC, el tipo del IGIC del artículo o el equivalente de su tipo del IVA.
+                codigoIva ??= impuestoEmpresa == TipoImpuesto.Igic && Impuesto.TipoDeCodigo(producto.CodigoIva) == TipoImpuesto.Iva
+                    ? producto.CodigoIgic ?? Impuesto.EquivalenteIgic(producto.CodigoIva)
+                    : producto.CodigoIva;
                 coste ??= producto.PrecioCompra;
             }
 

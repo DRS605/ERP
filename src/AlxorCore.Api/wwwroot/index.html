@@ -5960,23 +5960,42 @@
           <div><input id="fi_pct" type="number" min="0" max="100" step="1" value="${pr?pr.porcentajeProvisional:100}" title="Porcentaje provisional"/></div></div>
           <p class="muted" style="font-size:12px">Para empresas con ventas exentas sin derecho a deducir. El porcentaje provisional suele ser el definitivo del año anterior.</p>
           <button class="btn small" onclick="guardarProrrata(${anio})">Guardar prorrata</button></div></div>${datos}${bienes}`;
-      return panel("Fiscalidad",cuerpo);
+      // Con actividad en los dos territorios, el otro impuesto lleva su propia prorrata.
+      const otro=IMP.ambos?await panelProrrataImpuestoHtml(anio,IMP.siglas==="IGIC"?"Iva":"Igic"):"";
+      return panel("Fiscalidad",cuerpo)+otro;
+    }
+    async function panelProrrataImpuestoHtml(anio,imp){
+      const sig=imp==="Igic"?"IGIC":"IVA";
+      const pr=await api(`/impuestos/prorrata?ejercicio=${anio}&impuesto=${imp}`).catch(()=>null);
+      const reg=pr&&pr.regimen?pr.regimen:"";
+      const opt=(v,t)=>`<option value="${v}"${v===reg?" selected":""}>${t}</option>`;
+      const datos=pr?`<table style="margin-top:12px"><tbody>
+          <tr><td class="muted">Ventas con derecho a deducir (${sig})</td><td class="num">${eur(pr.baseConDerecho)}</td></tr>
+          <tr><td class="muted">Ventas exentas sin derecho (${sig})</td><td class="num">${eur(pr.baseSinDerecho)}</td></tr>
+          <tr><td><strong>Porcentaje definitivo ${anio}</strong></td><td class="num"><strong>${pr.porcentajeDefinitivo} %</strong></td></tr>
+          ${reg?`<tr><td><strong>Regularización en el último periodo</strong></td><td class="num"><strong>${eur(pr.regularizacion)}</strong></td></tr>`:""}
+        </tbody></table>${reg&&Math.abs(pr.regularizacion)>0.005?`<button class="btn small secondary" style="margin-top:8px" onclick="regularizarProrrata(${anio},'${imp}')">Contabilizar la regularización (31/12)</button>`:""}`:"";
+      return panel(`Prorrata del ${sig} ${anio} · ${imp==="Igic"?"Canarias":"Península y Baleares"}`,
+        `<p class="muted" style="margin:0 0 10px">La empresa opera en los dos territorios: el ${sig} lleva su propia prorrata, con sus ventas y sus compras.</p>
+         <div class="grid2" style="max-width:520px"><div><select id="fi_reg_${imp}">${opt("","Sin prorrata (se deduce todo)")}${opt("General","General")}${opt("Especial","Especial")}</select></div>
+         <div><input id="fi_pct_${imp}" type="number" min="0" max="100" step="1" value="${pr?pr.porcentajeProvisional:100}" title="Porcentaje provisional"/></div></div>
+         <button class="btn small" style="margin-top:8px" onclick="guardarProrrata(${anio},'${imp}')">Guardar prorrata del ${sig}</button>${datos}`);
     }
     async function regularizarBienesInversion(anio){
       if(!confirm(`¿Contabilizar a 31/12/${anio} la regularización de los bienes de inversión? (472 contra 639 o 634)`)) return;
       try{ const a=await api(`/impuestos/bienes-inversion/${anio}/regularizar`,{method:"POST"}); toast(`Asiento ${a.numero} de la regularización de bienes creado.`,"ok"); }catch(e){ toast(e.message,"err"); }
     }
-    async function regularizarProrrata(anio){
+    async function regularizarProrrata(anio,imp){
       if(!confirm(`¿Contabilizar a 31/12/${anio} la regularización de la prorrata? (472 contra 639 o 634)`)) return;
-      try{ const a=await api(`/impuestos/prorrata/${anio}/regularizar`,{method:"POST"}); toast(`Asiento ${a.numero} de la regularización creado.`,"ok"); }catch(e){ toast(e.message,"err"); }
+      try{ const a=await api(`/impuestos/prorrata/${anio}/regularizar${imp?`?impuesto=${imp}`:""}`,{method:"POST"}); toast(`Asiento ${a.numero} de la regularización creado.`,"ok"); }catch(e){ toast(e.message,"err"); }
     }
     async function guardarTerritorio(){ try{
       await api("/empresas/actual/territorio-fiscal",{method:"PUT",body:JSON.stringify({territorioFiscal:val("fi_terr")})});
       await api("/tipos-iva"); await cargarImpuestos(); toast(`Territorio guardado: se factura con ${IMP.siglas}.`,"ok"); ir("ajustes");
     }catch(e){ toast(e.message,"err"); } }
-    async function guardarProrrata(anio){ try{
-      const reg=val("fi_reg")||null;
-      await api(`/impuestos/prorrata/${anio}`,{method:"PUT",body:JSON.stringify({regimen:reg,porcentajeProvisional:Number(val("fi_pct")||100)})});
+    async function guardarProrrata(anio,imp){ try{
+      const sufijo=imp?"_"+imp:"", reg=val("fi_reg"+sufijo)||null;
+      await api(`/impuestos/prorrata/${anio}`,{method:"PUT",body:JSON.stringify({regimen:reg,porcentajeProvisional:Number(val("fi_pct"+sufijo)||100),impuesto:imp||null})});
       toast(reg?"Prorrata guardada.":"Prorrata quitada.","ok"); ir("ajustes");
     }catch(e){ toast(e.message,"err"); } }
     async function panelPlanHtml(){
@@ -7885,6 +7904,7 @@
       <label style="margin-top:14px">Trazabilidad</label>
       <select id="p_seguimiento"><option value="Ninguno">Sin lote ni número de serie</option><option value="Lote">Por lote (caducidades, sanitario…)</option><option value="Serie">Por número de serie (cada unidad única)</option></select>
       <label style="margin-top:14px">Peso neto por unidad (kg, opcional)</label><input id="p_peso" type="number" step="0.001" min="0" placeholder="Para la tara, el peso de los compuestos y la aduana"/>
+      ${(IMP.ambos||IMP.territorio==="Canarias")?`<div class="grid2"><div><label>Tipo de IGIC en Canarias</label><select id="p_igic"><option value="">El equivalente de su IVA (21→7, 10→3, 4→0)</option>${["IGIC0","IGIC3","IGIC7","IGIC95","IGIC15","IGIC20"].map(c=>`<option value="${c}">${c.replace("IGIC95","IGIC 9,5").replace("IGIC","IGIC ")} %</option>`).join("")}</select></div><div class="muted" style="font-size:12px;align-self:end">Con qué tipo se vende el artículo cuando la factura va con IGIC.</div></div>`:""}
       <div class="grid2"><div><label>Código arancelario (NC 8 · TARIC 10)</label><input id="p_taric" placeholder="0805 10 22"/></div><div><label>País de origen</label><input id="p_origen" placeholder="ES" maxlength="30"/></div></div>
       ${window._compProdOpts?`<details style="margin-top:14px;border:1px solid var(--line);border-radius:11px;padding:10px 12px" ${compIni.length?'open':''}>
         <summary style="cursor:pointer;font-weight:600;font-size:13px">Artículo compuesto (lista de materiales)</summary>
@@ -7902,7 +7922,7 @@
       <p class="muted" style="font-size:12px;margin:10px 0 0">El precio de compra sirve para calcular el margen en el informe de beneficio. El stock se descuenta automáticamente al facturar.</p>`,
       async()=>{ const fc=Number(val("p_fcompra")||1)||1, fv=Number(val("p_fventa")||1)||1;
         const b=JSON.stringify({nombre:val("p_nombre"),referencia:val("p_ref")||null,precioUnitario:Number(val("p_precio")),precioCompra:Number(val("p_compra")),codigoIva:val("p_iva"),tipo:(p&&p.tipo)?p.tipo:"Servicio",proveedorHabitualId:val("p_prov")||null,familiaId:val("p_familiaId")||null,unidad:val("p_unidad")||"ud",unidadCompra:val("p_ucompra")||null,factorCompra:fc,unidadVenta:val("p_uventa")||null,factorVenta:fv,seguimiento:val("p_seguimiento"),controlarStock:document.getElementById("p_stock_ctrl").checked,stockInicial:Number(val("p_stock_ini")||0),
-          pesoKg:val("p_peso")===""?null:Number(val("p_peso")),codigoArancelario:val("p_taric")||null,paisOrigen:val("p_origen")||null,actividadNegocioId:editar?(p.actividadNegocioId||null):null});
+          pesoKg:val("p_peso")===""?null:Number(val("p_peso")),codigoArancelario:val("p_taric")||null,paisOrigen:val("p_origen")||null,codigoIgic:document.getElementById("p_igic")?(val("p_igic")||null):(editar?(p.codigoIgic||null):null),actividadNegocioId:editar?(p.actividadNegocioId||null):null});
         const guardado=await api("/productos"+(editar?"/"+p.id:""),{method:editar?"PUT":"POST",body:b});
         // Lista de materiales (si la sección existe): siempre se envía (lista vacía = quitar composición).
         if(document.getElementById("p_comp_lineas")){
@@ -7911,7 +7931,7 @@
           if(c&&c.compuestosIguales&&c.compuestosIguales.length) toast(`Aviso: ya hay compuestos con la misma lista de materiales: ${c.compuestosIguales.join(", ")}.`,"err");
         }
         vProductos(); });
-      if(p){ rellenar({p_nombre:p.nombre,p_ref:p.referencia,p_precio:p.precioUnitario,p_compra:p.precioCompra,p_iva:p.codigoIva,p_prov:p.proveedorHabitualId,p_familiaId:p.familiaId,p_unidad:p.unidad||"ud",p_ucompra:p.unidadCompra,p_fcompra:p.factorCompra??1,p_uventa:p.unidadVenta,p_fventa:p.factorVenta??1,p_seguimiento:p.seguimiento||"Ninguno",p_peso:p.pesoKg,p_taric:p.codigoArancelario,p_origen:p.paisOrigen});
+      if(p){ rellenar({p_nombre:p.nombre,p_ref:p.referencia,p_precio:p.precioUnitario,p_compra:p.precioCompra,p_iva:p.codigoIva,p_prov:p.proveedorHabitualId,p_familiaId:p.familiaId,p_unidad:p.unidad||"ud",p_ucompra:p.unidadCompra,p_fcompra:p.factorCompra??1,p_uventa:p.unidadVenta,p_fventa:p.factorVenta??1,p_seguimiento:p.seguimiento||"Ninguno",p_peso:p.pesoKg,p_taric:p.codigoArancelario,p_origen:p.paisOrigen,...(document.getElementById("p_igic")?{p_igic:p.codigoIgic||""}:{})});
         if(p.controlarStock){ document.getElementById("p_stock_ctrl").checked=true; document.getElementById("p_stock_box").style.display="block"; } }
       prevEnvase(); prevCompCoste(); }
     function compLineaHtml(prodId,cant){ const po=(window._compProdOpts||''); const opts=prodId?po.replace(`value="${prodId}"`,`value="${prodId}" selected`):po; return `<div class="cmp-comp" style="display:grid;grid-template-columns:3fr 1fr;gap:8px;margin-bottom:6px"><select class="cc-prod" onchange="prevCompCoste()"><option value="">— Componente —</option>${opts}</select><input class="cc-cant" type="number" step="0.001" placeholder="Cantidad" value="${cant??''}" oninput="prevCompCoste()"/></div>`; }

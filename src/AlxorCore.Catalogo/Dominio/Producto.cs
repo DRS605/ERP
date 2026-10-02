@@ -233,6 +233,36 @@ public sealed class Producto : RaizAgregadoGrupo<Guid>
         return Resultado.Ok();
     }
 
+    /// <summary>
+    /// Tipo del IGIC con que se vende en Canarias (por ejemplo IGIC0 en fruta). Nulo: el equivalente de su tipo del IVA
+    /// (<see cref="Impuesto.EquivalenteIgic"/>). Sirve a las empresas canarias y a las que operan en los dos territorios.
+    /// </summary>
+    public string? CodigoIgic { get; private set; }
+
+    /// <summary>Fija el tipo del IGIC del artículo (nulo o vacío: el equivalente de su tipo del IVA).</summary>
+    public Resultado EstablecerCodigoIgic(string? codigo)
+    {
+        if (string.IsNullOrWhiteSpace(codigo))
+        {
+            CodigoIgic = null;
+            return Resultado.Ok();
+        }
+
+        var c = codigo.Trim().ToUpperInvariant();
+        if (Impuesto.PorCodigoImpuesto(c) is { EsCorrecto: true } i && i.Valor.Tipo != TipoImpuesto.Igic)
+        {
+            return Resultado.Fallo(Error.Validacion("producto.codigo_igic", $"{c} es un tipo del IVA: elige uno del IGIC (IGIC0, IGIC3, IGIC7…)."));
+        }
+
+        if (c.Length > 10)
+        {
+            return Resultado.Fallo(Error.Validacion("producto.codigo_igic", "El código del IGIC es demasiado largo."));
+        }
+
+        CodigoIgic = c;
+        return Resultado.Ok();
+    }
+
     /// <summary>Código arancelario (NC de 8 dígitos o TARIC de 10) para la aduana, el CMR e Intrastat.</summary>
     public string? CodigoArancelario { get; private set; }
 

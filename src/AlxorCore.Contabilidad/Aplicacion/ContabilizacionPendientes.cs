@@ -58,7 +58,9 @@ public sealed class ResolverCuentasBasico : IResolverCuentas
 /// </summary>
 public interface IDeduccionImpuesto
 {
-    Task<decimal> CuotaDeducibleAsync(Guid empresaId, int ejercicio, decimal cuota, string? afectacion, CancellationToken ct = default);
+    /// <param name="impuesto">IVA o IGIC de la compra (cada uno con su prorrata); nulo: el de la empresa.</param>
+    Task<decimal> CuotaDeducibleAsync(Guid empresaId, int ejercicio, decimal cuota, string? afectacion,
+        AlxorCore.Nucleo.Comun.TipoImpuesto? impuesto = null, CancellationToken ct = default);
 }
 
 /// <summary>Deducción íntegra (empresa sin prorrata).</summary>
@@ -66,7 +68,8 @@ public sealed class DeduccionTotal : IDeduccionImpuesto
 {
     public static DeduccionTotal Instancia { get; } = new();
 
-    public Task<decimal> CuotaDeducibleAsync(Guid empresaId, int ejercicio, decimal cuota, string? afectacion, CancellationToken ct = default) =>
+    public Task<decimal> CuotaDeducibleAsync(Guid empresaId, int ejercicio, decimal cuota, string? afectacion,
+        AlxorCore.Nucleo.Comun.TipoImpuesto? impuesto = null, CancellationToken ct = default) =>
         Task.FromResult(cuota);
 }
 
@@ -137,7 +140,8 @@ public sealed class PosterDocumento
         // Un abono (rectificativa en negativo) aplica la misma prorrata con el signo cambiado.
         var cuotaDeducible = doc.Sentido != SentidoContable.Compra || baseProrrata == 0m
             ? baseProrrata
-            : Math.Sign(baseProrrata) * await _deduccion.CuotaDeducibleAsync(doc.EmpresaId, doc.FechaRegistro.Year, Math.Abs(baseProrrata), doc.Afectacion, ct).ConfigureAwait(false);
+            : Math.Sign(baseProrrata) * await _deduccion.CuotaDeducibleAsync(doc.EmpresaId, doc.FechaRegistro.Year, Math.Abs(baseProrrata), doc.Afectacion,
+                AlxorCore.Nucleo.Comun.Impuesto.TipoDeCodigo(doc.CodigoIva), ct).ConfigureAwait(false);
 
         // La plantilla fija la tesorería cuando el documento solo trae la genérica (570/572), no la subcuenta de un banco.
         var tesoreria = string.IsNullOrWhiteSpace(doc.CuentaTesoreria) || doc.CuentaTesoreria is PlanBasico.CuentaBancos or PlanBasico.CuentaCaja

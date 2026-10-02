@@ -34,10 +34,11 @@ public interface IConsultaFormasPago
 }
 
 /// <summary>Prorrata configurada para un ejercicio (null = la empresa no aplica prorrata: deduce el 100 %).</summary>
-public sealed record ProrrataDto(int Ejercicio, RegimenProrrata Regimen, int PorcentajeProvisional);
+public sealed record ProrrataDto(int Ejercicio, RegimenProrrata Regimen, int PorcentajeProvisional, AlxorCore.Nucleo.Comun.TipoImpuesto Impuesto = AlxorCore.Nucleo.Comun.TipoImpuesto.Iva);
 
 /// <summary>Consulta y configuración de la prorrata de IVA/IGIC por ejercicio.</summary>
 public interface IConsultaProrrata
 {
-    Task<ProrrataDto?> ObtenerAsync(Guid empresaId, int ejercicio, CancellationToken ct = default);
+    /// <summary>Prorrata del ejercicio para un impuesto (IVA o IGIC).</summary>
+    Task<ProrrataDto?> ObtenerAsync(Guid empresaId, int ejercicio, AlxorCore.Nucleo.Comun.TipoImpuesto impuesto, CancellationToken ct = default);
 }

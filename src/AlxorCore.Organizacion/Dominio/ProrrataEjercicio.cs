@@ -1,3 +1,4 @@
+using AlxorCore.Nucleo.Comun;
 using AlxorCore.Nucleo.Dominio;
 using AlxorCore.Nucleo.Resultados;
 
@@ -29,9 +30,10 @@ public sealed class ProrrataEjercicio : RaizAgregadoEmpresa<Guid>
     {
     }
 
-    private ProrrataEjercicio(Guid id, Guid empresaId, int ejercicio, RegimenProrrata regimen, int porcentajeProvisional)
+    private ProrrataEjercicio(Guid id, Guid empresaId, int ejercicio, RegimenProrrata regimen, int porcentajeProvisional, TipoImpuesto impuesto)
         : base(id, empresaId)
     {
+        Impuesto = impuesto;
         Ejercicio = ejercicio;
         Regimen = regimen;
         PorcentajeProvisional = porcentajeProvisional;
@@ -39,17 +41,21 @@ public sealed class ProrrataEjercicio : RaizAgregadoEmpresa<Guid>
 
     public int Ejercicio { get; private set; }
 
+    /// <summary>Impuesto al que se aplica (IVA o IGIC): con actividad en los dos territorios, cada uno tiene la suya.</summary>
+    public TipoImpuesto Impuesto { get; private set; } = TipoImpuesto.Iva;
+
     public RegimenProrrata Regimen { get; private set; }
 
     /// <summary>Porcentaje (entero, 0-100) con el que se deduce durante el ejercicio.</summary>
     public int PorcentajeProvisional { get; private set; }
 
-    public static Resultado<ProrrataEjercicio> Crear(Guid empresaId, int ejercicio, RegimenProrrata regimen, int porcentajeProvisional)
+    public static Resultado<ProrrataEjercicio> Crear(Guid empresaId, int ejercicio, RegimenProrrata regimen, int porcentajeProvisional,
+        TipoImpuesto impuesto = TipoImpuesto.Iva)
     {
         var error = Validar(ejercicio, regimen, porcentajeProvisional);
         return error is not null
             ? Resultado.Fallo<ProrrataEjercicio>(error)
-            : Resultado.Ok(new ProrrataEjercicio(Guid.NewGuid(), empresaId, ejercicio, regimen, porcentajeProvisional));
+            : Resultado.Ok(new ProrrataEjercicio(Guid.NewGuid(), empresaId, ejercicio, regimen, porcentajeProvisional, impuesto));
     }
 
     public Resultado Cambiar(RegimenProrrata regimen, int porcentajeProvisional)

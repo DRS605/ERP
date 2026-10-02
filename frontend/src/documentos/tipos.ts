@@ -41,6 +41,16 @@ export interface TipoIva {
   nombre: string;
   porcentaje: number;
   activo: boolean;
+  impuesto?: "Iva" | "Igic";
+}
+
+/** Tipo equivalente al pasar una línea de un impuesto al otro (mismo criterio que el servidor). */
+export function tipoEquivalente(codigo: string | null, a: "Iva" | "Igic"): string | null {
+  if (!codigo) return codigo;
+  const c = codigo.toUpperCase();
+  const aIgic: Record<string, string> = { IVA21: "IGIC7", IVA10: "IGIC3", IVA4: "IGIC0", IVA0: "IGIC0", REAGP12: "REAGPIGIC", REAGP105: "REAGPIGIC" };
+  const aIva: Record<string, string> = { IGIC7: "IVA21", IGIC3: "IVA10", IGIC0: "IVA0", REAGPIGIC: "REAGP12" };
+  return (a === "Igic" ? aIgic[c] : aIva[c]) ?? codigo;
 }
 
 export interface FormaPago {

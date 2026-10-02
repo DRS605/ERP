@@ -274,7 +274,7 @@ public static class EndpointsOrganizacion
             {
                 // La prorrata es de la empresa nueva: la seguridad por empresa de la base de datos tiene que verla ya como activa.
                 await db.Database.ExecuteSqlInterpolatedAsync($"SELECT set_config('app.empresa_actual', {id.ToString("D")}, true)", ct).ConfigureAwait(false);
-                return await prorrata.EjecutarAsync(id, DateTime.Today.Year, new ConfigurarProrrataComando(pr.Regimen, pr.PorcentajeProvisional), ct).ConfigureAwait(false);
+                return await prorrata.EjecutarAsync(id, DateTime.Today.Year, new ConfigurarProrrataComando(pr.Regimen, pr.PorcentajeProvisional, pr.Impuesto), ct).ConfigureAwait(false);
             });
         }
 

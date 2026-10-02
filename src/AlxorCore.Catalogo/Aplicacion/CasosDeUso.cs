@@ -27,7 +27,8 @@ public sealed record DatosProducto(
     Guid? ActividadNegocioId = null,
     decimal? PesoKg = null,
     string? CodigoArancelario = null,
-    string? PaisOrigen = null);
+    string? PaisOrigen = null,
+    string? CodigoIgic = null);
 
 /// <summary>Caso de uso: crear un producto en la empresa activa.</summary>
 public sealed class CrearProducto
@@ -84,6 +85,11 @@ public sealed class CrearProducto
         if (producto.Valor.EstablecerComercioExterior(datos.CodigoArancelario, datos.PaisOrigen) is { EsFallo: true } exterior)
         {
             return Resultado.Fallo<ProductoDto>(exterior.Error);
+        }
+
+        if (producto.Valor.EstablecerCodigoIgic(datos.CodigoIgic) is { EsFallo: true } igic)
+        {
+            return Resultado.Fallo<ProductoDto>(igic.Error);
         }
 
         _productos.Agregar(producto.Valor);
@@ -168,6 +174,11 @@ public sealed class ActualizarProducto
         if (producto.EstablecerComercioExterior(datos.CodigoArancelario, datos.PaisOrigen) is { EsFallo: true } exterior)
         {
             return Resultado.Fallo<ProductoDto>(exterior.Error);
+        }
+
+        if (producto.EstablecerCodigoIgic(datos.CodigoIgic) is { EsFallo: true } igic)
+        {
+            return Resultado.Fallo<ProductoDto>(igic.Error);
         }
 
 

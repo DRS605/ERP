@@ -175,3 +175,17 @@ mismo NIF»** (`operaEnAmbosTerritorios`). Entonces:
 - al **SII de la AEAT** solo van las facturas y los gastos con IVA; los del IGIC son de la Agencia Tributaria Canaria.
 
 El territorio de la empresa sigue siendo el principal (el de su domicilio fiscal y el impuesto por defecto).
+
+- **Territorio de la operación**: la factura puede indicar `impuesto` (`Iva` / `Igic`); en la pantalla es el desplegable
+  «Territorio de la operación», que filtra los tipos de las líneas y pasa las que ya hay al equivalente. Sin indicarlo,
+  manda el tipo de la primera línea. Una empresa de un solo territorio no puede elegir el otro (400 `factura.territorio`).
+- **Artículos**: en una factura con IGIC, un artículo con tipo del IVA se vende con su **tipo del IGIC** (`codigoIgic`,
+  campo «Tipo de IGIC en Canarias» de la ficha) o, si no lo tiene, con el **equivalente** (`Impuesto.EquivalenteIgic`:
+  21 → 7, 10 → 3, 4 y exento → 0, REAGP → REAGP del IGIC). Vale también para las empresas solo canarias que comparten
+  catálogo con una de la Península.
+- **Prorrata por impuesto**: `prorrata_ejercicio` lleva el `impuesto` (único por empresa, ejercicio e impuesto). El 303
+  usa la del IVA, el 420 la del IGIC y al contabilizar una compra se aplica la del impuesto de su código.
+  `/impuestos/prorrata?impuesto=` y `PUT /impuestos/prorrata/{ejercicio}` con `impuesto`; Ajustes enseña un bloque más
+  para el otro impuesto. Las prorratas que ya tenían las empresas de Canarias pasan a ser del IGIC.
+- **Documentos**: el nombre comercial sale bajo la razón social y los **datos registrales** al pie de facturas,
+  presupuestos, albaranes y pedidos (y en el ticket).

@@ -233,13 +233,13 @@ internal sealed class RepositorioProrratas : IRepositorioProrratas, IConsultaPro
 
     public void Eliminar(ProrrataEjercicio prorrata) => _contexto.Prorratas.Remove(prorrata);
 
-    public Task<ProrrataEjercicio?> ObtenerAsync(Guid empresaId, int ejercicio, CancellationToken ct = default) =>
-        _contexto.Prorratas.SingleOrDefaultAsync(p => p.EmpresaId == empresaId && p.Ejercicio == ejercicio, ct);
+    public Task<ProrrataEjercicio?> ObtenerAsync(Guid empresaId, int ejercicio, AlxorCore.Nucleo.Comun.TipoImpuesto impuesto, CancellationToken ct = default) =>
+        _contexto.Prorratas.SingleOrDefaultAsync(p => p.EmpresaId == empresaId && p.Ejercicio == ejercicio && p.Impuesto == impuesto, ct);
 
-    async Task<ProrrataDto?> IConsultaProrrata.ObtenerAsync(Guid empresaId, int ejercicio, CancellationToken ct)
+    async Task<ProrrataDto?> IConsultaProrrata.ObtenerAsync(Guid empresaId, int ejercicio, AlxorCore.Nucleo.Comun.TipoImpuesto impuesto, CancellationToken ct)
     {
-        var p = await ObtenerAsync(empresaId, ejercicio, ct).ConfigureAwait(false);
-        return p is null ? null : new ProrrataDto(p.Ejercicio, p.Regimen, p.PorcentajeProvisional);
+        var p = await ObtenerAsync(empresaId, ejercicio, impuesto, ct).ConfigureAwait(false);
+        return p is null ? null : new ProrrataDto(p.Ejercicio, p.Regimen, p.PorcentajeProvisional, p.Impuesto);
     }
 }
 

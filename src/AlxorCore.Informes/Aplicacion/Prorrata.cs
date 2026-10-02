@@ -137,7 +137,7 @@ public sealed class CalcularProrrata
 
     public async Task<ProrrataCalculadaDto> EjecutarAsync(Guid empresaId, int ejercicio, TipoImpuesto impuesto, CancellationToken ct = default)
     {
-        var config = await _prorratas.ObtenerAsync(empresaId, ejercicio, ct).ConfigureAwait(false);
+        var config = await _prorratas.ObtenerAsync(empresaId, ejercicio, impuesto, ct).ConfigureAwait(false);
         var (conDerecho, sinDerecho, excluida) = await BasesVentasAsync(empresaId, ejercicio, impuesto, ct).ConfigureAwait(false);
         var definitivo = ReglaProrrata.Porcentaje(conDerecho, sinDerecho);
 
@@ -185,7 +185,7 @@ public sealed class CalcularProrrata
         Guid empresaId, int anio, int trimestre, TipoImpuesto impuesto, CuotasSoportadas cuotasTrimestre, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(cuotasTrimestre);
-        var config = await _prorratas.ObtenerAsync(empresaId, anio, ct).ConfigureAwait(false);
+        var config = await _prorratas.ObtenerAsync(empresaId, anio, impuesto, ct).ConfigureAwait(false);
         if (config is null)
         {
             return new DeduccionTrimestre(null, 100, cuotasTrimestre.Total, 0m);

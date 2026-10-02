@@ -96,6 +96,7 @@ internal sealed class ConfiguracionProducto : IEntityTypeConfiguration<Producto>
         builder.Property(p => p.PesoKg).HasColumnName("peso_kg").HasColumnType("numeric(12,3)");
         builder.Property(p => p.CodigoArancelario).HasColumnName("codigo_arancelario").HasMaxLength(10);
         builder.Property(p => p.PaisOrigen).HasColumnName("pais_origen").HasMaxLength(2);
+        builder.Property(p => p.CodigoIgic).HasColumnName("codigo_igic").HasMaxLength(10);
         builder.OwnsMany(p => p.Componentes, c =>
         {
             c.ToTable("componente_articulo");

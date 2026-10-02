@@ -219,7 +219,8 @@ internal sealed class ConfiguracionProrrata : IEntityTypeConfiguration<ProrrataE
         builder.Property(p => p.Ejercicio).HasColumnName("ejercicio").IsRequired();
         builder.Property(p => p.Regimen).HasColumnName("regimen").HasMaxLength(20).HasConversion<string>().IsRequired();
         builder.Property(p => p.PorcentajeProvisional).HasColumnName("porcentaje_provisional").IsRequired();
-        builder.HasIndex(p => new { p.EmpresaId, p.Ejercicio }).IsUnique().HasDatabaseName("ux_prorrata_empresa_ejercicio");
+        builder.Property(p => p.Impuesto).HasColumnName("impuesto").HasMaxLength(10).HasConversion<string>().IsRequired().HasDefaultValue(TipoImpuesto.Iva);
+        builder.HasIndex(p => new { p.EmpresaId, p.Ejercicio, p.Impuesto }).IsUnique().HasDatabaseName("ux_prorrata_empresa_ejercicio_impuesto");
         builder.Ignore(p => p.EventosDominio);
     }
 }

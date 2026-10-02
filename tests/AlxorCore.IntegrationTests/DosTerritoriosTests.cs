@@ -22,6 +22,12 @@ public sealed class DosTerritoriosTests : IClassFixture<FabricaApiPruebas>
     private sealed record M420(decimal DevengadoBase);
     private sealed record TipoResp(string Codigo, string Impuesto);
     private sealed record FichaResp(List<string> Sugeridos);
+    private sealed record LineaResp(string CodigoIva);
+    private sealed record FacturaLineasResp(string Impuesto, List<LineaResp> Lineas);
+    private sealed record ProrrataResp(string? Regimen, int PorcentajeProvisional);
+    private sealed record M303P(int PorcentajeProrrata);
+    private sealed record ResumenPResp(M303P Modelo303);
+    private sealed record M420P(int PorcentajeProrrata);
 
     private static Task<HttpResponseMessage> FacturarAsync(HttpClient api, Guid cliente, string codigo, decimal precio) =>
         api.PostAsJsonAsync("/facturas", new { ClienteId = cliente, Lineas = new[] { new { Cantidad = 1m, Descripcion = "Fruta", PrecioUnitario = precio, CodigoIva = codigo } } });
@@ -60,5 +66,44 @@ public sealed class DosTerritoriosTests : IClassFixture<FabricaApiPruebas>
         var trimestre = (DateTime.Today.Month - 1) / 3 + 1;
         (await api.GetFromJsonAsync<ResumenResp>($"/informes/resumen-trimestral?anio={anio}&trimestre={trimestre}"))!.Modelo303.IvaDevengadoBase.Should().Be(100m);
         (await api.GetFromJsonAsync<M420>($"/impuestos/modelo-420?anio={anio}&trimestre={trimestre}"))!.DevengadoBase.Should().Be(300m);
+    }
+
+    [Fact]
+    public async Task El_territorio_se_elige_en_la_factura_los_articulos_pasan_a_igic_y_cada_impuesto_tiene_su_prorrata()
+    {
+        var (api, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+        var cliente = (await (await api.PostAsJsonAsync("/clientes", new { Nombre = "Cliente SL", NifFiscal = Ayudas.GenerarNif() })).Content.ReadFromJsonAsync<FacturaResp>())!.Id;
+        var fruta = (await (await api.PostAsJsonAsync("/productos", new { Nombre = "Naranja", PrecioUnitario = 1m, Tipo = "Bien", Unidad = "kg", CodigoIva = "IVA4" })).Content.ReadFromJsonAsync<FacturaResp>())!.Id;
+        var vino = await api.PostAsJsonAsync("/productos", new { Nombre = "Vino", PrecioUnitario = 5m, Tipo = "Bien", Unidad = "ud", CodigoIva = "IVA21", CodigoIgic = "IGIC3" });
+        vino.IsSuccessStatusCode.Should().BeTrue(await vino.Content.ReadAsStringAsync());
+        var vinoId = (await vino.Content.ReadFromJsonAsync<FacturaResp>())!.Id;
+        (await api.PostAsJsonAsync("/productos", new { Nombre = "Malo", PrecioUnitario = 1m, CodigoIva = "IVA21", CodigoIgic = "IVA10" })).StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        // Elegir IGIC en una empresa que no opera en Canarias se rechaza.
+        (await api.PostAsJsonAsync("/facturas", new { ClienteId = cliente, Impuesto = "Igic", Lineas = new[] { new { Cantidad = 1m, ProductoId = fruta } } }))
+            .StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        (await api.PutAsJsonAsync("/empresas/actual/perfil-fiscal", new { Perfil = new { OperaEnAmbosTerritorios = true } })).IsSuccessStatusCode.Should().BeTrue();
+
+        // Factura de Canarias: la fruta (IVA 4 %) va al IGIC 0 % y el vino al IGIC 3 % que tiene puesto.
+        var r = await api.PostAsJsonAsync("/facturas", new { ClienteId = cliente, Impuesto = "Igic", Lineas = new[] { new { Cantidad = 10m, ProductoId = fruta }, new { Cantidad = 2m, ProductoId = vinoId } } });
+        r.IsSuccessStatusCode.Should().BeTrue(await r.Content.ReadAsStringAsync());
+        var f = (await r.Content.ReadFromJsonAsync<FacturaLineasResp>())!;
+        f.Impuesto.Should().Be("Igic");
+        f.Lineas.Select(l => l.CodigoIva).Should().Equal("IGIC0", "IGIC3");
+
+        // Y de la Península: los mismos artículos con su IVA.
+        var p = (await (await api.PostAsJsonAsync("/facturas", new { ClienteId = cliente, Impuesto = "Iva", Lineas = new[] { new { Cantidad = 10m, ProductoId = fruta } } }))
+            .Content.ReadFromJsonAsync<FacturaLineasResp>())!;
+        (p.Impuesto, p.Lineas[0].CodigoIva).Should().Be(("Iva", "IVA4"));
+
+        // Prorrata solo en el IGIC: el 420 la aplica y el 303 no.
+        var anio = DateTime.Today.Year;
+        (await api.PutAsJsonAsync($"/impuestos/prorrata/{anio}", new { Regimen = "General", PorcentajeProvisional = 60, Impuesto = "Igic" })).IsSuccessStatusCode.Should().BeTrue();
+        (await api.GetFromJsonAsync<ProrrataResp>($"/impuestos/prorrata?ejercicio={anio}&impuesto=Igic"))!.Regimen.Should().Be("General");
+        (await api.GetFromJsonAsync<ProrrataResp>($"/impuestos/prorrata?ejercicio={anio}&impuesto=Iva"))!.Regimen.Should().BeNull();
+        var trimestre = (DateTime.Today.Month - 1) / 3 + 1;
+        (await api.GetFromJsonAsync<M420P>($"/impuestos/modelo-420?anio={anio}&trimestre={trimestre}"))!.PorcentajeProrrata.Should().Be(60);
+        (await api.GetFromJsonAsync<ResumenPResp>($"/informes/resumen-trimestral?anio={anio}&trimestre={trimestre}"))!.Modelo303.PorcentajeProrrata.Should().Be(100);
     }
 }
