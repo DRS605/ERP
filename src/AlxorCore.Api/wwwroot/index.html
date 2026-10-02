@@ -610,17 +610,80 @@
       const lista=await api("/empresas"); const emp=lista.find(e=>e.id===id); if(!emp)return;
       cerrarModal(); await activarEmpresa(emp); toast("Empresa activa: "+emp.razonSocial,"ok");
     }
-    function modalNuevaEmpresa(){
-      abrir("Nueva empresa",`<label>Razón social</label><input id="e_nombre" placeholder="Mi empresa SL"/>
-        <div class="grid2"><div><label>NIF</label><input id="e_nif" placeholder="B12345678"/></div><div><label>Población (opcional)</label><input id="e_pob"/></div></div>
-        <div class="grid2"><div><label>Provincia (opcional)</label><input id="e_prov"/></div><div><label>Código postal (opcional)</label><input id="e_cp"/></div></div>
-        ${empresa?`<label style="display:flex;gap:10px;align-items:flex-start;margin-top:12px;font-weight:400;cursor:pointer"><input id="e_grupo" type="checkbox" style="width:auto;margin-top:3px">
-          <span><strong>En el mismo grupo que ${agEsc(empresa.razonSocial)}</strong><br><span class="muted" style="font-size:13px">Comparte con ella clientes, proveedores, artículos, tarifas y analítica: lo que se dé de alta en una sirve para las dos. Las facturas, la contabilidad y el stock siguen siendo de cada empresa. Después podrás copiarle la configuración (plan de cuentas, formas de pago…).</span></span></label>`:""}`,
-        async()=>{ let grupoId=null;
-          if(document.getElementById("e_grupo")?.checked) grupoId=(await api("/grupos/actual")).id;
-          const nueva=await api("/empresas",{method:"POST",body:JSON.stringify({razonSocial:val("e_nombre"),nif:val("e_nif"),poblacion:val("e_pob")||null,provincia:val("e_prov")||null,codigoPostal:val("e_cp")||null,grupoId})});
-          toast(grupoId?"Empresa creada en el grupo.":"Empresa creada.","ok"); await activarEmpresa(nueva);
-          if(grupoId&&confirm("¿Quieres copiarle ahora la configuración de la otra empresa (plan de cuentas, formas de pago, series…)?")) ir("copiaconfig"); }); }
+    /* ---------- Alta de empresa: datos fiscales, dirección, contacto, banco, plan y configuración inicial ---------- */
+    const PROVINCIAS_CP={"01":"Álava","02":"Albacete","03":"Alicante","04":"Almería","05":"Ávila","06":"Badajoz","07":"Illes Balears","08":"Barcelona","09":"Burgos","10":"Cáceres","11":"Cádiz","12":"Castellón","13":"Ciudad Real","14":"Córdoba","15":"A Coruña","16":"Cuenca","17":"Girona","18":"Granada","19":"Guadalajara","20":"Gipuzkoa","21":"Huelva","22":"Huesca","23":"Jaén","24":"León","25":"Lleida","26":"La Rioja","27":"Lugo","28":"Madrid","29":"Málaga","30":"Murcia","31":"Navarra","32":"Ourense","33":"Asturias","34":"Palencia","35":"Las Palmas","36":"Pontevedra","37":"Salamanca","38":"Santa Cruz de Tenerife","39":"Cantabria","40":"Segovia","41":"Sevilla","42":"Soria","43":"Tarragona","44":"Teruel","45":"Toledo","46":"Valencia","47":"Valladolid","48":"Bizkaia","49":"Zamora","50":"Zaragoza","51":"Ceuta","52":"Melilla"};
+    const FORMAS_NIF={A:"Sociedad anónima",B:"Sociedad limitada",C:"Sociedad colectiva",D:"Sociedad comanditaria",E:"Comunidad de bienes",F:"Sociedad cooperativa",G:"Asociación o fundación",H:"Comunidad de propietarios",J:"Sociedad civil",N:"Entidad extranjera",P:"Corporación local",Q:"Organismo público",R:"Congregación religiosa",S:"Órgano de la Administración",U:"Unión temporal de empresas",V:"Otra sociedad (p. ej. SAT)",W:"Establecimiento permanente"};
+    const altaNif=()=>(document.getElementById("e_nif")?.value||"").toUpperCase().replace(/[^A-Z0-9]/g,"");
+    // Dígitos de control ISO 7064 (mod 97-10), como en el IBAN: letras A=10 … Z=35.
+    function mod97(t){ let r=0; for(const c of t){ const v=/\d/.test(c)?+c:c.charCodeAt(0)-55; r=v>=10?(r*100+v)%97:(r*10+v)%97; } return r; }
+    const ibanValido=i=>{ i=(i||"").toUpperCase().replace(/[^A-Z0-9]/g,""); return /^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/.test(i)&&mod97(i.slice(4)+i.slice(0,4))===1; };
+    // Identificador de acreedor SEPA en España: ES + control + «000» (sufijo) + NIF.
+    function acreedorSepa(nif){ if(!nif) return ""; const dc=String(98-mod97(nif+"ES00")).padStart(2,"0"); return "ES"+dc+"000"+nif; }
+    let _altaAcreedorTocado=false;
+    function altaCambio(campo){
+      const nif=altaNif(), cp=(val("e_cp")||"").trim();
+      if(campo==="nif"){
+        const f=/^[A-Z]/.test(nif)&&FORMAS_NIF[nif[0]]?FORMAS_NIF[nif[0]]:(/^[0-9XYZKLM]/.test(nif)&&nif.length>=8?"Persona física (autónomo)":"");
+        document.getElementById("e_forma").textContent=f?`${f} · ${/^[0-9XYZKLM]/.test(nif)?"contabilidad sencilla (libros de ingresos y gastos) por defecto":"contabilidad completa (partida doble) por defecto"}`:"";
+        if(!_altaAcreedorTocado) document.getElementById("e_acreedor").value=nif.length>=9?acreedorSepa(nif):"";
+      }
+      if(campo==="cp" && /^\d{5}$/.test(cp)){
+        const prov=PROVINCIAS_CP[cp.slice(0,2)]; if(prov && !val("e_prov")) document.getElementById("e_prov").value=prov;
+        document.getElementById("e_terr").value=(cp.startsWith("35")||cp.startsWith("38"))?"Canarias":"Comun";
+      }
+      if(campo==="iban"){ const i=val("e_iban").trim(); document.getElementById("e_iban_ok").innerHTML=!i?"":(ibanValido(i)?'<span class="pill ok">IBAN correcto</span>':'<span class="pill neg">IBAN con error</span>'); }
+    }
+    async function altaEdicion(){
+      const cat=window._altaPlanes; if(!cat) return; const ed=cat.ediciones.find(e=>e.codigo===val("e_edicion"));
+      document.querySelectorAll(".e_mod").forEach(c=>{ const enEd=(ed?.modulos||[]).includes(c.value); c.disabled=enEd; if(enEd) c.checked=true; });
+    }
+    const altaSeccion=(t,h)=>`<div style="margin:0 0 18px"><div style="font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:0 0 10px">${t}</div>${h}</div>`;
+    async function modalNuevaEmpresa(){
+      _altaAcreedorTocado=false;
+      const cat=window._altaPlanes=await api("/planes").catch(()=>null);
+      const ediciones=cat?cat.ediciones.map(e=>`<option value="${e.codigo}"${e.codigo==="completa"?" selected":""}>${agEsc(e.nombre)} — ${agEsc(e.descripcion)}</option>`).join(""):"";
+      const modulos=cat?cat.modulos.map(m=>`<label style="display:flex;gap:8px;align-items:flex-start;margin:4px 0;font-weight:400"><input type="checkbox" class="e_mod" value="${m.codigo}" style="width:auto;margin-top:3px"><span><strong>${agEsc(m.nombre)}</strong> <small class="muted">${agEsc(m.descripcion)}</small></span></label>`).join(""):"";
+      const g=empresa?`<label style="display:flex;gap:10px;align-items:flex-start;margin:0 0 10px;font-weight:400;cursor:pointer"><input id="e_grupo" type="checkbox" style="width:auto;margin-top:3px">
+          <span><strong>En el mismo grupo que ${agEsc(empresa.razonSocial)}</strong><br><span class="muted" style="font-size:13px">Comparte con ella clientes, proveedores, artículos, tarifas y analítica. Las facturas, la contabilidad y el stock siguen siendo de cada empresa.</span></span></label>
+        <label style="display:flex;gap:10px;align-items:flex-start;margin:0;font-weight:400;cursor:pointer"><input id="e_copiar" type="checkbox" style="width:auto;margin-top:3px">
+          <span><strong>Copiar la configuración de ${agEsc(empresa.razonSocial)}</strong><br><span class="muted" style="font-size:13px">Plan de cuentas, diarios, formas de pago, series, almacenes, transportistas, soportes y maestros de agro (lo que esté en su plan).</span></span></label>`:"";
+      abrir("Nueva empresa",
+        altaSeccion("Datos fiscales",`<label>Razón social *</label><input id="e_nombre" placeholder="Frutas del Levante SL"/>
+          <div class="grid2"><div><label>NIF / CIF *</label><input id="e_nif" placeholder="B12345678" oninput="altaCambio('nif')"/><div id="e_forma" class="muted" style="font-size:12px;margin-top:4px"></div></div>
+          <div><label>Régimen de IVA</label><select id="e_regimen"><option value="General">General</option><option value="RecargoEquivalencia">Recargo de equivalencia (comercio minorista)</option></select></div></div>
+          <label>Territorio fiscal</label><select id="e_terr"><option value="Comun">Península y Baleares (IVA)</option><option value="Canarias">Canarias (IGIC)</option></select>`)
+        +altaSeccion("Domicilio fiscal",`<label>Dirección</label><input id="e_calle" placeholder="Calle, número, piso"/>
+          <div class="grid2"><div><label>Código postal</label><input id="e_cp" maxlength="5" oninput="altaCambio('cp')"/></div><div><label>Población</label><input id="e_pob"/></div></div>
+          <label>Provincia</label><input id="e_prov"/>`)
+        +altaSeccion("Contacto (sale en facturas y PDF)",`<div class="grid2"><div><label>Teléfono</label><input id="e_tel" type="tel"/></div><div><label>Correo electrónico</label><input id="e_email" type="email" placeholder="administracion@empresa.es"/></div></div>
+          <label>Web</label><input id="e_web" placeholder="www.empresa.es"/>`)
+        +altaSeccion("Banco y remesas SEPA",`<label>IBAN de la cuenta principal</label><input id="e_iban" placeholder="ES00 0000 0000 0000 0000 0000" oninput="altaCambio('iban')"/><div id="e_iban_ok" style="margin-top:4px"></div>
+          <label>Identificador de acreedor SEPA</label><input id="e_acreedor" oninput="_altaAcreedorTocado=true"/><div class="muted" style="font-size:12px;margin-top:4px">Se calcula del NIF (sufijo 000). Cámbialo si tu banco te ha dado otro.</div>`)
+        +(cat?altaSeccion("Plan contratado",`<label>Edición</label><select id="e_edicion" onchange="altaEdicion()">${ediciones}</select><div style="margin-top:8px">${modulos}</div>`):"")
+        +altaSeccion("Almacén y riesgo",`<div class="grid2"><div><label>Valoración de existencias</label><select id="e_valoracion"><option value="Pmp">Precio medio ponderado</option><option value="Fifo">FIFO</option><option value="UltimaCompra">Última compra</option><option value="Estandar">Coste estándar</option></select></div>
+          <div><label>Límite de riesgo de clientes</label><select id="e_riesgo"><option value="Aviso">Avisar al superarlo</option><option value="Bloqueo">Bloquear la venta</option></select></div></div>`)
+        +(g?altaSeccion("Grupo y configuración inicial",g):""),
+        async()=>{
+          const nombre=val("e_nombre").trim(), nif=altaNif();
+          if(!nombre||!nif) throw new Error("La razón social y el NIF son obligatorios.");
+          const iban=val("e_iban").trim(); if(iban&&!ibanValido(iban)) throw new Error("El IBAN tiene un error: revisa los dígitos.");
+          let grupoId=null; if(document.getElementById("e_grupo")?.checked) grupoId=(await api("/grupos/actual")).id;
+          const origen=document.getElementById("e_copiar")?.checked?empresa.id:null;
+          const body={razonSocial:nombre,nif,regimenIva:val("e_regimen"),territorioFiscal:val("e_terr"),calle:val("e_calle")||null,codigoPostal:val("e_cp")||null,poblacion:val("e_pob")||null,provincia:val("e_prov")||null,
+            telefono:val("e_tel")||null,email:val("e_email")||null,web:val("e_web")||null,iban:iban||null,identificadorAcreedor:val("e_acreedor")||null,
+            metodoValoracion:val("e_valoracion"),controlRiesgo:val("e_riesgo"),grupoId};
+          if(cat){ body.edicion=val("e_edicion"); body.modulosAdicionales=[...document.querySelectorAll(".e_mod")].filter(c=>c.checked&&!c.disabled).map(c=>c.value); }
+          const nueva=await api("/empresas",{method:"POST",body:JSON.stringify(body)});
+          await activarEmpresa(nueva);
+          if(origen){ try{ const c=await api("/empresas/actual/copia");
+              const r=await api("/empresas/actual/copia",{method:"POST",body:JSON.stringify({origenEmpresaId:origen,elementos:c.elementos.map(e=>e.clave)})});
+              toast(`Empresa creada · copiados ${r.creados} elementos de la configuración.`,"ok"); ir("copiaconfig"); return; }
+            catch(e){ toast("Empresa creada, pero no se pudo copiar la configuración: "+e.message,"err"); return; } }
+          toast(grupoId?"Empresa creada en el grupo.":"Empresa creada.","ok"); });
+      document.querySelector(".modal").style.maxWidth="720px";
+      document.getElementById("modalOk").textContent="Crear empresa";
+      altaEdicion();
+    }
 
     /* Recuperación de contraseña (enlace por correo; en modo demo el token se muestra aquí) */
     function mostrarRecuperar(){
@@ -7582,7 +7645,7 @@
       agAccion(()=>api("/cooperativa/configuracion",{method:"PUT",body:JSON.stringify(d)}),"Ajustes guardados.",vCoopAjustes);
     }
 
-    function abrir(t,b,f){ document.getElementById("modalTitle").textContent=t; document.getElementById("modalBody").innerHTML=b; modalSave=f; document.getElementById("modalOk").textContent="Guardar"; document.getElementById("modalOk").style.display=""; document.getElementById("modalBg").style.display="grid"; }
+    function abrir(t,b,f){ document.querySelector(".modal").style.maxWidth=""; document.getElementById("modalTitle").textContent=t; document.getElementById("modalBody").innerHTML=b; modalSave=f; document.getElementById("modalOk").textContent="Guardar"; document.getElementById("modalOk").style.display=""; document.getElementById("modalBg").style.display="grid"; }
     function cerrarModal(){ document.getElementById("modalBg").style.display="none"; modalSave=null; }
     async function guardarModal(){ if(modalSave){ try{ await modalSave(); cerrarModal(); }catch(e){ alert(e.message); } } }
     const val=id=>document.getElementById(id).value;

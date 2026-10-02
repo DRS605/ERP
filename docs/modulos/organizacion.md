@@ -116,3 +116,21 @@ Identidad (emisión del token), Organización (resolución de permisos al selecc
   formato), `Empresa` y `Membresia`.
 - **Integración**: crear → listar → seleccionar → consultar empresa; crear/listar series; y
   **aislamiento multiempresa** (un usuario no puede seleccionar ni ver la empresa de otro).
+
+## Alta completa de una empresa
+
+`POST /empresas` acepta, además de NIF, razón social, dirección, régimen de IVA y grupo, todos los datos que luego se
+cambian en Ajustes: `territorioFiscal` (Comun / Canarias), `telefono`, `email`, `web`, `iban`, `identificadorAcreedor`,
+`edicion` y `modulosAdicionales`, `metodoValoracion` y `controlRiesgo`. El alta y esos datos van en **una sola
+transacción**: si alguno no vale (un IBAN con el control mal, una edición que no existe…) no se crea la empresa.
+
+La pantalla (**+ Nueva empresa**) lo pide por secciones —datos fiscales, domicilio, contacto, banco y SEPA, plan,
+almacén y riesgo, grupo— y rellena lo que se deduce:
+
+- la **forma jurídica** por la letra del NIF, y con ella el modo de contabilidad por defecto (completa para sociedades,
+  sencilla para personas físicas);
+- la **provincia** y el **territorio fiscal** por el código postal (35 y 38: Canarias, IGIC);
+- el **identificador de acreedor SEPA** a partir del NIF (`ES` + control + `000` + NIF), que se puede cambiar;
+- la comprobación del **IBAN** mientras se escribe.
+
+Con una empresa abierta se puede crear la nueva en su mismo grupo y copiarle su configuración en el mismo paso.

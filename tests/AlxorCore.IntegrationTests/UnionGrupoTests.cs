@@ -26,6 +26,10 @@ public sealed class UnionGrupoTests : IClassFixture<FabricaApiPruebas>
     private sealed record MaestroResp(string Clave, int Incorporados, List<string> Duplicados);
     private sealed record UnionResp(bool Ejecutada, List<MaestroResp> Maestros);
     private sealed record FacturaResp(Guid Id, Guid? ClienteId);
+    private sealed record EmpresaResp(Guid Id, string RazonSocial, string RegimenIva, string? Iban, string? IdentificadorAcreedor, string MetodoValoracion,
+        string ControlRiesgo, string Calle, string CodigoPostal, string Poblacion, string Provincia, string? Telefono, string? Web, string? EmailContacto,
+        string TerritorioFiscal);
+    private sealed record PlanResp(string Edicion, List<string> ModulosAdicionales);
 
     private static async Task<Guid> IdAsync(HttpClient api, string ruta, object cuerpo)
     {
@@ -130,5 +134,37 @@ public sealed class UnionGrupoTests : IClassFixture<FabricaApiPruebas>
         // Ya no es candidata: es del grupo.
         await SeleccionarAsync(api, a);
         (await api.GetFromJsonAsync<List<CandidataResp>>("/grupos/actual/union"))!.Should().NotContain(c => c.Id == e);
+    }
+
+    [Fact]
+    public async Task El_alta_guarda_todos_los_datos_de_la_empresa_y_no_deja_nada_a_medias()
+    {
+        var (api, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+        var nif = Ayudas.GenerarNif();
+
+        // Un IBAN mal escrito no crea la empresa: el NIF sigue libre.
+        var mala = await api.PostAsJsonAsync("/empresas", new { Nif = nif, RazonSocial = "Canaria SL", Iban = "ES9121000418450200051333" });
+        mala.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var id = await IdAsync(api, "/empresas", new
+        {
+            Nif = nif, RazonSocial = "Canaria SL", RegimenIva = "RecargoEquivalencia", TerritorioFiscal = "Canarias",
+            Calle = "Calle Mayor 1", CodigoPostal = "35001", Poblacion = "Las Palmas de Gran Canaria", Provincia = "Las Palmas",
+            Telefono = "928000000", Email = "admin@canaria.es", Web = "www.canaria.es",
+            Iban = "ES91 2100 0418 4502 0005 1332", IdentificadorAcreedor = "ES12000B12345678",
+            Edicion = "gestion", ModulosAdicionales = new[] { "agro" }, MetodoValoracion = "Fifo", ControlRiesgo = "Bloqueo",
+        });
+        await SeleccionarAsync(api, id);
+        var e = (await api.GetFromJsonAsync<EmpresaResp>("/empresas/actual"))!;
+        e.RegimenIva.Should().Be("RecargoEquivalencia");
+        e.TerritorioFiscal.Should().Be("Canarias");
+        (e.Calle, e.CodigoPostal, e.Poblacion, e.Provincia).Should().Be(("Calle Mayor 1", "35001", "Las Palmas de Gran Canaria", "Las Palmas"));
+        (e.Telefono, e.EmailContacto, e.Web).Should().Be(("928000000", "admin@canaria.es", "www.canaria.es"));
+        e.Iban.Should().Be("ES9121000418450200051332");
+        e.IdentificadorAcreedor.Should().Be("ES12000B12345678");
+        (e.MetodoValoracion, e.ControlRiesgo).Should().Be(("Fifo", "Bloqueo"));
+        var plan = (await api.GetFromJsonAsync<PlanResp>("/empresas/actual/plan"))!;
+        plan.Edicion.Should().Be("gestion");
+        plan.ModulosAdicionales.Should().Contain("agro");
     }
 }

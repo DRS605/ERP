@@ -195,7 +195,9 @@ public static class EndpointsOrganizacion
     }
 
     private static async Task<IResult> CrearAsync(CrearEmpresaPeticion peticion, ClaimsPrincipal usuario, CrearEmpresa caso, AlxorCore.Api.Comun.UnionGrupo union,
-        CancellationToken ct)
+        AlxorCore.Organizacion.Infraestructura.Persistencia.OrganizacionDbContext db, ActualizarTerritorioFiscal territorio,
+        ActualizarPlantillaDocumento plantilla, ActualizarDatosCobro cobro, CambiarPlan plan, ActualizarMetodoValoracion valoracion,
+        ActualizarControlRiesgo riesgo, CancellationToken ct)
     {
         var usuarioId = usuario.ObtenerUsuarioId();
         if (usuarioId is null)
@@ -209,12 +211,93 @@ public static class EndpointsOrganizacion
             return ResultadosHttp.AProblema(Error.Prohibido("grupo.sin_acceso", "Solo puedes crear la empresa en un grupo en el que gestionas alguna empresa."));
         }
 
+        var iban = string.IsNullOrWhiteSpace(peticion.Iban) ? null : new string(peticion.Iban.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant();
+        if (iban is not null && !IbanValido(iban))
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.iban_invalido", "El IBAN no es válido: revisa los dígitos."));
+        }
+
         var comando = new CrearEmpresaComando(
             usuarioId.Value, peticion.Nif, peticion.RazonSocial,
             peticion.Calle, peticion.CodigoPostal, peticion.Poblacion, peticion.Provincia, peticion.RegimenIva, peticion.GrupoId);
 
+        // El alta y el resto de datos de la empresa van juntos: si alguno no vale, no se crea nada.
+        await using var tx = await db.Database.BeginTransactionAsync(ct).ConfigureAwait(false);
         var resultado = await caso.EjecutarAsync(comando, ct).ConfigureAwait(false);
-        return resultado.EsCorrecto ? resultado.ACreado("/empresas/actual") : ResultadosHttp.AProblema(resultado.Error);
+        if (resultado.EsFallo)
+        {
+            return ResultadosHttp.AProblema(resultado.Error);
+        }
+
+        var id = resultado.Valor.Id;
+        var pasos = new List<Func<Task<Resultado>>>();
+        if (peticion.TerritorioFiscal is { } t)
+        {
+            pasos.Add(async () => await territorio.EjecutarAsync(id, new TerritorioFiscalComando(t), ct).ConfigureAwait(false));
+        }
+
+        if (peticion.Telefono is not null || peticion.Email is not null || peticion.Web is not null)
+        {
+            pasos.Add(async () => await plantilla.EjecutarAsync(id, new PlantillaDocumentoComando(peticion.RazonSocial, peticion.Calle, peticion.CodigoPostal,
+                peticion.Poblacion, peticion.Provincia, Vacio(peticion.Telefono), Vacio(peticion.Web), Vacio(peticion.Email), null, null, null), ct).ConfigureAwait(false));
+        }
+
+        if (iban is not null || !string.IsNullOrWhiteSpace(peticion.IdentificadorAcreedor))
+        {
+            pasos.Add(async () => await cobro.EjecutarAsync(id, new DatosCobroComando(iban, Vacio(peticion.IdentificadorAcreedor)?.ToUpperInvariant()), ct).ConfigureAwait(false));
+        }
+
+        if (!string.IsNullOrWhiteSpace(peticion.Edicion))
+        {
+            pasos.Add(async () => await plan.EjecutarAsync(id, new CambiarPlanComando(peticion.Edicion, peticion.ModulosAdicionales), ct).ConfigureAwait(false));
+        }
+
+        if (peticion.MetodoValoracion is { } mv)
+        {
+            pasos.Add(async () => await valoracion.EjecutarAsync(id, new MetodoValoracionComando(mv), ct).ConfigureAwait(false));
+        }
+
+        if (peticion.ControlRiesgo is { } cr)
+        {
+            pasos.Add(async () => await riesgo.EjecutarAsync(id, new ControlRiesgoComando(cr), ct).ConfigureAwait(false));
+        }
+
+        foreach (var paso in pasos)
+        {
+            var r = await paso().ConfigureAwait(false);
+            if (r.EsFallo)
+            {
+                return ResultadosHttp.AProblema(r.Error);
+            }
+        }
+
+        await tx.CommitAsync(ct).ConfigureAwait(false);
+        return resultado.ACreado("/empresas/actual");
+    }
+
+    private static string? Vacio(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+
+    /// <summary>IBAN con su control ISO 13616 (mod 97 = 1).</summary>
+    private static bool IbanValido(string iban)
+    {
+        if (iban.Length is < 15 or > 34 || !char.IsLetter(iban[0]) || !char.IsLetter(iban[1]) || !char.IsDigit(iban[2]) || !char.IsDigit(iban[3]))
+        {
+            return false;
+        }
+
+        var resto = 0;
+        foreach (var c in iban[4..] + iban[..4])
+        {
+            var v = char.IsDigit(c) ? c - '0' : char.IsLetter(c) ? c - 'A' + 10 : -1;
+            if (v < 0)
+            {
+                return false;
+            }
+
+            resto = v >= 10 ? (resto * 100 + v) % 97 : (resto * 10 + v) % 97;
+        }
+
+        return resto == 1;
     }
 
     private static async Task<IResult> ListarMiasAsync(ClaimsPrincipal usuario, ListarMisEmpresas caso, CancellationToken ct)
