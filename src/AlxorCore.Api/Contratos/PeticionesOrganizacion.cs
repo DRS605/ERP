@@ -21,7 +21,9 @@ public sealed record CrearEmpresaPeticion(
     string? Edicion = null,
     IReadOnlyList<string>? ModulosAdicionales = null,
     AlxorCore.Nucleo.Comun.MetodoValoracion? MetodoValoracion = null,
-    AlxorCore.Nucleo.Comun.ControlRiesgo? ControlRiesgo = null);
+    AlxorCore.Nucleo.Comun.ControlRiesgo? ControlRiesgo = null,
+    PerfilFiscal? PerfilFiscal = null,
+    AlxorCore.Api.Endpoints.ProrrataFicha? Prorrata = null);
 
 /// <summary>Cuerpo para crear una serie de numeración.</summary>
 public sealed record CrearSeriePeticion(TipoDocumento TipoDocumento, int Ejercicio, string Prefijo);

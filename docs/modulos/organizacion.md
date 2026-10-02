@@ -134,3 +134,44 @@ almacén y riesgo, grupo— y rellena lo que se deduce:
 - la comprobación del **IBAN** mientras se escribe.
 
 Con una empresa abierta se puede crear la nueva en su mismo grupo y copiarle su configuración en el mismo paso.
+
+## Ficha fiscal y calendario de vencimientos
+
+Cada empresa tiene una **ficha fiscal** (`PerfilFiscal`, columna `perfil_fiscal` jsonb de `organizacion.empresa`), en
+**Ajustes → Datos fiscales** y en el alta:
+
+- **Identificación**: nombre comercial, CNAE (4 cifras), epígrafe del IAE, fecha de constitución e inicio de actividad,
+  mes en que empieza el ejercicio, datos registrales (Registro Mercantil, tomo, folio, hoja) y administradores o
+  representantes (nombre, NIF, cargo).
+- **Cómo tributa**: periodicidad (trimestral o mensual), gran empresa, REDEME, criterio de caja y SII con su fecha de
+  alta. Las grandes empresas y las del REDEME tienen que declarar cada mes y estar en el SII (si no, 400).
+- **Modelos que presenta**, del catálogo `PerfilFiscal.Catalogo`: 303, 390, 420, 425, 349, 347, 111, 190, 115, 180,
+  123, 193, 130, 131, 200, 202, 184 y 232. `GET /modelos-fiscales?nif=&territorio=&sii=` propone los habituales: el
+  impuesto de su territorio (303/390 o 420/425), 347 y 390 si no está en el SII, 111/190, y 200/202 si es sociedad,
+  184 si es una entidad en atribución de rentas o 130 si es persona física.
+- La **prorrata** sigue siendo por ejercicio (`/impuestos/prorrata/{ejercicio}`); el alta y `PUT /empresas/actual/perfil-fiscal`
+  aceptan la del año en curso (`prorrata: { regimen, porcentajeProvisional }`; régimen nulo la quita).
+
+`GET /empresas/actual/calendario-fiscal?anio=` da los **vencimientos del año** de los modelos marcados con los plazos
+generales de la AEAT: trimestrales del 1 al 20 de abril, julio y octubre y hasta el 30 de enero el 4T (el 20 las
+retenciones); mensuales hasta el 20 del mes siguiente (el 303 y el 420, hasta el último día), julio en septiembre;
+390 y 425 el 30 de enero, 190/180/193/184 el 31, 347 en febrero, 200 en los 25 días siguientes a los seis meses del
+cierre, 202 en abril, octubre y diciembre y 232 el mes siguiente a los diez meses del cierre. Un plazo que acaba en fin
+de semana pasa al lunes; los festivos no se tienen en cuenta. La pantalla **Contabilidad → Calendario fiscal** lo
+enseña con su estado (pasado, en plazo, próximo), y **Libros de IVA y modelos** solo muestra los modelos que presenta la
+empresa, con los próximos vencimientos arriba.
+
+### Mismo NIF en la Península y en Canarias
+
+Una empresa con establecimientos en los dos territorios marca en su ficha **«Opera en la Península y en Canarias con el
+mismo NIF»** (`operaEnAmbosTerritorios`). Entonces:
+
+- cada factura (y ticket) va con **IVA o con IGIC según los tipos de sus líneas**: las ventas desde Canarias con IGIC 7,
+  3, 0…, las de la Península con IVA 21, 10, 4… (sin tipos, con el de su territorio principal). Una factura **nunca mezcla**
+  los dos impuestos: se hace una por territorio, y conviene una serie para cada uno;
+- `/tipos-iva` ofrece los tipos de los dos impuestos y la pantalla los propone en las líneas;
+- el **303** suma solo lo facturado con IVA y el **420** solo lo facturado con IGIC; los gastos ya iban por el código de
+  cada línea. Impuestos enseña los dos modelos, y la propuesta de modelos incluye 303/390 y 420/425;
+- al **SII de la AEAT** solo van las facturas y los gastos con IVA; los del IGIC son de la Agencia Tributaria Canaria.
+
+El territorio de la empresa sigue siendo el principal (el de su domicilio fiscal y el impuesto por defecto).

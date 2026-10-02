@@ -50,6 +50,23 @@ public sealed record EmitirFacturaComando(
 /// </summary>
 public sealed class EmitirFactura
 {
+    /// <summary>
+    /// Impuesto de la factura: el del territorio de la empresa. Si opera en los dos territorios con el mismo NIF, el de los
+    /// tipos que lleven las líneas (IGIC en una venta desde Canarias, IVA en una desde la Península); sin tipos, el de su
+    /// territorio principal. Una misma factura nunca mezcla los dos impuestos.
+    /// </summary>
+    public static TipoImpuesto ImpuestoDeLaOperacion(EmpresaDto? empresa, IEnumerable<string?> codigosLineas)
+    {
+        var principal = empresa?.ImpuestoIndirecto ?? TipoImpuesto.Iva;
+        if (empresa is not { OperaEnAmbosTerritorios: true })
+        {
+            return principal;
+        }
+
+        var primero = codigosLineas.FirstOrDefault(c => !string.IsNullOrWhiteSpace(c));
+        return primero is null ? principal : Impuesto.TipoDeCodigo(primero.Trim().ToUpperInvariant());
+    }
+
     private readonly IConsultaClientes _clientes;
     private readonly IConsultaProductos _productos;
     private readonly IResolverSerie _resolverSerie;
@@ -184,7 +201,7 @@ public sealed class EmitirFactura
         }
 
         var fechaPrecio = comando.FechaOperacion ?? comando.FechaEmision ?? DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
-        var impuesto = (await _empresas.ObtenerAsync(empresaId, ct).ConfigureAwait(false))?.ImpuestoIndirecto ?? TipoImpuesto.Iva;
+        var impuesto = ImpuestoDeLaOperacion(await _empresas.ObtenerAsync(empresaId, ct).ConfigureAwait(false), comando.Lineas.Select(l => l.CodigoIva));
         var resolucion = await ResolucionLineasFactura.ResolverAsync(comando.Lineas, _productos, ct, comando.RecargoEquivalencia, empresaId, _resolverIva,
             (producto, cantidad, c) => _precios.ResolverAsync(cliente.TarifaId, producto, cantidad, fechaPrecio, c), impuesto).ConfigureAwait(false);
         if (resolucion.EsFallo)
@@ -503,8 +520,9 @@ internal static class ResolucionLineasFactura
             if (impuestoEmpresa is { } esperado && impuestoLinea != esperado)
             {
                 return Resultado.Fallo<List<NuevaLinea>>(Error.Validacion("factura.impuesto_territorio",
-                    $"El tipo {codigoResuelto} es de {impuestoLinea.Siglas()}, pero la empresa tributa por {esperado.Siglas()}" +
-                    (esperado == TipoImpuesto.Igic ? " (Canarias)." : ".")));
+                    $"El tipo {codigoResuelto} es de {impuestoLinea.Siglas()}, pero esta factura va con {esperado.Siglas()}" +
+                    (esperado == TipoImpuesto.Igic ? " (Canarias)" : "") +
+                    ". Una factura no mezcla IVA e IGIC: si la empresa opera en los dos territorios, haz una factura para cada uno."));
             }
 
             if (impuestoLinea == TipoImpuesto.Igic)

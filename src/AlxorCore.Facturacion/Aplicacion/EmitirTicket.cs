@@ -105,7 +105,7 @@ public sealed class EmitirTicket
             ? await _formasPago.ObtenerAsync(fpid, ct).ConfigureAwait(false)
             : null;
 
-        var impuesto = (await _empresas.ObtenerAsync(empresaId, ct).ConfigureAwait(false))?.ImpuestoIndirecto ?? TipoImpuesto.Iva;
+        var impuesto = EmitirFactura.ImpuestoDeLaOperacion(await _empresas.ObtenerAsync(empresaId, ct).ConfigureAwait(false), comando.Lineas.Select(l => l.CodigoIva));
         var resolucion = await ResolucionLineasFactura.ResolverAsync(comando.Lineas, _productos, ct, false, empresaId, _resolverIva, impuestoEmpresa: impuesto).ConfigureAwait(false);
         if (resolucion.EsFallo)
         {

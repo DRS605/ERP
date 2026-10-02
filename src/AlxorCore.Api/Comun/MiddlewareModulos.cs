@@ -50,7 +50,7 @@ public static class RutasModulos
     /// <summary>Prefijos de la base (en todas las ediciones). Solo sirven para el test de clasificación.</summary>
     public static IReadOnlyList<string> Base { get; } =
     [
-        "/auth", "/empresas", "/grupos", "/intragrupo", "/planes", "/usuarios", "/roles", "/cuenta", "/series", "/formas-pago", "/actividades",
+        "/auth", "/empresas", "/modelos-fiscales", "/grupos", "/intragrupo", "/planes", "/usuarios", "/roles", "/cuenta", "/series", "/formas-pago", "/actividades",
         "/clientes", "/proveedores", "/productos", "/familias", "/conceptos-linea", "/tipos-iva", "/impuestos", "/tickets",
         "/facturas", "/facturas-recurrentes", "/gastos", "/recepcion", "/cobros", "/pagos", "/cuentas-bancarias", "/anticipos", "/impagados",
         "/informes", "/analisis", "/auditoria", "/importar", "/migracion", "/cartera", "/exportar", "/salud", "/swagger",

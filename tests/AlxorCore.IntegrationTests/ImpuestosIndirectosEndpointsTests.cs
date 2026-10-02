@@ -104,7 +104,7 @@ public sealed class ImpuestosIndirectosEndpointsTests : IClassFixture<FabricaApi
 
         var iva = await FacturarAsync(api, cliente, Dia(3, 11), (100m, "IVA21"));
         iva.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        (await iva.Content.ReadFromJsonAsync<ProblemaResp>())!.Title.Should().Be("El tipo IVA21 es de IVA, pero la empresa tributa por IGIC (Canarias).");
+        (await iva.Content.ReadFromJsonAsync<ProblemaResp>())!.Title.Should().Be("El tipo IVA21 es de IVA, pero esta factura va con IGIC (Canarias). Una factura no mezcla IVA e IGIC: si la empresa opera en los dos territorios, haz una factura para cada uno.");
 
         var xml = await api.GetStringAsync(new Uri($"/facturas/{f.Id}/verifactu.xml", UriKind.Relative));
         xml.Should().Contain("<Impuesto>03</Impuesto>", "en VeriFactu el IGIC es la clave 03");

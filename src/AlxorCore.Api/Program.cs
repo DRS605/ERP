@@ -313,6 +313,7 @@ app.MapearCartasPorte();
 app.MapearTransporteYAduanas();
 app.MapearIntragrupo();
 app.MapearCopiaConfiguracion();
+app.MapearPerfilFiscal();
 app.MapearGastos();
 app.MapearRecepcion();
 app.MapearContabilidad();

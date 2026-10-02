@@ -259,6 +259,25 @@ public sealed class Empresa : RaizAgregado<Guid>
         ActualizadoEn = reloj.AhoraUtc;
     }
 
+    /// <summary>Ficha fiscal: identificación, cómo tributa y qué modelos presenta.</summary>
+    public PerfilFiscal PerfilFiscal { get; private set; } = PerfilFiscal.Vacio;
+
+    /// <summary>Guarda la ficha fiscal (validada y normalizada).</summary>
+    public Resultado EstablecerPerfilFiscal(PerfilFiscal perfil, IReloj reloj)
+    {
+        ArgumentNullException.ThrowIfNull(perfil);
+        ArgumentNullException.ThrowIfNull(reloj);
+        var valido = perfil.Validar();
+        if (valido.EsFallo)
+        {
+            return Resultado.Fallo(valido.Error);
+        }
+
+        PerfilFiscal = valido.Valor;
+        ActualizadoEn = reloj.AhoraUtc;
+        return Resultado.Ok();
+    }
+
     /// <summary>Fija el territorio fiscal. Las facturas ya emitidas conservan el impuesto con el que se emitieron.</summary>
     public void EstablecerTerritorioFiscal(TerritorioFiscal territorio, IReloj reloj)
     {

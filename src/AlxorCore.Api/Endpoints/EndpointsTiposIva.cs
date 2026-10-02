@@ -46,7 +46,14 @@ public static class EndpointsTiposIva
         }
 
         // Se siembran los tipos del impuesto de la empresa: IVA, o IGIC si está en Canarias.
-        var impuesto = (await empresas.ObtenerAsync(contexto.EmpresaId.Value, ct).ConfigureAwait(false))?.ImpuestoIndirecto ?? TipoImpuesto.Iva;
+        var empresa = await empresas.ObtenerAsync(contexto.EmpresaId.Value, ct).ConfigureAwait(false);
+        var impuesto = empresa?.ImpuestoIndirecto ?? TipoImpuesto.Iva;
+        // Con actividad en los dos territorios se siembran también los tipos del otro impuesto.
+        if (empresa is { OperaEnAmbosTerritorios: true })
+        {
+            await caso.EjecutarAsync(contexto.EmpresaId.Value, impuesto == TipoImpuesto.Igic ? TipoImpuesto.Iva : TipoImpuesto.Igic, ct).ConfigureAwait(false);
+        }
+
         return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, impuesto, ct).ConfigureAwait(false));
     }
 

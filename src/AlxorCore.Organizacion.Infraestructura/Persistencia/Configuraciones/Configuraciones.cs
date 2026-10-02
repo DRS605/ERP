@@ -7,6 +7,11 @@ namespace AlxorCore.Organizacion.Infraestructura.Persistencia.Configuraciones;
 
 internal sealed class ConfiguracionEmpresa : IEntityTypeConfiguration<Empresa>
 {
+    private static readonly System.Text.Json.JsonSerializerOptions OpcionesPerfil = new()
+    {
+        Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() },
+    };
+
     public void Configure(EntityTypeBuilder<Empresa> builder)
     {
         builder.ToTable("empresa");
@@ -57,6 +62,14 @@ internal sealed class ConfiguracionEmpresa : IEntityTypeConfiguration<Empresa>
         builder.Property(e => e.ColorPrincipal).HasColumnName("color_principal").HasMaxLength(7);
         builder.Property(e => e.TextoPie).HasColumnName("texto_pie").HasMaxLength(Empresa.LongitudMaximaTexto);
         builder.Property(e => e.LogoPng).HasColumnName("logo_png").HasColumnType("bytea");
+        builder.Property(e => e.PerfilFiscal).HasColumnName("perfil_fiscal").HasColumnType("jsonb").HasDefaultValueSql("'{}'::jsonb").IsRequired()
+            .HasConversion(
+                v => System.Text.Json.JsonSerializer.Serialize(v, OpcionesPerfil),
+                s => System.Text.Json.JsonSerializer.Deserialize<PerfilFiscal>(s, OpcionesPerfil) ?? PerfilFiscal.Vacio,
+                new Microsoft.EntityFrameworkCore.ChangeTracking.ValueComparer<PerfilFiscal>(
+                    (a, b) => System.Text.Json.JsonSerializer.Serialize(a, OpcionesPerfil) == System.Text.Json.JsonSerializer.Serialize(b, OpcionesPerfil),
+                    v => System.Text.Json.JsonSerializer.Serialize(v, OpcionesPerfil).GetHashCode(StringComparison.Ordinal),
+                    v => v));
         builder.Property(e => e.CreadoEn).HasColumnName("creado_en").IsRequired();
         builder.Property(e => e.ActualizadoEn).HasColumnName("actualizado_en").IsRequired();
 

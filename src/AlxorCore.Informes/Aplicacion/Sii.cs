@@ -153,7 +153,8 @@ public sealed class GenerarSii
         if (tipo == TipoLibroSii.Emitidas)
         {
             var todas = (await _facturas.ListarAsync(empresaId, ct).ConfigureAwait(false))
-                .Where(f => f.FechaEmision >= desde && f.FechaEmision <= hasta)
+                // Con actividad en los dos territorios, al SII de la AEAT solo van las del IVA (las del IGIC son de la Agencia Tributaria Canaria).
+                .Where(f => f.FechaEmision >= desde && f.FechaEmision <= hasta && (!empresa.OperaEnAmbosTerritorios || f.Impuesto == TipoImpuesto.Iva))
                 .OrderBy(f => f.FechaEmision).ThenBy(f => f.NumeroCompleto, StringComparer.Ordinal).ToList();
 
             // Desglose por tipo impositivo de cada factura (un DetalleIVA por tipo, no un tipo medio).
@@ -210,7 +211,8 @@ public sealed class GenerarSii
         }
 
         var gastos = (await _gastos.ListarAsync(empresaId, ct).ConfigureAwait(false))
-            .Where(g => g.Fecha >= desde && g.Fecha <= hasta).OrderBy(g => g.Fecha).ThenBy(g => g.Id).ToList();
+            .Where(g => g.Fecha >= desde && g.Fecha <= hasta && (!empresa.OperaEnAmbosTerritorios || Impuesto.TipoDeCodigo(g.CodigoIva) == TipoImpuesto.Iva))
+            .OrderBy(g => g.Fecha).ThenBy(g => g.Id).ToList();
         var proveedores = new Dictionary<Guid, ProveedorDto>();
         foreach (var id in gastos.Where(g => g.ProveedorId is not null).Select(g => g.ProveedorId!.Value).Distinct())
         {

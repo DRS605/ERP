@@ -7,6 +7,7 @@ using AlxorCore.Organizacion.Aplicacion;
 using AlxorCore.Organizacion.Aplicacion.CasosDeUso;
 using AlxorCore.Organizacion.Aplicacion.Puertos;
 using System.Security.Claims;
+using Microsoft.EntityFrameworkCore;
 
 namespace AlxorCore.Api.Endpoints;
 
@@ -197,7 +198,7 @@ public static class EndpointsOrganizacion
     private static async Task<IResult> CrearAsync(CrearEmpresaPeticion peticion, ClaimsPrincipal usuario, CrearEmpresa caso, AlxorCore.Api.Comun.UnionGrupo union,
         AlxorCore.Organizacion.Infraestructura.Persistencia.OrganizacionDbContext db, ActualizarTerritorioFiscal territorio,
         ActualizarPlantillaDocumento plantilla, ActualizarDatosCobro cobro, CambiarPlan plan, ActualizarMetodoValoracion valoracion,
-        ActualizarControlRiesgo riesgo, CancellationToken ct)
+        ActualizarControlRiesgo riesgo, PerfilFiscalEmpresa perfil, ConfigurarProrrata prorrata, CancellationToken ct)
     {
         var usuarioId = usuario.ObtenerUsuarioId();
         if (usuarioId is null)
@@ -260,6 +261,21 @@ public static class EndpointsOrganizacion
         if (peticion.ControlRiesgo is { } cr)
         {
             pasos.Add(async () => await riesgo.EjecutarAsync(id, new ControlRiesgoComando(cr), ct).ConfigureAwait(false));
+        }
+
+        if (peticion.PerfilFiscal is { } pf)
+        {
+            pasos.Add(async () => await perfil.GuardarAsync(id, pf, ct).ConfigureAwait(false));
+        }
+
+        if (peticion.Prorrata is { Regimen: not null } pr)
+        {
+            pasos.Add(async () =>
+            {
+                // La prorrata es de la empresa nueva: la seguridad por empresa de la base de datos tiene que verla ya como activa.
+                await db.Database.ExecuteSqlInterpolatedAsync($"SELECT set_config('app.empresa_actual', {id.ToString("D")}, true)", ct).ConfigureAwait(false);
+                return await prorrata.EjecutarAsync(id, DateTime.Today.Year, new ConfigurarProrrataComando(pr.Regimen, pr.PorcentajeProvisional), ct).ConfigureAwait(false);
+            });
         }
 
         foreach (var paso in pasos)

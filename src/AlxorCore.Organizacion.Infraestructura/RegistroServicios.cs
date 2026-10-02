@@ -71,6 +71,7 @@ public static class RegistroServicios
         servicios.AddScoped<ActualizarMetodoValoracion>();
         servicios.AddScoped<ActualizarControlRiesgo>();
         servicios.AddScoped<ActualizarTerritorioFiscal>();
+        servicios.AddScoped<PerfilFiscalEmpresa>();
         servicios.AddScoped<ConsultarPlan>();
         servicios.AddScoped<CambiarPlan>();
         servicios.AddScoped<ListarMisEmpresas>();

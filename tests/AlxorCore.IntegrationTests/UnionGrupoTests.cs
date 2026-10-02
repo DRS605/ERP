@@ -30,6 +30,12 @@ public sealed class UnionGrupoTests : IClassFixture<FabricaApiPruebas>
         string ControlRiesgo, string Calle, string CodigoPostal, string Poblacion, string Provincia, string? Telefono, string? Web, string? EmailContacto,
         string TerritorioFiscal);
     private sealed record PlanResp(string Edicion, List<string> ModulosAdicionales);
+    private sealed record AdminResp(string Nombre, string? Nif, string? Cargo);
+    private sealed record PerfilResp(string? NombreComercial, string? Cnae, string? DatosRegistrales, string Periodicidad, bool Sii, DateOnly? FechaAltaSii,
+        List<string> Modelos, List<AdminResp> Administradores, int MesInicioEjercicio);
+    private sealed record ProrrataResp(int Ejercicio, string Regimen, int PorcentajeProvisional);
+    private sealed record FichaResp(PerfilResp Perfil, ProrrataResp? Prorrata, List<string> Sugeridos);
+    private sealed record VencimientoResp(string Modelo, string Periodo, DateOnly Hasta);
 
     private static async Task<Guid> IdAsync(HttpClient api, string ruta, object cuerpo)
     {
@@ -153,6 +159,14 @@ public sealed class UnionGrupoTests : IClassFixture<FabricaApiPruebas>
             Telefono = "928000000", Email = "admin@canaria.es", Web = "www.canaria.es",
             Iban = "ES91 2100 0418 4502 0005 1332", IdentificadorAcreedor = "ES12000B12345678",
             Edicion = "gestion", ModulosAdicionales = new[] { "agro" }, MetodoValoracion = "Fifo", ControlRiesgo = "Bloqueo",
+            PerfilFiscal = new
+            {
+                NombreComercial = "Cítricos Canarios", Cnae = "4631", DatosRegistrales = "Registro Mercantil de Las Palmas, tomo 1, folio 2, hoja GC-3",
+                Periodicidad = "Mensual", Sii = true, FechaAltaSii = new DateOnly(DateTime.Today.Year, 1, 1),
+                Modelos = new[] { "420", "425", "111", "190", "200", "202" },
+                Administradores = new[] { new { Nombre = "Ana García", Nif = "12345678Z", Cargo = "Administradora única" } },
+            },
+            Prorrata = new { Regimen = "General", PorcentajeProvisional = 80 },
         });
         await SeleccionarAsync(api, id);
         var e = (await api.GetFromJsonAsync<EmpresaResp>("/empresas/actual"))!;
@@ -166,5 +180,24 @@ public sealed class UnionGrupoTests : IClassFixture<FabricaApiPruebas>
         var plan = (await api.GetFromJsonAsync<PlanResp>("/empresas/actual/plan"))!;
         plan.Edicion.Should().Be("gestion");
         plan.ModulosAdicionales.Should().Contain("agro");
+
+        var ficha = (await api.GetFromJsonAsync<FichaResp>("/empresas/actual/perfil-fiscal"))!;
+        ficha.Perfil.NombreComercial.Should().Be("Cítricos Canarios");
+        ficha.Perfil.Modelos.Should().Equal("420", "425", "111", "190", "200", "202");
+        ficha.Perfil.Administradores.Should().ContainSingle().Which.Cargo.Should().Be("Administradora única");
+        ficha.Prorrata!.PorcentajeProvisional.Should().Be(80);
+        ficha.Sugeridos.Should().Contain("420").And.NotContain("303");
+
+        // El calendario mensual: doce 420 con vencimiento este año.
+        var cal = (await api.GetFromJsonAsync<List<VencimientoResp>>($"/empresas/actual/calendario-fiscal?anio={DateTime.Today.Year}"))!;
+        cal.Count(v => v.Modelo == "420").Should().Be(12);
+
+        // Una ficha incoherente no se guarda; una buena, sí (y sin prorrata se quita).
+        (await api.PutAsJsonAsync("/empresas/actual/perfil-fiscal", new { Perfil = new { GranEmpresa = true } })).StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var put = await api.PutAsJsonAsync("/empresas/actual/perfil-fiscal", new { Perfil = new { Cnae = "0123", Modelos = new[] { "420" } }, Prorrata = new { Regimen = (string?)null, PorcentajeProvisional = 100 } });
+        put.IsSuccessStatusCode.Should().BeTrue(await put.Content.ReadAsStringAsync());
+        ficha = (await api.GetFromJsonAsync<FichaResp>("/empresas/actual/perfil-fiscal"))!;
+        (ficha.Perfil.Cnae, ficha.Perfil.Periodicidad, ficha.Perfil.Sii).Should().Be(("0123", "Trimestral", false));
+        ficha.Prorrata.Should().BeNull();
     }
 }
