@@ -69,6 +69,12 @@ public class FabricaApiPruebas : WebApplicationFactory<Program>, IAsyncLifetime
                 ["Webhooks:Activo"] = "false",
                 // Límite de autenticación alto por defecto: la batería hace muchos logins desde el mismo cliente.
                 ["Seguridad:RateLimitPeticiones"] = "100000",
+                // SII-IGIC de la Agencia Tributaria Canaria con direcciones de prueba (el transporte es falso: no sale a la red).
+                ["Sii:Atc:EspacioNombres"] = "https://atc.prueba.invalid/sii-igic/ws",
+                ["Sii:Atc:ServidorPruebas"] = "https://pruebas.atc.prueba.invalid",
+                ["Sii:Atc:ServidorProduccion"] = "https://atc.prueba.invalid",
+                ["Sii:Atc:RutaEmitidas"] = "/sii-igic/fe",
+                ["Sii:Atc:RutaRecibidas"] = "/sii-igic/fr",
             });
         });
 

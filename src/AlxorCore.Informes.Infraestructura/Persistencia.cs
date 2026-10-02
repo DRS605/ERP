@@ -150,12 +150,13 @@ internal sealed class TransporteSiiHttp : ITransporteSii
 {
     private static readonly TimeSpan Tiempo = TimeSpan.FromSeconds(120);
 
-    public async Task<RespuestaTransporteSii> EnviarAsync(TipoLibroSii libro, EntornoSii entorno, X509Certificate2 certificado, string sobreSoap, CancellationToken ct = default)
+    public async Task<RespuestaTransporteSii> EnviarAsync(Uri destino, TipoLibroSii libro, EntornoSii entorno, X509Certificate2 certificado, string sobreSoap,
+        CancellationToken ct = default)
     {
         using var manejador = new HttpClientHandler { ClientCertificateOptions = ClientCertificateOption.Manual };
         manejador.ClientCertificates.Add(certificado);
         using var cliente = new HttpClient(manejador) { Timeout = Tiempo };
-        using var peticion = new HttpRequestMessage(HttpMethod.Post, DireccionesSii.Url(libro, entorno))
+        using var peticion = new HttpRequestMessage(HttpMethod.Post, destino)
         {
             Content = new StringContent(sobreSoap, Encoding.UTF8, "text/xml"),
         };
@@ -168,18 +169,18 @@ internal sealed class TransporteSiiHttp : ITransporteSii
             // Un Fault SOAP llega con HTTP 500 y cuerpo: se interpreta arriba. Sin cuerpo XML es un error de comunicación.
             if (respuesta.StatusCode != HttpStatusCode.OK && !cuerpo.TrimStart().StartsWith('<'))
             {
-                return new RespuestaTransporteSii((int)respuesta.StatusCode, cuerpo, $"La AEAT respondió HTTP {(int)respuesta.StatusCode}.");
+                return new RespuestaTransporteSii((int)respuesta.StatusCode, cuerpo, $"{destino.Host} respondió HTTP {(int)respuesta.StatusCode}.");
             }
 
             return new RespuestaTransporteSii((int)respuesta.StatusCode, cuerpo, null);
         }
         catch (HttpRequestException ex)
         {
-            return new RespuestaTransporteSii(null, null, "No se pudo conectar con la AEAT: " + ex.Message);
+            return new RespuestaTransporteSii(null, null, $"No se pudo conectar con {destino.Host}: " + ex.Message);
         }
         catch (TaskCanceledException) when (!ct.IsCancellationRequested)
         {
-            return new RespuestaTransporteSii(null, null, "La AEAT no respondió a tiempo.");
+            return new RespuestaTransporteSii(null, null, $"{destino.Host} no respondió a tiempo.");
         }
     }
 }

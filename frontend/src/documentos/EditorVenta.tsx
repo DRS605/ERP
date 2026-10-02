@@ -66,7 +66,10 @@ export function EditorVenta(props: { tipo: TipoVenta; id?: string | null; semill
   const [conceptosDoc, setConceptosDoc] = useState<ConceptoSolicitado[]>([]);
   // Empresa con actividad en la Península y en Canarias (mismo NIF): cada factura va con IVA o con IGIC.
   const [ambos, setAmbos] = useState(false);
-  const [territorio, setTerritorio] = useState<"Iva" | "Igic">("Iva");
+  // Un documento de partida (editar, duplicar, convertir) conserva el impuesto de sus líneas.
+  const territorioSemilla: "Iva" | "Igic" | null = props.semilla?.lineas.some((l) => /^(IGIC|REAGPIGIC)/i.test(l.codigoIva ?? "")) ? "Igic"
+    : props.semilla?.lineas.length ? "Iva" : null;
+  const [territorio, setTerritorio] = useState<"Iva" | "Igic">(territorioSemilla ?? "Iva");
 
   const [calculo, setCalculo] = useState<Factura | null>(null);
   const [errorCalculo, setErrorCalculo] = useState("");
@@ -89,7 +92,7 @@ export function EditorVenta(props: { tipo: TipoVenta; id?: string | null; semill
     api.get<{ prefijo: string; tipoDocumento: string }[]>("/series").then((s) => setSeries([...new Set(s.filter((x) => x.tipoDocumento === "Factura").map((x) => x.prefijo))])).catch(() => setSeries([]));
     api.get<ConceptoCatalogo[]>("/conceptos-linea?ambito=Ventas&activos=true").then(setCatalogo).catch(() => setCatalogo([]));
     api.get<{ territorioFiscal: string; operaEnAmbosTerritorios?: boolean }>("/empresas/actual")
-      .then((e) => { setAmbos(!!e.operaEnAmbosTerritorios); setTerritorio(e.territorioFiscal === "Canarias" ? "Igic" : "Iva"); })
+      .then((e) => { setAmbos(!!e.operaEnAmbosTerritorios); setTerritorio(territorioSemilla ?? (e.territorioFiscal === "Canarias" ? "Igic" : "Iva")); })
       .catch(() => setAmbos(false));
   }, [api]);
 
@@ -155,7 +158,7 @@ export function EditorVenta(props: { tipo: TipoVenta; id?: string | null; semill
       recargoEquivalencia: recargo,
       porcentajeIrpf: irpf,
       conceptosDocumento: conceptosDoc,
-      impuesto: ambos && props.tipo === "factura" ? territorio : null,
+      impuesto: ambos && !rectificativa ? territorio : null,
       descontarAnticipos: descontar && facturados.length ? facturados.map((a) => ({ anticipoId: a.id })) : null,
       lineas: validas.map(({ l }) => ({
         cantidad: l.cantidad,
@@ -267,10 +270,10 @@ export function EditorVenta(props: { tipo: TipoVenta; id?: string | null; semill
           return;
         }
       } else if (props.tipo === "presupuesto") {
-        const cuerpo = { clienteId, diasValidez: validez, lineas: lineasFijas, conceptosDocumento: conceptosDoc };
+        const cuerpo = { clienteId, diasValidez: validez, lineas: lineasFijas, conceptosDocumento: conceptosDoc, impuesto: comando.impuesto };
         id = props.id ? (await api.put<{ id: string }>(`/presupuestos/${props.id}`, cuerpo)).id : (await api.post<{ id: string }>("/presupuestos", cuerpo)).id;
       } else {
-        const cuerpo = { clienteId, fecha, lineas: lineasFijas, conceptosDocumento: conceptosDoc };
+        const cuerpo = { clienteId, fecha, lineas: lineasFijas, conceptosDocumento: conceptosDoc, impuesto: comando.impuesto };
         id = props.id ? (await api.put<{ id: string }>(`/pedidos-venta/${props.id}`, cuerpo)).id : (await api.post<{ id: string }>("/pedidos-venta", cuerpo)).id;
       }
       anfitrion.aviso(props.tipo === "factura" ? "Factura emitida." : "Documento guardado.", "ok");
@@ -318,7 +321,7 @@ export function EditorVenta(props: { tipo: TipoVenta; id?: string | null; semill
                   </select>
                 </div>
               )}
-              {props.tipo === "factura" && ambos && (
+              {ambos && !rectificativa && (
                 <div>
                   <label>Territorio de la operación</label>
                   <select value={territorio} onChange={(e) => cambiarTerritorio(e.target.value as "Iva" | "Igic")}>

@@ -49,7 +49,8 @@ public interface IConsultaPresupuestos
 }
 
 /// <summary>Datos para crear o actualizar un presupuesto.</summary>
-public sealed record DatosPresupuesto(Guid ClienteId, IReadOnlyList<LineaComando> Lineas, int DiasValidez = 30, IReadOnlyList<ConceptoSolicitado>? ConceptosDocumento = null);
+public sealed record DatosPresupuesto(Guid ClienteId, IReadOnlyList<LineaComando> Lineas, int DiasValidez = 30, IReadOnlyList<ConceptoSolicitado>? ConceptosDocumento = null,
+    AlxorCore.Nucleo.Comun.TipoImpuesto? Impuesto = null);
 
 /// <summary>Caso de uso: crear un presupuesto.</summary>
 public sealed class CrearPresupuesto
@@ -62,11 +63,13 @@ public sealed class CrearPresupuesto
     private readonly IReloj _reloj;
 
     private readonly IResolverConceptos? _conceptos;
+    private readonly AlxorCore.Organizacion.Aplicacion.Puertos.IConsultaEmpresas? _empresas;
 
     public CrearPresupuesto(IConsultaClientes clientes, IConsultaProductos productos, IRepositorioPresupuestos presupuestos, IUnidadDeTrabajoFacturacion unidadDeTrabajo, IResolverPrecioVenta precios, IReloj reloj,
-        IResolverConceptos? conceptos = null)
+        IResolverConceptos? conceptos = null, AlxorCore.Organizacion.Aplicacion.Puertos.IConsultaEmpresas? empresas = null)
     {
         _conceptos = conceptos;
+        _empresas = empresas;
         _precios = precios;
         _clientes = clientes;
         _productos = productos;
@@ -86,8 +89,15 @@ public sealed class CrearPresupuesto
         }
 
         var fechaPrecio = DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
+        var territorio = await PresupuestoTerritorio.ResolverAsync(_empresas, empresaId, datos, ct).ConfigureAwait(false);
+        if (territorio.EsFallo)
+        {
+            return Resultado.Fallo<PresupuestoDto>(territorio.Error);
+        }
+
         var resolucion = await ResolucionLineasFactura.ResolverAsync(datos.Lineas ?? [], _productos, ct,
-            precioTarifa: (producto, cantidad, c) => _precios.ResolverAsync(cliente.TarifaId, producto, cantidad, fechaPrecio, c)).ConfigureAwait(false);
+            precioTarifa: (producto, cantidad, c) => _precios.ResolverAsync(cliente.TarifaId, producto, cantidad, fechaPrecio, c),
+            impuestoEmpresa: territorio.Valor).ConfigureAwait(false);
         if (resolucion.EsFallo)
         {
             return Resultado.Fallo<PresupuestoDto>(resolucion.Error);
@@ -128,11 +138,13 @@ public sealed class ActualizarPresupuesto
     private readonly IResolverPrecioVenta _precios;
 
     private readonly IResolverConceptos? _conceptos;
+    private readonly AlxorCore.Organizacion.Aplicacion.Puertos.IConsultaEmpresas? _empresas;
 
     public ActualizarPresupuesto(IConsultaClientes clientes, IConsultaProductos productos, IRepositorioPresupuestos presupuestos, IUnidadDeTrabajoFacturacion unidadDeTrabajo, IResolverPrecioVenta precios,
-        IResolverConceptos? conceptos = null)
+        IResolverConceptos? conceptos = null, AlxorCore.Organizacion.Aplicacion.Puertos.IConsultaEmpresas? empresas = null)
     {
         _conceptos = conceptos;
+        _empresas = empresas;
         _precios = precios;
         _clientes = clientes;
         _productos = productos;
@@ -156,8 +168,15 @@ public sealed class ActualizarPresupuesto
             return Resultado.Fallo<PresupuestoDto>(Error.NoEncontrado("cliente.no_encontrado", "El cliente no existe."));
         }
 
+        var territorio = await PresupuestoTerritorio.ResolverAsync(_empresas, presupuesto.EmpresaId, datos, ct).ConfigureAwait(false);
+        if (territorio.EsFallo)
+        {
+            return Resultado.Fallo<PresupuestoDto>(territorio.Error);
+        }
+
         var resolucion = await ResolucionLineasFactura.ResolverAsync(datos.Lineas ?? [], _productos, ct,
-            precioTarifa: (producto, cantidad, c) => _precios.ResolverAsync(cliente.TarifaId, producto, cantidad, presupuesto.Fecha, c)).ConfigureAwait(false);
+            precioTarifa: (producto, cantidad, c) => _precios.ResolverAsync(cliente.TarifaId, producto, cantidad, presupuesto.Fecha, c),
+            impuestoEmpresa: territorio.Valor).ConfigureAwait(false);
         if (resolucion.EsFallo)
         {
             return Resultado.Fallo<PresupuestoDto>(resolucion.Error);
@@ -285,5 +304,21 @@ public sealed class AceptarPresupuesto
 
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return factura;
+    }
+}
+
+/// <summary>Impuesto del presupuesto (IVA o IGIC) según la empresa y el territorio elegido.</summary>
+internal static class PresupuestoTerritorio
+{
+    public static async Task<Resultado<AlxorCore.Nucleo.Comun.TipoImpuesto?>> ResolverAsync(AlxorCore.Organizacion.Aplicacion.Puertos.IConsultaEmpresas? empresas, Guid empresaId, DatosPresupuesto datos, CancellationToken ct)
+    {
+        if (empresas is null)
+        {
+            return Resultado.Ok<AlxorCore.Nucleo.Comun.TipoImpuesto?>(datos.Impuesto);
+        }
+
+        var empresa = await empresas.ObtenerAsync(empresaId, ct).ConfigureAwait(false);
+        var r = TerritorioOperacion.Resolver(empresa, datos.Impuesto, (datos.Lineas ?? []).Select(l => l.CodigoIva));
+        return r.EsFallo ? Resultado.Fallo<AlxorCore.Nucleo.Comun.TipoImpuesto?>(r.Error) : Resultado.Ok<AlxorCore.Nucleo.Comun.TipoImpuesto?>(r.Valor);
     }
 }

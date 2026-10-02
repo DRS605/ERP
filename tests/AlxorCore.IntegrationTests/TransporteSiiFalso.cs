@@ -14,9 +14,14 @@ public sealed class TransporteSiiFalso : ITransporteSii
 {
     public static ConcurrentQueue<(TipoLibroSii Libro, EntornoSii Entorno, string Sobre)> Recibidos { get; } = new();
 
-    public Task<RespuestaTransporteSii> EnviarAsync(TipoLibroSii libro, EntornoSii entorno, X509Certificate2 certificado, string sobreSoap, CancellationToken ct = default)
+    /// <summary>Destino de cada sobre (AEAT o ATC), por su contenido.</summary>
+    public static ConcurrentQueue<(Uri Destino, string Sobre)> Destinos { get; } = new();
+
+    public Task<RespuestaTransporteSii> EnviarAsync(Uri destino, TipoLibroSii libro, EntornoSii entorno, X509Certificate2 certificado, string sobreSoap,
+        CancellationToken ct = default)
     {
         Recibidos.Enqueue((libro, entorno, sobreSoap));
+        Destinos.Enqueue((destino, sobreSoap));
         var doc = XDocument.Parse(sobreSoap);
         var baja = doc.Descendants().Any(e => e.Name.LocalName.StartsWith("BajaLR", StringComparison.Ordinal));
         var numeros = doc.Descendants().Where(e => e.Name.LocalName == "IDFactura")

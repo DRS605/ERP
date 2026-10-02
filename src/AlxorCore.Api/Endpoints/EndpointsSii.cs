@@ -41,14 +41,16 @@ public static class EndpointsSii
             .WithSummary("Quita el certificado de la empresa.")
             .RequierePermiso(Permisos.EmpresaAjustes);
 
-        sii.MapGet("/situacion", async (TipoLibroSii libro, int ejercicio, int periodo, IContextoEmpresa contexto, EnviarSii caso, CancellationToken ct) =>
-                contexto.EmpresaId is not { } empresa ? SinEmpresa() : (await caso.SituacionAsync(empresa, libro, ejercicio, periodo, ct).ConfigureAwait(false)).AOk())
+        sii.MapGet("/situacion", async (TipoLibroSii libro, int ejercicio, int periodo, AdministracionSii? administracion, IContextoEmpresa contexto, EnviarSii caso,
+                CancellationToken ct) =>
+                contexto.EmpresaId is not { } empresa ? SinEmpresa()
+                : (await caso.SituacionAsync(empresa, libro, ejercicio, periodo, administracion, ct).ConfigureAwait(false)).AOk())
             .WithSummary("Situación de cada factura del mes en el SII: pendiente, enviada, rechazada, modificada o de baja.")
             .RequierePermiso(Permisos.InformeLeer);
 
         sii.MapPost("/enviar", async (EnviarSiiComando comando, IContextoEmpresa contexto, EnviarSii caso, CancellationToken ct) =>
                 contexto.EmpresaId is not { } empresa ? SinEmpresa() : (await caso.EjecutarAsync(empresa, comando, ct).ConfigureAwait(false)).AOk())
-            .WithSummary("Envía a la AEAT lo pendiente del libro y el mes: altas (A0), modificaciones (A1) y bajas de las anuladas.")
+            .WithSummary("Envía lo pendiente del libro y el mes (a la AEAT o, con Administracion=Atc, a la Agencia Tributaria Canaria): altas (A0), modificaciones (A1) y bajas de las anuladas.")
             .RequierePermiso(Permisos.ContabilidadGestionar);
 
         sii.MapGet("/envios", async (IContextoEmpresa contexto, EnviarSii caso, CancellationToken ct) =>

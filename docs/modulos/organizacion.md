@@ -172,7 +172,8 @@ mismo NIF»** (`operaEnAmbosTerritorios`). Entonces:
 - `/tipos-iva` ofrece los tipos de los dos impuestos y la pantalla los propone en las líneas;
 - el **303** suma solo lo facturado con IVA y el **420** solo lo facturado con IGIC; los gastos ya iban por el código de
   cada línea. Impuestos enseña los dos modelos, y la propuesta de modelos incluye 303/390 y 420/425;
-- al **SII de la AEAT** solo van las facturas y los gastos con IVA; los del IGIC son de la Agencia Tributaria Canaria.
+- al **SII de la AEAT** solo van las facturas y los gastos con IVA; los del IGIC van al **SII-IGIC de la Agencia
+  Tributaria Canaria** (`administracion=Atc`, ver [Informes](informes.md#sii-igic-de-la-agencia-tributaria-canaria)).
 
 El territorio de la empresa sigue siendo el principal (el de su domicilio fiscal y el impuesto por defecto).
 
@@ -187,5 +188,11 @@ El territorio de la empresa sigue siendo el principal (el de su domicilio fiscal
   usa la del IVA, el 420 la del IGIC y al contabilizar una compra se aplica la del impuesto de su código.
   `/impuestos/prorrata?impuesto=` y `PUT /impuestos/prorrata/{ejercicio}` con `impuesto`; Ajustes enseña un bloque más
   para el otro impuesto. Las prorratas que ya tenían las empresas de Canarias pasan a ser del IGIC.
+- **Presupuestos, pedidos y albaranes**: llevan también `impuesto` y el mismo desplegable (en el editor de documentos y
+  en el albarán directo). Sus líneas se resuelven igual que en la factura: el tipo del IGIC del artículo o su
+  equivalente, el general del impuesto sin artículo, y un tipo del otro impuesto se rechaza
+  (`documento.impuesto_territorio`). Elegir el otro territorio en una empresa que no opera en él es un 400
+  `documento.territorio`. Al aceptar el presupuesto o facturar el pedido o el albarán, la factura sale con el mismo
+  impuesto.
 - **Documentos**: el nombre comercial sale bajo la razón social y los **datos registrales** al pie de facturas,
   presupuestos, albaranes y pedidos (y en el ticket).

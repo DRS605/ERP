@@ -57,6 +57,12 @@ public static class RegistroServicios
                 .AddInterceptors(sp.GetRequiredService<InterceptorEmpresa>()));
         servicios.AddScoped<IRepositorioSii, RepositorioSii>();
         servicios.AddSingleton<ITransporteSii, TransporteSiiHttp>();
+        // Servicio del SII-IGIC de la Agencia Tributaria Canaria (se lee al usarse, con la configuración ya completa).
+        servicios.AddSingleton(sp =>
+        {
+            var atc = sp.GetRequiredService<IConfiguration>().GetSection("Sii:Atc");
+            return new OpcionesSiiAtc(atc["EspacioNombres"], atc["ServidorPruebas"], atc["ServidorProduccion"], atc["RutaEmitidas"], atc["RutaRecibidas"]);
+        });
         servicios.AddScoped<GestionCertificadoSii>();
         servicios.AddScoped<EnviarSii>();
         return servicios;

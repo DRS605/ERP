@@ -78,10 +78,10 @@ public interface IRepositorioAlbaranesVenta
 
 // ----------------------------------------------------------------------------- Comandos
 public sealed record LineaPedidoVentaComando(string Descripcion, decimal Cantidad, decimal PrecioUnitario,
-    string? CodigoIva = "IVA21", decimal PorcentajeDescuento = 0m, Guid? ProductoId = null, IReadOnlyList<ConceptoSolicitado>? Conceptos = null);
+    string? CodigoIva = null, decimal PorcentajeDescuento = 0m, Guid? ProductoId = null, IReadOnlyList<ConceptoSolicitado>? Conceptos = null);
 
 public sealed record CrearPedidoVentaComando(Guid ClienteId, IReadOnlyList<LineaPedidoVentaComando> Lineas, DateOnly? Fecha = null,
-    IReadOnlyList<ConceptoSolicitado>? ConceptosDocumento = null);
+    IReadOnlyList<ConceptoSolicitado>? ConceptosDocumento = null, AlxorCore.Nucleo.Comun.TipoImpuesto? Impuesto = null);
 
 public sealed record CrearPedidoDesdePresupuestoComando(Guid PresupuestoId, DateOnly? Fecha = null);
 
@@ -103,10 +103,16 @@ public sealed class CrearPedidoVenta
     private readonly IReloj _reloj;
     private readonly IResolverConceptos? _conceptos;
 
+    private readonly IConsultaProductos? _productos;
+    private readonly AlxorCore.Organizacion.Aplicacion.Puertos.IConsultaEmpresas? _empresas;
+
     public CrearPedidoVenta(IRepositorioPedidosVenta pedidos, IRepositorioPresupuestos presupuestos, IConsultaClientes clientes,
-        IResolverSerie resolverSerie, IUnidadDeTrabajoFacturacion unidad, IReloj reloj, IResolverConceptos? conceptos = null)
+        IResolverSerie resolverSerie, IUnidadDeTrabajoFacturacion unidad, IReloj reloj, IResolverConceptos? conceptos = null,
+        IConsultaProductos? productos = null, AlxorCore.Organizacion.Aplicacion.Puertos.IConsultaEmpresas? empresas = null)
     {
         _conceptos = conceptos;
+        _productos = productos;
+        _empresas = empresas;
         _pedidos = pedidos;
         _presupuestos = presupuestos;
         _clientes = clientes;
@@ -124,8 +130,14 @@ public sealed class CrearPedidoVenta
             return Resultado.Fallo<PedidoVentaDto>(Error.NoEncontrado("cliente.no_encontrado", "El cliente no existe."));
         }
 
+        var tipos = await TiposLineasAsync(empresaId, comando, ct).ConfigureAwait(false);
+        if (tipos.EsFallo)
+        {
+            return Resultado.Fallo<PedidoVentaDto>(tipos.Error);
+        }
+
         var lineas = (comando.Lineas ?? Array.Empty<LineaPedidoVentaComando>())
-            .Select(l => ((Guid?)l.ProductoId, l.Descripcion, l.Cantidad, l.PrecioUnitario, l.PorcentajeDescuento, l.CodigoIva ?? "IVA21")).ToList();
+            .Select((l, i) => ((Guid?)l.ProductoId, l.Descripcion, l.Cantidad, l.PrecioUnitario, l.PorcentajeDescuento, tipos.Valor[i])).ToList();
 
         var solicitados = (comando.Lineas ?? []).Select(l => (l.Conceptos, (IReadOnlyList<ConceptoAplicado>?)null)).ToList();
         return await CrearInternoAsync(empresaId, comando.ClienteId, cliente.Nombre, comando.Fecha, null, lineas, solicitados, comando.ConceptosDocumento, ct).ConfigureAwait(false);
@@ -186,8 +198,14 @@ public sealed class CrearPedidoVenta
             return Resultado.Fallo<PedidoVentaDto>(Error.NoEncontrado("cliente.no_encontrado", "El cliente no existe."));
         }
 
+        var tipos = await TiposLineasAsync(pedido.EmpresaId, comando, ct).ConfigureAwait(false);
+        if (tipos.EsFallo)
+        {
+            return Resultado.Fallo<PedidoVentaDto>(tipos.Error);
+        }
+
         var lineas = (comando.Lineas ?? Array.Empty<LineaPedidoVentaComando>())
-            .Select(l => ((Guid?)l.ProductoId, l.Descripcion, l.Cantidad, l.PrecioUnitario, l.PorcentajeDescuento, l.CodigoIva ?? "IVA21")).ToList();
+            .Select((l, i) => ((Guid?)l.ProductoId, l.Descripcion, l.Cantidad, l.PrecioUnitario, l.PorcentajeDescuento, tipos.Valor[i])).ToList();
         var r = pedido.Modificar(comando.ClienteId, cliente.Nombre, comando.Fecha ?? pedido.Fecha, lineas);
         if (r.EsFallo)
         {
@@ -202,6 +220,32 @@ public sealed class CrearPedidoVenta
 
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return Resultado.Ok(PedidoVentaDto.Desde(pedido));
+    }
+
+    /// <summary>Tipo de cada línea con el impuesto del pedido (el del artículo, en Canarias su IGIC; sin artículo, el general).</summary>
+    private async Task<Resultado<List<string>>> TiposLineasAsync(Guid empresaId, CrearPedidoVentaComando comando, CancellationToken ct)
+    {
+        var empresa = _empresas is null ? null : await _empresas.ObtenerAsync(empresaId, ct).ConfigureAwait(false);
+        var territorio = TerritorioOperacion.Resolver(empresa, comando.Impuesto, (comando.Lineas ?? []).Select(l => l.CodigoIva));
+        if (territorio.EsFallo)
+        {
+            return Resultado.Fallo<List<string>>(territorio.Error);
+        }
+
+        var tipos = new List<string>();
+        foreach (var l in comando.Lineas ?? [])
+        {
+            var producto = l.ProductoId is { } p && _productos is not null ? await _productos.ObtenerAsync(p, ct).ConfigureAwait(false) : null;
+            var tipo = TerritorioOperacion.CodigoLinea(territorio.Valor, l.CodigoIva, producto);
+            if (tipo.EsFallo)
+            {
+                return Resultado.Fallo<List<string>>(tipo.Error);
+            }
+
+            tipos.Add(tipo.Valor);
+        }
+
+        return Resultado.Ok(tipos);
     }
 
     private async Task<Error?> PonerConceptosAsync(PedidoVenta pedido,

@@ -20,7 +20,7 @@ public sealed record LineaAlbaranComando(decimal Cantidad, string? Descripcion =
 
 /// <summary>Albarán directo. Sin conceptos en una línea se ponen los automáticos del cliente y el artículo (sus reglas).</summary>
 public sealed record CrearAlbaranVentaComando(Guid ClienteId, IReadOnlyList<LineaAlbaranComando> Lineas, DateOnly? Fecha = null, string? Referencia = null,
-    string? Observaciones = null, IReadOnlyList<ConceptoSolicitado>? ConceptosDocumento = null);
+    string? Observaciones = null, IReadOnlyList<ConceptoSolicitado>? ConceptosDocumento = null, AlxorCore.Nucleo.Comun.TipoImpuesto? Impuesto = null);
 
 /// <summary>Precio definitivo de una línea (por su número de orden en el albarán).</summary>
 public sealed record PrecioLineaAlbaranComando(int Orden, decimal PrecioUnitario, decimal? PorcentajeDescuento = null);
@@ -132,11 +132,14 @@ public sealed class CrearAlbaranVenta
     private readonly IStockVentas _stock;
     private readonly IReloj _reloj;
     private readonly IResolverConceptos? _conceptos;
+    private readonly AlxorCore.Organizacion.Aplicacion.Puertos.IConsultaEmpresas? _empresas;
 
     public CrearAlbaranVenta(IRepositorioAlbaranesVenta albaranes, IConsultaClientes clientes, IConsultaProductos productos, IResolverPrecioVenta precios,
-        IResolverSerie resolverSerie, IUnidadDeTrabajoFacturacion unidad, IStockVentas stock, IReloj reloj, IResolverConceptos? conceptos = null)
+        IResolverSerie resolverSerie, IUnidadDeTrabajoFacturacion unidad, IStockVentas stock, IReloj reloj, IResolverConceptos? conceptos = null,
+        AlxorCore.Organizacion.Aplicacion.Puertos.IConsultaEmpresas? empresas = null)
     {
         _conceptos = conceptos;
+        _empresas = empresas;
         _albaranes = albaranes;
         _clientes = clientes;
         _productos = productos;
@@ -157,9 +160,17 @@ public sealed class CrearAlbaranVenta
         }
 
         var fecha = comando.Fecha ?? DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
+        var empresa = _empresas is null ? null : await _empresas.ObtenerAsync(empresaId, ct).ConfigureAwait(false);
+        var territorio = TerritorioOperacion.Resolver(empresa, comando.Impuesto, (comando.Lineas ?? []).Select(l => l.CodigoIva));
+        if (territorio.EsFallo)
+        {
+            return Resultado.Fallo<AlbaranVentaDto>(territorio.Error);
+        }
+
         var lineas = new List<NuevaLineaAlbaran>();
         foreach (var l in comando.Lineas ?? [])
         {
+            ProductoDto? productoLinea = null;
             var descripcion = l.Descripcion;
             var precio = l.PrecioUnitario;
             var descuento = l.PorcentajeDescuento;
@@ -173,7 +184,7 @@ public sealed class CrearAlbaranVenta
                 }
 
                 descripcion ??= producto.Nombre;
-                codigoIva ??= producto.CodigoIva;
+                productoLinea = producto;
                 if (precio is null && await _precios.ResolverAsync(cliente.TarifaId, productoId, l.Cantidad, fecha, ct).ConfigureAwait(false) is { } tarifa)
                 {
                     precio = tarifa.PrecioUnitario;
@@ -187,6 +198,18 @@ public sealed class CrearAlbaranVenta
             {
                 return Resultado.Fallo<AlbaranVentaDto>(Error.Validacion("albaranventa.linea_sin_precio",
                     "Indica el precio de cada línea o márcala con precio por fijar."));
+            }
+
+            // El tipo de la línea con el impuesto del albarán (el del artículo, en Canarias su IGIC).
+            if (codigoIva is not null || productoLinea is not null || empresa is { OperaEnAmbosTerritorios: true })
+            {
+                var tipo = TerritorioOperacion.CodigoLinea(territorio.Valor, codigoIva, productoLinea);
+                if (tipo.EsFallo)
+                {
+                    return Resultado.Fallo<AlbaranVentaDto>(tipo.Error);
+                }
+
+                codigoIva = tipo.Valor;
             }
 
             lineas.Add(new NuevaLineaAlbaran(null, l.ProductoId, descripcion ?? string.Empty, l.Cantidad, precio ?? 0m, descuento, codigoIva, l.PrecioPorFijar));

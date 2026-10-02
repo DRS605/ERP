@@ -4733,12 +4733,13 @@
       window._albProductos=productos;
       abrir("Nuevo albarán de venta",`<div class="grid2"><div><label>Cliente</label><select id="alb_cli">${clientes.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join("")}</select></div><div><label>Fecha</label><input id="alb_fec" type="date" value="${hoy}"/></div></div>
         <label>Referencia (opcional)</label><input id="alb_ref" placeholder="Nº de pedido del cliente, matrícula…"/>
+        ${IMP.ambos?`<label>Territorio de la operación</label><select id="alb_imp"><option value="Iva"${IMP.siglas==="IVA"?" selected":""}>Península y Baleares · IVA</option><option value="Igic"${IMP.siglas==="IGIC"?" selected":""}>Canarias · IGIC</option></select>`:""}
         <div id="alb_lineas" style="margin-top:10px">${filaAlbaran(0,productos)}</div>
         <button class="btn small ghost" style="margin-top:8px" onclick="masLineaAlbaran()">+ Línea</button>
         <p class="muted" style="font-size:12px;margin:8px 0 0">«Por fijar»: se entrega con un precio estimado (o el de tarifa) y se valora después, antes de facturar.</p>`,
         async()=>{ const lineas=[]; for(let i=0;i<albLineas;i++){ if(!document.getElementById("alb_c"+i)) continue; const pr=val("alb_pr"+i);
             lineas.push({productoId:val("alb_p"+i)||null,descripcion:val("alb_d"+i)||null,cantidad:Number(val("alb_c"+i)),precioUnitario:pr===""?null:Number(pr),precioPorFijar:document.getElementById("alb_f"+i).checked}); }
-          const a=await api("/albaranes-venta",{method:"POST",body:JSON.stringify({clienteId:val("alb_cli"),fecha:val("alb_fec"),referencia:val("alb_ref")||null,lineas})});
+          const a=await api("/albaranes-venta",{method:"POST",body:JSON.stringify({clienteId:val("alb_cli"),fecha:val("alb_fec"),referencia:val("alb_ref")||null,impuesto:IMP.ambos?val("alb_imp"):null,lineas})});
           toast(`Albarán ${a.numeroCompleto} emitido.`,"ok"); vAlbaranesVenta(); });
     }
     function masLineaAlbaran(){ document.getElementById("alb_lineas").insertAdjacentHTML("beforeend",filaAlbaran(albLineas++,window._albProductos||[])); }
@@ -5097,7 +5098,8 @@
          <div id="sii_cert" class="muted" style="margin:0 0 10px">Comprobando el certificado…</div>
          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end"><div><label>Mes</label><select id="sii_mes" style="width:auto" onchange="verSituacionSii()">${[1,2,3,4,5,6,7,8,9,10,11,12].map(m=>`<option value="${m}"${m===mesSii?" selected":""}>${String(m).padStart(2,"0")}</option>`).join("")}</select></div>
          <div><label>Libro</label><select id="sii_tipo" style="width:auto" onchange="verSituacionSii()"><option value="Emitidas">Facturas emitidas</option><option value="Recibidas">Facturas recibidas</option></select></div>
-         <button class="btn small" onclick="enviarSii()">Enviar a la AEAT</button>
+         ${IMP.ambos?`<div><label>Administración</label><select id="sii_adm" style="width:auto" onchange="verSituacionSii()"><option value="Aeat">AEAT · IVA</option><option value="Atc">Agencia Tributaria Canaria · IGIC</option></select></div>`:""}
+         <button class="btn small" onclick="enviarSii()">${IMP.ambos?"Enviar al SII":IMP.siglas==="IGIC"?"Enviar a la ATC":"Enviar a la AEAT"}</button>
          <button class="btn small ghost" onclick="descargarSii()">↓ Descargar XML SII</button>
          <button class="btn small ghost" onclick="modalEnviosSii()">Histórico de envíos</button></div>
          <div id="sii_situacion" style="margin-top:12px"></div>`);
@@ -6330,20 +6332,24 @@
         a.download=`libro-iva-${infLibro.toLowerCase()}-${infAnio}${infLibroPer?("-"+infLibroPer+"T"):""}.csv`; a.click(); URL.revokeObjectURL(u);
       }catch(e){ toast(e.message,"err"); } }
     // SII: certificado de la empresa, situación de cada factura del mes, envío a la AEAT e histórico.
+    // SII al que va el libro: con actividad en los dos territorios se elige; si no, el del territorio (en Canarias, el de la ATC).
+    function admSii(){ return document.getElementById("sii_adm")?.value||(IMP.siglas==="IGIC"?"Atc":null); }
+    function admSiiQ(){ const a=admSii(); return a?`&administracion=${a}`:""; }
+    function admSiiNombre(){ return admSii()==="Atc"?"la Agencia Tributaria Canaria":"la AEAT"; }
     async function pintarCertificadoSii(){ const el=document.getElementById("sii_cert"); if(!el) return;
       let c=null; try{ c=await api("/informes/sii/certificado"); }catch{}
       el.innerHTML=c?`Certificado: <strong>${c.titular}</strong>${c.nif?" · "+c.nif:""} · caduca el ${fdate(c.caducaEn.slice(0,10))} · entorno <strong>${c.entorno==="Produccion"?"real":"de pruebas"}</strong>${c.caducado?' <span class="pill neg">Caducado</span>':""} <button class="btn small ghost" onclick="modalCertificadoSii()">Cambiar</button> <button class="btn small ghost" onclick="cambiarEntornoSii('${c.entorno==="Produccion"?"Pruebas":"Produccion"}')">Pasar a ${c.entorno==="Produccion"?"pruebas":"real"}</button>`
         :`Sin certificado electrónico: súbelo para poder enviar. <button class="btn small secondary" onclick="modalCertificadoSii()">Subir certificado</button>`;
       verSituacionSii(); }
     async function verSituacionSii(){ const el=document.getElementById("sii_situacion"); if(!el) return;
-      try{ const lista=await api(`/informes/sii/situacion?libro=${val("sii_tipo")}&ejercicio=${infAnio}&periodo=${val("sii_mes")}`);
+      try{ const lista=await api(`/informes/sii/situacion?libro=${val("sii_tipo")}&ejercicio=${infAnio}&periodo=${val("sii_mes")}${admSiiQ()}`);
         if(!lista.length){ el.innerHTML='<p class="muted" style="margin:0">No hay facturas en ese mes.</p>'; return; }
         const pill=s=>s==="Enviada"||s==="Dada de baja"?`<span class="pill ok">${s}</span>`:s.startsWith("Rechazada")||s.includes("pendiente de baja")?`<span class="pill neg">${s}</span>`:`<span class="pill wait">${s}</span>`;
         el.innerHTML=`<table data-seleccion="no" data-agrupar="no"><thead><tr><th>Factura</th><th>Fecha</th><th>Situación</th><th>Error de la AEAT</th><th>CSV</th></tr></thead><tbody>${lista.map(x=>`<tr><td class="mono">${x.numero}</td><td class="muted">${fdate(x.fechaExpedicion)}</td><td>${pill(x.situacion)}</td><td>${x.codigoError?`<span class="mono">${x.codigoError}</span> ${x.descripcionError||""}`:""}</td><td class="mono muted">${x.csv||""}</td></tr>`).join("")}</tbody></table>`;
       }catch(e){ el.innerHTML=`<p class="muted" style="margin:0">${e.message}</p>`; } }
     async function enviarSii(){
-      if(!confirm(`¿Enviar a la AEAT el libro de facturas ${val("sii_tipo").toLowerCase()} de ${String(val("sii_mes")).padStart(2,"0")}/${infAnio}?`)) return;
-      try{ const r=await api("/informes/sii/enviar",{method:"POST",body:JSON.stringify({libro:val("sii_tipo"),ejercicio:infAnio,periodo:Number(val("sii_mes"))})});
+      if(!confirm(`¿Enviar a ${admSiiNombre()} el libro de facturas ${val("sii_tipo").toLowerCase()} de ${String(val("sii_mes")).padStart(2,"0")}/${infAnio}?`)) return;
+      try{ const r=await api("/informes/sii/enviar",{method:"POST",body:JSON.stringify({libro:val("sii_tipo"),ejercicio:infAnio,periodo:Number(val("sii_mes")),administracion:admSii()})});
         const txt=r.envios.map(e=>`${e.tipoComunicacion}: ${e.correctos} correctas${e.conErrores?`, ${e.conErrores} con errores`:""}${e.incorrectos?`, ${e.incorrectos} rechazadas`:""}${e.estado==="ErrorComunicacion"?" (sin respuesta de la AEAT)":""}`).join(" · ");
         toast("SII enviado · "+txt,r.envios.some(e=>e.incorrectos||e.estado==="ErrorComunicacion")?"warn":"ok"); verSituacionSii();
       }catch(e){ toast(e.message,e.codigo==="sii.nada_que_enviar"?"warn":"err"); } }
@@ -6369,10 +6375,10 @@
       const u=URL.createObjectURL(await r.blob()); const a=document.createElement("a"); a.href=u; a.download=`sii-${parte}-${id}.xml`; a.click(); URL.revokeObjectURL(u); }
     // XML del SII de un mes: solo se descarga (para revisarlo); el envío es «Enviar a la AEAT».
     async function descargarSii(){ const mes=Number(val("sii_mes")), tipo=val("sii_tipo");
-      try{ const r=await fetch(`/informes/sii?tipo=${tipo}&ejercicio=${infAnio}&periodo=${mes}`,{headers:{Authorization:"Bearer "+token}});
+      try{ const r=await fetch(`/informes/sii?tipo=${tipo}&ejercicio=${infAnio}&periodo=${mes}${admSiiQ()}`,{headers:{Authorization:"Bearer "+token}});
         if(!r.ok){ let m="No se pudo generar el XML del SII."; try{ const e=await r.json(); m=e.title||m; }catch{} toast(m,"err"); return; }
         const b=await r.blob(); const u=URL.createObjectURL(b); const a=document.createElement("a"); a.href=u;
-        a.download=`sii-${tipo.toLowerCase()}-${infAnio}-${String(mes).padStart(2,"0")}.xml`; a.click(); URL.revokeObjectURL(u);
+        a.download=`sii-${admSii()==="Atc"?"igic-":""}${tipo.toLowerCase()}-${infAnio}-${String(mes).padStart(2,"0")}.xml`; a.click(); URL.revokeObjectURL(u);
         toast("XML del SII descargado (solo para revisarlo: no se ha enviado).","ok");
       }catch(e){ toast(e.message,"err"); } }
 

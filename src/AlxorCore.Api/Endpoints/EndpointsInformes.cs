@@ -154,7 +154,7 @@ public static class EndpointsInformes
 
     private static async Task<IResult> SiiAsync(
         IContextoEmpresa contexto, GenerarSii caso, CancellationToken ct,
-        TipoLibroSii tipo = TipoLibroSii.Emitidas, int? ejercicio = null, int periodo = 1)
+        TipoLibroSii tipo = TipoLibroSii.Emitidas, int? ejercicio = null, int periodo = 1, AdministracionSii? administracion = null)
     {
         if (contexto.EmpresaId is null)
         {
@@ -162,13 +162,13 @@ public static class EndpointsInformes
         }
 
         var anio = ejercicio ?? DateTime.UtcNow.Year;
-        var resultado = await caso.EjecutarAsync(contexto.EmpresaId.Value, tipo, anio, periodo, ct).ConfigureAwait(false);
+        var resultado = await caso.EjecutarAsync(contexto.EmpresaId.Value, tipo, anio, periodo, administracion, ct).ConfigureAwait(false);
         if (resultado.EsFallo)
         {
             return ResultadosHttp.AProblema(resultado.Error);
         }
 
-        var nombre = $"sii-{(tipo == TipoLibroSii.Emitidas ? "emitidas" : "recibidas")}-{anio}-{periodo:D2}.xml";
+        var nombre = $"sii-{(administracion == AdministracionSii.Atc ? "igic-" : "")}{(tipo == TipoLibroSii.Emitidas ? "emitidas" : "recibidas")}-{anio}-{periodo:D2}.xml";
         return Results.File(System.Text.Encoding.UTF8.GetBytes(resultado.Valor), "application/xml", nombre);
     }
 

@@ -21,6 +21,47 @@ public enum TipoLibroSii
     Recibidas = 2,
 }
 
+/// <summary>
+/// Administración a la que va el libro: la AEAT (facturas con IVA) o la Agencia Tributaria Canaria (facturas con IGIC).
+/// Una empresa con actividad en la Península y en Canarias lleva los dos SII.
+/// </summary>
+public enum AdministracionSii
+{
+    /// <summary>SII de la Agencia Estatal de Administración Tributaria (IVA).</summary>
+    Aeat = 1,
+
+    /// <summary>SII-IGIC de la Agencia Tributaria Canaria.</summary>
+    Atc = 2,
+}
+
+/// <summary>
+/// Datos del servicio web del SII-IGIC de la Agencia Tributaria Canaria, de la configuración (<c>Sii:Atc</c>). El suministro
+/// tiene la misma estructura que el de la AEAT; lo que cambia son el espacio de nombres de los esquemas y las direcciones,
+/// que se toman de la documentación técnica vigente de la ATC. Sin ellos se puede generar y revisar el XML, pero no enviarlo.
+/// </summary>
+public sealed record OpcionesSiiAtc(string? EspacioNombres = null, string? ServidorPruebas = null, string? ServidorProduccion = null,
+    string? RutaEmitidas = null, string? RutaRecibidas = null)
+{
+    /// <summary>Espacio de nombres provisional mientras no se configure el oficial (el XML así generado no se puede enviar).</summary>
+    public const string EspacioNombresProvisional = "urn:alxor:sii-igic-atc:configurar-Sii-Atc-EspacioNombres";
+
+    public bool Configurado => !string.IsNullOrWhiteSpace(EspacioNombres) && !string.IsNullOrWhiteSpace(ServidorPruebas)
+        && !string.IsNullOrWhiteSpace(ServidorProduccion) && !string.IsNullOrWhiteSpace(RutaEmitidas) && !string.IsNullOrWhiteSpace(RutaRecibidas);
+
+    /// <summary>Dirección del servicio del libro en el entorno indicado, o null si falta configurarla.</summary>
+    public Uri? Url(TipoLibroSii libro, AlxorCore.Informes.Dominio.EntornoSii entorno)
+    {
+        if (!Configurado)
+        {
+            return null;
+        }
+
+        var servidor = (entorno == AlxorCore.Informes.Dominio.EntornoSii.Produccion ? ServidorProduccion : ServidorPruebas)!.TrimEnd('/');
+        var ruta = (libro == TipoLibroSii.Emitidas ? RutaEmitidas : RutaRecibidas)!;
+        return new Uri(servidor + (ruta.StartsWith('/') ? ruta : "/" + ruta), UriKind.Absolute);
+    }
+}
+
 /// <summary>Un documento (factura emitida o gasto) del libro, con la huella de sus datos tal como se enviarían.</summary>
 public sealed record DocumentoSii(Guid Id, string Numero, DateOnly FechaExpedicion, string Huella);
 
@@ -31,8 +72,9 @@ public sealed class LoteSii
     private readonly Func<IReadOnlyCollection<Guid>, string> _baja;
 
     internal LoteSii(TipoLibroSii libro, int ejercicio, int periodo, IReadOnlyList<DocumentoSii> documentos, IReadOnlyList<DocumentoSii> anulados,
-        Func<IReadOnlyCollection<Guid>, string, string> alta, Func<IReadOnlyCollection<Guid>, string> baja)
+        Func<IReadOnlyCollection<Guid>, string, string> alta, Func<IReadOnlyCollection<Guid>, string> baja, AdministracionSii administracion = AdministracionSii.Aeat)
     {
+        Administracion = administracion;
         Libro = libro;
         Ejercicio = ejercicio;
         Periodo = periodo;
@@ -43,6 +85,9 @@ public sealed class LoteSii
     }
 
     public TipoLibroSii Libro { get; }
+
+    /// <summary>A quién va el libro: la AEAT (IVA) o la Agencia Tributaria Canaria (IGIC).</summary>
+    public AdministracionSii Administracion { get; }
 
     public int Ejercicio { get; }
 
@@ -70,8 +115,10 @@ public sealed class LoteSii
 /// </summary>
 public sealed class GenerarSii
 {
-    private const string NsSuministro = "https://www2.agenciatributaria.gob.es/static_files/common/internet/dep/aplicaciones/es/aeat/ssii/fact/ws/SuministroInformacion.xsd";
-    private const string NsLr = "https://www2.agenciatributaria.gob.es/static_files/common/internet/dep/aplicaciones/es/aeat/ssii/fact/ws/SuministroLR.xsd";
+    /// <summary>Raíz de los esquemas del SII de la AEAT; en el SII-IGIC se sustituye por la de la ATC.</summary>
+    private const string RaizEsquemasAeat = "https://www2.agenciatributaria.gob.es/static_files/common/internet/dep/aplicaciones/es/aeat/ssii/fact/ws";
+    private const string NsSuministro = RaizEsquemasAeat + "/SuministroInformacion.xsd";
+    private const string NsLr = RaizEsquemasAeat + "/SuministroLR.xsd";
     private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
 
     private readonly IConsultaFacturas _facturas;
@@ -79,11 +126,13 @@ public sealed class GenerarSii
     private readonly IConsultaEmpresas _empresas;
     private readonly IConsultaProveedores _proveedores;
     private readonly AlxorCore.Catalogo.Aplicacion.IResolverIvaEmpresa? _tipos;
+    private readonly OpcionesSiiAtc _atc;
 
     public GenerarSii(IConsultaFacturas facturas, IConsultaGastos gastos, IConsultaEmpresas empresas, IConsultaProveedores proveedores,
-        AlxorCore.Catalogo.Aplicacion.IResolverIvaEmpresa? tipos = null)
+        AlxorCore.Catalogo.Aplicacion.IResolverIvaEmpresa? tipos = null, OpcionesSiiAtc? atc = null)
     {
         _tipos = tipos;
+        _atc = atc ?? new OpcionesSiiAtc();
         _facturas = facturas;
         _gastos = gastos;
         _empresas = empresas;
@@ -123,9 +172,10 @@ public sealed class GenerarSii
     private static bool EsExenta(AlxorCore.Catalogo.Dominio.ClaseIva c) => c is AlxorCore.Catalogo.Dominio.ClaseIva.Exento or AlxorCore.Catalogo.Dominio.ClaseIva.Exportacion
         or AlxorCore.Catalogo.Dominio.ClaseIva.Viajeros or AlxorCore.Catalogo.Dominio.ClaseIva.Intracomunitario or AlxorCore.Catalogo.Dominio.ClaseIva.OroInversion;
 
-    public async Task<Resultado<string>> EjecutarAsync(Guid empresaId, TipoLibroSii tipo, int ejercicio, int periodo, CancellationToken ct = default)
+    public async Task<Resultado<string>> EjecutarAsync(Guid empresaId, TipoLibroSii tipo, int ejercicio, int periodo, AdministracionSii? administracion = null,
+        CancellationToken ct = default)
     {
-        var lote = await PrepararAsync(empresaId, tipo, ejercicio, periodo, ct).ConfigureAwait(false);
+        var lote = await PrepararAsync(empresaId, tipo, ejercicio, periodo, administracion, ct).ConfigureAwait(false);
         return lote.EsFallo ? Resultado.Fallo<string>(lote.Error) : Resultado.Ok(lote.Valor.Alta(lote.Valor.Documentos.Select(d => d.Id).ToList(), "A0"));
     }
 
@@ -133,7 +183,8 @@ public sealed class GenerarSii
     /// Reúne los documentos del libro y del mes (los vivos, para alta o modificación, y los anulados, para una posible
     /// baja) con la huella de lo que se enviaría de cada uno, y permite escribir el XML de cualquier subconjunto.
     /// </summary>
-    public async Task<Resultado<LoteSii>> PrepararAsync(Guid empresaId, TipoLibroSii tipo, int ejercicio, int periodo, CancellationToken ct = default)
+    public async Task<Resultado<LoteSii>> PrepararAsync(Guid empresaId, TipoLibroSii tipo, int ejercicio, int periodo, AdministracionSii? administracion = null,
+        CancellationToken ct = default)
     {
         if (periodo is < 1 or > 12)
         {
@@ -146,6 +197,19 @@ public sealed class GenerarSii
             return Resultado.Fallo<LoteSii>(Error.NoEncontrado("empresa.no_encontrada", "Empresa no encontrada."));
         }
 
+        // Sin indicarlo, el SII del territorio de la empresa. Con actividad en los dos, cada libro lleva solo lo de su impuesto.
+        var adm = administracion ?? (empresa.ImpuestoIndirecto == TipoImpuesto.Igic ? AdministracionSii.Atc : AdministracionSii.Aeat);
+        var impuesto = adm == AdministracionSii.Atc ? TipoImpuesto.Igic : TipoImpuesto.Iva;
+        if (!empresa.OperaEnAmbosTerritorios && impuesto != empresa.ImpuestoIndirecto)
+        {
+            return Resultado.Fallo<LoteSii>(Error.Validacion("sii.administracion", adm == AdministracionSii.Atc
+                ? "La empresa no tributa por IGIC: no lleva el SII de la Agencia Tributaria Canaria."
+                : "La empresa solo tributa por IGIC: su SII es el de la Agencia Tributaria Canaria."));
+        }
+
+        var raizAtc = string.IsNullOrWhiteSpace(_atc.EspacioNombres) ? OpcionesSiiAtc.EspacioNombresProvisional : _atc.EspacioNombres.TrimEnd('/');
+        string Esquemas(string xml) => adm == AdministracionSii.Atc ? xml.Replace(RaizEsquemasAeat, raizAtc, StringComparison.Ordinal) : xml;
+
         var desde = new DateOnly(ejercicio, periodo, 1);
         var hasta = desde.AddMonths(1).AddDays(-1);
         var periodoTexto = periodo.ToString("D2", Inv);
@@ -153,8 +217,8 @@ public sealed class GenerarSii
         if (tipo == TipoLibroSii.Emitidas)
         {
             var todas = (await _facturas.ListarAsync(empresaId, ct).ConfigureAwait(false))
-                // Con actividad en los dos territorios, al SII de la AEAT solo van las del IVA (las del IGIC son de la Agencia Tributaria Canaria).
-                .Where(f => f.FechaEmision >= desde && f.FechaEmision <= hasta && (!empresa.OperaEnAmbosTerritorios || f.Impuesto == TipoImpuesto.Iva))
+                // Con actividad en los dos territorios, al SII de la AEAT van las del IVA y al de la Agencia Tributaria Canaria las del IGIC.
+                .Where(f => f.FechaEmision >= desde && f.FechaEmision <= hasta && (!empresa.OperaEnAmbosTerritorios || f.Impuesto == impuesto))
                 .OrderBy(f => f.FechaEmision).ThenBy(f => f.NumeroCompleto, StringComparer.Ordinal).ToList();
 
             // Desglose por tipo impositivo de cada factura (un DetalleIVA por tipo, no un tipo medio).
@@ -198,20 +262,20 @@ public sealed class GenerarSii
             // Una factura anulada (VeriFactu) no se da de alta; si se envió antes, se da de baja.
             var vivas = todas.Where(f => f.Estado != "Anulada").ToList();
             var anuladas = todas.Where(f => f.Estado == "Anulada").ToList();
-            string Alta(IReadOnlyCollection<Guid> ids, string tipoComunicacion) => Documento(w =>
-                EscribirEmitidas(w, empresa, ejercicio, periodoTexto, vivas.Where(f => ids.Contains(f.Id)).ToList(), desgloses, contrapartes, tipoComunicacion));
-            string Baja(IReadOnlyCollection<Guid> ids) => Documento(w =>
+            string Alta(IReadOnlyCollection<Guid> ids, string tipoComunicacion) => Esquemas(Documento(w =>
+                EscribirEmitidas(w, empresa, ejercicio, periodoTexto, vivas.Where(f => ids.Contains(f.Id)).ToList(), desgloses, contrapartes, tipoComunicacion)));
+            string Baja(IReadOnlyCollection<Guid> ids) => Esquemas(Documento(w =>
                 EscribirBajas(w, empresa, ejercicio, periodoTexto, "BajaLRFacturasEmitidas", "RegistroLRBajaExpedidas",
-                    anuladas.Where(f => ids.Contains(f.Id)).Select(f => (Nif: (string?)empresa.Nif, Nombre: empresa.RazonSocial, f.NumeroCompleto, f.FechaEmision)).ToList()));
+                    anuladas.Where(f => ids.Contains(f.Id)).Select(f => (Nif: (string?)empresa.Nif, Nombre: empresa.RazonSocial, f.NumeroCompleto, f.FechaEmision)).ToList())));
 
             return Resultado.Ok(new LoteSii(tipo, ejercicio, periodo,
                 vivas.Select(f => new DocumentoSii(f.Id, f.NumeroCompleto, f.FechaEmision, Huella(Alta([f.Id], "A0")))).ToList(),
                 anuladas.Select(f => new DocumentoSii(f.Id, f.NumeroCompleto, f.FechaEmision, string.Empty)).ToList(),
-                Alta, Baja));
+                Alta, Baja, adm));
         }
 
         var gastos = (await _gastos.ListarAsync(empresaId, ct).ConfigureAwait(false))
-            .Where(g => g.Fecha >= desde && g.Fecha <= hasta && (!empresa.OperaEnAmbosTerritorios || Impuesto.TipoDeCodigo(g.CodigoIva) == TipoImpuesto.Iva))
+            .Where(g => g.Fecha >= desde && g.Fecha <= hasta && (!empresa.OperaEnAmbosTerritorios || Impuesto.TipoDeCodigo(g.CodigoIva) == impuesto))
             .OrderBy(g => g.Fecha).ThenBy(g => g.Id).ToList();
         var proveedores = new Dictionary<Guid, ProveedorDto>();
         foreach (var id in gastos.Where(g => g.ProveedorId is not null).Select(g => g.ProveedorId!.Value).Distinct())
@@ -225,20 +289,20 @@ public sealed class GenerarSii
         // Los gastos anulados no se registran en el libro de recibidas (y se dan de baja si se habían enviado).
         var vivos = gastos.Where(g => !string.Equals(g.Estado, "Anulado", StringComparison.OrdinalIgnoreCase)).ToList();
         var anulados = gastos.Where(g => string.Equals(g.Estado, "Anulado", StringComparison.OrdinalIgnoreCase)).ToList();
-        string AltaR(IReadOnlyCollection<Guid> ids, string tipoComunicacion) => Documento(w =>
-            EscribirRecibidas(w, empresa, ejercicio, periodoTexto, vivos.Where(g => ids.Contains(g.Id)).ToList(), proveedores, tipoComunicacion));
-        string BajaR(IReadOnlyCollection<Guid> ids) => Documento(w =>
+        string AltaR(IReadOnlyCollection<Guid> ids, string tipoComunicacion) => Esquemas(Documento(w =>
+            EscribirRecibidas(w, empresa, ejercicio, periodoTexto, vivos.Where(g => ids.Contains(g.Id)).ToList(), proveedores, tipoComunicacion)));
+        string BajaR(IReadOnlyCollection<Guid> ids) => Esquemas(Documento(w =>
             EscribirBajas(w, empresa, ejercicio, periodoTexto, "BajaLRFacturasRecibidas", "RegistroLRBajaRecibidas",
                 anulados.Where(g => ids.Contains(g.Id)).Select(g =>
                 {
                     var p = g.ProveedorId is { } pid ? proveedores.GetValueOrDefault(pid) : null;
                     return (Nif: p?.NifFiscal, Nombre: p?.Nombre ?? g.ProveedorTexto ?? "Proveedor", NumeroRecibida(g, ejercicio), g.FechaFactura ?? g.Fecha);
-                }).ToList()));
+                }).ToList())));
 
         return Resultado.Ok(new LoteSii(tipo, ejercicio, periodo,
             vivos.Select(g => new DocumentoSii(g.Id, NumeroRecibida(g, ejercicio), g.FechaFactura ?? g.Fecha, Huella(AltaR([g.Id], "A0")))).ToList(),
             anulados.Select(g => new DocumentoSii(g.Id, NumeroRecibida(g, ejercicio), g.FechaFactura ?? g.Fecha, string.Empty)).ToList(),
-            AltaR, BajaR));
+            AltaR, BajaR, adm));
     }
 
     /// <summary>Número de la factura recibida; sin el del proveedor, uno estable a partir del gasto (a completar antes de enviar).</summary>

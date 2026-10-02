@@ -34,7 +34,7 @@ public sealed record RespuestaTransporteSii(int? CodigoHttp, string? Cuerpo, str
 /// <summary>Llamada SOAP al servicio web del SII con el certificado de la empresa (autenticación TLS de cliente).</summary>
 public interface ITransporteSii
 {
-    Task<RespuestaTransporteSii> EnviarAsync(TipoLibroSii libro, EntornoSii entorno, X509Certificate2 certificado, string sobreSoap, CancellationToken ct = default);
+    Task<RespuestaTransporteSii> EnviarAsync(Uri destino, TipoLibroSii libro, EntornoSii entorno, X509Certificate2 certificado, string sobreSoap, CancellationToken ct = default);
 }
 
 // ----------------------------------------------------------------------------- DTOs
@@ -42,7 +42,7 @@ public sealed record CertificadoSiiDto(string Titular, string? Nif, DateTimeOffs
 
 public sealed record SubirCertificadoSiiComando(string PfxBase64, string Clave, EntornoSii Entorno = EntornoSii.Pruebas);
 
-public sealed record EnviarSiiComando(TipoLibroSii Libro, int Ejercicio, int Periodo);
+public sealed record EnviarSiiComando(TipoLibroSii Libro, int Ejercicio, int Periodo, AdministracionSii? Administracion = null);
 
 public sealed record EnvioSiiDto(Guid Id, string Libro, int Ejercicio, int Periodo, string TipoComunicacion, string Entorno, int Registros, int Correctos,
     int ConErrores, int Incorrectos, string Estado, string? Csv, string? Error, DateTimeOffset EnviadoEn)
@@ -252,9 +252,12 @@ public sealed class EnviarSii
     private readonly GestionCertificadoSii _certificados;
     private readonly ITransporteSii _transporte;
     private readonly IReloj _reloj;
+    private readonly OpcionesSiiAtc _atc;
 
-    public EnviarSii(GenerarSii generar, IRepositorioSii repo, GestionCertificadoSii certificados, ITransporteSii transporte, IReloj reloj)
+    public EnviarSii(GenerarSii generar, IRepositorioSii repo, GestionCertificadoSii certificados, ITransporteSii transporte, IReloj reloj,
+        OpcionesSiiAtc? atc = null)
     {
+        _atc = atc ?? new OpcionesSiiAtc();
         _generar = generar;
         _repo = repo;
         _certificados = certificados;
@@ -262,18 +265,22 @@ public sealed class EnviarSii
         _reloj = reloj;
     }
 
-    public static string NombreLibro(TipoLibroSii libro) => libro == TipoLibroSii.Emitidas ? "Emitidas" : "Recibidas";
+    /// <summary>Nombre del libro en el registro de envíos: el de la ATC lleva el prefijo «Igic» (son libros distintos).</summary>
+    public static string NombreLibro(TipoLibroSii libro, AdministracionSii administracion = AdministracionSii.Aeat) =>
+        (administracion == AdministracionSii.Atc ? "Igic" : "") + (libro == TipoLibroSii.Emitidas ? "Emitidas" : "Recibidas");
 
     /// <summary>Situación de cada documento del mes respecto al SII, sin enviar nada.</summary>
-    public async Task<Resultado<IReadOnlyList<SituacionSiiDto>>> SituacionAsync(Guid empresaId, TipoLibroSii libro, int ejercicio, int periodo, CancellationToken ct = default)
+    public async Task<Resultado<IReadOnlyList<SituacionSiiDto>>> SituacionAsync(Guid empresaId, TipoLibroSii libro, int ejercicio, int periodo,
+        AdministracionSii? administracion = null, CancellationToken ct = default)
     {
-        var lote = await _generar.PrepararAsync(empresaId, libro, ejercicio, periodo, ct).ConfigureAwait(false);
+        var lote = await _generar.PrepararAsync(empresaId, libro, ejercicio, periodo, administracion, ct).ConfigureAwait(false);
         if (lote.EsFallo)
         {
             return Resultado.Fallo<IReadOnlyList<SituacionSiiDto>>(lote.Error);
         }
 
-        var registros = (await _repo.RegistrosAsync(empresaId, NombreLibro(libro), ejercicio, periodo, ct).ConfigureAwait(false)).ToDictionary(r => r.DocumentoId);
+        var registros = (await _repo.RegistrosAsync(empresaId, NombreLibro(libro, lote.Valor.Administracion), ejercicio, periodo, ct).ConfigureAwait(false))
+            .ToDictionary(r => r.DocumentoId);
         return Resultado.Ok<IReadOnlyList<SituacionSiiDto>>(Situacion(lote.Valor, registros));
     }
 
@@ -291,14 +298,22 @@ public sealed class EnviarSii
             return Resultado.Fallo<ResultadoEnvioSiiDto>(Error.Validacion("sii.certificado_caducado", "El certificado de la empresa ha caducado: sube uno vigente."));
         }
 
-        var preparado = await _generar.PrepararAsync(empresaId, comando.Libro, comando.Ejercicio, comando.Periodo, ct).ConfigureAwait(false);
+        var preparado = await _generar.PrepararAsync(empresaId, comando.Libro, comando.Ejercicio, comando.Periodo, comando.Administracion, ct).ConfigureAwait(false);
         if (preparado.EsFallo)
         {
             return Resultado.Fallo<ResultadoEnvioSiiDto>(preparado.Error);
         }
 
         var lote = preparado.Valor;
-        var libro = NombreLibro(comando.Libro);
+        var destino = lote.Administracion == AdministracionSii.Atc ? _atc.Url(comando.Libro, certificado.Entorno) : DireccionesSii.Url(comando.Libro, certificado.Entorno);
+        if (destino is null)
+        {
+            return Resultado.Fallo<ResultadoEnvioSiiDto>(Error.Validacion("sii.atc_sin_configurar",
+                "Falta configurar el servicio del SII-IGIC de la Agencia Tributaria Canaria (Sii:Atc: EspacioNombres, ServidorPruebas, " +
+                "ServidorProduccion, RutaEmitidas y RutaRecibidas, según su documentación técnica). Hasta entonces se puede descargar el XML para revisarlo."));
+        }
+
+        var libro = NombreLibro(comando.Libro, lote.Administracion);
         var registros = (await _repo.RegistrosAsync(empresaId, libro, comando.Ejercicio, comando.Periodo, ct).ConfigureAwait(false)).ToDictionary(r => r.DocumentoId);
 
         // Qué va en cada tipo de comunicación.
@@ -319,7 +334,7 @@ public sealed class EnviarSii
             {
                 var ids = bloque.Select(d => d.Id).ToList();
                 var cuerpo = tipo == "B" ? lote.Baja(ids) : lote.Alta(ids, tipo);
-                envios.Add(await EnviarBloqueAsync(empresaId, comando, libro, tipo, certificado.Entorno, x509, bloque, cuerpo, registros, ct).ConfigureAwait(false));
+                envios.Add(await EnviarBloqueAsync(empresaId, comando, destino, libro, tipo, certificado.Entorno, x509, bloque, cuerpo, registros, ct).ConfigureAwait(false));
             }
         }
 
@@ -333,14 +348,14 @@ public sealed class EnviarSii
     public async Task<(string Peticion, string? Respuesta)?> DetalleEnvioAsync(Guid id, CancellationToken ct = default) =>
         await _repo.EnvioAsync(id, ct).ConfigureAwait(false) is { } e ? (e.Peticion, e.Respuesta) : null;
 
-    private async Task<EnvioSii> EnviarBloqueAsync(Guid empresaId, EnviarSiiComando comando, string libro, string tipo, EntornoSii entorno, X509Certificate2 x509,
+    private async Task<EnvioSii> EnviarBloqueAsync(Guid empresaId, EnviarSiiComando comando, Uri destino, string libro, string tipo, EntornoSii entorno, X509Certificate2 x509,
         IReadOnlyList<DocumentoSii> documentos, string cuerpo, Dictionary<Guid, RegistroSii> registros, CancellationToken ct)
     {
         var sobre = Sobre(cuerpo);
         var envio = new EnvioSii(empresaId, libro, comando.Ejercicio, comando.Periodo, tipo, entorno, documentos.Count, sobre, _reloj.AhoraUtc);
         _repo.Agregar(envio);
 
-        var transporte = await _transporte.EnviarAsync(comando.Libro, entorno, x509, sobre, ct).ConfigureAwait(false);
+        var transporte = await _transporte.EnviarAsync(destino, comando.Libro, entorno, x509, sobre, ct).ConfigureAwait(false);
         var respuesta = transporte.Error is null ? RespuestaSii.Leer(transporte.Cuerpo) : new RespuestaSii.Resultado(null, null, [], transporte.Error);
         if (respuesta.Fallo is not null)
         {

@@ -105,6 +105,28 @@ Como en Hispatec, se lleva un **registro por factura** (esquema `fiscal`: `certi
 - **Interfaz**: en Informes, el panel SII muestra el certificado, la situación del mes, el botón «Enviar a la AEAT» y
   el histórico.
 
+### SII-IGIC de la Agencia Tributaria Canaria
+
+Las facturas y los gastos con **IGIC** se llevan al SII de la **Agencia Tributaria Canaria (ATC)**, no al de la AEAT.
+Todos los puntos del SII (`/informes/sii`, `/situacion`, `/enviar`) aceptan `administracion` = `Aeat` o `Atc`:
+
+- sin indicarlo, el del territorio de la empresa: la AEAT en la Península y la ATC en Canarias;
+- una empresa que **opera en los dos territorios** lleva los dos SII: al de la AEAT van solo los documentos con IVA y al
+  de la ATC solo los del IGIC. Pedir el de un impuesto por el que no tributa es un 400 `sii.administracion`;
+- son **libros distintos** en el registro (`IgicEmitidas` / `IgicRecibidas`): enviar uno no marca nada en el otro. El
+  certificado es el mismo (mismo NIF);
+- el suministro tiene la **misma estructura** que el de la AEAT (cabecera, `RegistroLRFacturasEmitidas`/`Recibidas`,
+  A0/A1/baja, desgloses) y cambia la raíz de los espacios de nombres de los esquemas y las direcciones del servicio.
+
+**Configuración** (`Sii:Atc`): `EspacioNombres` (raíz de los esquemas, sin el nombre del `.xsd`), `ServidorPruebas`,
+`ServidorProduccion`, `RutaEmitidas` y `RutaRecibidas`, tomados de la documentación técnica vigente de la ATC. No van
+puestos de fábrica porque ALXOR no los ha podido contrastar con la ATC: **hay que confirmarlos antes de usarlo**. Sin
+configurar, el XML se puede descargar para revisarlo (con un espacio de nombres provisional `urn:alxor:…`), pero el
+envío se rechaza con `sii.atc_sin_configurar`.
+
+En la pantalla, una empresa de los dos territorios elige la administración en el panel SII; una de Canarias trabaja
+directamente con la ATC («Enviar a la ATC»).
+
 **Emitidas según la clase de sus tipos de IVA:**
 
 - **Clave de régimen:** 02 exportación (o régimen de viajeros), 03 bienes usados (REBU), 05 agencias de viajes,
