@@ -5,8 +5,11 @@ using AlxorCore.Nucleo.Resultados;
 
 namespace AlxorCore.Api.Comun;
 
-/// <summary>Adaptador de <see cref="IExistenciasBodega"/>: las botellas embotelladas entran (y al anular, salen) en las existencias del artículo.</summary>
-public sealed class ExistenciasBodegaCatalogo : IExistenciasBodega
+/// <summary>
+/// Adaptador de <see cref="IExistenciasBodega"/> y de <see cref="AlxorCore.Vivero.Aplicacion.IExistenciasVivero"/>: las botellas embotelladas y las
+/// plantas que pasan a la venta entran (y al anular, salen) en las existencias del artículo.
+/// </summary>
+public sealed class ExistenciasBodegaCatalogo : IExistenciasBodega, AlxorCore.Vivero.Aplicacion.IExistenciasVivero
 {
     private readonly RegistrarMovimientoStock _movimiento;
 
@@ -27,8 +30,11 @@ public sealed class ExistenciasBodegaCatalogo : IExistenciasBodega
     }
 }
 
-/// <summary>Adaptador de <see cref="IVentasBodega"/>: la venta a granel es un albarán de venta directo con una línea en litros.</summary>
-public sealed class VentasBodegaFacturacion : IVentasBodega
+/// <summary>
+/// Adaptador de <see cref="IVentasBodega"/> y de <see cref="AlxorCore.Vivero.Aplicacion.IVentasVivero"/>: la venta a granel (en litros) y la entrega
+/// de un encargo de planta son un albarán de venta directo de una línea.
+/// </summary>
+public sealed class VentasBodegaFacturacion : IVentasBodega, AlxorCore.Vivero.Aplicacion.IVentasVivero
 {
     private readonly CrearAlbaranVenta _crear;
     private readonly AnularAlbaranVenta _anular;

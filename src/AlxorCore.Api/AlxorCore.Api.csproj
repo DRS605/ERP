@@ -35,6 +35,8 @@
     <ProjectReference Include="..\AlxorCore.Cooperativa.Infraestructura\AlxorCore.Cooperativa.Infraestructura.csproj" />
     <ProjectReference Include="..\AlxorCore.Bodega\AlxorCore.Bodega.csproj" />
     <ProjectReference Include="..\AlxorCore.Bodega.Infraestructura\AlxorCore.Bodega.Infraestructura.csproj" />
+    <ProjectReference Include="..\AlxorCore.Vivero\AlxorCore.Vivero.csproj" />
+    <ProjectReference Include="..\AlxorCore.Vivero.Infraestructura\AlxorCore.Vivero.Infraestructura.csproj" />
     <ProjectReference Include="..\AlxorCore.Agro.Infraestructura\AlxorCore.Agro.Infraestructura.csproj" />
     <ProjectReference Include="..\AlxorCore.Migracion\AlxorCore.Migracion.csproj" />
     <ProjectReference Include="..\AlxorCore.Migracion.Infraestructura\AlxorCore.Migracion.Infraestructura.csproj" />

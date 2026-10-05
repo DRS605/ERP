@@ -93,6 +93,7 @@ public static class EndpointsCuenta
         AlxorCore.Logistica.Infraestructura.LogisticaDbContext logistica,
         AlxorCore.Cooperativa.Infraestructura.CooperativaDbContext cooperativa,
         AlxorCore.Bodega.Infraestructura.BodegaDbContext bodega,
+        AlxorCore.Vivero.Infraestructura.ViveroDbContext vivero,
         AlxorCore.Migracion.Infraestructura.MigracionDbContext migracion,
         AlxorCore.Analisis.Infraestructura.AnalisisDbContext analisis,
         CancellationToken ct)
@@ -130,6 +131,7 @@ public static class EndpointsCuenta
         await BorradoEmpresa.EjecutarAsync(logistica, id, () => logistica.BorrarEmpresaAsync(id, ct), ct).ConfigureAwait(false);
         await BorradoEmpresa.EjecutarAsync(cooperativa, id, () => cooperativa.BorrarEmpresaAsync(id, ct), ct).ConfigureAwait(false);
         await BorradoEmpresa.EjecutarAsync(bodega, id, () => bodega.BorrarEmpresaAsync(id, ct), ct).ConfigureAwait(false);
+        await BorradoEmpresa.EjecutarAsync(vivero, id, () => vivero.BorrarEmpresaAsync(id, ct), ct).ConfigureAwait(false);
 
         // Los maestros (clientes, proveedores, artículos) son del grupo: solo se borran si es la última empresa del grupo;
         // si quedan otras, siguen siendo suyos.

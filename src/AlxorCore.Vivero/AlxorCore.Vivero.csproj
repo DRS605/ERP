@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AlxorCore.Vivero</RootNamespace>
+    <AssemblyName>AlxorCore.Vivero</AssemblyName>
+  </PropertyGroup>
+
+  <!-- Viveros: lotes de planta por fases, bajas, encargos con reserva, pasaporte fitosanitario y paso a existencias. Las
+       existencias y los albaranes llegan por puertos que implementa la API. -->
+  <ItemGroup>
+    <ProjectReference Include="..\AlxorCore.Nucleo\AlxorCore.Nucleo.csproj" />
+    <ProjectReference Include="..\AlxorCore.Terceros\AlxorCore.Terceros.csproj" />
+    <ProjectReference Include="..\AlxorCore.Catalogo\AlxorCore.Catalogo.csproj" />
+  </ItemGroup>
+
+</Project>
