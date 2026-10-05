@@ -12,7 +12,7 @@ namespace AlxorCore.Agro.Infraestructura;
 /// <list type="bullet">
 /// <item>partidas de artículos por kilos: la suma de sus movimientos nuevos por artículo (recepción, confección, ajustes,
 /// anulaciones y expediciones). La expedición de un palé con albarán, y su vuelta, no cuentan: el stock lo mueve el
-/// albarán (y su anulación o su devolución);</item>
+/// albarán (y su anulación o su devolución), y lo mismo lo vendido en subasta;</item>
 /// <item>envases: lo entregado a un tercero sale del almacén y lo recogido entra (una facturación de envases entra y su
 /// albarán sale: no cambia nada, porque los envases ya salieron al entregarse).</item>
 /// </list>
@@ -42,6 +42,12 @@ internal sealed class UnidadAgroConInventario : IUnidadDeTrabajoAgro
         {
             var m = e.Entity;
             if (m.DocumentoTipo == PalesAgro.DocumentoExpedicion && m.PaleId is { } paleId && ConAlbaran(paleId, m.Tipo == TipoMovimientoPartida.Anulacion))
+            {
+                continue;
+            }
+
+            // Lo vendido en subasta sale con el albarán de cada comprador (y vuelve al anularlo).
+            if (m.DocumentoTipo == SubastasAgro.DocumentoSubasta)
             {
                 continue;
             }

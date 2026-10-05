@@ -329,6 +329,7 @@ app.MapearAnalisis();
 app.MapearAgro();
 app.MapearLogistica();
 app.MapearCooperativa();
+app.MapearSubasta();
 app.MapearMigracion();
 app.MapearCobranza();
 app.MapearLiquidacionesPagos();

@@ -33,6 +33,7 @@ public sealed class Rol
             Permisos.AgroLeer, Permisos.AgroGestionar, Permisos.AgroLiquidar,
             Permisos.AgroRecepcionar, Permisos.AgroConfeccionar, Permisos.AgroExpedir, Permisos.AgroCalidad, Permisos.AgroCampo, Permisos.AgroPlanificar,
             Permisos.CooperativaLeer, Permisos.CooperativaGestionar,
+            Permisos.SubastaLeer, Permisos.SubastaGestionar, Permisos.BodegaLeer, Permisos.BodegaGestionar, Permisos.ViveroLeer, Permisos.ViveroGestionar,
             Permisos.CobroRegistrar, Permisos.PagoRegistrar,
             Permisos.ClienteGestionar, Permisos.ProductoGestionar,
             Permisos.InformeLeer, Permisos.DatosExportar,
@@ -44,7 +45,7 @@ public sealed class Rol
         "Solo lectura",
         new HashSet<string>(StringComparer.Ordinal)
         {
-            Permisos.FacturaLeer, Permisos.GastoLeer, Permisos.RecepcionLeer, Permisos.CompraLeer, Permisos.ContabilidadLeer, Permisos.InventarioLeer, Permisos.ProduccionLeer, Permisos.PersonalLeer, Permisos.ProyectoLeer, Permisos.AgroLeer, Permisos.CooperativaLeer, Permisos.InformeLeer, Permisos.DatosExportar,
+            Permisos.FacturaLeer, Permisos.GastoLeer, Permisos.RecepcionLeer, Permisos.CompraLeer, Permisos.ContabilidadLeer, Permisos.InventarioLeer, Permisos.ProduccionLeer, Permisos.PersonalLeer, Permisos.ProyectoLeer, Permisos.AgroLeer, Permisos.CooperativaLeer, Permisos.SubastaLeer, Permisos.BodegaLeer, Permisos.ViveroLeer, Permisos.InformeLeer, Permisos.DatosExportar,
         });
 
     private static readonly Dictionary<string, Rol> PorCodigo =

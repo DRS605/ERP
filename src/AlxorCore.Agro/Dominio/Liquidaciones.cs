@@ -123,7 +123,8 @@ public sealed record LineaALiquidar(Guid LineaRecepcionId, Guid RecepcionId, Gui
 public sealed record MuestraCategoria(Guid CategoriaId, string Categoria, decimal KgMuestra);
 
 /// <summary>Precio aplicado.</summary>
-public sealed record PrecioAplicable(Guid Id, decimal PrecioKg);
+/// <summary>Precio aplicado. <paramref name="Subasta"/>: el id es el de la sesión de subasta, no un precio de la campaña.</summary>
+public sealed record PrecioAplicable(Guid Id, decimal PrecioKg, bool Subasta = false);
 
 /// <summary>Datos de precios de la campaña que necesita la valoración.</summary>
 public interface IPreciosLiquidacion
@@ -134,11 +135,18 @@ public interface IPreciosLiquidacion
 
     PrecioAplicable? Precio(Guid productoId, Guid? categoriaId, DateOnly fecha);
 
+    /// <summary>Precio de la partida si se vendió en subasta (manda sobre los de la campaña).</summary>
+    PrecioAplicable? PrecioPartida(Guid partidaId) => null;
+
+    /// <summary>La partida tiene lotes en una sesión de subasta aún abierta: no se liquida hasta cerrarla.</summary>
+    bool PendienteDeSubasta(Guid partidaId) => false;
+
     /// <summary>Precio para una entrega con su envase (sin implementación propia, el mismo que sin envase).</summary>
     PrecioAplicable? Precio(Guid productoId, Guid? categoriaId, DateOnly fecha, Guid? envaseProductoId) => Precio(productoId, categoriaId, fecha);
 }
 
-public sealed record LineaValorada(Guid LineaRecepcionId, Guid RecepcionId, Guid PartidaId, Guid? CategoriaId, Guid PrecioId, DateOnly Fecha, decimal Kilos, decimal PrecioKg, decimal Importe);
+public sealed record LineaValorada(Guid LineaRecepcionId, Guid RecepcionId, Guid PartidaId, Guid? CategoriaId, Guid PrecioId, DateOnly Fecha, decimal Kilos, decimal PrecioKg, decimal Importe,
+    bool Subasta = false);
 
 public sealed record DescuentoValorado(Guid ConceptoId, string Nombre, TipoConceptoLiquidacion Tipo, decimal Valor, decimal Base, decimal Importe);
 
@@ -179,6 +187,19 @@ public static class Valoracion
             if (l.NetoKg <= 0m)
             {
                 lista.Add(Error.Validacion("liquidacion.kilos", $"{l.Etiqueta}: el peso neto debe ser positivo."));
+                continue;
+            }
+
+            // Vendida en subasta: el precio de lo adjudicado (media ponderada de sus lotes).
+            if (precios.PendienteDeSubasta(l.PartidaId))
+            {
+                lista.Add(Error.Validacion("liquidacion.subasta_pendiente", $"{l.Etiqueta}: la partida está en una sesión de subasta sin cerrar."));
+                continue;
+            }
+
+            if (precios.PrecioPartida(l.PartidaId) is { } subasta)
+            {
+                valoradas.Add(Linea(l, null, subasta, l.NetoKg));
                 continue;
             }
 
@@ -288,7 +309,7 @@ public static class Valoracion
     }
 
     private static LineaValorada Linea(LineaALiquidar l, Guid? categoriaId, PrecioAplicable precio, decimal kilos) =>
-        new(l.LineaRecepcionId, l.RecepcionId, l.PartidaId, categoriaId, precio.Id, l.Fecha, kilos, precio.PrecioKg, Redondeo.Dos(kilos * precio.PrecioKg));
+        new(l.LineaRecepcionId, l.RecepcionId, l.PartidaId, categoriaId, precio.Id, l.Fecha, kilos, precio.PrecioKg, Redondeo.Dos(kilos * precio.PrecioKg), precio.Subasta);
 }
 
 // ---------------------------------------------------------------------------------------------- Liquidación
@@ -488,7 +509,8 @@ public sealed class LineaLiquidacion : EntidadBase<Guid>
         RecepcionId = v.RecepcionId;
         PartidaId = v.PartidaId;
         CategoriaId = v.CategoriaId;
-        PrecioId = v.PrecioId;
+        PrecioId = v.Subasta ? null : v.PrecioId;
+        SesionSubastaId = v.Subasta ? v.PrecioId : null;
         FechaRecepcion = v.Fecha;
         Kilos = v.Kilos;
         PrecioKg = v.PrecioKg;
@@ -503,8 +525,11 @@ public sealed class LineaLiquidacion : EntidadBase<Guid>
 
     public Guid? CategoriaId { get; private set; }
 
-    /// <summary>Precio aplicado (para explicar el importe).</summary>
-    public Guid PrecioId { get; private set; }
+    /// <summary>Precio de la campaña aplicado (para explicar el importe); null si el precio es el de una subasta.</summary>
+    public Guid? PrecioId { get; private set; }
+
+    /// <summary>Sesión de subasta cuyo precio se aplicó (la última de la partida), si se vendió en subasta.</summary>
+    public Guid? SesionSubastaId { get; private set; }
 
     public DateOnly FechaRecepcion { get; private set; }
 

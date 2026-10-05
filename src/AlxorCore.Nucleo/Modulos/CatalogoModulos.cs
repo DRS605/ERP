@@ -42,6 +42,9 @@ public static class CatalogoModulos
     public const string Agro = "agro";
     public const string Logistica = "logistica";
     public const string Cooperativa = "cooperativa";
+    public const string Subasta = "subasta";
+    public const string Bodega = "bodega";
+    public const string Vivero = "vivero";
 
     public const string EdicionStart = "start";
     public const string EdicionGestion = "gestion";
@@ -74,6 +77,12 @@ public static class CatalogoModulos
         new(Cooperativa, "Cooperativas y SAT", "Socios, capital social (suscripciones, desembolsos, reembolsos con deducción y transmisiones), reparto del excedente "
             + "con fondos obligatorios, intereses y retorno cooperativo por actividad (o por capital en una SAT), retenciones, libros registro de socios y "
             + "de aportaciones y libros de actas.", [], Vertical: true),
+        new(Subasta, "Subasta hortofrutícola (alhóndiga)", "Sesiones de subasta con lotes de las partidas recibidas, reloj a la baja o pujas al alza, "
+            + "adjudicación por comprador, albarán de venta por comprador al cerrar y precio de subasta en la liquidación al agricultor.", [Agro], Vertical: true),
+        new(Bodega, "Bodegas", "Depósitos, entrada de uva con grado y variedad, elaboración, trasiegos, coupages con su composición por variedad y añada, "
+            + "mermas, embotellado a existencias, liquidación de la uva al viticultor y declaración mensual de existencias y movimientos.", [Inventario], Vertical: true),
+        new(Vivero, "Viveros", "Lotes de planta por especie, variedad y portainjerto, fases (siembra, injerto, crecimiento, lista), ubicaciones, bajas, "
+            + "encargos de clientes con reserva, pasaporte fitosanitario UE y paso a existencias para la venta.", [Inventario], Vertical: true),
     ];
 
     public static IReadOnlyList<EdicionAlxor> Ediciones { get; } =

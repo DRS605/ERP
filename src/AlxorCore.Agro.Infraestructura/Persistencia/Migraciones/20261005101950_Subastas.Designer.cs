@@ -3,6 +3,7 @@ using System;
 using AlxorCore.Agro.Infraestructura;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AlxorCore.Agro.Infraestructura.Persistencia.Migraciones
 {
     [DbContext(typeof(AgroDbContext))]
-    partial class AgroDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261005101950_Subastas")]
+    partial class Subastas
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -3620,7 +3623,7 @@ namespace AlxorCore.Agro.Infraestructura.Persistencia.Migraciones
                                 .HasColumnType("uuid")
                                 .HasColumnName("partida_id");
 
-                            b1.Property<Guid?>("PrecioId")
+                            b1.Property<Guid>("PrecioId")
                                 .HasColumnType("uuid")
                                 .HasColumnName("precio_id");
 
@@ -3631,10 +3634,6 @@ namespace AlxorCore.Agro.Infraestructura.Persistencia.Migraciones
                             b1.Property<Guid>("RecepcionId")
                                 .HasColumnType("uuid")
                                 .HasColumnName("recepcion_id");
-
-                            b1.Property<Guid?>("SesionSubastaId")
-                                .HasColumnType("uuid")
-                                .HasColumnName("sesion_subasta_id");
 
                             b1.Property<Guid>("liquidacion_id")
                                 .HasColumnType("uuid")
@@ -3656,9 +3655,6 @@ namespace AlxorCore.Agro.Infraestructura.Persistencia.Migraciones
 
                             b1.HasIndex("RecepcionId")
                                 .HasDatabaseName("ix_linea_liquidacion_recepcion");
-
-                            b1.HasIndex("SesionSubastaId")
-                                .HasDatabaseName("ix_linea_liquidacion_sesion_subasta");
 
                             b1.HasIndex("liquidacion_id")
                                 .HasDatabaseName("ix_linea_liquidacion_liquidacion");

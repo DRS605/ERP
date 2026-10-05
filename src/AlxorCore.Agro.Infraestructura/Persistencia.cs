@@ -47,6 +47,7 @@ public sealed class AgroDbContext : DbContextEmpresaBase, IUnidadDeTrabajoAgro
         DELETE FROM agro.parte_confeccion WHERE empresa_id = {0};
         DELETE FROM agro.partida WHERE empresa_id = {0};
         DELETE FROM agro.orden_carga WHERE empresa_id = {0};
+        DELETE FROM agro.sesion_subasta WHERE empresa_id = {0};
         DELETE FROM agro.pale WHERE empresa_id = {0};
         DELETE FROM agro.plantilla_pale WHERE empresa_id = {0};
         DELETE FROM agro.recepcion WHERE empresa_id = {0};
@@ -1019,7 +1020,8 @@ internal sealed class ConfiguracionLiquidacion : IEntityTypeConfiguration<Liquid
             l.Property(x => x.RecepcionId).HasColumnName("recepcion_id").IsRequired();
             l.Property(x => x.PartidaId).HasColumnName("partida_id").IsRequired();
             l.Property(x => x.CategoriaId).HasColumnName("categoria_id");
-            l.Property(x => x.PrecioId).HasColumnName("precio_id").IsRequired();
+            l.Property(x => x.PrecioId).HasColumnName("precio_id");
+            l.Property(x => x.SesionSubastaId).HasColumnName("sesion_subasta_id");
             l.Property(x => x.FechaRecepcion).HasColumnName("fecha_recepcion").IsRequired();
             l.Property(x => x.Kilos).HasColumnName("kilos").HasColumnType(Columnas.Kilos).IsRequired();
             l.Property(x => x.PrecioKg).HasColumnName("precio_kg").HasColumnType(Columnas.PrecioKg).IsRequired();
@@ -1030,6 +1032,7 @@ internal sealed class ConfiguracionLiquidacion : IEntityTypeConfiguration<Liquid
             l.HasIndex(x => x.PartidaId).HasDatabaseName("ix_linea_liquidacion_partida");
             l.HasIndex(x => x.CategoriaId).HasDatabaseName("ix_linea_liquidacion_categoria");
             l.HasIndex(x => x.PrecioId).HasDatabaseName("ix_linea_liquidacion_precio");
+            l.HasIndex(x => x.SesionSubastaId).HasDatabaseName("ix_linea_liquidacion_sesion_subasta");
         });
         b.OwnsMany(x => x.Descuentos, d =>
         {

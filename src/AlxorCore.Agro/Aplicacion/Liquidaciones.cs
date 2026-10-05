@@ -18,7 +18,7 @@ public sealed record ErrorDto(string Codigo, string Mensaje);
 
 public sealed record LineaLiquidacionDto(
     Guid LineaRecepcionId, Guid RecepcionId, string? Recepcion, Guid PartidaId, Guid? CategoriaId, string? Categoria, DateOnly FechaRecepcion,
-    decimal Kilos, decimal PrecioKg, decimal Importe, Guid PrecioId);
+    decimal Kilos, decimal PrecioKg, decimal Importe, Guid PrecioId, Guid? SesionSubastaId = null);
 
 public sealed record DescuentoLiquidacionDto(Guid ConceptoId, string Nombre, string Tipo, decimal Valor, decimal Base, decimal Importe);
 
@@ -44,9 +44,12 @@ public sealed class LiquidacionesAgro
     private readonly IReloj _reloj;
 
     private readonly IImpuestoEmpresaAgro? _impuesto;
+    private readonly IRepositorioSubastas? _subastas;
 
-    public LiquidacionesAgro(IRepositorioAgro repo, IUnidadDeTrabajoAgro unidad, IAutofacturas autofacturas, IReloj reloj, IImpuestoEmpresaAgro? impuesto = null)
+    public LiquidacionesAgro(IRepositorioAgro repo, IUnidadDeTrabajoAgro unidad, IAutofacturas autofacturas, IReloj reloj, IImpuestoEmpresaAgro? impuesto = null,
+        IRepositorioSubastas? subastas = null)
     {
+        _subastas = subastas;
         _impuesto = impuesto;
         _repo = repo;
         _unidad = unidad;
@@ -431,7 +434,10 @@ public sealed class LiquidacionesAgro
         var precios = await _repo.PreciosAsync(campanaId, ct).ConfigureAwait(false);
         var categorias = (await _repo.CategoriasAsync(empresaId, ct).ConfigureAwait(false)).ToDictionary(c => c.Id);
         var definitivas = await _repo.DefinitivasAsync(partidaIds, ct).ConfigureAwait(false);
-        return new PreciosCampana(articulos, precios, definitivas, categorias);
+        var sesiones = _subastas is null ? [] : await _subastas.ConPartidasAsync(partidaIds, ct).ConfigureAwait(false);
+        var abiertas = sesiones.Where(s => s.Estado == EstadoSesionSubasta.Abierta)
+            .SelectMany(s => s.Lotes.Where(l => l.Estado != EstadoLoteSubasta.Desierto).Select(l => l.PartidaId)).ToHashSet();
+        return new PreciosCampana(articulos, precios, definitivas, categorias, PrecioSubastaPartida.Calcular(sesiones), abiertas);
     }
 
     private sealed class PreciosCampana : IPreciosLiquidacion
@@ -439,10 +445,14 @@ public sealed class LiquidacionesAgro
         private readonly IReadOnlyList<ArticuloCampana> _articulos;
         private readonly IReadOnlyList<PrecioLiquidacion> _precios;
         private readonly Dictionary<Guid, IReadOnlyList<MuestraCategoria>> _clasificaciones;
+        private readonly IReadOnlyDictionary<Guid, PrecioAplicable> _subasta;
+        private readonly IReadOnlySet<Guid> _enSubasta;
 
         public PreciosCampana(IReadOnlyList<ArticuloCampana> articulos, IReadOnlyList<PrecioLiquidacion> precios, IReadOnlyList<ClasificacionPartida> definitivas,
-            IReadOnlyDictionary<Guid, Categoria> categorias)
+            IReadOnlyDictionary<Guid, Categoria> categorias, IReadOnlyDictionary<Guid, PrecioAplicable> subasta, IReadOnlySet<Guid> enSubasta)
         {
+            _subasta = subasta;
+            _enSubasta = enSubasta;
             _articulos = articulos;
             _precios = precios;
             _clasificaciones = definitivas.ToDictionary(d => d.PartidaId, d => (IReadOnlyList<MuestraCategoria>)d.Lineas
@@ -452,6 +462,10 @@ public sealed class LiquidacionesAgro
         }
 
         public MetodoLiquidacion? Metodo(Guid productoId) => _articulos.FirstOrDefault(a => a.ProductoId == productoId)?.Metodo;
+
+        public PrecioAplicable? PrecioPartida(Guid partidaId) => _subasta.GetValueOrDefault(partidaId);
+
+        public bool PendienteDeSubasta(Guid partidaId) => _enSubasta.Contains(partidaId);
 
         public IReadOnlyList<MuestraCategoria>? Clasificacion(Guid partidaId) => _clasificaciones.GetValueOrDefault(partidaId);
 
@@ -477,7 +491,7 @@ public sealed class LiquidacionesAgro
             l.TotalFactura, l.APagar, l.Estado.ToString(), l.GastoId, l.MotivoAnulacion,
             l.Lineas.OrderBy(x => x.FechaRecepcion).ThenBy(x => recepciones.GetValueOrDefault(x.RecepcionId), StringComparer.Ordinal)
                 .Select(x => new LineaLiquidacionDto(x.LineaRecepcionId, x.RecepcionId, recepciones.GetValueOrDefault(x.RecepcionId), x.PartidaId, x.CategoriaId,
-                    x.CategoriaId is { } c ? categorias.GetValueOrDefault(c) : null, x.FechaRecepcion, x.Kilos, x.PrecioKg, x.Importe, x.PrecioId)).ToList(),
+                    x.CategoriaId is { } c ? categorias.GetValueOrDefault(c) : null, x.FechaRecepcion, x.Kilos, x.PrecioKg, x.Importe, x.PrecioId ?? x.SesionSubastaId ?? Guid.Empty, x.SesionSubastaId)).ToList(),
             l.Descuentos.Select(d => new DescuentoLiquidacionDto(d.ConceptoId, d.Nombre, d.Tipo.ToString(), d.Valor, d.Base, d.Importe)).ToList());
     }
 

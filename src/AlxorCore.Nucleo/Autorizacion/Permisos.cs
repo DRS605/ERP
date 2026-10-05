@@ -69,6 +69,14 @@ public static class Permisos
     public const string CooperativaLeer = "cooperativa.leer";
     public const string CooperativaGestionar = "cooperativa.gestionar";
 
+    // Sectores: subasta, bodegas y viveros
+    public const string SubastaLeer = "subasta.leer";
+    public const string SubastaGestionar = "subasta.gestionar";
+    public const string BodegaLeer = "bodega.leer";
+    public const string BodegaGestionar = "bodega.gestionar";
+    public const string ViveroLeer = "vivero.leer";
+    public const string ViveroGestionar = "vivero.gestionar";
+
     // Terceros y catálogo
     public const string ClienteGestionar = "cliente.gestionar";
     public const string ProductoGestionar = "producto.gestionar";
@@ -109,6 +117,7 @@ public static class Permisos
         ProyectoLeer, ProyectoGestionar,
         AgroLeer, AgroGestionar, AgroLiquidar, AgroCorregir, AgroRecepcionar, AgroConfeccionar, AgroExpedir, AgroCalidad, AgroCampo, AgroPlanificar,
         CooperativaLeer, CooperativaGestionar,
+        SubastaLeer, SubastaGestionar, BodegaLeer, BodegaGestionar, ViveroLeer, ViveroGestionar,
         ClienteGestionar, ProductoGestionar,
         InformeLeer, DatosExportar,
         AprobacionConfigurar, AprobacionAprobar,

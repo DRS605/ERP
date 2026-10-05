@@ -45,6 +45,7 @@ generalista no debe ver menús de otro sector. Se contratan aparte (por ejemplo,
 | Integraciones (API pública y webhooks) | `integraciones` | — |
 | **Agro** (sectorial): recepción de fruta, liquidación al agricultor, confección, palés SSCC, trazabilidad — [agro.md](agro.md) | `agro` | — |
 | **Cooperativas y SAT** (sectorial): socios, capital social, reparto del excedente con retorno cooperativo, retenciones, libros registro y actas — [cooperativa.md](cooperativa.md) | `cooperativa` | — |
+| **Subasta hortofrutícola** (sectorial): sesiones, lotes de las partidas, reloj a la baja o pujas al alza, albarán por comprador y precio al agricultor — [subasta.md](subasta.md) | `subasta` | Agro |
 
 Un plan al que le falta una dependencia se **rechaza** (no se añade sola, porque es de pago):
 *"Producción necesita Inventario."*
