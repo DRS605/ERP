@@ -138,6 +138,7 @@ public static class ReferenciasRegistros
             ],
             [TiposRegistro.Almacen] =
             [
+                ("organizacion.centro.almacen_id", "centros que lo tienen por almacén habitual"),
                 ("inventario.existencia.almacen_id", "existencias"),
                 ("agro.tratamiento_parcela.almacen_id", "tratamientos del cuaderno de campo"),
                 ("inventario.movimiento_inventario.almacen_id", "movimientos"),
@@ -165,6 +166,14 @@ public static class ReferenciasRegistros
                 ("agro.parte_confeccion.centro_analitico_id", "partes de confección"),
                 ("agro.parcela.centro_analitico_id", "parcelas"),
                 ("agro.linea_planta.centro_analitico_id", "líneas de la planta"),
+            ],
+            [TiposRegistro.Centro] =
+            [
+                ("facturacion.factura.centro_id", "facturas y tickets"),
+                ("facturacion.presupuesto.centro_id", "presupuestos"),
+                ("facturacion.pedido_venta.centro_id", "pedidos de venta"),
+                ("facturacion.albaran_venta.centro_id", "albaranes de venta"),
+                ("gastos.gasto.centro_id", "facturas de proveedor"),
             ],
             [TiposRegistro.PartidaAnalitica] =
             [
@@ -255,6 +264,8 @@ public static class ReferenciasRegistros
         "agro.precio_liquidacion.campana_id",
         "agro.parcela.agricultor_id",
         "organizacion.visibilidad_actividad.actividad_negocio_id",
+        "organizacion.acceso_centro.centro_id",
+        "organizacion.caja_centro.centro_id",
     ];
 }
 

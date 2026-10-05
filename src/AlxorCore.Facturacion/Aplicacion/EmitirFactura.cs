@@ -42,7 +42,8 @@ public sealed record EmitirFacturaComando(
     Guid? ActividadNegocioId = null,
     IReadOnlyList<ConceptoSolicitado>? ConceptosDocumento = null,
     IReadOnlyList<DescuentoAnticipoSolicitado>? DescontarAnticipos = null,
-    TipoImpuesto? Impuesto = null);
+    TipoImpuesto? Impuesto = null,
+    Guid? CentroId = null);
 
 /// <summary>
 /// Caso de uso estrella: emitir una factura. Compone cliente (Terceros), productos/impuestos
@@ -292,7 +293,7 @@ public sealed class EmitirFactura
         var serie = comando.Serie;
         if (string.IsNullOrWhiteSpace(serie))
         {
-            serie = await _resolverSerie.ResolverPrefijoAsync(empresaId, TipoDocumento.Factura, cliente.Id, ct).ConfigureAwait(false);
+            serie = await _resolverSerie.ResolverPrefijoAsync(empresaId, TipoDocumento.Factura, cliente.Id, comando.CentroId, null, ct).ConfigureAwait(false);
         }
 
         // Control de riesgo del cliente: se comprueba ANTES de numerar (para no consumir número si se
@@ -309,6 +310,7 @@ public sealed class EmitirFactura
 
             borrador.Valor.EstablecerMencionFiscal(mencionFiscal);
             borrador.Valor.EstablecerImpuesto(impuesto);
+            borrador.Valor.AsignarCentro(comando.CentroId);
             if (cliente.LimiteRiesgo is { } limite)
             {
                 var vivo = await _riesgo.RiesgoVivoClienteAsync(empresaId, cliente.Id, ct).ConfigureAwait(false);
@@ -366,6 +368,7 @@ public sealed class EmitirFactura
 
         factura.Valor.EstablecerMencionFiscal(mencionFiscal);
         factura.Valor.EstablecerImpuesto(impuesto);
+        factura.Valor.AsignarCentro(comando.CentroId);
         await RegistroVerifactu.AplicarAsync(empresaId, factura.Valor, _empresas, _facturas, _reloj, ct).ConfigureAwait(false);
         _facturas.Agregar(factura.Valor);
 
@@ -409,7 +412,7 @@ public sealed class EmitirFactura
             .ToList();
         if (lineasVenta.Count > 0)
         {
-            await _stock.DescontarVentaAsync(empresaId, lineasVenta, ct).ConfigureAwait(false);
+            await _stock.DescontarVentaAsync(empresaId, lineasVenta, f.CentroId, ct).ConfigureAwait(false);
         }
 
         // Si la forma de pago registra el pago automáticamente, se cobra el total en el acto (queda

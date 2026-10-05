@@ -49,6 +49,12 @@ public enum AmbitoSerie
 
     /// <summary>Serie específica para un proveedor.</summary>
     Proveedor = 3,
+
+    /// <summary>Serie de un centro de la empresa (en <c>TerceroId</c> va el centro).</summary>
+    Centro = 4,
+
+    /// <summary>Serie de los tickets de una caja (en <c>TerceroId</c> va la caja).</summary>
+    Caja = 5,
 }
 
 /// <summary>Estado de una membresía (usuario dentro de una empresa).</summary>

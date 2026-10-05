@@ -53,7 +53,9 @@ public sealed record FacturaDto(
     string? AvisoRiesgo = null,
     string? MencionFiscal = null,
     TipoImpuesto Impuesto = TipoImpuesto.Iva,
-    decimal Suplidos = 0m)
+    decimal Suplidos = 0m,
+    Guid? CentroId = null,
+    Guid? CajaId = null)
 {
     /// <summary>Siglas del impuesto para mostrar en documentos ("IVA" o "IGIC").</summary>
     public string SiglasImpuesto => Impuesto.Siglas();
@@ -70,14 +72,16 @@ public sealed record FacturaDto(
             l.CuentaContable, l.AnticipoId, l.AlbaranVentaId)).ToList(),
         MencionFiscal: f.MencionFiscal,
         Impuesto: f.Impuesto,
-        Suplidos: f.Suplidos);
+        Suplidos: f.Suplidos,
+        CentroId: f.CentroId,
+        CajaId: f.CajaId);
 }
 
 /// <summary>Resumen de factura para listados y libros de IVA.</summary>
 public sealed record FacturaResumen(
     Guid Id, string NumeroCompleto, DateOnly FechaEmision, DateOnly FechaVencimiento, string ClienteNombre,
     string? ClienteNif, decimal BaseImponible, decimal CuotaIva, decimal RetencionIrpf, decimal Total, string Estado, string Tipo,
-    Guid? ClienteId, Guid? ActividadNegocioId = null, TipoImpuesto Impuesto = TipoImpuesto.Iva);
+    Guid? ClienteId, Guid? ActividadNegocioId = null, TipoImpuesto Impuesto = TipoImpuesto.Iva, Guid? CentroId = null, Guid? CajaId = null);
 
 /// <summary>
 /// Filtros de búsqueda de facturas en servidor. Todos son opcionales (null = no filtra por ese
@@ -97,7 +101,8 @@ public sealed record FiltroFacturas(
     string? Serie = null,
     IReadOnlyCollection<Guid>? Ids = null,
     string? Orden = null,
-    bool Descendente = true);
+    bool Descendente = true,
+    IReadOnlyCollection<Guid>? Centros = null);
 
 /// <summary>Datos mínimos de cada factura de un listado filtrado (todas las páginas), para calcular totales y saldos.</summary>
 public sealed record FacturaFiltrada(Guid Id, string Estado, DateOnly FechaVencimiento, decimal BaseImponible, decimal CuotaIva, decimal RetencionIrpf, decimal Total);

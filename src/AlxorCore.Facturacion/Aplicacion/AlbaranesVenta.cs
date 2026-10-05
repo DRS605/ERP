@@ -20,7 +20,7 @@ public sealed record LineaAlbaranComando(decimal Cantidad, string? Descripcion =
 
 /// <summary>Albarán directo. Sin conceptos en una línea se ponen los automáticos del cliente y el artículo (sus reglas).</summary>
 public sealed record CrearAlbaranVentaComando(Guid ClienteId, IReadOnlyList<LineaAlbaranComando> Lineas, DateOnly? Fecha = null, string? Referencia = null,
-    string? Observaciones = null, IReadOnlyList<ConceptoSolicitado>? ConceptosDocumento = null, AlxorCore.Nucleo.Comun.TipoImpuesto? Impuesto = null);
+    string? Observaciones = null, IReadOnlyList<ConceptoSolicitado>? ConceptosDocumento = null, AlxorCore.Nucleo.Comun.TipoImpuesto? Impuesto = null, Guid? CentroId = null);
 
 /// <summary>Precio definitivo de una línea (por su número de orden en el albarán).</summary>
 public sealed record PrecioLineaAlbaranComando(int Orden, decimal PrecioUnitario, decimal? PorcentajeDescuento = null);
@@ -56,7 +56,7 @@ internal static class AlbaranesVentaStock
         var lineas = Lineas(albaran);
         if (stock is not null && lineas.Count > 0)
         {
-            await stock.DescontarVentaAsync(empresaId, lineas, ct).ConfigureAwait(false);
+            await stock.DescontarVentaAsync(empresaId, lineas, albaran.CentroId, ct).ConfigureAwait(false);
         }
     }
 
@@ -66,7 +66,7 @@ internal static class AlbaranesVentaStock
         var lineas = Lineas(albaran);
         if (stock is not null && albaran.StockDescontado && lineas.Count > 0)
         {
-            await stock.DevolverVentaAsync(albaran.EmpresaId, lineas, $"Anulación del albarán {albaran.NumeroCompleto}", ct).ConfigureAwait(false);
+            await stock.DevolverVentaAsync(albaran.EmpresaId, lineas, $"Anulación del albarán {albaran.NumeroCompleto}", albaran.CentroId, ct).ConfigureAwait(false);
         }
     }
 
@@ -232,12 +232,14 @@ public sealed class CrearAlbaranVenta
         }
 
         var numero = await _albaranes.SiguienteNumeroAsync(empresaId, fecha.Year, ct).ConfigureAwait(false);
-        var serie = await _resolverSerie.ResolverPrefijoAsync(empresaId, TipoDocumento.AlbaranVenta, cliente.Id, ct).ConfigureAwait(false);
+        var serie = await _resolverSerie.ResolverPrefijoAsync(empresaId, TipoDocumento.AlbaranVenta, cliente.Id, comando.CentroId, null, ct).ConfigureAwait(false);
         var albaran = AlbaranVenta.Crear(empresaId, null, cliente.Id, cliente.Nombre, numero, fecha, comando.Referencia, lineas, _reloj, serie, comando.Observaciones);
         if (albaran.EsFallo)
         {
             return Resultado.Fallo<AlbaranVentaDto>(albaran.Error);
         }
+
+        albaran.Valor.AsignarCentro(comando.CentroId);
 
         _albaranes.Agregar(albaran.Valor);
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
@@ -349,7 +351,7 @@ public sealed class FacturarAlbaranesVenta
 
         var grupos = comando.UnaFacturaPorAlbaran
             ? listos.OrderBy(a => a.ClienteNombre, StringComparer.CurrentCulture).ThenBy(a => a.Fecha).ThenBy(a => a.Numero).Select(a => (IReadOnlyList<AlbaranVentaDto>)[a]).ToList()
-            : listos.GroupBy(a => a.ClienteId).OrderBy(g => g.First().ClienteNombre, StringComparer.CurrentCulture).Select(g => (IReadOnlyList<AlbaranVentaDto>)g.ToList()).ToList();
+            : listos.GroupBy(a => (a.ClienteId, a.CentroId)).OrderBy(g => g.First().ClienteNombre, StringComparer.CurrentCulture).Select(g => (IReadOnlyList<AlbaranVentaDto>)g.ToList()).ToList();
 
         var facturas = new List<FacturaGeneradaDto>();
         var errores = new List<ErrorFacturacionDto>();
@@ -387,6 +389,11 @@ public sealed class FacturarAlbaranesVenta
         }
 
         var ordenados = albaranes.OrderBy(a => a.Fecha).ThenBy(a => a.Numero).ToList();
+        var centros = ordenados.Select(a => a.CentroId).Distinct().ToList();
+        if (centros.Count > 1)
+        {
+            return Resultado.Fallo<FacturaDto>(Error.Conflicto("albaranventa.centros_distintos", "Los albaranes son de centros distintos: factúralos por separado."));
+        }
 
         // Lo devuelto y aún sin abonar se descuenta en la propia factura del albarán.
         var devoluciones = _devoluciones is null ? []
@@ -399,7 +406,7 @@ public sealed class FacturarAlbaranesVenta
         }
 
         // La fecha de operación es la de la última entrega (art. 75 LIVA: el devengo es la puesta a disposición).
-        var comando = new EmitirFacturaComando(ordenados[0].ClienteId, lineas, fechaEmision, ordenados[^1].Fecha, DiasVencimiento: diasVencimiento, FormaPagoId: formaPagoId);
+        var comando = new EmitirFacturaComando(ordenados[0].ClienteId, lineas, fechaEmision, ordenados[^1].Fecha, DiasVencimiento: diasVencimiento, FormaPagoId: formaPagoId, CentroId: centros[0]);
         var factura = await _emitir.EjecutarAsync(empresaId, comando, ct).ConfigureAwait(false);
         if (factura.EsFallo)
         {

@@ -155,25 +155,36 @@ public static class EndpointsFacturacion
         return resultado.AOk();
     }
 
-    private static async Task<IResult> ListarPresupuestosAsync(IContextoEmpresa contexto, ListarPresupuestos caso, CancellationToken ct)
+    private static async Task<IResult> ListarPresupuestosAsync(IContextoEmpresa contexto, ListarPresupuestos caso, CentrosUsuario centros, CancellationToken ct)
     {
         if (contexto.EmpresaId is null)
         {
             return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
         }
 
-        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, ct).ConfigureAwait(false));
+        var permitidos = await centros.PermitidosAsync(ct).ConfigureAwait(false);
+        return Results.Ok((await caso.EjecutarAsync(contexto.EmpresaId.Value, ct).ConfigureAwait(false))
+            .Where(p => permitidos is null || (p.CentroId is { } c && permitidos.Contains(c))).ToList());
     }
 
     private static async Task<IResult> ObtenerPresupuestoAsync(Guid id, ObtenerPresupuesto caso, CancellationToken ct) =>
         (await caso.EjecutarAsync(id, ct).ConfigureAwait(false)).AOk();
 
-    private static async Task<IResult> CrearPresupuestoAsync(DatosPresupuesto datos, IContextoEmpresa contexto, CrearPresupuesto caso, CancellationToken ct)
+    private static async Task<IResult> CrearPresupuestoAsync(DatosPresupuesto datos, IContextoEmpresa contexto, CrearPresupuesto caso, CentrosUsuario centros, CancellationToken ct)
     {
+        ArgumentNullException.ThrowIfNull(datos);
         if (contexto.EmpresaId is null)
         {
             return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
         }
+
+        var centro = await centros.ResolverAsync(datos.CentroId, null, ct: ct).ConfigureAwait(false);
+        if (centro.EsFallo)
+        {
+            return ResultadosHttp.AProblema(centro.Error);
+        }
+
+        datos = datos with { CentroId = centro.Valor.Centro };
 
         var resultado = await caso.EjecutarAsync(contexto.EmpresaId.Value, datos, ct).ConfigureAwait(false);
         return resultado.EsCorrecto ? resultado.ACreado($"/presupuestos/{resultado.Valor.Id}") : ResultadosHttp.AProblema(resultado.Error);
@@ -199,12 +210,21 @@ public static class EndpointsFacturacion
         return r.EsCorrecto ? Results.Ok() : ResultadosHttp.AProblema(r.Error);
     }
 
-    private static async Task<IResult> EmitirTicketAsync(EmitirTicketComando comando, IContextoEmpresa contexto, EmitirTicket caso, CancellationToken ct)
+    private static async Task<IResult> EmitirTicketAsync(EmitirTicketComando comando, IContextoEmpresa contexto, EmitirTicket caso, CentrosUsuario centros, CancellationToken ct)
     {
+        ArgumentNullException.ThrowIfNull(comando);
         if (contexto.EmpresaId is null)
         {
             return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
         }
+
+        var centro = await centros.ResolverAsync(comando.CentroId, comando.CajaId, admiteCaja: true, ct: ct).ConfigureAwait(false);
+        if (centro.EsFallo)
+        {
+            return ResultadosHttp.AProblema(centro.Error);
+        }
+
+        comando = comando with { CentroId = centro.Valor.Centro, CajaId = centro.Valor.Caja };
 
         var resultado = await caso.EjecutarAsync(contexto.EmpresaId.Value, comando, ct).ConfigureAwait(false);
         return resultado.EsCorrecto ? resultado.ACreado($"/facturas/{resultado.Valor.Id}") : ResultadosHttp.AProblema(resultado.Error);
@@ -251,7 +271,7 @@ public static class EndpointsFacturacion
     }
 
     private static async Task<IResult> EmitirAsync(EmitirFacturaComando comando, IContextoEmpresa contexto, System.Security.Claims.ClaimsPrincipal usuario,
-        AlxorCore.Organizacion.Aplicacion.CasosDeUso.IConsultaVisibilidad visibilidad, EmitirFactura caso, CancellationToken ct)
+        AlxorCore.Organizacion.Aplicacion.CasosDeUso.IConsultaVisibilidad visibilidad, EmitirFactura caso, CentrosUsuario centros, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(comando);
         if (contexto.EmpresaId is null)
@@ -266,24 +286,33 @@ public static class EndpointsFacturacion
             return ResultadosHttp.AProblema(acceso);
         }
 
+        var centro = await centros.ResolverAsync(comando.CentroId, null, ct: ct).ConfigureAwait(false);
+        if (centro.EsFallo)
+        {
+            return ResultadosHttp.AProblema(centro.Error);
+        }
+
+        comando = comando with { CentroId = centro.Valor.Centro };
         var resultado = await caso.EjecutarAsync(contexto.EmpresaId.Value, comando, ct).ConfigureAwait(false);
         return resultado.EsCorrecto ? resultado.ACreado($"/facturas/{resultado.Valor.Id}") : ResultadosHttp.AProblema(resultado.Error);
     }
 
-    private static async Task<IResult> ListarAsync(IContextoEmpresa contexto, ListarFacturas caso, CancellationToken ct)
+    private static async Task<IResult> ListarAsync(IContextoEmpresa contexto, ListarFacturas caso, CentrosUsuario centros, Guid? centroId, CancellationToken ct)
     {
         if (contexto.EmpresaId is null)
         {
             return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
         }
 
-        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, ct).ConfigureAwait(false));
+        var permitidos = await centros.PermitidosAsync(ct).ConfigureAwait(false);
+        return Results.Ok((await caso.EjecutarAsync(contexto.EmpresaId.Value, ct).ConfigureAwait(false))
+            .Where(f => (permitidos is null || (f.CentroId is { } c && permitidos.Contains(c))) && (centroId is null || f.CentroId == centroId)).ToList());
     }
 
     private static async Task<IResult> BuscarAsync(IContextoEmpresa contexto, BuscarFacturas caso, IConsultaFacturas consulta,
         AlxorCore.Tesoreria.Aplicacion.IConsultaTesoreria tesoreria, AlxorCore.Nucleo.Tiempo.IReloj reloj,
         string? texto, string? estado, DateOnly? desde, DateOnly? hasta, decimal? importeMin, decimal? importeMax, Guid? clienteId,
-        string? serie, string? cobro, string? orden, bool? desc, int? pagina, int? tamanoPagina, CancellationToken ct)
+        string? serie, string? cobro, string? orden, bool? desc, int? pagina, int? tamanoPagina, CentrosUsuario centros, Guid? centroId, CancellationToken ct)
     {
         if (contexto.EmpresaId is not { } empresaId)
         {
@@ -296,7 +325,8 @@ public static class EndpointsFacturacion
         }
 
         // Totales y estado de cobro sobre todo el resultado filtrado (no solo sobre la página).
-        var filtro = new FiltroFacturas(texto, estado, desde, hasta, importeMin, importeMax, clienteId, serie, Orden: orden, Descendente: desc ?? true);
+        var filtro = new FiltroFacturas(texto, estado, desde, hasta, importeMin, importeMax, clienteId, serie, Orden: orden, Descendente: desc ?? true,
+            Centros: await FiltroCentros.DeAsync(centros, centroId, ct).ConfigureAwait(false));
         var hoy = DateOnly.FromDateTime(reloj.AhoraUtc.UtcDateTime);
         var documentos = (await consulta.FiltradasAsync(empresaId, filtro, ct).ConfigureAwait(false))
             .Select(f => new DocumentoListado(f.Id, f.Estado, f.FechaVencimiento, f.BaseImponible, f.CuotaIva, f.RetencionIrpf, f.Total)).ToList();

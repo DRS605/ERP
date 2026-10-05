@@ -92,6 +92,26 @@ public interface IRepositorioAsignacionesSerie
 public interface IResolverSerie
 {
     Task<string?> ResolverPrefijoAsync(Guid empresaId, TipoDocumento tipoDocumento, Guid? terceroId, CancellationToken ct = default);
+
+    /// <summary>
+    /// La serie de un documento de un centro: la de la caja (en tickets), la del tercero, la del centro y, si no, la de
+    /// la empresa.
+    /// </summary>
+    Task<string?> ResolverPrefijoAsync(Guid empresaId, TipoDocumento tipoDocumento, Guid? terceroId, Guid? centroId, Guid? cajaId, CancellationToken ct = default) =>
+        ResolverPrefijoAsync(empresaId, tipoDocumento, terceroId, ct);
+}
+
+public interface IRepositorioCentros
+{
+    void Agregar(object entidad);
+
+    void Eliminar(object entidad);
+
+    Task<IReadOnlyList<Centro>> ListarAsync(Guid empresaId, CancellationToken ct = default);
+
+    Task<Centro?> ObtenerAsync(Guid id, CancellationToken ct = default);
+
+    Task<IReadOnlyList<AccesoCentro>> AccesosAsync(Guid empresaId, Guid? usuarioId, CancellationToken ct = default);
 }
 
 public interface IRepositorioProrratas

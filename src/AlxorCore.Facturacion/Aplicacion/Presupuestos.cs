@@ -16,18 +16,18 @@ public sealed record LineaPresupuestoDto(
 /// <summary>Vista de un presupuesto.</summary>
 public sealed record PresupuestoDto(
     Guid Id, string NumeroCompleto, Guid ClienteId, string ClienteNombre, DateOnly Fecha, DateOnly Validez,
-    string Estado, decimal BaseImponible, decimal CuotaIva, decimal Total, Guid? FacturaId, IReadOnlyList<LineaPresupuestoDto> Lineas, decimal Suplidos = 0m)
+    string Estado, decimal BaseImponible, decimal CuotaIva, decimal Total, Guid? FacturaId, IReadOnlyList<LineaPresupuestoDto> Lineas, decimal Suplidos = 0m, Guid? CentroId = null)
 {
     public static PresupuestoDto Desde(Presupuesto p) => new(
         p.Id, p.NumeroCompleto, p.ClienteId, p.ClienteNombre, p.Fecha, p.Validez, p.Estado.ToString(),
         p.BaseImponible, p.CuotaIva, p.Total, p.FacturaId,
-        p.Lineas.Select(l => new LineaPresupuestoDto(l.Descripcion, l.Cantidad, l.PrecioUnitario, l.PorcentajeDescuento, l.CodigoIva, l.PorcentajeIva, l.Base, l.CuotaIva, l.ProductoId, l.Conceptos, l.ImporteConceptos, l.CosteConceptos)).ToList(), p.Suplidos);
+        p.Lineas.Select(l => new LineaPresupuestoDto(l.Descripcion, l.Cantidad, l.PrecioUnitario, l.PorcentajeDescuento, l.CodigoIva, l.PorcentajeIva, l.Base, l.CuotaIva, l.ProductoId, l.Conceptos, l.ImporteConceptos, l.CosteConceptos)).ToList(), p.Suplidos, p.CentroId);
 }
 
 /// <summary>Resumen de presupuesto para listados.</summary>
 public sealed record PresupuestoResumen(
     Guid Id, string NumeroCompleto, DateOnly Fecha, DateOnly Validez, string ClienteNombre, decimal Total, string Estado, Guid? FacturaId,
-    decimal BaseImponible = 0m, decimal CuotaIva = 0m, Guid? ClienteId = null);
+    decimal BaseImponible = 0m, decimal CuotaIva = 0m, Guid? ClienteId = null, Guid? CentroId = null);
 
 /// <summary>Repositorio de presupuestos (escritura).</summary>
 public interface IRepositorioPresupuestos
@@ -50,7 +50,7 @@ public interface IConsultaPresupuestos
 
 /// <summary>Datos para crear o actualizar un presupuesto.</summary>
 public sealed record DatosPresupuesto(Guid ClienteId, IReadOnlyList<LineaComando> Lineas, int DiasValidez = 30, IReadOnlyList<ConceptoSolicitado>? ConceptosDocumento = null,
-    AlxorCore.Nucleo.Comun.TipoImpuesto? Impuesto = null);
+    AlxorCore.Nucleo.Comun.TipoImpuesto? Impuesto = null, Guid? CentroId = null);
 
 /// <summary>Caso de uso: crear un presupuesto.</summary>
 public sealed class CrearPresupuesto
@@ -122,6 +122,7 @@ public sealed class CrearPresupuesto
             return Resultado.Fallo<PresupuestoDto>(presupuesto.Error);
         }
 
+        presupuesto.Valor.AsignarCentro(datos.CentroId);
         _presupuestos.Agregar(presupuesto.Valor);
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return Resultado.Ok(PresupuestoDto.Desde(presupuesto.Valor));
@@ -289,7 +290,7 @@ public sealed class AceptarPresupuesto
             .Select(l => new LineaComando(l.Cantidad, l.Descripcion, l.PrecioUnitario, l.CodigoIva, l.PorcentajeDescuento, l.ProductoId, ConceptosCopiados: l.Conceptos))
             .ToList();
 
-        var comando = new EmitirFacturaComando(presupuesto.ClienteId, lineas, Serie: serie, DiasVencimiento: diasVencimiento);
+        var comando = new EmitirFacturaComando(presupuesto.ClienteId, lineas, Serie: serie, DiasVencimiento: diasVencimiento, CentroId: presupuesto.CentroId);
         var factura = await _emitirFactura.EjecutarAsync(empresaId, comando, ct).ConfigureAwait(false);
         if (factura.EsFallo)
         {

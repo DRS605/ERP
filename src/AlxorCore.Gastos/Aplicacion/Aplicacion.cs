@@ -24,7 +24,8 @@ public sealed record GastoDto(
     Guid? ActividadNegocioId = null, AfectacionIva Afectacion = AfectacionIva.Comun,
     string? NumeroFactura = null, DateOnly? FechaFactura = null, decimal RecargoTotal = 0m,
     IReadOnlyList<LineaGastoDto>? Lineas = null, IReadOnlyList<VencimientoGasto>? Vencimientos = null, IReadOnlyList<DesgloseIvaDto>? Desglose = null,
-    bool EsRectificativa = false, Guid? RectificaGastoId = null, string? NumeroRectificado = null, DateOnly? FechaRectificada = null, string? MotivoRectificacion = null)
+    bool EsRectificativa = false, Guid? RectificaGastoId = null, string? NumeroRectificado = null, DateOnly? FechaRectificada = null, string? MotivoRectificacion = null,
+    Guid? CentroId = null)
 {
     public static GastoDto Desde(Gasto g) => new(
         g.Id, g.ProveedorId, g.ProveedorTexto, g.Concepto, g.Fecha, g.BaseImponible, g.CodigoIva, g.PorcentajeIva, g.CuotaIva,
@@ -35,7 +36,8 @@ public sealed record GastoDto(
         Vencimientos: g.Vencimientos.OrderBy(v => v.Fecha).ToList(),
         Desglose: DesgloseDe(g),
         EsRectificativa: g.EsRectificativa, RectificaGastoId: g.RectificaGastoId, NumeroRectificado: g.NumeroRectificado, FechaRectificada: g.FechaRectificada,
-        MotivoRectificacion: g.MotivoRectificacion);
+        MotivoRectificacion: g.MotivoRectificacion,
+        CentroId: g.CentroId);
 
     /// <summary>Desglose por tipo. Un gasto antiguo sin líneas sale con una sola, la de su cabecera.</summary>
     public static IReadOnlyList<DesgloseIvaDto> DesgloseDe(Gasto g) =>
@@ -77,7 +79,8 @@ public sealed record FiltroGastos(
     Guid? ProveedorId = null,
     IReadOnlyCollection<Guid>? Ids = null,
     string? Orden = null,
-    bool Descendente = true);
+    bool Descendente = true,
+    IReadOnlyCollection<Guid>? Centros = null);
 
 /// <summary>Datos mínimos de cada gasto de un listado filtrado (todas las páginas), para totales y saldos. El vencimiento es el primero de sus plazos (o la fecha).</summary>
 public sealed record GastoFiltrado(Guid Id, string Estado, DateOnly Vencimiento, decimal BaseImponible, decimal CuotaIva, decimal RetencionIrpf, decimal Total);
@@ -128,7 +131,8 @@ public sealed record RegistrarGastoComando(
     Guid? RectificaGastoId = null,
     string? NumeroRectificado = null,
     DateOnly? FechaRectificada = null,
-    string? MotivoRectificacion = null);
+    string? MotivoRectificacion = null,
+    Guid? CentroId = null);
 
 /// <summary>
 /// Línea de una factura recibida. <see cref="PorcentajeIva"/> solo hace falta en inversión del sujeto pasivo e
@@ -351,6 +355,7 @@ public sealed class RegistrarGasto
         // La actividad se hereda del proveedor, salvo que se indique una en el comando (el acceso del
         // usuario a esa actividad lo valida la capa de API antes de llegar aquí).
         gasto.Valor.EstablecerActividad(comando.ActividadNegocioId ?? actividadNegocioId);
+        gasto.Valor.AsignarCentro(comando.CentroId);
 
         // Control de riesgo del proveedor (antes de guardar). Configurable por empresa: avisar o bloquear.
         string? avisoRiesgo = null;

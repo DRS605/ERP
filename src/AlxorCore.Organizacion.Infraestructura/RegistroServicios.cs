@@ -41,6 +41,10 @@ public static class RegistroServicios
         servicios.AddScoped<IRepositorioVisibilidad>(sp => sp.GetRequiredService<RepositorioVisibilidad>());
         servicios.AddScoped<IConsultaVisibilidad>(sp => sp.GetRequiredService<RepositorioVisibilidad>());
         servicios.AddScoped<IRepositorioMembresias, RepositorioMembresias>();
+        servicios.AddScoped<RepositorioCentros>();
+        servicios.AddScoped<IRepositorioCentros>(sp => sp.GetRequiredService<RepositorioCentros>());
+        servicios.AddScoped<AlxorCore.Nucleo.Aplicacion.IConsultaCentros>(sp => sp.GetRequiredService<RepositorioCentros>());
+        servicios.AddScoped<GestionCentros>();
         servicios.AddScoped<IRepositorioRolesEmpresa, RepositorioRolesEmpresa>();
         servicios.AddScoped<IRepositorioSeries, RepositorioSeries>();
         servicios.AddScoped<RepositorioAsignacionesSerie>();

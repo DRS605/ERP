@@ -84,6 +84,7 @@ internal sealed class ConfiguracionGasto : IEntityTypeConfiguration<Gasto>
         builder.Property(g => g.ProveedorId).HasColumnName("proveedor_id");
         builder.Property(g => g.ProveedorTexto).HasColumnName("proveedor_texto").HasMaxLength(200);
         builder.Property(g => g.ActividadNegocioId).HasColumnName("actividad_negocio_id");
+        builder.Property(g => g.CentroId).HasColumnName("centro_id");
         builder.Property(g => g.Afectacion).HasColumnName("afectacion").HasMaxLength(20).HasConversion<string>().IsRequired()
             .HasDefaultValue(AfectacionIva.Comun).HasSentinel((AfectacionIva)0);
         builder.Property(g => g.Concepto).HasColumnName("concepto").HasMaxLength(Gasto.LongitudMaximaConcepto).IsRequired();
@@ -297,6 +298,12 @@ internal sealed class RepositorioGastos : IRepositorioGastos, IConsultaGastos
         if (filtro.ProveedorId is Guid proveedorId)
         {
             consulta = consulta.Where(g => g.ProveedorId == proveedorId);
+        }
+
+        if (filtro.Centros is { } centros)
+        {
+            var permitidos = centros.ToList();
+            consulta = consulta.Where(g => g.CentroId != null && permitidos.Contains(g.CentroId.Value));
         }
 
         if (filtro.Ids is { } ids)

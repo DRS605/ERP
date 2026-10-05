@@ -56,7 +56,7 @@ public static class RutasModulos
         "/auth", "/empresas", "/modelos-fiscales", "/grupos", "/intragrupo", "/planes", "/usuarios", "/roles", "/cuenta", "/series", "/formas-pago", "/actividades",
         "/clientes", "/proveedores", "/productos", "/familias", "/conceptos-linea", "/tipos-iva", "/impuestos", "/tickets",
         "/facturas", "/facturas-recurrentes", "/gastos", "/recepcion", "/cobros", "/pagos", "/cuentas-bancarias", "/anticipos", "/impagados",
-        "/informes", "/analisis", "/auditoria", "/importar", "/migracion", "/cartera", "/exportar", "/extensiones", "/salud", "/swagger",
+        "/informes", "/analisis", "/auditoria", "/importar", "/migracion", "/cartera", "/exportar", "/extensiones", "/centros", "/salud", "/swagger",
     ];
 
     /// <summary>Módulo que exige la ruta, o <c>null</c> si es de la base.</summary>

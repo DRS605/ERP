@@ -97,6 +97,8 @@ builder.Services.AddScoped<AlxorCore.Vivero.Aplicacion.IVentasVivero, AlxorCore.
 // Extensiones: campos personalizados, adjuntos y alertas (lo que vigilan llega de cobros, riesgo y SII).
 AlxorCore.Extensiones.Infraestructura.RegistroServicios.AgregarModuloExtensiones(builder.Services, builder.Configuration);
 builder.Services.AddScoped<AlxorCore.Extensiones.Aplicacion.IFuentesAlertas, AlxorCore.Api.Comun.FuentesAlertasErp>();
+// Centros de la empresa: los que ve y usa cada usuario.
+builder.Services.AddScoped<AlxorCore.Api.Comun.CentrosUsuario>();
 builder.Services.AddScoped<AlxorCore.Informes.Aplicacion.IRendimientosCapitalMobiliario, AlxorCore.Api.Comun.RendimientosCapitalCooperativa>();
 builder.Services.AddScoped<AlxorCore.Facturacion.Aplicacion.IGastosComisionista, AlxorCore.Api.Comun.GastosComisionistaGastos>();
 builder.Services.AddScoped<AlxorCore.Contabilidad.Aplicacion.IFormaJuridicaEmpresa, AlxorCore.Api.Comun.FormaJuridicaPorNif>();
@@ -293,6 +295,7 @@ app.UseRateLimiter();
 app.UseAuthentication();
 // Plan contratado: antes que la autorización por permisos, para que el motivo del 403 sea claro.
 app.UseMiddleware<AlxorCore.Api.Comun.MiddlewareModulos>();
+app.UseMiddleware<AlxorCore.Api.Comun.MiddlewareCentros>();
 app.UseAuthorization();
 
 // Salud: liveness (sin comprobaciones) y readiness (comprueba la base de datos).
@@ -349,6 +352,7 @@ app.MapearSubasta();
 app.MapearBodega();
 app.MapearVivero();
 app.MapearExtensiones();
+app.MapearCentros();
 app.MapearMigracion();
 app.MapearCobranza();
 app.MapearLiquidacionesPagos();

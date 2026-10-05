@@ -179,13 +179,43 @@ internal sealed class RepositorioAsignacionesSerie : IRepositorioAsignacionesSer
         _contexto.AsignacionesSerie.AnyAsync(
             a => a.EmpresaId == empresaId && a.TipoDocumento == tipo && a.Ambito == ambito && a.TerceroId == terceroId, ct);
 
+    public async Task<string?> ResolverPrefijoAsync(Guid empresaId, TipoDocumento tipoDocumento, Guid? terceroId, Guid? centroId, Guid? cajaId, CancellationToken ct = default)
+    {
+        // La caja (en tickets) manda sobre el tercero, el tercero sobre el centro y el centro sobre la empresa.
+        async Task<string?> DeAsync(AmbitoSerie ambito, Guid id) => await _contexto.AsignacionesSerie.AsNoTracking()
+            .Where(a => a.EmpresaId == empresaId && a.TipoDocumento == tipoDocumento && a.Ambito == ambito && a.TerceroId == id)
+            .Select(a => a.Prefijo).FirstOrDefaultAsync(ct).ConfigureAwait(false);
+        if (cajaId is { } caja && caja != Guid.Empty && await DeAsync(AmbitoSerie.Caja, caja).ConfigureAwait(false) is { } deCaja)
+        {
+            return deCaja;
+        }
+
+        if (centroId is not { } centro || centro == Guid.Empty)
+        {
+            return await ResolverPrefijoAsync(empresaId, tipoDocumento, terceroId, ct).ConfigureAwait(false);
+        }
+
+        if (terceroId is { } t && t != Guid.Empty)
+        {
+            var delTercero = await _contexto.AsignacionesSerie.AsNoTracking()
+                .Where(a => a.EmpresaId == empresaId && a.TipoDocumento == tipoDocumento && (a.Ambito == AmbitoSerie.Cliente || a.Ambito == AmbitoSerie.Proveedor) && a.TerceroId == t)
+                .Select(a => a.Prefijo).FirstOrDefaultAsync(ct).ConfigureAwait(false);
+            if (delTercero is not null)
+            {
+                return delTercero;
+            }
+        }
+
+        return await DeAsync(AmbitoSerie.Centro, centro).ConfigureAwait(false) ?? await ResolverPrefijoAsync(empresaId, tipoDocumento, null, ct).ConfigureAwait(false);
+    }
+
     public async Task<string?> ResolverPrefijoAsync(Guid empresaId, TipoDocumento tipoDocumento, Guid? terceroId, CancellationToken ct = default)
     {
         // La serie del tercero (si tiene una asignada) tiene prioridad sobre la de la empresa.
         if (terceroId is { } id && id != Guid.Empty)
         {
             var especifica = await _contexto.AsignacionesSerie.AsNoTracking()
-                .Where(a => a.EmpresaId == empresaId && a.TipoDocumento == tipoDocumento && a.TerceroId == id)
+                .Where(a => a.EmpresaId == empresaId && a.TipoDocumento == tipoDocumento && (a.Ambito == AmbitoSerie.Cliente || a.Ambito == AmbitoSerie.Proveedor) && a.TerceroId == id)
                 .Select(a => a.Prefijo)
                 .FirstOrDefaultAsync(ct).ConfigureAwait(false);
             if (especifica is not null)
@@ -288,4 +318,39 @@ internal sealed class RepositorioConsolidacion : IRepositorioConsolidacion
     public void Agregar(object entidad) => _contexto.Add(entidad);
 
     public void Eliminar(object entidad) => _contexto.Remove(entidad);
+}
+
+internal sealed class RepositorioCentros : IRepositorioCentros, AlxorCore.Nucleo.Aplicacion.IConsultaCentros
+{
+    private readonly OrganizacionDbContext _contexto;
+
+    public RepositorioCentros(OrganizacionDbContext contexto) => _contexto = contexto;
+
+    public void Agregar(object entidad) => _contexto.Add(entidad);
+
+    public void Eliminar(object entidad) => _contexto.Remove(entidad);
+
+    public async Task<IReadOnlyList<Centro>> ListarAsync(Guid empresaId, CancellationToken ct = default) =>
+        await _contexto.Centros.Where(c => c.EmpresaId == empresaId).ToListAsync(ct).ConfigureAwait(false);
+
+    public Task<Centro?> ObtenerAsync(Guid id, CancellationToken ct = default) => _contexto.Centros.FirstOrDefaultAsync(c => c.Id == id, ct);
+
+    public async Task<IReadOnlyList<AccesoCentro>> AccesosAsync(Guid empresaId, Guid? usuarioId, CancellationToken ct = default) =>
+        await _contexto.AccesosCentro.Where(a => a.EmpresaId == empresaId && (usuarioId == null || a.UsuarioId == usuarioId)).ToListAsync(ct).ConfigureAwait(false);
+
+    private static AlxorCore.Nucleo.Aplicacion.CentroInfo Info(Centro c) => new(c.Id, c.Codigo, c.Nombre, c.Activo, c.AlmacenId,
+        c.Cajas.Select(k => new AlxorCore.Nucleo.Aplicacion.CajaInfo(k.Id, k.Codigo, k.Nombre, k.Activa)).ToList());
+
+    async Task<AlxorCore.Nucleo.Aplicacion.CentroInfo?> AlxorCore.Nucleo.Aplicacion.IConsultaCentros.ObtenerAsync(Guid centroId, CancellationToken ct) =>
+        await _contexto.Centros.AsNoTracking().FirstOrDefaultAsync(c => c.Id == centroId, ct).ConfigureAwait(false) is { } c ? Info(c) : null;
+
+    async Task<IReadOnlyList<AlxorCore.Nucleo.Aplicacion.CentroInfo>> AlxorCore.Nucleo.Aplicacion.IConsultaCentros.ListarAsync(Guid empresaId, CancellationToken ct) =>
+        (await _contexto.Centros.AsNoTracking().Where(c => c.EmpresaId == empresaId).ToListAsync(ct).ConfigureAwait(false)).Select(Info).ToList();
+
+    public async Task<IReadOnlyCollection<Guid>?> PermitidosAsync(Guid empresaId, Guid usuarioId, CancellationToken ct = default)
+    {
+        var ids = await _contexto.AccesosCentro.AsNoTracking().Where(a => a.EmpresaId == empresaId && a.UsuarioId == usuarioId).Select(a => a.CentroId)
+            .ToListAsync(ct).ConfigureAwait(false);
+        return ids.Count == 0 ? null : ids;
+    }
 }

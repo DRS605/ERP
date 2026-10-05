@@ -158,6 +158,8 @@ public static class EndpointsCuenta
         await analisis.Informes.Where(i => i.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
         await BorradoEmpresa.EjecutarAsync(auditoria, id, () => auditoria.Registros.Where(a => a.EmpresaId == id).ExecuteDeleteAsync(ct), ct).ConfigureAwait(false);
         await organizacion.Series.Where(s => s.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+        await organizacion.AccesosCentro.Where(x => x.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+        await organizacion.Centros.Where(x => x.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
         await organizacion.Membresias.Where(m => m.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
         await organizacion.Empresas.Where(e => e.Id == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
 

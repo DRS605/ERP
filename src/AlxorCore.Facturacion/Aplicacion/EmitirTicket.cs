@@ -17,7 +17,9 @@ public sealed record EmitirTicketComando(
     Guid? ClienteId = null,
     string? Serie = null,
     DateOnly? FechaEmision = null,
-    Guid? FormaPagoId = null);
+    Guid? FormaPagoId = null,
+    Guid? CentroId = null,
+    Guid? CajaId = null);
 
 /// <summary>
 /// Caso de uso del TPV: emite un <b>ticket</b> (factura simplificada). Reutiliza la resolución de
@@ -118,7 +120,7 @@ public sealed class EmitirTicket
         var serie = comando.Serie;
         if (string.IsNullOrWhiteSpace(serie))
         {
-            serie = await _resolverSerie.ResolverPrefijoAsync(empresaId, TipoDocumento.Ticket, comando.ClienteId, ct).ConfigureAwait(false);
+            serie = await _resolverSerie.ResolverPrefijoAsync(empresaId, TipoDocumento.Ticket, comando.ClienteId, comando.CentroId, comando.CajaId, ct).ConfigureAwait(false);
         }
 
         serie = string.IsNullOrWhiteSpace(serie) ? SeriePorDefecto : serie;
@@ -141,6 +143,7 @@ public sealed class EmitirTicket
 
         ticket.Valor.EstablecerMencionFiscal(mencionFiscal);
         ticket.Valor.EstablecerImpuesto(impuesto);
+        ticket.Valor.AsignarCentro(comando.CentroId, comando.CajaId);
         await RegistroVerifactu.AplicarAsync(empresaId, ticket.Valor, _empresas, _facturas, _reloj, ct).ConfigureAwait(false);
         _facturas.Agregar(ticket.Valor);
 
@@ -170,7 +173,7 @@ public sealed class EmitirTicket
             .ToList();
         if (lineasVenta.Count > 0)
         {
-            await _stock.DescontarVentaAsync(empresaId, lineasVenta, ct).ConfigureAwait(false);
+            await _stock.DescontarVentaAsync(empresaId, lineasVenta, t.CentroId, ct).ConfigureAwait(false);
         }
 
         if (formaPago?.RegistrarPagoAutomatico == true)

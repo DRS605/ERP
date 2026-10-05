@@ -63,7 +63,7 @@ public sealed class AsignacionSerie : RaizAgregadoEmpresa<Guid>
         }
         else if (terceroId is null || terceroId == Guid.Empty)
         {
-            return Resultado.Fallo<AsignacionSerie>(Error.Validacion("serie.tercero_obligatorio", "Debes indicar el cliente o proveedor de la serie."));
+            return Resultado.Fallo<AsignacionSerie>(Error.Validacion("serie.tercero_obligatorio", "Debes indicar el cliente, proveedor, centro o caja de la serie."));
         }
 
         return Resultado.Ok(new AsignacionSerie(Guid.NewGuid(), empresaId, tipoDocumento, ambito, terceroId ?? Guid.Empty, pref, reloj.AhoraUtc));

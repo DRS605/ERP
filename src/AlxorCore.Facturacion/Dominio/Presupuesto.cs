@@ -115,6 +115,12 @@ public sealed class Presupuesto : RaizAgregadoEmpresa<Guid>
 
     public Guid ClienteId { get; private set; }
 
+    /// <summary>Centro de la empresa donde se hace el documento (null: sin centro).</summary>
+    public Guid? CentroId { get; private set; }
+
+    /// <summary>Fija el centro del documento (al crearlo; los que nacen de otro heredan el suyo).</summary>
+    public void AsignarCentro(Guid? centroId) => CentroId = centroId == Guid.Empty ? null : centroId;
+
     public string ClienteNombre { get; private set; }
 
     public DateOnly Fecha { get; private set; }

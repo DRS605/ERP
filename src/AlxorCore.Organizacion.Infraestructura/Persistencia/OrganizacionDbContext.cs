@@ -43,6 +43,10 @@ public sealed class OrganizacionDbContext : DbContextEmpresaBase, AlxorCore.Orga
 
     public DbSet<VisibilidadActividad> Visibilidades => Set<VisibilidadActividad>();
 
+    public DbSet<Centro> Centros => Set<Centro>();
+
+    public DbSet<AccesoCentro> AccesosCentro => Set<AccesoCentro>();
+
     public DbSet<PerimetroConsolidacion> PerimetroConsolidacion => Set<PerimetroConsolidacion>();
 
     public DbSet<CorrespondenciaCuentas> Correspondencias => Set<CorrespondenciaCuentas>();

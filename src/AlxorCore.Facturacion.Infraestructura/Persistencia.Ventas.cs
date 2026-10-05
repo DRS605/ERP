@@ -13,6 +13,7 @@ internal sealed class ConfiguracionPedidoVenta : IEntityTypeConfiguration<Pedido
     {
         builder.ToTable("pedido_venta");
         builder.HasKey(p => p.Id);
+        builder.Property(p => p.CentroId).HasColumnName("centro_id");
         builder.Property(p => p.Id).HasColumnName("id").ValueGeneratedNever();
         builder.Property(p => p.EmpresaId).HasColumnName("empresa_id").IsRequired();
         builder.Property(p => p.ClienteId).HasColumnName("cliente_id").IsRequired();
@@ -61,6 +62,7 @@ internal sealed class ConfiguracionAlbaranVenta : IEntityTypeConfiguration<Albar
     {
         builder.ToTable("albaran_venta");
         builder.HasKey(a => a.Id);
+        builder.Property(a => a.CentroId).HasColumnName("centro_id");
         builder.Property(a => a.Id).HasColumnName("id").ValueGeneratedNever();
         builder.Property(a => a.EmpresaId).HasColumnName("empresa_id").IsRequired();
         builder.Property(a => a.PedidoId).HasColumnName("pedido_id");
@@ -183,6 +185,12 @@ internal sealed class RepositorioAlbaranesVenta : IRepositorioAlbaranesVenta
         if (filtro.FacturaId is { } factura)
         {
             q = q.Where(a => a.FacturaId == factura);
+        }
+
+        if (filtro.Centros is { } centros)
+        {
+            var permitidos = centros.ToList();
+            q = q.Where(a => a.CentroId != null && permitidos.Contains(a.CentroId.Value));
         }
 
         q = filtro.Estado switch

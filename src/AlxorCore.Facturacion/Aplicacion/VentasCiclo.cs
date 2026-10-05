@@ -17,12 +17,12 @@ public sealed record LineaPedidoVentaDto(Guid Id, Guid? ProductoId, string Descr
 
 public sealed record PedidoVentaDto(Guid Id, string Estado, int Ejercicio, int Numero, string NumeroCompleto, Guid ClienteId, string ClienteNombre,
     DateOnly Fecha, Guid? PresupuestoOrigenId, Guid? FacturaId, decimal Total, bool ServidoCompleto, IReadOnlyList<LineaPedidoVentaDto> Lineas, decimal Suplidos = 0m,
-    string? AvisoRiesgo = null)
+    string? AvisoRiesgo = null, Guid? CentroId = null)
 {
     public static PedidoVentaDto Desde(PedidoVenta p) => new(p.Id, p.Estado.ToString(), p.Ejercicio, p.Numero, p.NumeroCompleto, p.ClienteId, p.ClienteNombre,
         p.Fecha, p.PresupuestoOrigenId, p.FacturaId, p.Total, p.ServidoCompleto,
         p.Lineas.Select(l => new LineaPedidoVentaDto(l.Id, l.ProductoId, l.Descripcion, l.Cantidad, l.PrecioUnitario, l.PorcentajeDescuento,
-            l.CodigoIva, l.Base, l.CantidadServida, l.CantidadFacturada, l.PendienteServir, l.Conceptos, l.ImporteConceptos, l.CosteConceptos)).ToList(), p.Suplidos);
+            l.CodigoIva, l.Base, l.CantidadServida, l.CantidadFacturada, l.PendienteServir, l.Conceptos, l.ImporteConceptos, l.CosteConceptos)).ToList(), p.Suplidos, CentroId: p.CentroId);
 }
 
 public sealed record LineaAlbaranVentaDto(Guid? LineaPedidoId, Guid? ProductoId, string Descripcion, decimal Cantidad,
@@ -31,16 +31,17 @@ public sealed record LineaAlbaranVentaDto(Guid? LineaPedidoId, Guid? ProductoId,
 
 public sealed record AlbaranVentaDto(Guid Id, Guid? PedidoId, int Numero, string NumeroCompleto, DateOnly Fecha, string? Referencia, IReadOnlyList<LineaAlbaranVentaDto> Lineas,
     bool Anulado = false, string? MotivoAnulacion = null, Guid ClienteId = default, string ClienteNombre = "", string Estado = "PendienteFacturar",
-    decimal Base = 0m, Guid? FacturaId = null, string? Observaciones = null)
+    decimal Base = 0m, Guid? FacturaId = null, string? Observaciones = null, Guid? CentroId = null)
 {
     public static AlbaranVentaDto Desde(AlbaranVenta a) => new(a.Id, a.PedidoId, a.Numero, a.NumeroCompleto, a.Fecha, a.Referencia,
         a.Lineas.Select(l => new LineaAlbaranVentaDto(l.LineaPedidoId, l.ProductoId, l.Descripcion, l.Cantidad, l.Orden, l.PrecioUnitario, l.PorcentajeDescuento,
             l.CodigoIva, l.PrecioFijado, l.Base, l.Conceptos, l.ImporteConceptos, l.CosteConceptos)).ToList(),
-        a.AnuladoEn is not null, a.MotivoAnulacion, a.ClienteId, a.ClienteNombre, a.Estado.ToString(), a.Base, a.FacturaId, a.Observaciones);
+        a.AnuladoEn is not null, a.MotivoAnulacion, a.ClienteId, a.ClienteNombre, a.Estado.ToString(), a.Base, a.FacturaId, a.Observaciones, a.CentroId);
 }
 
 /// <summary>Filtro del listado de albaranes de venta.</summary>
-public sealed record FiltroAlbaranesVenta(Guid? ClienteId = null, EstadoAlbaranVenta? Estado = null, DateOnly? Desde = null, DateOnly? Hasta = null, Guid? FacturaId = null);
+public sealed record FiltroAlbaranesVenta(Guid? ClienteId = null, EstadoAlbaranVenta? Estado = null, DateOnly? Desde = null, DateOnly? Hasta = null, Guid? FacturaId = null,
+    IReadOnlyCollection<Guid>? Centros = null);
 
 // ----------------------------------------------------------------------------- Puertos
 public interface IRepositorioPedidosVenta
@@ -81,7 +82,7 @@ public sealed record LineaPedidoVentaComando(string Descripcion, decimal Cantida
     string? CodigoIva = null, decimal PorcentajeDescuento = 0m, Guid? ProductoId = null, IReadOnlyList<ConceptoSolicitado>? Conceptos = null);
 
 public sealed record CrearPedidoVentaComando(Guid ClienteId, IReadOnlyList<LineaPedidoVentaComando> Lineas, DateOnly? Fecha = null,
-    IReadOnlyList<ConceptoSolicitado>? ConceptosDocumento = null, AlxorCore.Nucleo.Comun.TipoImpuesto? Impuesto = null);
+    IReadOnlyList<ConceptoSolicitado>? ConceptosDocumento = null, AlxorCore.Nucleo.Comun.TipoImpuesto? Impuesto = null, Guid? CentroId = null);
 
 public sealed record CrearPedidoDesdePresupuestoComando(Guid PresupuestoId, DateOnly? Fecha = null);
 
@@ -140,7 +141,7 @@ public sealed class CrearPedidoVenta
             .Select((l, i) => ((Guid?)l.ProductoId, l.Descripcion, l.Cantidad, l.PrecioUnitario, l.PorcentajeDescuento, tipos.Valor[i])).ToList();
 
         var solicitados = (comando.Lineas ?? []).Select(l => (l.Conceptos, (IReadOnlyList<ConceptoAplicado>?)null)).ToList();
-        return await CrearInternoAsync(empresaId, comando.ClienteId, cliente.Nombre, comando.Fecha, null, lineas, solicitados, comando.ConceptosDocumento, ct).ConfigureAwait(false);
+        return await CrearInternoAsync(empresaId, comando.ClienteId, cliente.Nombre, comando.Fecha, null, lineas, solicitados, comando.ConceptosDocumento, comando.CentroId, ct).ConfigureAwait(false);
     }
 
     public async Task<Resultado<PedidoVentaDto>> DesdePresupuestoAsync(Guid empresaId, CrearPedidoDesdePresupuestoComando comando, CancellationToken ct = default)
@@ -155,17 +156,17 @@ public sealed class CrearPedidoVenta
         var lineas = presupuesto.Lineas
             .Select(l => ((Guid?)l.ProductoId, l.Descripcion, l.Cantidad, l.PrecioUnitario, l.PorcentajeDescuento, l.CodigoIva)).ToList();
         var copiados = presupuesto.Lineas.Select(l => ((IReadOnlyList<ConceptoSolicitado>?)null, (IReadOnlyList<ConceptoAplicado>?)l.Conceptos)).ToList();
-        return await CrearInternoAsync(empresaId, presupuesto.ClienteId, presupuesto.ClienteNombre, comando.Fecha, presupuesto.Id, lineas, copiados, null, ct).ConfigureAwait(false);
+        return await CrearInternoAsync(empresaId, presupuesto.ClienteId, presupuesto.ClienteNombre, comando.Fecha, presupuesto.Id, lineas, copiados, null, presupuesto.CentroId, ct).ConfigureAwait(false);
     }
 
     private async Task<Resultado<PedidoVentaDto>> CrearInternoAsync(Guid empresaId, Guid clienteId, string clienteNombre, DateOnly? fechaOpt, Guid? presupuestoId,
         List<(Guid?, string, decimal, decimal, decimal, string)> lineas,
         IReadOnlyList<(IReadOnlyList<ConceptoSolicitado>? Pedidos, IReadOnlyList<ConceptoAplicado>? Copiados)> conceptos,
-        IReadOnlyList<ConceptoSolicitado>? documento, CancellationToken ct)
+        IReadOnlyList<ConceptoSolicitado>? documento, Guid? centroId, CancellationToken ct)
     {
         var fecha = fechaOpt ?? DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
         var numero = await _pedidos.SiguienteNumeroAsync(empresaId, fecha.Year, ct).ConfigureAwait(false);
-        var serie = await _resolverSerie.ResolverPrefijoAsync(empresaId, TipoDocumento.PedidoVenta, clienteId, ct).ConfigureAwait(false);
+        var serie = await _resolverSerie.ResolverPrefijoAsync(empresaId, TipoDocumento.PedidoVenta, clienteId, centroId, null, ct).ConfigureAwait(false);
         var pedido = PedidoVenta.Crear(empresaId, clienteId, clienteNombre, fecha, numero, presupuestoId, lineas, _reloj, serie);
         if (pedido.EsFallo)
         {
@@ -177,6 +178,7 @@ public sealed class CrearPedidoVenta
             return Resultado.Fallo<PedidoVentaDto>(error);
         }
 
+        pedido.Valor.AsignarCentro(centroId);
         _pedidos.Agregar(pedido.Valor);
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return Resultado.Ok(PedidoVentaDto.Desde(pedido.Valor));
@@ -403,7 +405,7 @@ public sealed class EntregarPedido
 
         var fecha = comando.Fecha ?? DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
         var numero = await _albaranes.SiguienteNumeroAsync(empresaId, fecha.Year, ct).ConfigureAwait(false);
-        var serie = await _resolverSerie.ResolverPrefijoAsync(empresaId, TipoDocumento.AlbaranVenta, pedido.ClienteId, ct).ConfigureAwait(false);
+        var serie = await _resolverSerie.ResolverPrefijoAsync(empresaId, TipoDocumento.AlbaranVenta, pedido.ClienteId, pedido.CentroId, null, ct).ConfigureAwait(false);
 
         var costes = (comando.Lineas ?? []).Select(l => l.CosteUnitario).ToList();
         var lineasAlbaran = entregas.Select((e, i) =>
@@ -420,6 +422,7 @@ public sealed class EntregarPedido
             return Resultado.Fallo<AlbaranVentaDto>(albaran.Error);
         }
 
+        albaran.Valor.AsignarCentro(pedido.CentroId);
         _albaranes.Agregar(albaran.Valor);
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
         await AlbaranesVentaStock.SacarAsync(_stock, empresaId, albaran.Valor, ct).ConfigureAwait(false);
@@ -579,7 +582,7 @@ public sealed class FacturarPedidoVenta
         }
 
         var comandoFactura = new EmitirFacturaComando(
-            pedido.ClienteId, lineas, comando.FechaEmision, null, null, null, comando.DiasVencimiento, false, comando.FormaPagoId);
+            pedido.ClienteId, lineas, comando.FechaEmision, null, null, null, comando.DiasVencimiento, false, comando.FormaPagoId, CentroId: pedido.CentroId);
 
         var factura = await _emitir.EjecutarAsync(empresaId, comandoFactura, ct).ConfigureAwait(false);
         if (factura.EsFallo)

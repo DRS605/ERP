@@ -33,6 +33,9 @@ public static class TiposRegistro
     public const string TarifaCoste = "tarifa_coste";
     public const string Actividad = "actividad_negocio";
 
+    /// <summary>Centro de trabajo de la empresa (tienda, delegación…), no el centro de coste analítico.</summary>
+    public const string Centro = "centro";
+
     /// <summary>Gasto generado por otro documento (se anula desde ese documento).</summary>
     public const string Gasto = "gasto";
 }

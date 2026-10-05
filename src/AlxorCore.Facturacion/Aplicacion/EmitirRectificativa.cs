@@ -92,7 +92,7 @@ public sealed class EmitirRectificativa
         var serie = comando.Serie;
         if (string.IsNullOrWhiteSpace(serie))
         {
-            serie = await _resolverSerie.ResolverPrefijoAsync(empresaId, TipoDocumento.Rectificativa, original.ClienteId, ct).ConfigureAwait(false);
+            serie = await _resolverSerie.ResolverPrefijoAsync(empresaId, TipoDocumento.Rectificativa, original.ClienteId, original.CentroId, null, ct).ConfigureAwait(false);
         }
 
         serie = string.IsNullOrWhiteSpace(serie) ? SeriePorDefecto : serie;
@@ -116,6 +116,7 @@ public sealed class EmitirRectificativa
 
         rectificativa.Valor.EstablecerMencionFiscal(mencionFiscal);
         rectificativa.Valor.EstablecerImpuesto(original.Impuesto);
+        rectificativa.Valor.AsignarCentro(original.CentroId, original.CajaId);
         await RegistroVerifactu.AplicarAsync(empresaId, rectificativa.Valor, _empresas, _facturas, _reloj, ct).ConfigureAwait(false);
         _facturas.Agregar(rectificativa.Valor);
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);

@@ -92,6 +92,19 @@ public sealed class Factura : RaizAgregadoEmpresa<Guid>
     /// </summary>
     public Guid? ActividadNegocioId { get; private set; }
 
+    /// <summary>Centro de la empresa donde se emite (null: sin centro).</summary>
+    public Guid? CentroId { get; private set; }
+
+    /// <summary>Caja (punto de venta) del centro que emitió el ticket.</summary>
+    public Guid? CajaId { get; private set; }
+
+    /// <summary>Fija el centro (y la caja, en un ticket) antes de guardar la factura.</summary>
+    public void AsignarCentro(Guid? centroId, Guid? cajaId = null)
+    {
+        CentroId = centroId == Guid.Empty ? null : centroId;
+        CajaId = CentroId is null || cajaId == Guid.Empty ? null : cajaId;
+    }
+
     /// <summary>
     /// Mención(es) legal(es) que deben figurar en la factura por la naturaleza del IVA de sus líneas
     /// (exención, no sujeción, inversión del sujeto pasivo, operación intracomunitaria…). Null = ninguna.

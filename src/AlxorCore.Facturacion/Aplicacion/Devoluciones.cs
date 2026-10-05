@@ -152,7 +152,7 @@ public sealed class GestionDevolucionesVenta
         var reingreso = Reingreso(d.Valor);
         if (_stock is not null && reingreso.Count > 0 && albaran.StockDescontado)
         {
-            await _stock.DevolverVentaAsync(empresaId, reingreso, $"Devolución {d.Valor.NumeroCompleto} del albarán {albaran.NumeroCompleto}", ct).ConfigureAwait(false);
+            await _stock.DevolverVentaAsync(empresaId, reingreso, $"Devolución {d.Valor.NumeroCompleto} del albarán {albaran.NumeroCompleto}", albaran.CentroId, ct).ConfigureAwait(false);
         }
 
         return Resultado.Ok(DevolucionVentaDto.Desde(d.Valor));
@@ -276,7 +276,7 @@ public sealed class GestionDevolucionesVenta
         var reingreso = Reingreso(d);
         if (_stock is not null && reingreso.Count > 0 && albaran?.StockDescontado == true)
         {
-            await _stock.DescontarVentaAsync(empresaId, reingreso, ct).ConfigureAwait(false);
+            await _stock.DescontarVentaAsync(empresaId, reingreso, albaran.CentroId, ct).ConfigureAwait(false);
         }
 
         return Resultado.Ok(DevolucionVentaDto.Desde(d));

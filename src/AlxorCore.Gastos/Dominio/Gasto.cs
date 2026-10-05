@@ -149,6 +149,11 @@ public sealed class Gasto : RaizAgregadoEmpresa<Guid>
     /// </summary>
     public Guid? ActividadNegocioId { get; private set; }
 
+    /// <summary>Centro de la empresa al que corresponde la factura recibida (null: sin centro).</summary>
+    public Guid? CentroId { get; private set; }
+
+    public void AsignarCentro(Guid? centroId) => CentroId = centroId == Guid.Empty ? null : centroId;
+
     public string Concepto { get; private set; }
 
     /// <summary>Fecha de registro (la del asiento y la del periodo de IVA en que se deduce).</summary>

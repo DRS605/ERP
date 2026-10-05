@@ -64,30 +64,43 @@ internal sealed class StockVentasPorAlmacen : IStockVentas
     private readonly StockVentas _catalogo;
     private readonly MovimientosInventario _movimientos;
     private readonly IReloj _reloj;
+    private readonly AlxorCore.Nucleo.Aplicacion.IConsultaCentros? _centros;
 
-    public StockVentasPorAlmacen(StockVentas catalogo, MovimientosInventario movimientos, IReloj reloj)
+    public StockVentasPorAlmacen(StockVentas catalogo, MovimientosInventario movimientos, IReloj reloj, AlxorCore.Nucleo.Aplicacion.IConsultaCentros? centros = null)
     {
         _catalogo = catalogo;
         _movimientos = movimientos;
         _reloj = reloj;
+        _centros = centros;
     }
 
-    public async Task DescontarVentaAsync(Guid empresaId, IReadOnlyList<LineaVenta> lineas, CancellationToken ct = default)
+    public Task DescontarVentaAsync(Guid empresaId, IReadOnlyList<LineaVenta> lineas, CancellationToken ct = default) => DescontarVentaAsync(empresaId, lineas, null, ct);
+
+    public Task DevolverVentaAsync(Guid empresaId, IReadOnlyList<LineaVenta> lineas, string motivo, CancellationToken ct = default) =>
+        DevolverVentaAsync(empresaId, lineas, motivo, null, ct);
+
+    /// <summary>Almacén habitual del centro, si tiene uno activo.</summary>
+    private async Task<Guid?> AlmacenDelCentroAsync(Guid? centroId, IReadOnlyList<AlmacenDto> almacenes, CancellationToken ct) =>
+        centroId is { } c && _centros is not null && await _centros.ObtenerAsync(c, ct).ConfigureAwait(false) is { AlmacenId: { } a } && almacenes.Any(x => x.Id == a) ? a : null;
+
+    public async Task DescontarVentaAsync(Guid empresaId, IReadOnlyList<LineaVenta> lineas, Guid? centroId, CancellationToken ct = default)
     {
-        if ((await _movimientos.AlmacenesActivosAsync(empresaId, ct).ConfigureAwait(false)).Count == 0)
+        var activos = await _movimientos.AlmacenesActivosAsync(empresaId, ct).ConfigureAwait(false);
+        if (activos.Count == 0)
         {
             await _catalogo.DescontarVentaAsync(empresaId, lineas, ct).ConfigureAwait(false);
             return;
         }
 
         var hoy = DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
+        var preferente = await AlmacenDelCentroAsync(centroId, activos, ct).ConfigureAwait(false);
         foreach (var (productoId, (cantidad, motivo)) in await _catalogo.SalidasAsync(lineas, ct).ConfigureAwait(false))
         {
-            await _movimientos.SalidaVentaAsync(empresaId, productoId, cantidad, motivo, null, hoy, ct).ConfigureAwait(false);
+            await _movimientos.SalidaVentaAsync(empresaId, productoId, cantidad, motivo, null, hoy, preferente, ct).ConfigureAwait(false);
         }
     }
 
-    public async Task DevolverVentaAsync(Guid empresaId, IReadOnlyList<LineaVenta> lineas, string motivo, CancellationToken ct = default)
+    public async Task DevolverVentaAsync(Guid empresaId, IReadOnlyList<LineaVenta> lineas, string motivo, Guid? centroId, CancellationToken ct = default)
     {
         var almacenes = await _movimientos.AlmacenesActivosAsync(empresaId, ct).ConfigureAwait(false);
         if (almacenes.Count == 0)
@@ -97,9 +110,10 @@ internal sealed class StockVentasPorAlmacen : IStockVentas
         }
 
         var hoy = DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
+        var destino = await AlmacenDelCentroAsync(centroId, almacenes, ct).ConfigureAwait(false) ?? almacenes[0].Id;
         foreach (var (productoId, (cantidad, _)) in await _catalogo.SalidasAsync(lineas, ct).ConfigureAwait(false))
         {
-            await _movimientos.EntradaAsync(empresaId, new MovimientoComando(productoId, almacenes[0].Id, cantidad, Motivo: motivo, Fecha: hoy), ct).ConfigureAwait(false);
+            await _movimientos.EntradaAsync(empresaId, new MovimientoComando(productoId, destino, cantidad, Motivo: motivo, Fecha: hoy), ct).ConfigureAwait(false);
         }
     }
 }

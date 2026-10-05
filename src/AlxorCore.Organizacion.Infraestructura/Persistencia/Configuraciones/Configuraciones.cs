@@ -285,3 +285,52 @@ internal sealed class ConfiguracionCorrespondenciaCuentas : IEntityTypeConfigura
         builder.Ignore(c => c.EventosDominio);
     }
 }
+
+internal sealed class ConfiguracionCentro : IEntityTypeConfiguration<Centro>
+{
+    public void Configure(EntityTypeBuilder<Centro> builder)
+    {
+        builder.ToTable("centro");
+        builder.HasKey(c => c.Id);
+        builder.Property(c => c.Id).HasColumnName("id").ValueGeneratedNever();
+        builder.Property(c => c.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        builder.Property(c => c.Codigo).HasColumnName("codigo").HasMaxLength(Centro.LongitudCodigo).IsRequired();
+        builder.Property(c => c.Nombre).HasColumnName("nombre").HasMaxLength(Centro.LongitudNombre).IsRequired();
+        builder.Property(c => c.Direccion).HasColumnName("direccion").HasMaxLength(300);
+        builder.Property(c => c.AlmacenId).HasColumnName("almacen_id");
+        builder.Property(c => c.Activo).HasColumnName("activo").IsRequired();
+        builder.Property(c => c.CreadoEn).HasColumnName("creado_en").IsRequired();
+        builder.HasIndex(c => new { c.EmpresaId, c.Codigo }).IsUnique().HasDatabaseName("ux_centro_codigo");
+        builder.Ignore(c => c.EventosDominio);
+        builder.OwnsMany(c => c.Cajas, k =>
+        {
+            k.ToTable("caja_centro");
+            k.WithOwner().HasForeignKey("centro_id");
+            k.HasKey(x => x.Id);
+            k.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+            k.Property(x => x.Codigo).HasColumnName("codigo").HasMaxLength(Centro.LongitudCodigo).IsRequired();
+            k.Property(x => x.Nombre).HasColumnName("nombre").HasMaxLength(Centro.LongitudNombre).IsRequired();
+            k.Property(x => x.Activa).HasColumnName("activa").IsRequired();
+            k.HasIndex("centro_id", nameof(CajaCentro.Codigo)).IsUnique().HasDatabaseName("ux_caja_centro_codigo");
+        });
+        builder.Navigation(c => c.Cajas).UsePropertyAccessMode(PropertyAccessMode.Field);
+    }
+}
+
+internal sealed class ConfiguracionAccesoCentro : IEntityTypeConfiguration<AccesoCentro>
+{
+    public void Configure(EntityTypeBuilder<AccesoCentro> builder)
+    {
+        builder.ToTable("acceso_centro");
+        builder.HasKey(a => a.Id);
+        builder.Property(a => a.Id).HasColumnName("id").ValueGeneratedNever();
+        builder.Property(a => a.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        builder.Property(a => a.UsuarioId).HasColumnName("usuario_id").IsRequired();
+        builder.Property(a => a.CentroId).HasColumnName("centro_id").IsRequired();
+        builder.Property(a => a.CreadoEn).HasColumnName("creado_en").IsRequired();
+        builder.HasOne<Centro>().WithMany().HasForeignKey(a => a.CentroId).OnDelete(DeleteBehavior.Cascade).HasConstraintName("fk_acceso_centro_centro");
+        builder.HasIndex(a => new { a.EmpresaId, a.UsuarioId, a.CentroId }).IsUnique().HasDatabaseName("ux_acceso_centro_usuario");
+        builder.HasIndex(a => a.CentroId).HasDatabaseName("ix_acceso_centro_centro");
+        builder.Ignore(a => a.EventosDominio);
+    }
+}

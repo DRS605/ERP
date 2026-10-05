@@ -116,7 +116,8 @@ public static class EndpointsVentas
     {
         var albaranes = rutas.MapGroup("/albaranes-venta").WithTags("Ventas");
 
-        albaranes.MapGet("", async (Guid? clienteId, string? estado, DateOnly? desde, DateOnly? hasta, IContextoEmpresa contexto, ConsultarAlbaranesVenta caso, CancellationToken ct) =>
+        albaranes.MapGet("", async (Guid? clienteId, string? estado, DateOnly? desde, DateOnly? hasta, Guid? centroId, IContextoEmpresa contexto, ConsultarAlbaranesVenta caso,
+            CentrosUsuario centros, CancellationToken ct) =>
             {
                 if (contexto.EmpresaId is null)
                 {
@@ -134,7 +135,8 @@ public static class EndpointsVentas
                     filtroEstado = e;
                 }
 
-                return Results.Ok(await caso.ListarAsync(contexto.EmpresaId.Value, new FiltroAlbaranesVenta(clienteId, filtroEstado, desde, hasta), ct).ConfigureAwait(false));
+                return Results.Ok(await caso.ListarAsync(contexto.EmpresaId.Value, new FiltroAlbaranesVenta(clienteId, filtroEstado, desde, hasta,
+                    Centros: await FiltroCentros.DeAsync(centros, centroId, ct).ConfigureAwait(false)), ct).ConfigureAwait(false));
             })
             .WithSummary("Albaranes de venta (filtro por cliente, estado y fechas).")
             .RequierePermiso(Permisos.FacturaLeer);
@@ -144,12 +146,20 @@ public static class EndpointsVentas
             .WithSummary("Albarán de venta con sus líneas.")
             .RequierePermiso(Permisos.FacturaLeer);
 
-        albaranes.MapPost("", async (CrearAlbaranVentaComando comando, IContextoEmpresa contexto, CrearAlbaranVenta caso, CancellationToken ct) =>
+        albaranes.MapPost("", async (CrearAlbaranVentaComando comando, IContextoEmpresa contexto, CrearAlbaranVenta caso, CentrosUsuario centros, CancellationToken ct) =>
             {
                 if (contexto.EmpresaId is null)
                 {
                     return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
                 }
+
+                var centro = await centros.ResolverAsync(comando.CentroId, null, ct: ct).ConfigureAwait(false);
+                if (centro.EsFallo)
+                {
+                    return ResultadosHttp.AProblema(centro.Error);
+                }
+
+                comando = comando with { CentroId = centro.Valor.Centro };
 
                 var r = await caso.EjecutarAsync(contexto.EmpresaId.Value, comando, ct).ConfigureAwait(false);
                 return r.EsCorrecto ? r.ACreado($"/albaranes-venta/{r.Valor.Id}") : ResultadosHttp.AProblema(r.Error);
@@ -196,14 +206,16 @@ public static class EndpointsVentas
             .RequierePermiso(Permisos.FacturaEmitir);
     }
 
-    private static async Task<IResult> ListarAsync(IContextoEmpresa contexto, ListarPedidosVenta caso, CancellationToken ct)
+    private static async Task<IResult> ListarAsync(IContextoEmpresa contexto, ListarPedidosVenta caso, CentrosUsuario centros, CancellationToken ct)
     {
         if (contexto.EmpresaId is null)
         {
             return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
         }
 
-        return Results.Ok(await caso.EjecutarAsync(contexto.EmpresaId.Value, ct).ConfigureAwait(false));
+        var permitidos = await centros.PermitidosAsync(ct).ConfigureAwait(false);
+        return Results.Ok((await caso.EjecutarAsync(contexto.EmpresaId.Value, ct).ConfigureAwait(false))
+            .Where(p => permitidos is null || (p.CentroId is { } c && permitidos.Contains(c))).ToList());
     }
 
     private static async Task<IResult> ObtenerAsync(Guid id, IContextoEmpresa contexto, ObtenerPedidoVenta caso, CancellationToken ct)
@@ -217,12 +229,21 @@ public static class EndpointsVentas
         return dto is null ? Results.NotFound() : Results.Ok(dto);
     }
 
-    private static async Task<IResult> CrearAsync(CrearPedidoVentaComando comando, IContextoEmpresa contexto, CrearPedidoVenta caso, CancellationToken ct)
+    private static async Task<IResult> CrearAsync(CrearPedidoVentaComando comando, IContextoEmpresa contexto, CrearPedidoVenta caso, CentrosUsuario centros, CancellationToken ct)
     {
+        ArgumentNullException.ThrowIfNull(comando);
         if (contexto.EmpresaId is null)
         {
             return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
         }
+
+        var centro = await centros.ResolverAsync(comando.CentroId, null, ct: ct).ConfigureAwait(false);
+        if (centro.EsFallo)
+        {
+            return ResultadosHttp.AProblema(centro.Error);
+        }
+
+        comando = comando with { CentroId = centro.Valor.Centro };
 
         var r = await caso.EjecutarAsync(contexto.EmpresaId.Value, comando, ct).ConfigureAwait(false);
         return r.EsCorrecto ? r.ACreado($"/pedidos-venta/{r.Valor.Id}") : ResultadosHttp.AProblema(r.Error);

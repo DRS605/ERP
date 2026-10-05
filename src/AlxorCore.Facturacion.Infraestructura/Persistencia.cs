@@ -89,6 +89,9 @@ internal sealed class ConfiguracionFactura : IEntityTypeConfiguration<Factura>
         builder.Property(f => f.ClienteProvincia).HasColumnName("cliente_provincia").HasMaxLength(120);
         builder.Property(f => f.Pais).HasColumnName("pais").HasMaxLength(2).IsRequired();
         builder.Property(f => f.ActividadNegocioId).HasColumnName("actividad_negocio_id");
+        builder.Property(f => f.CentroId).HasColumnName("centro_id");
+        builder.Property(f => f.CajaId).HasColumnName("caja_id");
+        builder.HasIndex(f => f.CentroId).HasDatabaseName("ix_factura_centro");
         builder.Property(f => f.MencionFiscal).HasColumnName("mencion_fiscal").HasMaxLength(500);
 
         builder.Property(f => f.BaseImponible).HasColumnName("base_imponible").HasColumnType("numeric(14,2)").IsRequired();
@@ -372,7 +375,7 @@ internal sealed class RepositorioFacturas : IRepositorioFacturas, IConsultaFactu
 
         return facturas
             .Select(f => new FacturaResumen(
-                f.Id, f.NumeroCompleto, f.FechaEmision, f.FechaVencimiento, f.ClienteNombre, f.ClienteNif, f.BaseImponible, f.CuotaIva, f.RetencionIrpf, f.Total, f.Estado.ToString(), f.TipoFactura.ToString(), f.ClienteId, f.ActividadNegocioId, f.Impuesto))
+                f.Id, f.NumeroCompleto, f.FechaEmision, f.FechaVencimiento, f.ClienteNombre, f.ClienteNif, f.BaseImponible, f.CuotaIva, f.RetencionIrpf, f.Total, f.Estado.ToString(), f.TipoFactura.ToString(), f.ClienteId, f.ActividadNegocioId, f.Impuesto, f.CentroId, f.CajaId))
             .ToList();
     }
 
@@ -406,7 +409,7 @@ internal sealed class RepositorioFacturas : IRepositorioFacturas, IConsultaFactu
 
         var elementos = facturas
             .Select(f => new FacturaResumen(
-                f.Id, f.NumeroCompleto, f.FechaEmision, f.FechaVencimiento, f.ClienteNombre, f.ClienteNif, f.BaseImponible, f.CuotaIva, f.RetencionIrpf, f.Total, f.Estado.ToString(), f.TipoFactura.ToString(), f.ClienteId, f.ActividadNegocioId, f.Impuesto))
+                f.Id, f.NumeroCompleto, f.FechaEmision, f.FechaVencimiento, f.ClienteNombre, f.ClienteNif, f.BaseImponible, f.CuotaIva, f.RetencionIrpf, f.Total, f.Estado.ToString(), f.TipoFactura.ToString(), f.ClienteId, f.ActividadNegocioId, f.Impuesto, f.CentroId, f.CajaId))
             .ToList();
         return PaginaResultado<FacturaResumen>.Crear(elementos, total, paginacion);
     }
@@ -468,6 +471,12 @@ internal sealed class RepositorioFacturas : IRepositorioFacturas, IConsultaFactu
             consulta = consulta.Where(f => lista.Contains(f.Id));
         }
 
+        if (filtro.Centros is { } centros)
+        {
+            var permitidos = centros.ToList();
+            consulta = consulta.Where(f => f.CentroId != null && permitidos.Contains(f.CentroId.Value));
+        }
+
         return consulta;
     }
 
@@ -499,6 +508,7 @@ internal sealed class ConfiguracionPresupuesto : IEntityTypeConfiguration<Presup
     {
         builder.ToTable("presupuesto");
         builder.HasKey(p => p.Id);
+        builder.Property(p => p.CentroId).HasColumnName("centro_id");
         builder.Property(p => p.Id).HasColumnName("id");
         builder.Property(p => p.EmpresaId).HasColumnName("empresa_id").IsRequired();
         builder.Property(p => p.NumeroCompleto).HasColumnName("numero_completo").HasMaxLength(30).IsRequired();
@@ -574,7 +584,7 @@ internal sealed class RepositorioPresupuestos : IRepositorioPresupuestos, IConsu
             .OrderByDescending(p => p.Fecha).ThenByDescending(p => p.NumeroCompleto)
             .ToListAsync(ct).ConfigureAwait(false);
         return presupuestos
-            .Select(p => new PresupuestoResumen(p.Id, p.NumeroCompleto, p.Fecha, p.Validez, p.ClienteNombre, p.Total, p.Estado.ToString(), p.FacturaId, p.BaseImponible, p.CuotaIva, p.ClienteId))
+            .Select(p => new PresupuestoResumen(p.Id, p.NumeroCompleto, p.Fecha, p.Validez, p.ClienteNombre, p.Total, p.Estado.ToString(), p.FacturaId, p.BaseImponible, p.CuotaIva, p.ClienteId, p.CentroId))
             .ToList();
     }
 }

@@ -187,6 +187,14 @@ public interface IStockVentas
 
     /// <summary>Vuelve a meter en el almacén lo que salió por una venta que se deshace (un albarán anulado).</summary>
     Task DevolverVentaAsync(Guid empresaId, IReadOnlyList<LineaVenta> lineas, string motivo, CancellationToken ct = default) => Task.CompletedTask;
+
+    /// <summary>Venta de un centro: sale primero de su almacén habitual.</summary>
+    Task DescontarVentaAsync(Guid empresaId, IReadOnlyList<LineaVenta> lineas, Guid? centroId, CancellationToken ct = default) =>
+        DescontarVentaAsync(empresaId, lineas, ct);
+
+    /// <summary>Venta de un centro que se deshace: vuelve a su almacén habitual.</summary>
+    Task DevolverVentaAsync(Guid empresaId, IReadOnlyList<LineaVenta> lineas, string motivo, Guid? centroId, CancellationToken ct = default) =>
+        DevolverVentaAsync(empresaId, lineas, motivo, ct);
 }
 
 /// <summary>

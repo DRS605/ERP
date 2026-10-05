@@ -112,6 +112,14 @@ Los documentos de venta y compra (presupuestos, pedidos de venta, facturas y ped
   Está en clientes, proveedores, artículos y lotes de vivero; vale para cualquier código de `/extensiones/entidades`.
 - Vistas `camposperson` y `reglasalerta` en Configuración → Personalización.
 
+## Centro de trabajo
+
+- `#centroChip` (📍) en la barra superior abre `modalCentroActivo()`: centro y caja de trabajo, guardados por empresa
+  en `localStorage` (`alxor_centro_<empresa>`). Un usuario limitado a un solo centro lo tiene puesto de inicio.
+- `window.fetch` se envuelve una vez para añadir `X-Centro` / `X-Caja` a las peticiones al propio servidor: así llega
+  también desde el módulo React de documentos. El servidor solo lo usa cuando el documento nuevo no trae centro.
+- Vista `centros` (Configuración → Empresa → Centros y cajas).
+
 ## Orden de las pantallas: secciones en el menú y pestañas
 
 Para no amontonar funciones en una misma pantalla:

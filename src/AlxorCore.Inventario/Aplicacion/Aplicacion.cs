@@ -269,7 +269,8 @@ public sealed class MovimientosInventario
     /// cada almacén, por lote en orden), y si no alcanzan deja el resto en negativo en el almacén principal (la venta
     /// ya está facturada y no se puede rechazar). Devuelve false si la empresa no trabaja con almacenes.
     /// </summary>
-    public async Task<bool> SalidaVentaAsync(Guid empresaId, Guid productoId, decimal cantidad, string motivo, string? referencia, DateOnly? fecha, CancellationToken ct = default)
+    public async Task<bool> SalidaVentaAsync(Guid empresaId, Guid productoId, decimal cantidad, string motivo, string? referencia, DateOnly? fecha,
+        Guid? almacenPreferente = null, CancellationToken ct = default)
     {
         var almacenes = await AlmacenesActivosAsync(empresaId, ct).ConfigureAwait(false);
         if (almacenes.Count == 0 || cantidad <= 0m)
@@ -277,7 +278,8 @@ public sealed class MovimientosInventario
             return almacenes.Count > 0;
         }
 
-        var orden = almacenes.Select((a, i) => (a.Id, i)).ToDictionary(x => x.Id, x => x.i);
+        // El almacén preferente (el habitual del centro que vende) va primero; después, el orden de siempre.
+        var orden = almacenes.Select((a, i) => (a.Id, i: a.Id == almacenPreferente ? -1 : i)).ToDictionary(x => x.Id, x => x.i);
         var disponibles = (await _existencias.ListarPorProductoAsync(empresaId, productoId, ct).ConfigureAwait(false))
             .Where(e => e.Cantidad > 0m && orden.ContainsKey(e.AlmacenId))
             .OrderBy(e => orden[e.AlmacenId]).ThenBy(e => e.Lote ?? string.Empty, StringComparer.Ordinal).ToList();
