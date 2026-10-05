@@ -40,6 +40,7 @@ public static class ReferenciasRegistros
                 ("facturacion.devolucion_venta.cliente_id", "devoluciones de venta"),
                 ("facturacion.liquidacion_comision.cliente_id", "liquidaciones de venta en comisión"),
                 ("facturacion.reclamacion_venta.cliente_id", "reclamaciones"),
+                ("bodega.operacion.cliente_id", "ventas a granel de la bodega"),
                 ("agro.cuenta_envases.tercero_id", "cuenta de envases"),
                 ("contabilidad.cuenta.tercero_id", "movimientos en su subcuenta contable"),
                 ("contabilidad.documento_pendiente.tercero_id", "documentos pendientes de contabilizar"),
@@ -55,6 +56,7 @@ public static class ReferenciasRegistros
                 ("compras.pedido_compra.proveedor_id", "pedidos de compra"),
                 ("agro.agricultor.proveedor_id", "ficha de agricultor"),
                 ("cooperativa.socio.proveedor_id", "ficha de socio de la cooperativa"),
+                ("bodega.entrada_uva.viticultor_id", "entradas de uva de la bodega"),
                 ("tesoreria.entrega_cuenta_proveedor.proveedor_id", "entregas a cuenta"),
                 ("tesoreria.liquidacion_pagos.proveedor_id", "liquidaciones de pagos"),
                 ("agro.cuenta_envases.tercero_id", "cuenta de envases"),
@@ -71,6 +73,7 @@ public static class ReferenciasRegistros
             [
                 ("facturacion.linea_factura.producto_id", "facturas"),
                 ("agro.fitosanitario.producto_id", "productos del registro de fitosanitarios"),
+                ("bodega.operacion.producto_id", "embotellados y ventas a granel de la bodega"),
                 ("agro.tratamiento_parcela.articulo_id", "tratamientos del cuaderno de campo"),
                 ("inventario.lote_articulo.producto_id", "lotes con fechas"),
                 ("catalogo.asignacion_concepto.producto_id", "conceptos de línea que se le ponen solos"),

@@ -115,6 +115,7 @@ Para no amontonar funciones en una misma pantalla:
   - Agro: Entrada de fruta / Planta y confección / Expedición / Liquidación / Campo y calidad / Campaña / Maestros agro.
   - Cooperativa (módulo aparte): Socios y capital / Libros / Configuración.
   - Subasta (módulo aparte, sobre agro): Subasta (sesiones y ventas por comprador y agricultor).
+  - Bodega (módulo aparte): Bodega / Vendimia (entradas, precios y liquidaciones de uva, con pestañas) / Declaraciones.
   - Tesorería: Cobros / Impagados / Pagos / Bancos / Divisas / Informes.
   - Contabilidad: Contabilidad / Impuestos / Analítica. Informes: Centro de informes / Análisis. Configuración: Empresa /
     Usuarios y datos / Integraciones.
