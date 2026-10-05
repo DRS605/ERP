@@ -706,7 +706,8 @@ public static class EndpointsAgro
             .WithSummary("Cambia las cajas que lleva este palé (cada palé puede llevar las suyas; null vuelve a las de la plantilla).").RequiereAlgunPermiso(Permisos.AgroGestionar, Permisos.AgroConfeccionar);
         g.MapPost("/pales/{id:guid}/cajas", async (Guid id, DatosCajas d, PalesAgro p, CancellationToken ct) => (await p.CajasAsync(id, d, ct).ConfigureAwait(false)).AOk())
             .WithSummary("Pone cajas de una partida en un palé con plantilla (o las saca, en negativo); se cierra solo al completarse.").RequiereAlgunPermiso(Permisos.AgroGestionar, Permisos.AgroConfeccionar);
-        g.MapGet("/pales/{idOSscc}/etiqueta", (string idOSscc, IContextoEmpresa c, PalesAgro p, IConsultaEmpresas empresas, IGeneradorEtiquetaLogistica generador, CancellationToken ct) =>
+        g.MapGet("/pales/{idOSscc}/etiqueta", (string idOSscc, string? formato, IContextoEmpresa c, PalesAgro p, IConsultaEmpresas empresas, IGeneradorEtiquetaLogistica generador,
+                AlxorCore.Extensiones.Aplicacion.DisenoEtiquetas disenos, CancellationToken ct) =>
                 ConEmpresa(c, async e =>
                 {
                     var et = await p.EtiquetaAsync(e, idOSscc, ct).ConfigureAwait(false);
@@ -722,10 +723,11 @@ public static class EndpointsAgro
                     }
 
                     var v = et.Valor;
-                    var pdf = generador.Generar(new EtiquetaLogistica(v.Sscc, v.Producto, v.Marca, v.TipoPale, v.Cajas, v.Kilos, v.Lote, v.Fecha, v.Destinatario), empresa);
-                    return Results.File(pdf, "application/pdf", $"etiqueta-{v.Sscc}.pdf");
+                    var etiqueta = await EtiquetasCliente.AplicarAsync(disenos, e, v.ClienteId, v.ProductoId,
+                        new EtiquetaLogistica(v.Sscc, v.Producto, v.Marca, v.TipoPale, v.Cajas, v.Kilos, v.Lote, v.Fecha, v.Destinatario), ct).ConfigureAwait(false);
+                    return EtiquetasCliente.Respuesta(generador, etiqueta, empresa, formato);
                 }))
-            .WithSummary("Etiqueta logística GS1 del palé (PDF A6 con el SSCC y el contenido en GS1-128).").RequierePermiso(Permisos.AgroLeer);
+            .WithSummary("Etiqueta logística GS1 del palé (PDF o, con formato=zpl, para Zebra) con la plantilla y la referencia del cliente.").RequierePermiso(Permisos.AgroLeer);
 
         g.MapGet("/plantillas-pale", (IContextoEmpresa c, PalesAgro p, CancellationToken ct) => ConEmpresa(c, async e => Results.Ok(await p.PlantillasAsync(e, ct).ConfigureAwait(false))))
             .WithSummary("Plantillas de palé (tipo, producto, marca, cajas por palé, kilos por caja y mosaico).").RequierePermiso(Permisos.AgroLeer);

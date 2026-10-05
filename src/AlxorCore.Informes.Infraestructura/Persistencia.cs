@@ -206,3 +206,42 @@ public sealed class FiscalDbContextFactory : Microsoft.EntityFrameworkCore.Desig
         public Guid? EmpresaId => null;
     }
 }
+
+internal sealed class ConfiguracionFichaPlastico : IEntityTypeConfiguration<FichaPlastico>
+{
+    public void Configure(EntityTypeBuilder<FichaPlastico> b)
+    {
+        b.ToTable("ficha_plastico");
+        b.HasKey(x => x.Id);
+        b.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+        b.Property(x => x.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        b.Property(x => x.ProductoId).HasColumnName("producto_id").IsRequired();
+        b.Property(x => x.Clave).HasColumnName("clave").HasMaxLength(20).HasConversion<string>().IsRequired();
+        b.Property(x => x.KgPorUnidad).HasColumnName("kg_por_unidad").HasColumnType("numeric(14,6)").IsRequired();
+        b.Property(x => x.KgRecicladoPorUnidad).HasColumnName("kg_reciclado_por_unidad").HasColumnType("numeric(14,6)").IsRequired();
+        b.Property(x => x.Exento).HasColumnName("exento").IsRequired();
+        b.Property(x => x.MotivoExencion).HasColumnName("motivo_exencion").HasMaxLength(200);
+        b.Ignore(x => x.KgNoRecicladoPorUnidad);
+        b.HasIndex(x => new { x.EmpresaId, x.ProductoId }).IsUnique().HasDatabaseName("ux_ficha_plastico_producto");
+        b.Ignore(x => x.EventosDominio);
+    }
+}
+
+internal sealed class RepositorioFichasPlastico : IRepositorioFichasPlastico
+{
+    private readonly FiscalDbContext _ctx;
+
+    public RepositorioFichasPlastico(FiscalDbContext ctx) => _ctx = ctx;
+
+    public void Agregar(FichaPlastico ficha) => _ctx.Add(ficha);
+
+    public void Eliminar(FichaPlastico ficha) => _ctx.Remove(ficha);
+
+    public async Task<IReadOnlyList<FichaPlastico>> ListarAsync(Guid empresaId, CancellationToken ct = default) =>
+        await _ctx.Set<FichaPlastico>().Where(f => f.EmpresaId == empresaId).ToListAsync(ct).ConfigureAwait(false);
+
+    public Task<FichaPlastico?> DeProductoAsync(Guid empresaId, Guid productoId, CancellationToken ct = default) =>
+        _ctx.Set<FichaPlastico>().FirstOrDefaultAsync(f => f.EmpresaId == empresaId && f.ProductoId == productoId, ct);
+
+    public Task GuardarAsync(CancellationToken ct = default) => _ctx.GuardarCambiosAsync(ct);
+}

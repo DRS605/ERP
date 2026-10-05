@@ -57,3 +57,15 @@ SHA-256. Subida en JSON con el contenido en base64; descarga en `GET /extensione
 RLS por empresa en todas las tablas (las hijas `opcion_campo` y `adjunto_contenido`, por su padre); CHECK del código
 del campo, del tamaño y la huella del adjunto, de los umbrales y los datos de cada tipo de regla. La baja de la
 empresa borra sus extensiones.
+
+## Etiquetas por cliente o plataforma
+
+- **Plantillas** (`extensiones.plantilla_etiqueta`, `/extensiones/etiquetas/plantillas`): una general y una por cliente o
+  plataforma (una sola activa de cada): marca comercial, qué datos salen y en qué orden (producto, referencia del
+  cliente, marca, cajas, pesos, lote, fecha, consumo preferente, GTIN, tipo de palé, origen, destinatario, texto fijo),
+  el texto fijo y el formato (A6 o rollo de 100 × 150 mm). El SSCC y los códigos GS1-128 salen siempre.
+- **Referencias** (`extensiones.referencia_cliente`, `PUT /extensiones/etiquetas/referencias`): el código, la descripción
+  y, si lo pide distinto, el GTIN del artículo en el cliente (con el dígito de control comprobado).
+- Las etiquetas de palé de logística (`/logistica/unidades/{sscc}/etiqueta`) y de agro (`/agro/pales/{sscc}/etiqueta`)
+  aplican la plantilla del cliente del palé (o la general) y su referencia, en **PDF** o, con `formato=zpl`, en **ZPL**
+  para impresoras Zebra (203 ppp, 100 × 150 mm, códigos GS1-128 en modo UCC/EAN).

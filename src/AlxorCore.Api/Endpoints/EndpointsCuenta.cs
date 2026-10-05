@@ -122,6 +122,9 @@ public static class EndpointsCuenta
             await tesoreria.MensajesSalida.Where(m => m.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
             await tesoreria.AnulacionesCartera.Where(e => e.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
             await tesoreria.Cartera.Where(e => e.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+            await tesoreria.Set<AlxorCore.Tesoreria.Dominio.AvisoImpago>().Where(e => e.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+            await tesoreria.Set<AlxorCore.Tesoreria.Dominio.ClasificacionSeguro>().Where(e => e.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+            await tesoreria.Set<AlxorCore.Tesoreria.Dominio.PolizaSeguroCredito>().Where(e => e.EmpresaId == id).ExecuteDeleteAsync(ct).ConfigureAwait(false);
         }, ct).ConfigureAwait(false);
         await BorradoEmpresa.EjecutarAsync(migracion, id, async () =>
         {

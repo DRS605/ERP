@@ -122,8 +122,8 @@ public static class EndpointsLogistica
         g.MapPost("/unidades/{id:guid}/expedir", async (Guid id, DatosExpedir d, PaletizacionLogistica p, CancellationToken ct) =>
                 (await p.ExpedirAsync(id, d, ct).ConfigureAwait(false)).AOk())
             .WithSummary("Marca la unidad cerrada como expedida.").RequierePermiso(gestionar);
-        g.MapGet("/unidades/{idOSscc}/etiqueta", (string idOSscc, IContextoEmpresa c, PaletizacionLogistica p, IConsultaEmpresas empresas, IConsultaClientes clientes,
-                IGeneradorEtiquetaLogistica generador, CancellationToken ct) =>
+        g.MapGet("/unidades/{idOSscc}/etiqueta", (string idOSscc, string? formato, IContextoEmpresa c, PaletizacionLogistica p, IConsultaEmpresas empresas, IConsultaClientes clientes,
+                IGeneradorEtiquetaLogistica generador, AlxorCore.Extensiones.Aplicacion.DisenoEtiquetas disenos, CancellationToken ct) =>
                 ConEmpresa(c, async e =>
                 {
                     var et = await p.EtiquetaAsync(e, idOSscc, ct).ConfigureAwait(false);
@@ -140,11 +140,12 @@ public static class EndpointsLogistica
 
                     var v = et.Valor;
                     var destinatario = v.ClienteId is { } cid ? (await clientes.ObtenerAsync(cid, ct).ConfigureAwait(false))?.Nombre : null;
-                    var pdf = generador.Generar(new EtiquetaLogistica(v.Sscc, v.Producto, null, v.TipoSoporte, v.Cajas, v.PesoNetoKg, v.Lote, v.Fecha, destinatario, v.Gtin,
-                        v.FechaCaducidad, v.PesoBrutoKg), empresa);
-                    return Results.File(pdf, "application/pdf", $"etiqueta-{v.Sscc}.pdf");
+                    var etiqueta = await EtiquetasCliente.AplicarAsync(disenos, e, v.ClienteId, v.ProductoId, new EtiquetaLogistica(v.Sscc, v.Producto, null, v.TipoSoporte,
+                        v.Cajas, v.PesoNetoKg, v.Lote, v.Fecha, destinatario, v.Gtin, v.FechaCaducidad, v.PesoBrutoKg), ct).ConfigureAwait(false);
+                    return EtiquetasCliente.Respuesta(generador, etiqueta, empresa, formato);
                 }))
-            .WithSummary("Etiqueta logística GS1 (PDF A6): SSCC, GTIN, caducidad, cajas, peso y lote en GS1-128.").RequierePermiso(leer);
+            .WithSummary("Etiqueta logística GS1 (PDF; con formato=zpl, para Zebra) con la plantilla y la referencia del cliente: SSCC, GTIN, caducidad, cajas, peso y lote en GS1-128.")
+            .RequierePermiso(leer);
 
         g.MapPost("/paletizar", (DatosPaletizar d, IContextoEmpresa c, PaletizacionLogistica p, CancellationToken ct) =>
                 ConEmpresa(c, async e => (await p.PaletizarAsync(e, d, ct).ConfigureAwait(false)).AOk()))

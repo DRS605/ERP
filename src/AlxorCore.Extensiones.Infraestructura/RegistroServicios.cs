@@ -32,6 +32,8 @@ public static class RegistroServicios
         servicios.AddScoped<IRepositorioExtensiones, RepositorioExtensiones>();
         servicios.AddScoped<CamposPersonalizados>();
         servicios.AddScoped<AdjuntosRegistros>();
+        servicios.AddScoped<IRepositorioEtiquetas, RepositorioEtiquetas>();
+        servicios.AddScoped<DisenoEtiquetas>();
         servicios.AddScoped(sp => new AlertasEmpresa(sp.GetRequiredService<IRepositorioExtensiones>(), sp.GetRequiredService<IUnidadDeTrabajoExtensiones>(),
             sp.GetRequiredService<AlxorCore.Nucleo.Tiempo.IReloj>(), sp.GetService<IFuentesAlertas>()));
         return servicios;

@@ -91,7 +91,8 @@ public sealed record CorreccionExpedicionDto(Guid Id, Guid PaleId, string Tipo, 
 public sealed record DatosSalidaSuelta(Guid OrigenPaleId, Guid PartidaId, int Cajas);
 
 /// <summary>Lo que se imprime en la etiqueta del palé.</summary>
-public sealed record EtiquetaPaleDto(string Sscc, string? Producto, string? Marca, string? TipoPale, int Cajas, decimal Kilos, string? Lote, DateOnly Fecha, string? Destinatario);
+public sealed record EtiquetaPaleDto(string Sscc, string? Producto, string? Marca, string? TipoPale, int Cajas, decimal Kilos, string? Lote, DateOnly Fecha, string? Destinatario,
+    Guid? ClienteId = null, Guid? ProductoId = null);
 
 public sealed record PlantillaPaleDto(Guid Id, string Codigo, string Nombre, string? TipoPale, Guid? ProductoId, string? Marca, int CajasPorPale, decimal KilosPorCaja,
     int? Filas, int? Columnas, int? CajasPorCapa, int? Capas, decimal KilosPorPale, Guid? ClienteId, bool Activa, Guid? EnvaseProductoId = null, Guid? PaleProductoId = null)
@@ -627,7 +628,7 @@ public sealed class PalesAgro
         var clienteId = dto.ClienteId ?? plantilla?.ClienteId;
         var cliente = clienteId is { } cid ? (await _clientes.ObtenerAsync(cid, ct).ConfigureAwait(false))?.Nombre : null;
         return Resultado.Ok(new EtiquetaPaleDto(dto.Sscc, producto, plantilla?.Marca, dto.Tipo, dto.Cajas, dto.Kilos, lotes.Count == 1 ? lotes[0] : "VARIOS",
-            dto.FechaExpedicion ?? Hoy, cliente));
+            dto.FechaExpedicion ?? Hoy, cliente, clienteId, productos.Count == 1 ? productos[0] : null));
     }
 
     public async Task<IReadOnlyList<PlantillaPaleDto>> PlantillasAsync(Guid empresaId, CancellationToken ct = default) =>

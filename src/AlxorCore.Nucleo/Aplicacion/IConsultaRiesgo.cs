@@ -19,4 +19,14 @@ public interface IConsultaRiesgo
     /// </summary>
     Task<decimal> PendienteFacturarClienteAsync(Guid empresaId, Guid clienteId, Guid? excluirPedidoId = null, CancellationToken ct = default) =>
         Task.FromResult(0m);
+
+    /// <summary>
+    /// Con una póliza de seguro de crédito vigente, si una venta a crédito de <paramref name="importe"/> al cliente quedaría
+    /// sin cobertura (sin clasificación o por encima de lo concedido); null si está cubierta o no hay póliza.
+    /// </summary>
+    Task<AvisoSeguroCredito?> SeguroCreditoAsync(Guid empresaId, Guid clienteId, decimal importe, CancellationToken ct = default) =>
+        Task.FromResult<AvisoSeguroCredito?>(null);
 }
+
+/// <summary>Venta sin cobertura del seguro de crédito: el aviso y si la póliza pide no hacerla.</summary>
+public sealed record AvisoSeguroCredito(string Mensaje, bool Bloquea);

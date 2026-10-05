@@ -41,6 +41,8 @@ public static class RegistroServicios
         servicios.AddScoped<ListarAnticipos>();
         servicios.AddScoped<NivelesReclamacion>();
         servicios.AddScoped<GestionImpagados>();
+        servicios.AddScoped<IRepositorioSeguroCredito, RepositorioSeguroCredito>();
+        servicios.AddScoped<GestionSeguroCredito>();
 
         servicios.AddScoped<RegistrarCobro>();
         servicios.AddScoped<RegistrarPago>();

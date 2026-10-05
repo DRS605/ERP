@@ -27,6 +27,8 @@ public sealed class ExtensionesDbContext : DbContextEmpresaBase, IUnidadDeTrabaj
         DELETE FROM extensiones.valor_campo WHERE empresa_id = {0};
         DELETE FROM extensiones.definicion_campo WHERE empresa_id = {0};
         DELETE FROM extensiones.adjunto WHERE empresa_id = {0};
+        DELETE FROM extensiones.plantilla_etiqueta WHERE empresa_id = {0};
+        DELETE FROM extensiones.referencia_cliente WHERE empresa_id = {0};
         """;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -277,4 +279,57 @@ public sealed class ExtensionesDbContextFactory : IDesignTimeDbContextFactory<Ex
     {
         public Guid? EmpresaId => null;
     }
+}
+
+internal sealed class ConfiguracionPlantillaEtiqueta : IEntityTypeConfiguration<PlantillaEtiqueta>
+{
+    public void Configure(EntityTypeBuilder<PlantillaEtiqueta> b)
+    {
+        Columnas.Base(b, "plantilla_etiqueta");
+        b.Property(x => x.Nombre).HasColumnName("nombre").HasMaxLength(120).IsRequired();
+        b.Property(x => x.ClienteId).HasColumnName("cliente_id");
+        b.Property(x => x.Marca).HasColumnName("marca").HasMaxLength(60);
+        b.Property(x => x.Campos).HasColumnName("campos").HasMaxLength(400).IsRequired();
+        b.Property(x => x.TextoLibre).HasColumnName("texto_libre").HasMaxLength(300);
+        Columnas.Enum(b.Property(x => x.Formato), "formato");
+        b.Property(x => x.Activa).HasColumnName("activa").IsRequired();
+        b.Ignore(x => x.ListaCampos);
+        b.HasIndex(x => x.ClienteId).HasDatabaseName("ix_plantilla_etiqueta_cliente");
+    }
+}
+
+internal sealed class ConfiguracionReferenciaCliente : IEntityTypeConfiguration<ReferenciaCliente>
+{
+    public void Configure(EntityTypeBuilder<ReferenciaCliente> b)
+    {
+        Columnas.Base(b, "referencia_cliente");
+        b.Property(x => x.ClienteId).HasColumnName("cliente_id").IsRequired();
+        b.Property(x => x.ProductoId).HasColumnName("producto_id").IsRequired();
+        b.Property(x => x.Codigo).HasColumnName("codigo").HasMaxLength(40).IsRequired();
+        b.Property(x => x.Descripcion).HasColumnName("descripcion").HasMaxLength(120);
+        b.Property(x => x.Gtin).HasColumnName("gtin").HasMaxLength(14);
+        b.HasIndex(x => new { x.EmpresaId, x.ClienteId, x.ProductoId }).IsUnique().HasDatabaseName("ux_referencia_cliente_producto");
+        b.HasIndex(x => x.ProductoId).HasDatabaseName("ix_referencia_cliente_producto");
+    }
+}
+
+internal sealed class RepositorioEtiquetas : IRepositorioEtiquetas
+{
+    private readonly ExtensionesDbContext _ctx;
+
+    public RepositorioEtiquetas(ExtensionesDbContext ctx) => _ctx = ctx;
+
+    public void Agregar(object entidad) => _ctx.Add(entidad);
+
+    public void Eliminar(object entidad) => _ctx.Remove(entidad);
+
+    public async Task<IReadOnlyList<PlantillaEtiqueta>> PlantillasAsync(Guid empresaId, CancellationToken ct = default) =>
+        await _ctx.Set<PlantillaEtiqueta>().Where(p => p.EmpresaId == empresaId).ToListAsync(ct).ConfigureAwait(false);
+
+    public Task<PlantillaEtiqueta?> PlantillaAsync(Guid id, CancellationToken ct = default) => _ctx.Set<PlantillaEtiqueta>().FirstOrDefaultAsync(p => p.Id == id, ct);
+
+    public async Task<IReadOnlyList<ReferenciaCliente>> ReferenciasAsync(Guid empresaId, Guid? clienteId, CancellationToken ct = default) =>
+        await _ctx.Set<ReferenciaCliente>().Where(r => r.EmpresaId == empresaId && (clienteId == null || r.ClienteId == clienteId)).ToListAsync(ct).ConfigureAwait(false);
+
+    public Task<ReferenciaCliente?> ReferenciaAsync(Guid id, CancellationToken ct = default) => _ctx.Set<ReferenciaCliente>().FirstOrDefaultAsync(r => r.Id == id, ct);
 }

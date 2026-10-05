@@ -65,6 +65,8 @@ public static class RegistroServicios
         });
         servicios.AddScoped<GestionCertificadoSii>();
         servicios.AddScoped<EnviarSii>();
+        servicios.AddScoped<IRepositorioFichasPlastico, RepositorioFichasPlastico>();
+        servicios.AddScoped<FichasPlastico>();
         return servicios;
     }
 }

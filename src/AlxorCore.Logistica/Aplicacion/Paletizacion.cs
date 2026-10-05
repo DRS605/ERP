@@ -51,7 +51,7 @@ public sealed record LecturaLogisticaDto(string Tipo, UnidadLogisticaDto? Unidad
 
 /// <summary>Datos de la etiqueta logística GS1 de una unidad.</summary>
 public sealed record EtiquetaUnidadDto(string Sscc, string? Producto, string? Gtin, string? TipoSoporte, int Cajas, decimal PesoNetoKg, decimal PesoBrutoKg, string? Lote,
-    DateOnly? FechaCaducidad, DateOnly Fecha, Guid? ClienteId);
+    DateOnly? FechaCaducidad, DateOnly Fecha, Guid? ClienteId, Guid? ProductoId = null);
 
 /// <summary>
 /// Paletización: el cálculo de los palés de una cantidad o de un pedido, el montaje de unidades logísticas desde el
@@ -595,7 +595,8 @@ public sealed class PaletizacionLogistica
         var soporte = u.SoporteId is { } sid ? (await _repo.SoporteAsync(sid, ct).ConfigureAwait(false))?.Nombre : null;
         var hijas = await _repo.HijasAsync(u.Id, ct).ConfigureAwait(false);
         return Resultado.Ok(new EtiquetaUnidadDto(u.Sscc, producto, gtin, soporte, u.Cajas + hijas.Sum(h => h.Cajas), u.PesoNetoKg + hijas.Sum(h => h.PesoNetoKg), u.PesoBrutoKg,
-            lotes.Count == 1 ? lotes[0] : null, u.Contenido.Min(l => l.FechaCaducidad), DateOnly.FromDateTime((u.CerradaEn ?? u.CreadaEn).UtcDateTime), u.ClienteId));
+            lotes.Count == 1 ? lotes[0] : null, u.Contenido.Min(l => l.FechaCaducidad), DateOnly.FromDateTime((u.CerradaEn ?? u.CreadaEn).UtcDateTime), u.ClienteId,
+            productos.Count == 1 ? productos[0] : null));
     }
 
     // ------------------------------------------------------------------ auxiliares

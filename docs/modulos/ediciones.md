@@ -8,7 +8,7 @@ una empresa generalista, solo las finanzas a una asesoría, o todo junto, con el
 Identidad y usuarios, empresa y series, clientes y proveedores, productos e impuestos, facturas y
 tickets (incluidas las recurrentes), gastos y buzón de facturas de proveedor, cobros y pagos,
 documentos (PDF y correo), informes (panel, libros de IVA, modelos AEAT, exportación a la gestoría),
-auditoría, importación de datos las [extensiones](extensiones.md) (campos personalizados, adjuntos y alertas) y los [centros de trabajo](centros.md) con sus cajas.
+auditoría, importación de datos las [extensiones](extensiones.md) (campos personalizados, adjuntos y alertas) los [centros de trabajo](centros.md) con sus cajas, el [seguro de crédito](seguro-credito.md) y el [modelo 592 del plástico](plastico-592.md).
 
 ## Ediciones
 

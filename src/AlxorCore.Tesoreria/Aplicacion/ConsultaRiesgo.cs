@@ -17,10 +17,14 @@ public sealed class ConsultaRiesgo : IConsultaRiesgo
     private readonly IRepositorioMovimientos _movimientos;
     private readonly IRepositorioPedidosVenta? _pedidos;
     private readonly IRepositorioAlbaranesVenta? _albaranes;
+    private readonly IRepositorioSeguroCredito? _seguro;
+    private readonly AlxorCore.Nucleo.Tiempo.IReloj? _reloj;
 
     public ConsultaRiesgo(IConsultaFacturas facturas, IConsultaGastos gastos, IRepositorioMovimientos movimientos, IRepositorioPedidosVenta? pedidos = null,
-        IRepositorioAlbaranesVenta? albaranes = null)
+        IRepositorioAlbaranesVenta? albaranes = null, IRepositorioSeguroCredito? seguro = null, AlxorCore.Nucleo.Tiempo.IReloj? reloj = null)
     {
+        _seguro = seguro;
+        _reloj = reloj;
         _facturas = facturas;
         _gastos = gastos;
         _movimientos = movimientos;
@@ -50,6 +54,35 @@ public sealed class ConsultaRiesgo : IConsultaRiesgo
         }
 
         return Redondeo.Dos(pendiente);
+    }
+
+    public async Task<AvisoSeguroCredito?> SeguroCreditoAsync(Guid empresaId, Guid clienteId, decimal importe, CancellationToken ct = default)
+    {
+        if (_seguro is null || importe <= 0m)
+        {
+            return null;
+        }
+
+        var hoy = DateOnly.FromDateTime((_reloj?.AhoraUtc ?? DateTimeOffset.UtcNow).UtcDateTime);
+        var polizas = (await _seguro.PolizasAsync(empresaId, ct).ConfigureAwait(false)).Where(p => p.VigenteEl(hoy)).ToList();
+        if (polizas.Count == 0)
+        {
+            return null;
+        }
+
+        var bloquea = polizas.Any(p => p.BloquearSinCobertura);
+        var concedido = (await _seguro.ClasificacionesAsync(empresaId, clienteId, ct).ConfigureAwait(false))
+            .Where(c => polizas.Any(p => p.Id == c.PolizaId)).Sum(c => c.ConcedidoEl(hoy));
+        if (concedido <= 0m)
+        {
+            return new AvisoSeguroCredito("El cliente no tiene clasificación vigente en el seguro de crédito: esta venta no está asegurada.", bloquea);
+        }
+
+        var riesgo = await RiesgoVivoClienteAsync(empresaId, clienteId, ct).ConfigureAwait(false) + await PendienteFacturarClienteAsync(empresaId, clienteId, null, ct).ConfigureAwait(false);
+        var exceso = Redondeo.Dos(riesgo + importe - concedido);
+        return exceso > 0m
+            ? new AvisoSeguroCredito($"Se supera la clasificación del seguro de crédito ({Redondeo.Formatear(concedido)} €): {Redondeo.Formatear(Math.Min(exceso, importe))} € de esta venta quedan sin cobertura.", bloquea)
+            : null;
     }
 
     public async Task<decimal> RiesgoVivoClienteAsync(Guid empresaId, Guid clienteId, CancellationToken ct = default)

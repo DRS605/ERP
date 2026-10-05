@@ -3,6 +3,7 @@ using System;
 using AlxorCore.Extensiones.Infraestructura;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AlxorCore.Extensiones.Infraestructura.Persistencia.Migraciones
 {
     [DbContext(typeof(ExtensionesDbContext))]
-    partial class ExtensionesDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261005184215_EtiquetasCliente")]
+    partial class EtiquetasCliente
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

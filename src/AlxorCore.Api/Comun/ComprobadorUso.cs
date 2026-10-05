@@ -18,6 +18,10 @@ public static class ReferenciasRegistros
         {
             [TiposRegistro.Cliente] =
             [
+                ("extensiones.plantilla_etiqueta.cliente_id", "plantillas de etiqueta"),
+                ("extensiones.referencia_cliente.cliente_id", "referencias de artículos"),
+                ("tesoreria.clasificacion_seguro.cliente_id", "clasificaciones del seguro de crédito"),
+                ("tesoreria.aviso_impago.cliente_id", "avisos de impago al seguro de crédito"),
                 ("facturacion.factura.cliente_id", "facturas"),
                 ("facturacion.albaran_venta.cliente_id", "albaranes de venta"),
                 ("facturacion.pedido_venta.cliente_id", "pedidos de venta"),
@@ -73,6 +77,7 @@ public static class ReferenciasRegistros
             ],
             [TiposRegistro.Producto] =
             [
+                ("extensiones.referencia_cliente.producto_id", "referencias en clientes"),
                 ("facturacion.linea_factura.producto_id", "facturas"),
                 ("agro.fitosanitario.producto_id", "productos del registro de fitosanitarios"),
                 ("bodega.operacion.producto_id", "embotellados y ventas a granel de la bodega"),
@@ -266,6 +271,7 @@ public static class ReferenciasRegistros
         "organizacion.visibilidad_actividad.actividad_negocio_id",
         "organizacion.acceso_centro.centro_id",
         "organizacion.caja_centro.centro_id",
+        "fiscal.ficha_plastico.producto_id",
     ];
 }
 

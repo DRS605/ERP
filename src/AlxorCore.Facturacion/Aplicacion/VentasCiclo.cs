@@ -321,6 +321,19 @@ public sealed class DecidirPedidoVenta
             }
         }
 
+        if (pedido is not null && pedido.Estado == EstadoPedidoVenta.Borrador && _riesgo is not null
+            && await _riesgo.SeguroCreditoAsync(pedido.EmpresaId, pedido.ClienteId, pedido.Total, ct).ConfigureAwait(false) is { } seguro)
+        {
+            var forzado = seguro.Bloquea && (_permisos?.FuerzaRiesgo ?? false);
+            if (seguro.Bloquea && !forzado)
+            {
+                return Resultado.Fallo<PedidoVentaDto>(Error.Conflicto("seguro.sin_cobertura", $"{seguro.Mensaje} La póliza no permite vender sin cobertura."));
+            }
+
+            var texto = forzado ? $"{seguro.Mensaje} (confirmado con permiso para forzar el riesgo)" : seguro.Mensaje;
+            aviso = aviso is null ? texto : $"{aviso} {texto}";
+        }
+
         var r = await CambiarAsync(id, p => p.Confirmar(), ct).ConfigureAwait(false);
         return r.EsCorrecto && aviso is not null ? Resultado.Ok(r.Valor with { AvisoRiesgo = aviso }) : r;
     }

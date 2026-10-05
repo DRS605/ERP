@@ -90,6 +90,33 @@ public static class EndpointsExtensiones
             })
             .WithSummary("Quita un adjunto.").RequireAuthorization();
 
+        // Etiquetas por cliente o plataforma.
+        g.MapGet("/etiquetas/plantillas", (IContextoEmpresa c, DisenoEtiquetas s, CancellationToken ct) =>
+                ConEmpresa(c, async e => Results.Ok(await s.PlantillasAsync(e, ct).ConfigureAwait(false))))
+            .WithSummary("Plantillas de etiqueta de palé (la general y las de cada cliente o plataforma).").RequireAuthorization();
+        g.MapPost("/etiquetas/plantillas", (DatosPlantillaEtiqueta d, IContextoEmpresa c, DisenoEtiquetas s, CancellationToken ct) =>
+                ConEmpresa(c, async e =>
+                {
+                    var r = await s.CrearPlantillaAsync(e, d, ct).ConfigureAwait(false);
+                    return r.EsCorrecto ? Results.Created($"/extensiones/etiquetas/plantillas/{r.Valor.Id}", r.Valor) : ResultadosHttp.AProblema(r.Error);
+                }))
+            .WithSummary("Plantilla de etiqueta: cliente (o general), marca, campos en orden, texto fijo y formato (A6 o rollo de 100 × 150).").RequierePermiso(Permisos.EmpresaAjustes);
+        g.MapPut("/etiquetas/plantillas/{id:guid}", (Guid id, DatosPlantillaEtiqueta d, IContextoEmpresa c, DisenoEtiquetas s, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await s.CambiarPlantillaAsync(e, id, d, ct).ConfigureAwait(false)).AOk()))
+            .WithSummary("Cambia la plantilla (o la desactiva).").RequierePermiso(Permisos.EmpresaAjustes);
+        g.MapDelete("/etiquetas/plantillas/{id:guid}", async (Guid id, DisenoEtiquetas s, CancellationToken ct) =>
+                (await s.EliminarPlantillaAsync(id, ct).ConfigureAwait(false)).ASinContenido())
+            .WithSummary("Borra la plantilla.").RequierePermiso(Permisos.EmpresaAjustes);
+        g.MapGet("/etiquetas/referencias", (Guid? clienteId, IContextoEmpresa c, DisenoEtiquetas s, CancellationToken ct) =>
+                ConEmpresa(c, async e => Results.Ok(await s.ReferenciasAsync(e, clienteId, ct).ConfigureAwait(false))))
+            .WithSummary("Referencias de los artículos en los clientes (código, descripción y GTIN del cliente).").RequireAuthorization();
+        g.MapPut("/etiquetas/referencias", (DatosReferenciaCliente d, IContextoEmpresa c, DisenoEtiquetas s, CancellationToken ct) =>
+                ConEmpresa(c, async e => (await s.FijarReferenciaAsync(e, d, ct).ConfigureAwait(false)).AOk()))
+            .WithSummary("Crea o cambia la referencia de un artículo en un cliente.").RequierePermiso(Permisos.ProductoGestionar);
+        g.MapDelete("/etiquetas/referencias/{id:guid}", async (Guid id, DisenoEtiquetas s, CancellationToken ct) =>
+                (await s.EliminarReferenciaAsync(id, ct).ConfigureAwait(false)).ASinContenido())
+            .WithSummary("Quita la referencia de un artículo en un cliente.").RequierePermiso(Permisos.ProductoGestionar);
+
         // Alertas.
         g.MapGet("/reglas/eventos", () => Results.Ok(ReglaAlerta.Eventos.Select(e => new { Evento = e.Key, Descripcion = e.Value })))
             .WithSummary("Eventos que pueden disparar una alerta.").RequierePermiso(Permisos.EmpresaAjustes);

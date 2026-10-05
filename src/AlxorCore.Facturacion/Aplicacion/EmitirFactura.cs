@@ -320,6 +320,12 @@ public sealed class EmitirFactura
                 }
             }
 
+            if (formaPago?.RegistrarPagoAutomatico != true
+                && await _riesgo.SeguroCreditoAsync(empresaId, cliente.Id, borrador.Valor.Total, ct).ConfigureAwait(false) is { } seguroSimulado)
+            {
+                avisoRiesgo = avisoRiesgo is null ? seguroSimulado.Mensaje : $"{avisoRiesgo} {seguroSimulado.Mensaje}";
+            }
+
             return Resultado.Ok(FacturaDto.Desde(borrador.Valor) with { AvisoRiesgo = avisoRiesgo });
         }
 
@@ -346,6 +352,24 @@ public sealed class EmitirFactura
                 }
 
                 avisoRiesgo = $"El cliente supera su límite de riesgo ({limiteRiesgo:F2} €). Riesgo tras esta factura: {riesgoVivo + totalProyectado:F2} €{(forzado ? " (emitida con permiso para forzar el riesgo)" : "")}.";
+            }
+        }
+
+        // Seguro de crédito: una venta a crédito sin clasificación o por encima de lo concedido no está asegurada.
+        if (formaPago?.RegistrarPagoAutomatico != true)
+        {
+            var proyectada = Factura.Emitir(empresaId, new NumeroFactura(string.IsNullOrWhiteSpace(serie) ? "FA" : serie!, fechaEmision.Year, 0), fechaEmision, fechaOperacion,
+                clienteFacturado, lineas, porcentajeIrpf, _reloj, fechaVencimiento);
+            if (proyectada.EsCorrecto && await _riesgo.SeguroCreditoAsync(empresaId, cliente.Id, proyectada.Valor.Total, ct).ConfigureAwait(false) is { } seguro)
+            {
+                var forzado = seguro.Bloquea && (_permisos?.FuerzaRiesgo ?? false);
+                if (seguro.Bloquea && !forzado)
+                {
+                    return Resultado.Fallo<FacturaDto>(Error.Conflicto("seguro.sin_cobertura", $"{seguro.Mensaje} La póliza no permite vender sin cobertura."));
+                }
+
+                var texto = forzado ? $"{seguro.Mensaje} (emitida con permiso para forzar el riesgo)" : seguro.Mensaje;
+                avisoRiesgo = avisoRiesgo is null ? texto : $"{avisoRiesgo} {texto}";
             }
         }
 
