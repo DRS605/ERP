@@ -52,6 +52,8 @@ public sealed class OperacionesRegistrosTests : IClassFixture<FabricaApiPruebas>
         ["/bodega/operaciones/merma"] = "operación de bodega: se deshace en /bodega/operaciones/{id}/anular",
         ["/bodega/operaciones/embotellado"] = "operación de bodega: se deshace en /bodega/operaciones/{id}/anular (las botellas salen de existencias)",
         ["/bodega/operaciones/granel"] = "operación de bodega: se deshace en /bodega/operaciones/{id}/anular (anula su albarán)",
+        ["/extensiones/adjuntos/{entidad}/{id}"] = "adjunto: se quita con DELETE /extensiones/adjuntos/{id} (la ruta de alta lleva el registro, no el adjunto)",
+        ["/extensiones/alertas/evaluar"] = "acción: evalúa las reglas, no crea un registro (las alertas se resuelven en /extensiones/alertas/{id}/resolver)",
         ["/albaranes-venta/facturar"] = "emite una factura, que se anula o rectifica en /facturas (y el albarán vuelve a quedar pendiente)",
         ["/albaranes-venta/facturacion-masiva"] = "emite facturas, que se anulan o rectifican en /facturas",
         ["/gastos/cargos-acreedores/liquidar"] = "registra la factura del acreedor (un gasto): se anula en /gastos/{id}/anular y los cargos vuelven a quedar pendientes",

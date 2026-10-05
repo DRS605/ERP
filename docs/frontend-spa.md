@@ -103,6 +103,15 @@ Los documentos de venta y compra (presupuestos, pedidos de venta, facturas y ped
   - pedido de compra: confirmar, recepción por almacén con lote, facturar (gasto), cancelar, anular albarán;
   - enlaces entre documentos: presupuesto → pedido → factura.
 
+## Extensiones: campos, adjuntos y alertas
+
+- **Campana** en la barra superior (`#alertasBtn`): cuántas alertas sin leer tiene el usuario. `alertasRefrescar()` la
+  pide al entrar en la empresa y cada 5 minutos; abre la vista `alertas`.
+- **`extBoton(entidad, id, título)`** pinta el botón 📎 que abre `extFicha()`: los campos personalizados del registro
+  (según su tipo: texto, número, fecha, sí/no o lista) y sus adjuntos, con subida (`FileReader` → base64) y descarga.
+  Está en clientes, proveedores, artículos y lotes de vivero; vale para cualquier código de `/extensiones/entidades`.
+- Vistas `camposperson` y `reglasalerta` en Configuración → Personalización.
+
 ## Orden de las pantallas: secciones en el menú y pestañas
 
 Para no amontonar funciones en una misma pantalla:
@@ -119,7 +128,7 @@ Para no amontonar funciones en una misma pantalla:
   - Vivero (módulo aparte): Vivero (lotes, encargos y libro) / Configuración (ajustes del pasaporte).
   - Tesorería: Cobros / Impagados / Pagos / Bancos / Divisas / Informes.
   - Contabilidad: Contabilidad / Impuestos / Analítica. Informes: Centro de informes / Análisis. Configuración: Empresa /
-    Usuarios y datos / Integraciones.
+    Personalización (campos personalizados, reglas de alerta y alertas) / Usuarios y datos / Integraciones.
 - **Entradas que abren una pestaña.** Una entrada del menú puede ser `"vista~Título de la pestaña"`: `ir()` abre la
   vista y deja la pestaña pedida en `window._pestanaPedida`, que `pestanas()` activa (y recuerda) la primera vez que
   encuentra ese título. Así cada área de una pantalla con pestañas tiene su propio punto de menú (p. ej.

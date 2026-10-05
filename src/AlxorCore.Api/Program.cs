@@ -94,6 +94,9 @@ builder.Services.AddScoped<AlxorCore.Bodega.Aplicacion.IAutofacturasBodega, Alxo
 AlxorCore.Vivero.Infraestructura.RegistroServicios.AgregarModuloVivero(builder.Services, builder.Configuration);
 builder.Services.AddScoped<AlxorCore.Vivero.Aplicacion.IExistenciasVivero, AlxorCore.Api.Comun.ExistenciasBodegaCatalogo>();
 builder.Services.AddScoped<AlxorCore.Vivero.Aplicacion.IVentasVivero, AlxorCore.Api.Comun.VentasBodegaFacturacion>();
+// Extensiones: campos personalizados, adjuntos y alertas (lo que vigilan llega de cobros, riesgo y SII).
+AlxorCore.Extensiones.Infraestructura.RegistroServicios.AgregarModuloExtensiones(builder.Services, builder.Configuration);
+builder.Services.AddScoped<AlxorCore.Extensiones.Aplicacion.IFuentesAlertas, AlxorCore.Api.Comun.FuentesAlertasErp>();
 builder.Services.AddScoped<AlxorCore.Informes.Aplicacion.IRendimientosCapitalMobiliario, AlxorCore.Api.Comun.RendimientosCapitalCooperativa>();
 builder.Services.AddScoped<AlxorCore.Facturacion.Aplicacion.IGastosComisionista, AlxorCore.Api.Comun.GastosComisionistaGastos>();
 builder.Services.AddScoped<AlxorCore.Contabilidad.Aplicacion.IFormaJuridicaEmpresa, AlxorCore.Api.Comun.FormaJuridicaPorNif>();
@@ -261,6 +264,7 @@ if (app.Environment.IsDevelopment())
     await ambito.ServiceProvider.GetRequiredService<AlxorCore.Cooperativa.Infraestructura.CooperativaDbContext>().Database.MigrateAsync().ConfigureAwait(false);
     await ambito.ServiceProvider.GetRequiredService<AlxorCore.Bodega.Infraestructura.BodegaDbContext>().Database.MigrateAsync().ConfigureAwait(false);
     await ambito.ServiceProvider.GetRequiredService<AlxorCore.Vivero.Infraestructura.ViveroDbContext>().Database.MigrateAsync().ConfigureAwait(false);
+    await ambito.ServiceProvider.GetRequiredService<AlxorCore.Extensiones.Infraestructura.ExtensionesDbContext>().Database.MigrateAsync().ConfigureAwait(false);
     await ambito.ServiceProvider.GetRequiredService<MigracionDbContext>().Database.MigrateAsync().ConfigureAwait(false);
     await ambito.ServiceProvider.GetRequiredService<AlxorCore.Auditoria.Infraestructura.AuditoriaDbContext>().Database.MigrateAsync().ConfigureAwait(false);
     await ambito.ServiceProvider.GetRequiredService<AlxorCore.Divisas.Infraestructura.DivisasDbContext>().Database.MigrateAsync().ConfigureAwait(false);
@@ -344,6 +348,7 @@ app.MapearCooperativa();
 app.MapearSubasta();
 app.MapearBodega();
 app.MapearVivero();
+app.MapearExtensiones();
 app.MapearMigracion();
 app.MapearCobranza();
 app.MapearLiquidacionesPagos();

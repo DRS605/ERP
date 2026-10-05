@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>AlxorCore.Extensiones</RootNamespace>
+    <AssemblyName>AlxorCore.Extensiones</AssemblyName>
+  </PropertyGroup>
+
+  <!-- Extensiones de la base: campos personalizados sobre cualquier registro, adjuntos y alertas. No conoce los demás
+       módulos: lo que vigilan las alertas llega por puertos que implementa la API. -->
+  <ItemGroup>
+    <ProjectReference Include="..\AlxorCore.Nucleo\AlxorCore.Nucleo.csproj" />
+  </ItemGroup>
+
+</Project>

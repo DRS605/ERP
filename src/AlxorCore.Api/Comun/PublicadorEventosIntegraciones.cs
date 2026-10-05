@@ -48,6 +48,21 @@ public sealed class PublicadorEventosIntegraciones : IPublicadorEventos
                 await _servicios.GetRequiredService<OperacionesIntragrupo>().ProcesarEventoAsync(emisora, evento, ct).ConfigureAwait(false);
             }
 
+            // Reglas de alerta de evento (un fallo aquí no tumba la operación, que ya está guardada).
+            if (empresaId is { } empresa && AlxorCore.Extensiones.Dominio.ReglaAlerta.Eventos.ContainsKey(evento.GetType().Name)
+                && EventosAlertas.Describir(evento) is { } alerta)
+            {
+                try
+                {
+                    await _servicios.GetRequiredService<AlxorCore.Extensiones.Aplicacion.AlertasEmpresa>().RegistrarEventoAsync(empresa, evento.GetType().Name, alerta.Titulo,
+                        alerta.Detalle, alerta.Entidad, alerta.EntidadId, alerta.EventoId, ct).ConfigureAwait(false);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _log.LogWarning(ex, "No se pudo registrar la alerta del evento {Evento}", evento.GetType().Name);
+                }
+            }
+
             var nombre = NombrePublico(evento.GetType().Name);
             if (nombre is null || empresaId is null)
             {
