@@ -100,9 +100,9 @@ internal sealed class GeneradorPdfFacturaQuestPdf : IGeneradorPdfFactura
                         {
                             tabla.Cell().Text(linea.Descripcion);
                             tabla.Cell().AlignRight().Text(N(linea.Cantidad));
-                            tabla.Cell().AlignRight().Text(N(linea.PrecioUnitario));
+                            tabla.Cell().AlignRight().Text(N(linea.PrecioDivisa ?? linea.PrecioUnitario));
                             tabla.Cell().AlignRight().Text($"{Porcentaje(linea.PorcentajeIva)}%");
-                            tabla.Cell().AlignRight().Text(N(linea.Base - linea.ImporteConceptos));
+                            tabla.Cell().AlignRight().Text(N(linea.BaseDivisa ?? (linea.Base - linea.ImporteConceptos)));
                             foreach (var c in (linea.Conceptos ?? []).Where(c => c.Efecto == EfectoConcepto.Precio))
                             {
                                 tabla.Cell().PaddingLeft(10).Text($"· {c.Nombre}{(c.Calculo == CalculoConcepto.Porcentaje ? $" ({N(c.Valor)} %)" : string.Empty)}").FontSize(8).FontColor(Colors.Grey.Darken2);
@@ -116,6 +116,25 @@ internal sealed class GeneradorPdfFacturaQuestPdf : IGeneradorPdfFactura
 
                     col.Item().AlignRight().PaddingTop(15).Column(totales =>
                     {
+                        if (factura.Moneda is { } moneda)
+                        {
+                            // Factura en divisa: los importes en la divisa; el contravalor en euros (y la cuota, que vale en euros) debajo.
+                            var retencionDivisa = Redondeo.Dos((factura.BaseDivisa ?? 0m) * factura.PorcentajeIrpf / 100m);
+                            totales.Item().Text($"{T("Base imponible")}: {N(factura.BaseDivisa ?? 0m)} {moneda}");
+                            totales.Item().Text($"{siglas}: {N(factura.CuotaDivisa ?? 0m)} {moneda}");
+                            if (retencionDivisa > 0m)
+                            {
+                                totales.Item().Text($"{T("Retención IRPF")} ({factura.PorcentajeIrpf:0}%): -{N(retencionDivisa)} {moneda}");
+                            }
+
+                            totales.Item().Text($"{T("TOTAL")}: {N(factura.TotalDivisa ?? 0m)} {moneda}").Bold().FontSize(13).FontColor(color);
+                            totales.Item().PaddingTop(8).Text($"{T("Contravalor en euros")} ({TextosImpreso.T(idioma, "Tipo de cambio")} 1 {moneda} = {TextosImpreso.Numero(idioma, factura.TasaCambio ?? 0m, 6)} €)")
+                                .FontSize(8).FontColor(Colors.Grey.Darken1);
+                            totales.Item().Text($"{T("Base imponible")}: {N(factura.BaseImponible)} € · {siglas}: {N(factura.CuotaIva + factura.RecargoTotal)} € · {T("TOTAL")}: {N(factura.Total)} €")
+                                .FontSize(8).FontColor(Colors.Grey.Darken1);
+                            return;
+                        }
+
                         totales.Item().Text($"{T("Base imponible")}: {N(factura.BaseImponible)} €");
                         totales.Item().Text($"{siglas}: {N(factura.CuotaIva)} €");
                         if (factura.RecargoTotal > 0)

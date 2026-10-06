@@ -144,6 +144,10 @@ Un **presupuesto** (`presupuesto`) es una **oferta al cliente**: cliente, línea
 validez**. **No es un documento fiscal**: es editable mientras está en borrador, **no** lleva
 numeración correlativa legal ni VeriFactu. Su numeración es meramente informativa (`P{año}/NNNNNN`).
 
+Las líneas usan el **catálogo de tipos de la empresa**, igual que la factura. Así se puede presupuestar una
+exportación (`EXPORT`), una entrega intracomunitaria (`INTRA`), una inversión del sujeto pasivo o un tipo de IGIC. Un
+código que no existe da 400 `impuesto.desconocido`.
+
 Estados: `Borrador → Aceptado | Rechazado`. Solo un presupuesto en **borrador** se puede editar,
 aceptar o rechazar.
 

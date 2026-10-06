@@ -3902,9 +3902,14 @@
         async()=>{ const body=JSON.stringify({sentido:val("pv_sent"),concepto:val("pv_conc"),importe:Number(val("pv_imp")||0),fecha:val("pv_fecha")});
           await api(p?"/tesoreria/previsiones/"+p.id:"/tesoreria/previsiones",{method:p?"PUT":"POST",body}); toast(p?"Previsión guardada.":"Previsión añadida.","ok"); vPrevision(); }); }
     async function borrarPrevision(id){ if(!confirm("¿Eliminar esta previsión?"))return; try{ await api("/tesoreria/previsiones/"+id,{method:"DELETE"}); toast("Previsión eliminada.","ok"); vPrevision(); }catch(e){ toast(e.message,"err"); } }
-    async function modalPagoGasto(id,concepto,pend,recargar){ const hoy=new Date().toISOString().slice(0,10); const selBanco=await bancoSelHtml("pg_banco");
-      abrir("Registrar pago · "+concepto,`<div class="grid2"><div><label>Importe (€)</label><input id="pg_imp" type="number" step="0.01" value="${pend}"/></div><div><label>Fecha</label><input id="pg_fecha" type="date" value="${hoy}"/></div></div><label>Método (opcional)</label><input id="pg_metodo" placeholder="Transferencia, efectivo…"/>${selBanco}`,
-        async()=>{ await api("/pagos",{method:"POST",body:JSON.stringify({gastoId:id,importe:Number(val("pg_imp")||0),fecha:val("pg_fecha"),metodo:val("pg_metodo")||null,cuentaBancariaId:bancoVal("pg_banco")})}); toast("Pago registrado.","ok"); (recargar||vPrevision)(); }); }
+    // Documento en divisa: moneda, tipo y lo pendiente en la divisa (null si va en euros).
+    async function divisaDocumento(ruta){ try{ const [d,sal]=await Promise.all([api(ruta),api(ruta+"/saldo")]); if(!d||!d.moneda) return null;
+      const liq=(sal.movimientos||[]).reduce((t,m)=>t+(m.importeDivisa||0),0); return {moneda:d.moneda,tasa:d.tasaCambio,pendiente:Math.round(((d.totalDivisa||0)-liq)*100)/100}; }catch(_){ return null; } }
+    const campoDivisa=(id,dv,verbo)=>dv?`<div class="grid2"><div><label>Importe ${verbo} en ${dv.moneda}</label><input id="${id}" type="number" step="0.01" value="${dv.pendiente}"/></div>
+      <div class="muted" style="font-size:12px;align-self:end">Factura en ${dv.moneda} al ${String(dv.tasa).replace(".",",")} €. Los euros son los que mueve el banco: la diferencia con lo que se liquida al tipo de la factura va a 668/768.</div></div>`:"";
+    async function modalPagoGasto(id,concepto,pend,recargar){ const hoy=new Date().toISOString().slice(0,10); const selBanco=await bancoSelHtml("pg_banco"); const dv=await divisaDocumento("/gastos/"+id);
+      abrir("Registrar pago · "+concepto,`${campoDivisa("pg_div",dv,"pagado")}<div class="grid2"><div><label>${dv?"Euros que salen del banco":"Importe (€)"}</label><input id="pg_imp" type="number" step="0.01" value="${pend}"/></div><div><label>Fecha</label><input id="pg_fecha" type="date" value="${hoy}"/></div></div><label>Método (opcional)</label><input id="pg_metodo" placeholder="Transferencia, efectivo…"/>${selBanco}`,
+        async()=>{ await api("/pagos",{method:"POST",body:JSON.stringify({gastoId:id,importe:Number(val("pg_imp")||0),importeDivisa:dv&&val("pg_div")!==""?Number(val("pg_div")):null,fecha:val("pg_fecha"),metodo:val("pg_metodo")||null,cuentaBancariaId:bancoVal("pg_banco")})}); toast("Pago registrado.","ok"); (recargar||vPrevision)(); }); }
 
     // Cobros o pagos de un documento, con su anulación (no se borran: se añade la anulación en negativo).
     async function verMovimientos(rutaSaldo, titulo, recargar){
@@ -5065,10 +5070,10 @@
     async function modalCobro(id,numero,pendiente,recargar){
       const hoy=new Date().toISOString().slice(0,10);
       const metodos=["Efectivo","Transferencia","Tarjeta","Bizum","Domiciliación"].map(m=>`<option>${m}</option>`).join("");
-      const selBanco=await bancoSelHtml("cb_banco");
-      abrir(`Registrar cobro · ${numero}`,`<div class="grid2"><div><label>Importe (€)</label><input id="cb_imp" type="number" value="${pendiente}"/></div><div><label>Fecha</label><input id="cb_fecha" type="date" value="${hoy}"/></div></div>
+      const selBanco=await bancoSelHtml("cb_banco"); const dv=await divisaDocumento("/facturas/"+id);
+      abrir(`Registrar cobro · ${numero}`,`${campoDivisa("cb_div",dv,"cobrado")}<div class="grid2"><div><label>${dv?"Euros que entran en el banco":"Importe (€)"}</label><input id="cb_imp" type="number" value="${pendiente}"/></div><div><label>Fecha</label><input id="cb_fecha" type="date" value="${hoy}"/></div></div>
         <label>Método de cobro</label><select id="cb_met">${metodos}</select>${selBanco}`,
-        async()=>{ await api("/cobros",{method:"POST",body:JSON.stringify({facturaId:id,importe:Number(val("cb_imp")),fecha:val("cb_fecha"),metodo:val("cb_met"),cuentaBancariaId:bancoVal("cb_banco")})}); (recargar||vCobros)(); }); }
+        async()=>{ await api("/cobros",{method:"POST",body:JSON.stringify({facturaId:id,importe:Number(val("cb_imp")),importeDivisa:dv&&val("cb_div")!==""?Number(val("cb_div")):null,fecha:val("cb_fecha"),metodo:val("cb_met"),cuentaBancariaId:bancoVal("cb_banco")})}); (recargar||vCobros)(); }); }
     let trimSel=Math.floor(new Date().getMonth()/3)+1;
     // Ejercicio de Informes y libro de IVA mostrado (Repercutido/Soportado; periodo 0 = año, 1-4 = trimestre).
     let infAnio=new Date().getFullYear(), infLibro="Repercutido", infLibroPer=0;

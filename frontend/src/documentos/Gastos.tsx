@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useDocs } from "./contexto";
 import { Dialogo, SelectorTercero } from "./Componentes";
-import type { Cuenta, FormaPago, Gasto, Saldo, Tercero, TipoIvaCompleto } from "./tipos";
+import { DIVISAS, type Cuenta, type FormaPago, type Gasto, type Saldo, type Tercero, type TipoIvaCompleto } from "./tipos";
 import { clasePill, eur, fecha, hoyIso, nuevaClave, num2, redondear2, useRetardado, useUltimaPeticion } from "./util";
 
 interface LineaEd {
@@ -43,9 +43,13 @@ export function EditorGasto(props: { id?: string | null; semilla?: Gasto; alGuar
   const [motivo, setMotivo] = useState(s?.motivoRectificacion ?? "");
   const [enRecargo, setEnRecargo] = useState(false);
   const [afectacion, setAfectacion] = useState(s?.afectacion ?? "Comun");
+  // Factura en divisa: las bases se escriben en la divisa (al editar, las guardadas en euros vuelven a la divisa).
+  const [moneda, setMoneda] = useState(s?.moneda ?? "");
+  const [tasa, setTasa] = useState<number | null>(s?.tasaCambio ?? null);
+  const enDivisa = (b: number) => (s?.moneda && s.tasaCambio ? redondear2(b / s.tasaCambio) : b);
   const [lineas, setLineas] = useState<LineaEd[]>(() =>
     s?.lineas?.length
-      ? s.lineas.map((l) => ({ clave: nuevaClave(), descripcion: l.descripcion ?? "", cuentaGasto: l.cuentaGasto ?? "", base: l.base, codigoIva: l.codigoIva, porcentajeIva: l.autoliquidada ? l.porcentajeIva : null, porcentajeDeducible: l.porcentajeDeducible }))
+      ? s.lineas.map((l) => ({ clave: nuevaClave(), descripcion: l.descripcion ?? "", cuentaGasto: l.cuentaGasto ?? "", base: enDivisa(l.base), codigoIva: l.codigoIva, porcentajeIva: l.autoliquidada ? l.porcentajeIva : null, porcentajeDeducible: l.porcentajeDeducible }))
       : [lineaNueva()],
   );
   const [plazosManual, setPlazosManual] = useState<{ fecha: string; importe: number }[] | null>(props.id && s?.vencimientos && s.vencimientos.length > 1 ? s.vencimientos : null);
@@ -100,8 +104,10 @@ export function EditorGasto(props: { id?: string | null; semilla?: Gasto; alGuar
       numeroRectificado: rectificativa ? numeroRectificado.trim() || null : null,
       fechaRectificada: rectificativa ? fechaRectificada || null : null,
       motivoRectificacion: rectificativa ? motivo.trim() || null : null,
+      moneda: moneda || null,
+      tasaCambio: moneda ? tasa : null,
     }),
-    [proveedorId, proveedor, numero, fechaFactura, fechaRegistro, concepto, irpf, formaPagoId, recargo, afectacion, lineas, plazosManual, rectificativa, s, numeroRectificado, fechaRectificada, motivo],
+    [proveedorId, proveedor, numero, fechaFactura, fechaRegistro, concepto, irpf, formaPagoId, recargo, afectacion, lineas, plazosManual, rectificativa, s, numeroRectificado, fechaRectificada, motivo, moneda, tasa],
   );
   const retardado = useRetardado(comando, 350);
 
@@ -170,6 +176,8 @@ export function EditorGasto(props: { id?: string | null; semilla?: Gasto; alGuar
             <div className="dx-fila">
               <div><label>Forma de pago</label><select value={formaPagoId} onChange={(e) => setFormaPagoId(e.target.value)}><option value="">Contado (vence en la fecha de factura)</option>{formas.map((f) => <option key={f.id} value={f.id}>{f.nombre}</option>)}</select></div>
               <div><label>Retención IRPF %</label><input type="number" step="0.01" value={irpf} onChange={(e) => setIrpf(Number(e.target.value))} /></div>
+              <div><label>Moneda de la factura</label><select value={moneda} onChange={(e) => setMoneda(e.target.value)}><option value="">EUR · euros</option>{DIVISAS.map((d) => <option key={d} value={d}>{d}</option>)}</select></div>
+              {moneda && <div><label>Tipo de cambio (€ por 1 {moneda})</label><input type="number" step="0.000001" min="0" value={tasa ?? ""} placeholder="El del día de la factura" onChange={(e) => setTasa(e.target.value === "" ? null : Number(e.target.value))} /></div>}
               <div><label>Prorrata especial</label><select value={afectacion} onChange={(e) => setAfectacion(e.target.value)}><option value="Comun">Uso común</option><option value="ConDerecho">Solo operaciones con derecho</option><option value="SinDerecho">Solo operaciones exentas</option></select></div>
             </div>
             <div className="dx-fila">
@@ -274,6 +282,7 @@ export function EditorGasto(props: { id?: string | null; semilla?: Gasto; alGuar
           {!!calculo?.recargoTotal && <div className="dx-tot"><span className="muted">Recargo de equivalencia</span><span>{eur(calculo.recargoTotal)}</span></div>}
           {!!calculo?.retencionIrpf && <div className="dx-tot"><span className="muted">Retención IRPF</span><span>−{eur(calculo.retencionIrpf)}</span></div>}
           <div className="dx-tot dx-grande"><span>{(calculo?.total ?? 0) < 0 ? "A favor (abono del proveedor)" : "Total a pagar"}</span><span>{eur(calculo?.total)}</span></div>
+          {calculo?.moneda && <div className="dx-tot dx-grande"><span>Total en {calculo.moneda} (1 {calculo.moneda} = {String(calculo.tasaCambio ?? 0).replace(".", ",")} €)</span><span>{num2(calculo.totalDivisa ?? 0)} {calculo.moneda}</span></div>}
           {calculo && (calculo.desglose ?? []).some((d) => d.cuotaDeducible !== d.cuota) && (
             <div className="dx-tot"><span className="muted">IVA deducible (antes de prorrata)</span><span className="muted">{eur((calculo.desglose ?? []).reduce((t, d) => t + d.cuotaDeducible, 0))}</span></div>
           )}

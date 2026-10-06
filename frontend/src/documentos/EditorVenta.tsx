@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useDocs } from "./contexto";
 import { Dialogo, EditorConceptos, SelectorTercero } from "./Componentes";
 import { Rejilla, lineaVacia, type CalculoLinea } from "./Rejilla";
-import { anticiposDisponibles, tipoEquivalente, anticiposFacturados, repartoAnticipos, type Anticipo, type ConceptoAplicado, type ConceptoCatalogo, type ConceptoSolicitado, type Factura, type FormaPago, type LineaEdicion, type Producto, type Tercero, type TipoIva, type TipoVenta } from "./tipos";
+import { DIVISAS, anticiposDisponibles, tipoEquivalente, anticiposFacturados, repartoAnticipos, type Anticipo, type ConceptoAplicado, type ConceptoCatalogo, type ConceptoSolicitado, type Factura, type FormaPago, type LineaEdicion, type Producto, type Tercero, type TipoIva, type TipoVenta } from "./tipos";
 import { eur, hoyIso, nuevaClave, num2, redondear2, useRetardado, useUltimaPeticion } from "./util";
 
 export const NOMBRE_TIPO: Record<TipoVenta, string> = { presupuesto: "presupuesto", pedido: "pedido de venta", factura: "factura" };
@@ -70,6 +70,10 @@ export function EditorVenta(props: { tipo: TipoVenta; id?: string | null; semill
   const territorioSemilla: "Iva" | "Igic" | null = props.semilla?.lineas.some((l) => /^(IGIC|REAGPIGIC)/i.test(l.codigoIva ?? "")) ? "Igic"
     : props.semilla?.lineas.length ? "Iva" : null;
   const [territorio, setTerritorio] = useState<"Iva" | "Igic">(territorioSemilla ?? "Iva");
+  // Factura en divisa: los precios se escriben en la divisa; el tipo de cambio, si no se indica, es el del día (Divisas).
+  const [moneda, setMoneda] = useState("");
+  const [tasa, setTasa] = useState<number | null>(null);
+  const enDivisa = props.tipo === "factura" && !rectificativa && !!moneda;
 
   const [calculo, setCalculo] = useState<Factura | null>(null);
   const [errorCalculo, setErrorCalculo] = useState("");
@@ -159,7 +163,9 @@ export function EditorVenta(props: { tipo: TipoVenta; id?: string | null; semill
       porcentajeIrpf: irpf,
       conceptosDocumento: conceptosDoc,
       impuesto: ambos && !rectificativa ? territorio : null,
-      descontarAnticipos: descontar && facturados.length ? facturados.map((a) => ({ anticipoId: a.id })) : null,
+      descontarAnticipos: descontar && facturados.length && !enDivisa ? facturados.map((a) => ({ anticipoId: a.id })) : null,
+      moneda: enDivisa ? moneda : null,
+      tasaCambio: enDivisa ? tasa : null,
       lineas: validas.map(({ l }) => ({
         cantidad: l.cantidad,
         descripcion: l.descripcion.trim() || null,
@@ -170,7 +176,7 @@ export function EditorVenta(props: { tipo: TipoVenta; id?: string | null; semill
         ...(rectificativa ? { conceptos: [] } : l.conceptos === undefined ? {} : { conceptos: l.conceptos }),
       })),
     }),
-    [clienteId, fecha, serie, dias, formaPagoId, recargo, irpf, conceptosDoc, validas, props.tipo, rectificativa, descontar, facturados, ambos, territorio],
+    [clienteId, fecha, serie, dias, formaPagoId, recargo, irpf, conceptosDoc, validas, props.tipo, rectificativa, descontar, facturados, ambos, territorio, enDivisa, moneda, tasa],
   );
   const comandoRetardado = useRetardado(comando, 350);
 
@@ -196,7 +202,7 @@ export function EditorVenta(props: { tipo: TipoVenta; id?: string | null; semill
     if (!calculo) return r;
     validas.forEach(({ i }, k) => {
       const c = calculo.lineas[k];
-      if (c) r[i] = { precio: c.precioUnitario, dto: c.porcentajeDescuento, iva: c.codigoIva, importe: c.base, margen: c.productoId || c.costeUnitario || c.costeConceptos ? c.margen : undefined, conceptos: c.conceptos };
+      if (c) r[i] = { precio: c.precioDivisa ?? c.precioUnitario, dto: c.porcentajeDescuento, iva: c.codigoIva, importe: c.baseDivisa ?? c.base, margen: c.productoId || c.costeUnitario || c.costeConceptos ? c.margen : undefined, conceptos: c.conceptos };
     });
     return r;
   }, [calculo, lineas, validas]);
@@ -242,7 +248,8 @@ export function EditorVenta(props: { tipo: TipoVenta; id?: string | null; semill
         return {
           cantidad: l.cantidad,
           descripcion: c.descripcion,
-          precioUnitario: c.precioUnitario,
+          // En divisa, el precio que se fija es el de la divisa (el de euros es su contravalor).
+          precioUnitario: c.precioDivisa ?? c.precioUnitario,
           codigoIva: c.codigoIva,
           porcentajeDescuento: c.porcentajeDescuento,
           productoId: l.productoId,
@@ -358,6 +365,23 @@ export function EditorVenta(props: { tipo: TipoVenta; id?: string | null; semill
                   )}
                 </>
               )}
+              {props.tipo === "factura" && !rectificativa && (
+                <>
+                  <div>
+                    <label>Moneda</label>
+                    <select value={moneda} onChange={(e) => setMoneda(e.target.value)}>
+                      <option value="">EUR · euros</option>
+                      {DIVISAS.map((d) => <option key={d} value={d}>{d}</option>)}
+                    </select>
+                  </div>
+                  {enDivisa && (
+                    <div>
+                      <label>Tipo de cambio (€ por 1 {moneda})</label>
+                      <input type="number" step="0.000001" min="0" value={tasa ?? ""} placeholder="El del día" onChange={(e) => setTasa(e.target.value === "" ? null : Number(e.target.value))} />
+                    </div>
+                  )}
+                </>
+              )}
               {props.tipo === "factura" && (
                 <div>
                   <label>Retención IRPF %</label>
@@ -438,7 +462,14 @@ export function EditorVenta(props: { tipo: TipoVenta; id?: string | null; semill
           <div className="dx-tot"><span className="muted">Impuestos</span><span>{eur(calculo?.cuotaIva)}</span></div>
           {!!calculo?.recargoTotal && <div className="dx-tot"><span className="muted">Recargo de equivalencia</span><span>{eur(calculo.recargoTotal)}</span></div>}
           {!!calculo?.retencionIrpf && <div className="dx-tot"><span className="muted">Retención IRPF ({num2(calculo.porcentajeIrpf)} %)</span><span>−{eur(calculo.retencionIrpf)}</span></div>}
-          <div className="dx-tot dx-grande"><span>Total</span><span>{eur(calculo?.total)}</span></div>
+          {calculo?.moneda ? (
+            <>
+              <div className="dx-tot"><span className="muted">Contravalor en euros (1 {calculo.moneda} = {String(calculo.tasaCambio ?? 0).replace(".", ",")} €)</span><span>{eur(calculo.total)}</span></div>
+              <div className="dx-tot dx-grande"><span>Total {calculo.moneda}</span><span>{num2(calculo.totalDivisa ?? 0)} {calculo.moneda}</span></div>
+            </>
+          ) : (
+            <div className="dx-tot dx-grande"><span>Total</span><span>{eur(calculo?.total)}</span></div>
+          )}
           {calculo && coste > 0 && (
             <div className="dx-tot"><span className="muted">Coste · margen</span><span className={margen < 0 ? "dx-rojo" : "muted"}>{eur(coste)} · {eur(margen)} ({num2(calculo.baseImponible ? (margen / calculo.baseImponible) * 100 : 0)} %)</span></div>
           )}
@@ -447,9 +478,9 @@ export function EditorVenta(props: { tipo: TipoVenta; id?: string | null; semill
 
       {confirmar && calculo && (
         <Dialogo titulo={rectificativa ? "Emitir la rectificativa" : "Emitir la factura"} alCerrar={() => setConfirmar(false)}
-          acciones={<><button className="btn small secondary" onClick={() => setConfirmar(false)}>Revisar</button><button className="btn small" disabled={guardando} onClick={guardar}>Emitir {eur(calculo.total)}</button></>}>
+          acciones={<><button className="btn small secondary" onClick={() => setConfirmar(false)}>Revisar</button><button className="btn small" disabled={guardando} onClick={guardar}>Emitir {calculo.moneda ? `${num2(calculo.totalDivisa ?? 0)} ${calculo.moneda}` : eur(calculo.total)}</button></>}>
           <p style={{ margin: 0 }}>
-            Se emitirá una factura {rectificativa ? "rectificativa " : ""}de <strong>{eur(calculo.total)}</strong> a <strong>{cliente?.nombre}</strong> con fecha {fecha.split("-").reverse().join("/")}.
+            Se emitirá una factura {rectificativa ? "rectificativa " : ""}de <strong>{calculo.moneda ? `${num2(calculo.totalDivisa ?? 0)} ${calculo.moneda} (${eur(calculo.total)})` : eur(calculo.total)}</strong> a <strong>{cliente?.nombre}</strong> con fecha {fecha.split("-").reverse().join("/")}.
             Una factura emitida no se modifica: queda numerada y encadenada en VeriFactu; para corregirla hay que rectificarla o anularla.
           </p>
         </Dialogo>

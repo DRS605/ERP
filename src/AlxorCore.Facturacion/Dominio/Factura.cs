@@ -121,6 +121,33 @@ public sealed class Factura : RaizAgregadoEmpresa<Guid>
     public void EstablecerMencionFiscal(string? mencion) =>
         MencionFiscal = string.IsNullOrWhiteSpace(mencion) ? null : mencion.Trim();
 
+    /// <summary>Divisa de la factura (ISO 4217); null = euros. Los importes en euros son su contravalor.</summary>
+    public string? Moneda { get; private set; }
+
+    /// <summary>Euros por unidad de la divisa, congelado al emitir.</summary>
+    public decimal? TasaCambio { get; private set; }
+
+    public decimal? BaseDivisa { get; private set; }
+
+    /// <summary>Impuesto (y recargo) en la divisa, informativo: la cuota que vale es la de euros.</summary>
+    public decimal? CuotaDivisa { get; private set; }
+
+    /// <summary>Total en la divisa: lo que se cobra al cliente.</summary>
+    public decimal? TotalDivisa { get; private set; }
+
+    /// <summary>
+    /// Marca la factura en divisa (sus líneas ya llevan el precio en divisa y la tasa) y calcula sus importes en la
+    /// divisa con el mismo redondeo que en euros: base, impuesto línea a línea, recargo y retención.
+    /// </summary>
+    public void EstablecerDivisa(string moneda, decimal tasa)
+    {
+        Moneda = moneda;
+        TasaCambio = tasa;
+        BaseDivisa = Redondeo.Dos(_lineas.Sum(l => l.BaseDivisa ?? 0m));
+        CuotaDivisa = Redondeo.Dos(_lineas.Sum(l => Redondeo.Dos((l.BaseDivisa ?? 0m) * l.PorcentajeIva / 100m) + Redondeo.Dos((l.BaseDivisa ?? 0m) * l.PorcentajeRecargo / 100m)));
+        TotalDivisa = Redondeo.Dos(BaseDivisa.Value + CuotaDivisa.Value - Redondeo.Dos(BaseDivisa.Value * PorcentajeIrpf / 100m));
+    }
+
     // --- Importes ---
     public decimal BaseImponible { get; private set; }
     public decimal CuotaIva { get; private set; }

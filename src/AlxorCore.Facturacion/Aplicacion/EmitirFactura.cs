@@ -43,7 +43,61 @@ public sealed record EmitirFacturaComando(
     IReadOnlyList<ConceptoSolicitado>? ConceptosDocumento = null,
     IReadOnlyList<DescuentoAnticipoSolicitado>? DescontarAnticipos = null,
     TipoImpuesto? Impuesto = null,
-    Guid? CentroId = null);
+    Guid? CentroId = null,
+    string? Moneda = null,
+    decimal? TasaCambio = null);
+
+/// <summary>Divisa y tipo de cambio de una factura que no va en euros.</summary>
+public sealed record DivisaFactura(string Moneda, decimal Tasa);
+
+/// <summary>Valida la divisa de una factura y congela su tipo de cambio.</summary>
+public static class FacturaEnDivisa
+{
+    /// <summary>
+    /// Null si la factura va en euros. La tasa es la indicada o la vigente a la fecha en el módulo de Divisas. Una
+    /// factura en divisa no admite conceptos de línea, suplidos ni descuento de anticipos (que se definen en euros).
+    /// </summary>
+    public static async Task<Resultado<DivisaFactura?>> ResolverAsync(IConversorDivisa? conversor, Guid empresaId, string? moneda, decimal? tasa, DateOnly fecha,
+        IReadOnlyList<NuevaLinea> lineas, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(lineas);
+        var codigo = string.IsNullOrWhiteSpace(moneda) ? null : moneda.Trim().ToUpperInvariant();
+        if (codigo is null || codigo == "EUR")
+        {
+            return Resultado.Ok<DivisaFactura?>(null);
+        }
+
+        if (codigo.Length != 3 || !codigo.All(char.IsAsciiLetterUpper))
+        {
+            return Resultado.Fallo<DivisaFactura?>(Error.Validacion("factura.moneda", $"«{moneda}» no es un código de divisa (USD, GBP, CHF…)."));
+        }
+
+        if (lineas.Any(l => l.AnticipoId is not null || (l.Conceptos ?? []).Any(c => c.Importe != 0m)))
+        {
+            return Resultado.Fallo<DivisaFactura?>(Error.Validacion("factura.divisa_conceptos",
+                "Una factura en divisa no lleva conceptos de línea, suplidos ni descuento de anticipos (se definen en euros)."));
+        }
+
+        var t = tasa;
+        if (t is null && conversor is not null)
+        {
+            t = await conversor.TasaVigenteAsync(empresaId, codigo, fecha, ct).ConfigureAwait(false);
+        }
+
+        if (t is null)
+        {
+            return Resultado.Fallo<DivisaFactura?>(Error.Validacion("factura.sin_tipo_cambio",
+                $"No hay tipo de cambio de {codigo} a {fecha:dd/MM/yyyy}: regístralo en Divisas o indícalo en la factura."));
+        }
+
+        if (t <= 0m || t > 100_000m)
+        {
+            return Resultado.Fallo<DivisaFactura?>(Error.Validacion("factura.tasa_cambio", "El tipo de cambio (euros por unidad de la divisa) es positivo."));
+        }
+
+        return Resultado.Ok<DivisaFactura?>(new DivisaFactura(codigo, Math.Round(t.Value, 8, MidpointRounding.AwayFromZero)));
+    }
+}
 
 /// <summary>
 /// Caso de uso estrella: emitir una factura. Compone cliente (Terceros), productos/impuestos
@@ -92,6 +146,7 @@ public sealed class EmitirFactura
     private readonly IResolverConceptos? _conceptos;
     private readonly IAnticiposFactura? _anticipos;
     private readonly IPermisosUsuario? _permisos;
+    private readonly IConversorDivisa? _conversor;
 
     public EmitirFactura(
         IConsultaClientes clientes,
@@ -111,8 +166,10 @@ public sealed class EmitirFactura
         IReloj reloj,
         IResolverConceptos? conceptos = null,
         IAnticiposFactura? anticipos = null,
-        IPermisosUsuario? permisos = null)
+        IPermisosUsuario? permisos = null,
+        IConversorDivisa? conversor = null)
     {
+        _conversor = conversor;
         _permisos = permisos;
         _conceptos = conceptos;
         _anticipos = anticipos;
@@ -268,6 +325,26 @@ public sealed class EmitirFactura
         var mencionFiscal = await ResolucionLineasFactura.MencionFiscalAsync(empresaId, lineas, _resolverIva, ct).ConfigureAwait(false);
         var hoy = DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
         var fechaEmision = comando.FechaEmision ?? hoy;
+
+        // Factura en divisa: los precios de las líneas vienen en la divisa; se congela el tipo de cambio de la fecha.
+        var divisa = await FacturaEnDivisa.ResolverAsync(_conversor, empresaId, comando.Moneda, comando.TasaCambio, fechaEmision, lineas, ct).ConfigureAwait(false);
+        if (divisa.EsFallo)
+        {
+            return Resultado.Fallo<FacturaDto>(divisa.Error);
+        }
+
+        if (divisa.Valor is { } div)
+        {
+            // El precio escrito en la línea es en la divisa; el de la tarifa o del artículo (sin precio en la línea) está en
+            // euros y se pasa a la divisa.
+            var conPrecio = comando.Lineas.Count == lineas.Count ? comando.Lineas.Select(l => l.PrecioUnitario is not null).ToList() : null;
+            lineas = lineas.Select((l, i) => l with
+            {
+                PrecioDivisa = conPrecio is null || conPrecio[i] ? l.PrecioUnitario : Math.Round(l.PrecioUnitario / div.Tasa, 4, MidpointRounding.AwayFromZero),
+                TasaCambio = div.Tasa,
+            }).ToList();
+        }
+
         var fechaOperacion = comando.FechaOperacion ?? fechaEmision;
 
         // Forma de pago: la indicada o la habitual del cliente. Determina el vencimiento y si el cobro
@@ -309,6 +386,7 @@ public sealed class EmitirFactura
             }
 
             borrador.Valor.EstablecerMencionFiscal(mencionFiscal);
+            if (divisa.Valor is { } dSim) borrador.Valor.EstablecerDivisa(dSim.Moneda, dSim.Tasa);
             borrador.Valor.EstablecerImpuesto(impuesto);
             borrador.Valor.AsignarCentro(comando.CentroId);
             if (cliente.LimiteRiesgo is { } limite)
@@ -393,6 +471,7 @@ public sealed class EmitirFactura
         factura.Valor.EstablecerMencionFiscal(mencionFiscal);
         factura.Valor.EstablecerImpuesto(impuesto);
         factura.Valor.AsignarCentro(comando.CentroId);
+        if (divisa.Valor is { } dEmi) factura.Valor.EstablecerDivisa(dEmi.Moneda, dEmi.Tasa);
         await RegistroVerifactu.AplicarAsync(empresaId, factura.Valor, _empresas, _facturas, _reloj, ct).ConfigureAwait(false);
         _facturas.Agregar(factura.Valor);
 

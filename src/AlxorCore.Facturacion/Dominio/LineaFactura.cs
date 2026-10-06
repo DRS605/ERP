@@ -37,7 +37,20 @@ public sealed class LineaFactura : EntidadBase<Guid>
         CosteConceptos = ConceptosLinea.SumaCoste(Conceptos);
         SuplidosConceptos = ConceptosLinea.SumaSuplidos(Conceptos);
 
-        Base = CalcularBaseBruta(Cantidad, PrecioUnitario, PorcentajeDescuento) + ImporteConceptos;
+        if (datos.PrecioDivisa is { } precioDivisa && datos.TasaCambio is { } tasa)
+        {
+            // Factura en divisa: manda el importe en la divisa (el pactado); los euros son su contravalor al tipo de la
+            // factura. El precio en euros es orientativo (la base no sale de él, sino de la base en divisa).
+            PrecioDivisa = Math.Round(precioDivisa, 4, MidpointRounding.AwayFromZero);
+            BaseDivisa = CalcularBaseBruta(Cantidad, PrecioDivisa.Value, PorcentajeDescuento);
+            PrecioUnitario = Math.Round(PrecioDivisa.Value * tasa, 4, MidpointRounding.AwayFromZero);
+            Base = Redondeo.Dos(BaseDivisa.Value * tasa);
+        }
+        else
+        {
+            Base = CalcularBaseBruta(Cantidad, PrecioUnitario, PorcentajeDescuento) + ImporteConceptos;
+        }
+
         CuotaIva = Redondeo.Dos(Base * PorcentajeIva / 100m);
         CuotaRecargo = Redondeo.Dos(Base * PorcentajeRecargo / 100m);
         CuentaContable = string.IsNullOrWhiteSpace(datos.CuentaContable) ? null : datos.CuentaContable.Trim();
@@ -50,6 +63,12 @@ public sealed class LineaFactura : EntidadBase<Guid>
     /// que lo descuenta de la factura final.
     /// </summary>
     public string? CuentaContable { get; private set; }
+
+    /// <summary>Factura en divisa: precio unitario en la divisa (null en euros).</summary>
+    public decimal? PrecioDivisa { get; private set; }
+
+    /// <summary>Factura en divisa: base de la línea en la divisa (cantidad × precio − descuento).</summary>
+    public decimal? BaseDivisa { get; private set; }
 
     /// <summary>Anticipo facturado que descuenta esta línea (base e impuesto en negativo) en la factura final.</summary>
     public Guid? AnticipoId { get; private set; }

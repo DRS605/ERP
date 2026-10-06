@@ -44,6 +44,9 @@ public sealed class ContabilizacionTesoreria
 
     public const string OrigenDeuda = "SituacionDeuda";
 
+    /// <summary>Diferencia de cambio de un cobro o pago de un documento en divisa.</summary>
+    public const string OrigenDiferenciaCambio = "DiferenciaCambio";
+
     public ContabilizacionTesoreria(IRepositorioSalidaTesoreria salida, IConsultaFacturas facturas, IConsultaGastos gastos, IRepositorioCartera cartera,
         IColaContabilizacion cola, IUnidadDeTrabajoTesoreria unidad, IReloj reloj, IRepositorioCuentasBancarias? bancos = null, IRepositorioDeudas? deudas = null)
     {
@@ -95,6 +98,16 @@ public sealed class ContabilizacionTesoreria
             sentido, OrigenMovimiento, movimiento.Id, referencia, terceroId, tercero, movimiento.Fecha,
             0m, string.Empty, 0m, 0m, 0m, Math.Abs(movimiento.Importe), Anulacion: (original is not null) != (datos.Importe < 0m), CuentaTesoreria: tesoreria, CuentaTercero: cuentaDocumento)),
             _reloj.AhoraUtc));
+
+        // Documento en divisa: la diferencia entre los euros del banco y lo liquidado al tipo del documento, a 768 (positiva)
+        // o 668 (negativa). Un cobro con más euros, o un pago con menos, es positiva.
+        if (datos.DiferenciaCambio != 0m)
+        {
+            var positiva = (datos.Sentido == SentidoMovimiento.Cobro) == (datos.DiferenciaCambio > 0m);
+            EncolarAsientoDirecto(movimiento.EmpresaId, OrigenDiferenciaCambio, Derivado(movimiento.Id, "cambio"),
+                positiva ? SentidoMovimiento.Cobro : SentidoMovimiento.Pago, $"{(original is null ? "" : "Anulación: ")}Diferencia de cambio {documento}",
+                movimiento.Fecha, Math.Abs(datos.DiferenciaCambio), tesoreria, positiva ? "768" : "668", anulacion: original is not null);
+        }
 
         // Deuda fuera de su cuenta (impagado 4315, dudoso 436): lo cobrado vuelve antes a la de origen y su deterioro se
         // revierte en proporción; si se anula el cobro, se deshace.

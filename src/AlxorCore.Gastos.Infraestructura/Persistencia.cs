@@ -96,6 +96,9 @@ internal sealed class ConfiguracionGasto : IEntityTypeConfiguration<Gasto>
         builder.Property(g => g.PorcentajeIrpf).HasColumnName("porcentaje_irpf").HasColumnType("numeric(5,2)").IsRequired();
         builder.Property(g => g.RetencionIrpf).HasColumnName("retencion_irpf").HasColumnType("numeric(14,2)").IsRequired();
         builder.Property(g => g.Total).HasColumnName("total").HasColumnType("numeric(14,2)").IsRequired();
+        builder.Property(g => g.Moneda).HasColumnName("moneda").HasMaxLength(3);
+        builder.Property(g => g.TasaCambio).HasColumnName("tasa_cambio").HasColumnType("numeric(18,8)");
+        builder.Property(g => g.TotalDivisa).HasColumnName("total_divisa").HasColumnType("numeric(14,2)");
         builder.Property(g => g.Estado).HasColumnName("estado").HasMaxLength(20).HasConversion<string>().IsRequired();
         builder.Property(g => g.CreadoEn).HasColumnName("creado_en").IsRequired();
         builder.Property(g => g.ActualizadoEn).HasColumnName("actualizado_en").IsRequired();

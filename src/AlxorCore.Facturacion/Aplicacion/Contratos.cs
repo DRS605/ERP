@@ -14,7 +14,7 @@ public sealed record LineaFacturaDto(
     string Descripcion, decimal Cantidad, decimal PrecioUnitario, decimal PorcentajeDescuento,
     string CodigoIva, decimal PorcentajeIva, decimal Base, decimal CuotaIva,
     decimal CosteUnitario, decimal Margen, decimal PorcentajeRecargo, decimal CuotaRecargo, Guid? ProductoId = null, IReadOnlyList<ConceptoAplicado>? Conceptos = null, decimal ImporteConceptos = 0m, decimal CosteConceptos = 0m,
-    string? CuentaContable = null, Guid? AnticipoId = null, Guid? AlbaranVentaId = null);
+    string? CuentaContable = null, Guid? AnticipoId = null, Guid? AlbaranVentaId = null, decimal? PrecioDivisa = null, decimal? BaseDivisa = null);
 
 /// <summary>Datos de una línea de venta para el cálculo de márgenes (informe de beneficio).</summary>
 public sealed record LineaMargenDto(Guid? ProductoId, string Descripcion, decimal Cantidad, decimal Ingreso, decimal Coste);
@@ -55,7 +55,12 @@ public sealed record FacturaDto(
     TipoImpuesto Impuesto = TipoImpuesto.Iva,
     decimal Suplidos = 0m,
     Guid? CentroId = null,
-    Guid? CajaId = null)
+    Guid? CajaId = null,
+    string? Moneda = null,
+    decimal? TasaCambio = null,
+    decimal? BaseDivisa = null,
+    decimal? CuotaDivisa = null,
+    decimal? TotalDivisa = null)
 {
     /// <summary>Siglas del impuesto para mostrar en documentos ("IVA" o "IGIC").</summary>
     public string SiglasImpuesto => Impuesto.Siglas();
@@ -69,12 +74,17 @@ public sealed record FacturaDto(
         f.Lineas.Select(l => new LineaFacturaDto(
             l.Descripcion, l.Cantidad, l.PrecioUnitario, l.PorcentajeDescuento, l.CodigoIva, l.PorcentajeIva, l.Base, l.CuotaIva,
             l.CosteUnitario, l.Margen, l.PorcentajeRecargo, l.CuotaRecargo, l.ProductoId, l.Conceptos, l.ImporteConceptos, l.CosteConceptos,
-            l.CuentaContable, l.AnticipoId, l.AlbaranVentaId)).ToList(),
+            l.CuentaContable, l.AnticipoId, l.AlbaranVentaId, l.PrecioDivisa, l.BaseDivisa)).ToList(),
         MencionFiscal: f.MencionFiscal,
         Impuesto: f.Impuesto,
         Suplidos: f.Suplidos,
         CentroId: f.CentroId,
-        CajaId: f.CajaId);
+        CajaId: f.CajaId,
+        Moneda: f.Moneda,
+        TasaCambio: f.TasaCambio,
+        BaseDivisa: f.BaseDivisa,
+        CuotaDivisa: f.CuotaDivisa,
+        TotalDivisa: f.TotalDivisa);
 }
 
 /// <summary>Resumen de factura para listados y libros de IVA.</summary>

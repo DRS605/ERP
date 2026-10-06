@@ -55,6 +55,8 @@ public static class TextosImpreso
             "Importi al netto delle imposte: l'IVA si applica in fattura.",
             "Valores sem impostos: o IVA é aplicado na fatura.",
         ],
+        ["Contravalor en euros"] = ["Contravalor en euros", "Equivalent in euros", "Contre-valeur en euros", "Gegenwert in Euro", "Controvalore in euro", "Contravalor em euros"],
+        ["Tipo de cambio"] = ["tipo de cambio", "exchange rate", "taux de change", "Wechselkurs", "tasso di cambio", "taxa de câmbio"],
         ["Total"] = ["Total", "Total", "Total", "Gesamt", "Totale", "Total"],
         ["Leyenda pedido venta"] = [
             "Confirmación de pedido. Importes sin impuestos.",

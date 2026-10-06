@@ -96,6 +96,18 @@ public sealed class Movimiento : RaizAgregadoEmpresa<Guid>
     /// <summary>Aplicación de un abono de proveedor: el único movimiento (no anulación) con importe negativo.</summary>
     public bool EsAplicacionAbono { get; private set; }
 
+    /// <summary>Documento en divisa: lo cobrado o pagado en la divisa (lo que se descuenta de su total en divisa).</summary>
+    public decimal? ImporteDivisa { get; private set; }
+
+    /// <summary>
+    /// Documento en divisa: euros que entran o salen de más (+) o de menos (−) respecto de lo que se liquida del documento
+    /// al tipo de cambio de la factura. El banco mueve <see cref="Importe"/> + esta diferencia; va a 668/768.
+    /// </summary>
+    public decimal DiferenciaCambio { get; private set; }
+
+    /// <summary>Euros que mueve la tesorería (lo liquidado más la diferencia de cambio).</summary>
+    public decimal ImporteTesoreria => Importe + DiferenciaCambio;
+
     public const int LongitudCuentaPuente = 12;
 
     public const string MetodoAnulacion = "Anulación";
@@ -138,13 +150,15 @@ public sealed class Movimiento : RaizAgregadoEmpresa<Guid>
             CuentaBancariaId = original.CuentaBancariaId,
             CuentaPuente = original.CuentaPuente,
             EsAplicacionAbono = original.EsAplicacionAbono,
+            ImporteDivisa = -original.ImporteDivisa,
+            DiferenciaCambio = -original.DiferenciaCambio,
         };
         return Resultado.Ok(anulacion);
     }
 
     public static Resultado<Movimiento> Crear(
         Guid empresaId, TipoDocumentoTesoreria tipoDocumento, Guid documentoId, SentidoMovimiento sentido, decimal importe, DateOnly fecha, string? metodo, IReloj reloj,
-        Guid? cuentaBancariaId = null, string? cuentaPuente = null)
+        Guid? cuentaBancariaId = null, string? cuentaPuente = null, decimal? importeDivisa = null, decimal diferenciaCambio = 0m)
     {
         ArgumentNullException.ThrowIfNull(reloj);
 
@@ -159,6 +173,8 @@ public sealed class Movimiento : RaizAgregadoEmpresa<Guid>
         {
             CuentaBancariaId = cuentaPuente is null ? cuentaBancariaId : null,
             CuentaPuente = string.IsNullOrWhiteSpace(cuentaPuente) ? null : cuentaPuente.Trim()[..Math.Min(cuentaPuente.Trim().Length, LongitudCuentaPuente)],
+            ImporteDivisa = importeDivisa is { } d ? Redondeo.Dos(d) : null,
+            DiferenciaCambio = Redondeo.Dos(diferenciaCambio),
         };
         movimiento.RegistrarEvento(new MovimientoRegistrado(movimiento.Id, empresaId, movimiento.Importe, reloj.AhoraUtc));
         return Resultado.Ok(movimiento);

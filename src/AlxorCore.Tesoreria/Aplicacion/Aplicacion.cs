@@ -10,9 +10,10 @@ namespace AlxorCore.Tesoreria.Aplicacion;
 
 /// <summary>Vista de un movimiento de tesorería.</summary>
 public sealed record MovimientoDto(Guid Id, string Sentido, decimal Importe, DateOnly Fecha, string? Metodo, Guid? AnulaMovimientoId = null, bool Anulado = false,
-    Guid? CuentaBancariaId = null)
+    Guid? CuentaBancariaId = null, decimal? ImporteDivisa = null, decimal DiferenciaCambio = 0m)
 {
-    public static MovimientoDto Desde(Movimiento m) => new(m.Id, m.Sentido.ToString(), m.Importe, m.Fecha, m.Metodo, m.AnulaMovimientoId, CuentaBancariaId: m.CuentaBancariaId);
+    public static MovimientoDto Desde(Movimiento m) => new(m.Id, m.Sentido.ToString(), m.Importe, m.Fecha, m.Metodo, m.AnulaMovimientoId, CuentaBancariaId: m.CuentaBancariaId,
+        ImporteDivisa: m.ImporteDivisa, DiferenciaCambio: m.DiferenciaCambio);
 
     /// <summary>Lista de movimientos de un documento, marcando los que ya tienen su anulación.</summary>
     public static IReadOnlyList<MovimientoDto> DesdeLista(IReadOnlyList<Movimiento> movimientos)
@@ -34,6 +35,9 @@ public interface IRepositorioMovimientos
     void Agregar(Movimiento movimiento);
 
     Task<decimal> SumaAsync(TipoDocumentoTesoreria tipo, Guid documentoId, CancellationToken ct = default);
+
+    /// <summary>Lo liquidado en la divisa de un documento en divisa.</summary>
+    Task<decimal> SumaDivisaAsync(TipoDocumentoTesoreria tipo, Guid documentoId, CancellationToken ct = default) => Task.FromResult(0m);
 
     Task<IReadOnlyList<Movimiento>> ListarAsync(TipoDocumentoTesoreria tipo, Guid documentoId, CancellationToken ct = default);
 
@@ -69,10 +73,65 @@ public interface IConsultaTesoreria
 /// Datos para registrar un cobro contra una factura. <paramref name="CuentaBancariaId"/> es el banco o la caja por la
 /// que entra el dinero (sin indicarla: la caja en efectivo, el banco predeterminado en lo demás).
 /// </summary>
-public sealed record RegistrarCobroComando(Guid FacturaId, decimal Importe, DateOnly? Fecha = null, string? Metodo = null, Guid? CuentaBancariaId = null);
+/// <remarks>
+/// Factura en divisa: <paramref name="ImporteDivisa"/> es lo cobrado en la divisa e <paramref name="Importe"/>, los euros
+/// que entran en el banco. Lo liquidado de la factura es lo cobrado al tipo de la factura; la diferencia con los euros
+/// recibidos es diferencia de cambio (768 positiva, 668 negativa). Sin <paramref name="ImporteDivisa"/>, se liquidan los
+/// euros recibidos y su equivalente en divisa.
+/// </remarks>
+public sealed record RegistrarCobroComando(Guid FacturaId, decimal Importe, DateOnly? Fecha = null, string? Metodo = null, Guid? CuentaBancariaId = null,
+    decimal? ImporteDivisa = null);
 
 /// <summary>Datos para registrar un pago contra un gasto (con la cuenta de tesorería por la que sale, opcional).</summary>
-public sealed record RegistrarPagoComando(Guid GastoId, decimal Importe, DateOnly? Fecha = null, string? Metodo = null, Guid? CuentaBancariaId = null);
+public sealed record RegistrarPagoComando(Guid GastoId, decimal Importe, DateOnly? Fecha = null, string? Metodo = null, Guid? CuentaBancariaId = null,
+    decimal? ImporteDivisa = null);
+
+/// <summary>Lo que liquida un cobro o pago de un documento en divisa: euros del documento, divisa y diferencia de cambio.</summary>
+public sealed record LiquidacionDivisa(decimal Liquidado, decimal? ImporteDivisa, decimal Diferencia);
+
+/// <summary>Cobros y pagos de documentos en divisa.</summary>
+public static class TesoreriaDivisa
+{
+    /// <summary>
+    /// <paramref name="importe"/> son los euros que mueve el banco. Con <paramref name="importeDivisa"/>, se liquida esa
+    /// divisa al tipo del documento (todo lo pendiente en euros si salda lo pendiente en divisa) y la diferencia con los
+    /// euros del banco es de cambio. Sin ella, los euros del banco liquidan lo mismo y su divisa se calcula al tipo del documento.
+    /// </summary>
+    public static async Task<Resultado<LiquidacionDivisa>> CalcularAsync(IRepositorioMovimientos movimientos, TipoDocumentoTesoreria tipo, Guid documentoId,
+        string? moneda, decimal? tasa, decimal? totalDivisa, decimal total, decimal importe, decimal? importeDivisa, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(movimientos);
+        if (moneda is null || tasa is not { } t || totalDivisa is not { } totalDiv)
+        {
+            return importeDivisa is null
+                ? Resultado.Ok(new LiquidacionDivisa(importe, null, 0m))
+                : Resultado.Fallo<LiquidacionDivisa>(Error.Validacion("movimiento.no_divisa", "El documento va en euros: no lleva importe en divisa."));
+        }
+
+        var pendienteEur = Redondeo.Dos(total - await movimientos.SumaAsync(tipo, documentoId, ct).ConfigureAwait(false));
+        var pendienteDiv = Redondeo.Dos(totalDiv - await movimientos.SumaDivisaAsync(tipo, documentoId, ct).ConfigureAwait(false));
+        if (importeDivisa is null)
+        {
+            var liquidado = Redondeo.Dos(importe);
+            var divisa = liquidado >= pendienteEur ? pendienteDiv : Math.Min(Redondeo.Dos(liquidado / t), pendienteDiv);
+            return Resultado.Ok(new LiquidacionDivisa(liquidado, divisa, 0m));
+        }
+
+        var d = Redondeo.Dos(importeDivisa.Value);
+        if (d <= 0m || Redondeo.Dos(importe) <= 0m)
+        {
+            return Resultado.Fallo<LiquidacionDivisa>(Error.Validacion("movimiento.importe_invalido", "El importe en divisa y los euros del banco son mayores que cero."));
+        }
+
+        if (d > pendienteDiv)
+        {
+            return Resultado.Fallo<LiquidacionDivisa>(Error.Conflicto("movimiento.sobrepago", $"El importe supera el pendiente del documento ({pendienteDiv} {moneda})."));
+        }
+
+        var eur = d == pendienteDiv ? pendienteEur : Math.Min(Redondeo.Dos(d * t), pendienteEur);
+        return Resultado.Ok(new LiquidacionDivisa(eur, d, Redondeo.Dos(importe - eur)));
+    }
+}
 
 /// <summary>Caso de uso: registrar un cobro contra una factura (total o parcial, sin sobrepago).</summary>
 public sealed class RegistrarCobro
@@ -116,9 +175,16 @@ public sealed class RegistrarCobro
             return Resultado.Fallo<SaldoDto>(cuenta.Error);
         }
 
+        var divisa = await TesoreriaDivisa.CalcularAsync(_movimientos, TipoDocumentoTesoreria.Factura, comando.FacturaId, factura.Moneda, factura.TasaCambio,
+            factura.TotalDivisa, factura.Total, comando.Importe, comando.ImporteDivisa, ct).ConfigureAwait(false);
+        if (divisa.EsFallo)
+        {
+            return Resultado.Fallo<SaldoDto>(divisa.Error);
+        }
+
         return await RegistrarAsync(empresaId, TipoDocumentoTesoreria.Factura, comando.FacturaId, SentidoMovimiento.Cobro,
-            comando.Importe, factura.Total, comando.Fecha, comando.Metodo, _movimientos, _unidadDeTrabajo, _reloj, ct,
-            contabilizacion: _contabilizacion, cuentaBancariaId: cuenta.Valor).ConfigureAwait(false);
+            divisa.Valor.Liquidado, factura.Total, comando.Fecha, comando.Metodo, _movimientos, _unidadDeTrabajo, _reloj, ct,
+            contabilizacion: _contabilizacion, cuentaBancariaId: cuenta.Valor, divisa: divisa.Valor).ConfigureAwait(false);
     }
 
     /// <summary>Cuenta de tesorería del movimiento (null si no hay cuentas o no hay resolutor: asiento a 570/572).</summary>
@@ -137,7 +203,7 @@ public sealed class RegistrarCobro
         Guid empresaId, TipoDocumentoTesoreria tipo, Guid documentoId, SentidoMovimiento sentido, decimal importe, decimal totalDocumento,
         DateOnly? fecha, string? metodo, IRepositorioMovimientos movimientos, IUnidadDeTrabajo unidadDeTrabajo, IReloj reloj, CancellationToken ct,
         Action<Movimiento>? antesDeGuardar = null, ContabilizacionTesoreria? contabilizacion = null, bool aplicacionAnticipo = false,
-        Guid? cuentaBancariaId = null, string? cuentaPuente = null)
+        Guid? cuentaBancariaId = null, string? cuentaPuente = null, LiquidacionDivisa? divisa = null)
     {
         var importeRedondeado = Redondeo.Dos(importe);
         if (importeRedondeado <= 0)
@@ -152,7 +218,8 @@ public sealed class RegistrarCobro
         }
 
         var fechaMovimiento = fecha ?? DateOnly.FromDateTime(reloj.AhoraUtc.UtcDateTime);
-        var movimiento = Movimiento.Crear(empresaId, tipo, documentoId, sentido, importeRedondeado, fechaMovimiento, metodo, reloj, cuentaBancariaId, cuentaPuente);
+        var movimiento = Movimiento.Crear(empresaId, tipo, documentoId, sentido, importeRedondeado, fechaMovimiento, metodo, reloj, cuentaBancariaId, cuentaPuente,
+            divisa?.ImporteDivisa, divisa?.Diferencia ?? 0m);
         if (movimiento.EsFallo)
         {
             return Resultado.Fallo<SaldoDto>(movimiento.Error);
@@ -221,9 +288,16 @@ public sealed class RegistrarPago
             return Resultado.Fallo<SaldoDto>(cuenta.Error);
         }
 
+        var divisa = await TesoreriaDivisa.CalcularAsync(_movimientos, TipoDocumentoTesoreria.Gasto, comando.GastoId, gasto.Moneda, gasto.TasaCambio,
+            gasto.TotalDivisa, gasto.Total, comando.Importe, comando.ImporteDivisa, ct).ConfigureAwait(false);
+        if (divisa.EsFallo)
+        {
+            return Resultado.Fallo<SaldoDto>(divisa.Error);
+        }
+
         return await RegistrarCobro.RegistrarAsync(empresaId, TipoDocumentoTesoreria.Gasto, comando.GastoId, SentidoMovimiento.Pago,
-            comando.Importe, gasto.Total, comando.Fecha, comando.Metodo, _movimientos, _unidadDeTrabajo, _reloj, ct, contabilizacion: _contabilizacion,
-            cuentaBancariaId: cuenta.Valor).ConfigureAwait(false);
+            divisa.Valor.Liquidado, gasto.Total, comando.Fecha, comando.Metodo, _movimientos, _unidadDeTrabajo, _reloj, ct, contabilizacion: _contabilizacion,
+            cuentaBancariaId: cuenta.Valor, divisa: divisa.Valor).ConfigureAwait(false);
     }
 }
 

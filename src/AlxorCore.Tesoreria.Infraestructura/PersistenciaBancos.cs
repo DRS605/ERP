@@ -55,7 +55,7 @@ internal sealed class RepositorioCuentasBancarias : IRepositorioCuentasBancarias
     public async Task<decimal> NetoMovimientosAsync(Guid? cuentaBancariaId, DateOnly? desde, DateOnly hasta, CancellationToken ct = default) =>
         await _ctx.Movimientos
             .Where(m => m.CuentaBancariaId == cuentaBancariaId && m.Fecha <= hasta && (desde == null || m.Fecha >= desde))
-            .SumAsync(m => (decimal?)(m.Sentido == SentidoMovimiento.Cobro ? m.Importe : -m.Importe), ct).ConfigureAwait(false) ?? 0m;
+            .SumAsync(m => (decimal?)(m.Sentido == SentidoMovimiento.Cobro ? m.Importe + m.DiferenciaCambio : -(m.Importe + m.DiferenciaCambio)), ct).ConfigureAwait(false) ?? 0m;
 
     public async Task<decimal> NetoApuntesConAsientoAsync(Guid cuentaBancariaId, DateOnly? desde, DateOnly hasta, CancellationToken ct = default) =>
         await _ctx.Apuntes

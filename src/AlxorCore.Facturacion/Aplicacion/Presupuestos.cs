@@ -64,10 +64,12 @@ public sealed class CrearPresupuesto
 
     private readonly IResolverConceptos? _conceptos;
     private readonly AlxorCore.Organizacion.Aplicacion.Puertos.IConsultaEmpresas? _empresas;
+    private readonly IResolverIvaEmpresa? _resolverIva;
 
     public CrearPresupuesto(IConsultaClientes clientes, IConsultaProductos productos, IRepositorioPresupuestos presupuestos, IUnidadDeTrabajoFacturacion unidadDeTrabajo, IResolverPrecioVenta precios, IReloj reloj,
-        IResolverConceptos? conceptos = null, AlxorCore.Organizacion.Aplicacion.Puertos.IConsultaEmpresas? empresas = null)
+        IResolverConceptos? conceptos = null, AlxorCore.Organizacion.Aplicacion.Puertos.IConsultaEmpresas? empresas = null, IResolverIvaEmpresa? resolverIva = null)
     {
+        _resolverIva = resolverIva;
         _conceptos = conceptos;
         _empresas = empresas;
         _precios = precios;
@@ -95,7 +97,8 @@ public sealed class CrearPresupuesto
             return Resultado.Fallo<PresupuestoDto>(territorio.Error);
         }
 
-        var resolucion = await ResolucionLineasFactura.ResolverAsync(datos.Lineas ?? [], _productos, ct,
+        // Con el catálogo de tipos de la empresa, como la factura: exportación, intracomunitaria, ISP, IGIC…
+        var resolucion = await ResolucionLineasFactura.ResolverAsync(datos.Lineas ?? [], _productos, ct, empresaId: empresaId, resolverIva: _resolverIva,
             precioTarifa: (producto, cantidad, c) => _precios.ResolverAsync(cliente.TarifaId, producto, cantidad, fechaPrecio, c),
             impuestoEmpresa: territorio.Valor).ConfigureAwait(false);
         if (resolucion.EsFallo)
@@ -140,10 +143,12 @@ public sealed class ActualizarPresupuesto
 
     private readonly IResolverConceptos? _conceptos;
     private readonly AlxorCore.Organizacion.Aplicacion.Puertos.IConsultaEmpresas? _empresas;
+    private readonly IResolverIvaEmpresa? _resolverIva;
 
     public ActualizarPresupuesto(IConsultaClientes clientes, IConsultaProductos productos, IRepositorioPresupuestos presupuestos, IUnidadDeTrabajoFacturacion unidadDeTrabajo, IResolverPrecioVenta precios,
-        IResolverConceptos? conceptos = null, AlxorCore.Organizacion.Aplicacion.Puertos.IConsultaEmpresas? empresas = null)
+        IResolverConceptos? conceptos = null, AlxorCore.Organizacion.Aplicacion.Puertos.IConsultaEmpresas? empresas = null, IResolverIvaEmpresa? resolverIva = null)
     {
+        _resolverIva = resolverIva;
         _conceptos = conceptos;
         _empresas = empresas;
         _precios = precios;
@@ -175,7 +180,7 @@ public sealed class ActualizarPresupuesto
             return Resultado.Fallo<PresupuestoDto>(territorio.Error);
         }
 
-        var resolucion = await ResolucionLineasFactura.ResolverAsync(datos.Lineas ?? [], _productos, ct,
+        var resolucion = await ResolucionLineasFactura.ResolverAsync(datos.Lineas ?? [], _productos, ct, empresaId: presupuesto.EmpresaId, resolverIva: _resolverIva,
             precioTarifa: (producto, cantidad, c) => _precios.ResolverAsync(cliente.TarifaId, producto, cantidad, presupuesto.Fecha, c),
             impuestoEmpresa: territorio.Valor).ConfigureAwait(false);
         if (resolucion.EsFallo)

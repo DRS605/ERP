@@ -78,6 +78,9 @@ internal sealed class ConfiguracionMovimiento : IEntityTypeConfiguration<Movimie
         builder.Property(m => m.CuentaBancariaId).HasColumnName("cuenta_bancaria_id");
         builder.Property(m => m.CuentaPuente).HasColumnName("cuenta_puente").HasMaxLength(Movimiento.LongitudCuentaPuente);
         builder.Property(m => m.EsAplicacionAbono).HasColumnName("es_aplicacion_abono").HasDefaultValue(false).IsRequired();
+        builder.Property(m => m.ImporteDivisa).HasColumnName("importe_divisa").HasColumnType("numeric(14,2)");
+        builder.Property(m => m.DiferenciaCambio).HasColumnName("diferencia_cambio").HasColumnType("numeric(14,2)").HasDefaultValue(0m).IsRequired();
+        builder.Ignore(m => m.ImporteTesoreria);
         builder.HasOne<CuentaBancaria>().WithMany().HasForeignKey(m => m.CuentaBancariaId).OnDelete(DeleteBehavior.Restrict);
         builder.HasIndex(m => m.CuentaBancariaId).HasDatabaseName("ix_movimiento_cuenta_bancaria");
 
@@ -195,6 +198,10 @@ internal sealed class RepositorioMovimientos : IRepositorioMovimientos, IConsult
     public RepositorioMovimientos(TesoreriaDbContext contexto) => _contexto = contexto;
 
     public void Agregar(Movimiento movimiento) => _contexto.Movimientos.Add(movimiento);
+
+    public async Task<decimal> SumaDivisaAsync(TipoDocumentoTesoreria tipo, Guid documentoId, CancellationToken ct = default) =>
+        await _contexto.Movimientos.Where(m => m.TipoDocumento == tipo && m.DocumentoId == documentoId)
+            .SumAsync(m => m.ImporteDivisa, ct).ConfigureAwait(false) ?? 0m;
 
     public async Task<decimal> SumaAsync(TipoDocumentoTesoreria tipo, Guid documentoId, CancellationToken ct = default)
     {

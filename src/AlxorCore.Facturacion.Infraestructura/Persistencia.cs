@@ -102,6 +102,11 @@ internal sealed class ConfiguracionFactura : IEntityTypeConfiguration<Factura>
         builder.Property(f => f.RecargoTotal).HasColumnName("recargo_total").HasColumnType("numeric(14,2)").IsRequired();
         builder.Property(f => f.Total).HasColumnName("total").HasColumnType("numeric(14,2)").IsRequired();
         builder.Property(f => f.Suplidos).HasColumnName("suplidos").HasColumnType("numeric(14,2)").HasDefaultValue(0m).IsRequired();
+        builder.Property(f => f.Moneda).HasColumnName("moneda").HasMaxLength(3);
+        builder.Property(f => f.TasaCambio).HasColumnName("tasa_cambio").HasColumnType("numeric(18,8)");
+        builder.Property(f => f.BaseDivisa).HasColumnName("base_divisa").HasColumnType("numeric(14,2)");
+        builder.Property(f => f.CuotaDivisa).HasColumnName("cuota_divisa").HasColumnType("numeric(14,2)");
+        builder.Property(f => f.TotalDivisa).HasColumnName("total_divisa").HasColumnType("numeric(14,2)");
 
         builder.Property(f => f.Estado).HasColumnName("estado").HasMaxLength(20).HasConversion<string>().IsRequired();
         builder.Property(f => f.TipoFactura).HasColumnName("tipo_factura").HasMaxLength(20).HasConversion<string>().IsRequired();
@@ -153,6 +158,8 @@ internal sealed class ConfiguracionFactura : IEntityTypeConfiguration<Factura>
             linea.Property(l => l.AnticipoId).HasColumnName("anticipo_id");
             linea.HasIndex(l => l.AnticipoId).HasDatabaseName("ix_linea_factura_anticipo");
             linea.Property(l => l.AlbaranVentaId).HasColumnName("albaran_venta_id");
+            linea.Property(l => l.PrecioDivisa).HasColumnName("precio_divisa").HasColumnType("numeric(14,4)");
+            linea.Property(l => l.BaseDivisa).HasColumnName("base_divisa").HasColumnType("numeric(14,2)");
             linea.HasIndex(l => l.AlbaranVentaId).HasDatabaseName("ix_linea_factura_albaran_venta");
             linea.Ignore(l => l.CosteTotal);
             linea.Ignore(l => l.Margen);

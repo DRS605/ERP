@@ -154,6 +154,22 @@ public sealed class Gasto : RaizAgregadoEmpresa<Guid>
 
     public void AsignarCentro(Guid? centroId) => CentroId = centroId == Guid.Empty ? null : centroId;
 
+    /// <summary>Divisa de la factura del proveedor (ISO 4217); null = euros. Los importes en euros son su contravalor.</summary>
+    public string? Moneda { get; private set; }
+
+    /// <summary>Euros por unidad de la divisa, congelado al registrar.</summary>
+    public decimal? TasaCambio { get; private set; }
+
+    /// <summary>Total de la factura en la divisa: lo que se paga al proveedor.</summary>
+    public decimal? TotalDivisa { get; private set; }
+
+    public void EstablecerDivisa(string? moneda, decimal? tasa, decimal? totalDivisa)
+    {
+        Moneda = moneda;
+        TasaCambio = moneda is null ? null : tasa;
+        TotalDivisa = moneda is null ? null : totalDivisa;
+    }
+
     public string Concepto { get; private set; }
 
     /// <summary>Fecha de registro (la del asiento y la del periodo de IVA en que se deduce).</summary>

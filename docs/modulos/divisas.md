@@ -54,12 +54,61 @@ ejercicio.
 
 Esquema **`divisas`**, tabla `tipo_cambio` (RLS por empresa; índice único `empresa+divisa+fecha`).
 
-## Alcance y siguiente paso
+## Facturas y gastos en divisa
 
-Este módulo es la **base multidivisa**: no altera la emisión de facturas ni el IVA/VeriFactu (que
-permanecen en euros ante la AEAT). El paso siguiente —emitir facturas y registrar gastos **en divisa**
-guardando el importe en divisa y su contravalor en euros (tipo de cambio congelado al emitir)— se
-apoya en el puerto `IConversorDivisa` y en el motor de diferencias de cambio ya disponibles aquí.
+Las facturas de venta y las facturas de proveedor (gastos) pueden ir en una divisa (`moneda`, ISO 4217, distinta de
+EUR). El tipo de cambio se congela en el documento: es el indicado en `tasaCambio` (euros por 1 unidad) o, si no se
+indica, el vigente a la fecha de emisión o de la factura del proveedor. Sin tipo de cambio, el alta da 400
+`factura.sin_tipo_cambio` o `gasto.sin_tipo_cambio`.
+
+### Factura de venta en divisa
+
+- **Precios.** Los precios de las líneas se escriben en la divisa. Si una línea no lleva precio, se toma el de la
+  tarifa o el del artículo (que está en euros) y se convierte a la divisa al tipo de cambio.
+- **Línea.** La línea guarda su precio y su base en la divisa (`precioDivisa`, `baseDivisa`). La base en euros es
+  `round(baseDivisa × tasa, 2)`. El precio en euros es orientativo.
+- **Restricción en la base de datos.** `ck_linea_factura_base` comprueba la base en divisa a partir del precio en
+  divisa. En las facturas en euros sigue comprobando la de siempre.
+- **Totales.** La factura guarda `baseDivisa`, `cuotaDivisa` y `totalDivisa`. Se calculan con el mismo redondeo línea a
+  línea que en euros (impuesto, recargo y retención). `ck_factura_divisa` exige que vayan todos o ninguno.
+- **Qué va en euros.** Los importes en euros son el contravalor. La contabilidad, el SII, los libros de IVA y
+  VeriFactu siguen en euros, y la cuota que vale es la de euros.
+- **Qué no admite.** Una factura en divisa no admite conceptos de línea, suplidos ni descuento de anticipos, porque se
+  definen en euros (400 `factura.divisa_conceptos`).
+- **Rectificativas y facturas desde albaranes o pedidos.** Se emiten en euros.
+- **PDF.** Las líneas y los totales salen en la divisa. Debajo va el contravalor en euros: base, impuesto y total, con
+  el tipo de cambio.
+
+### Gasto en divisa
+
+Las bases de las líneas se escriben en la divisa y se pasan a euros al tipo de cambio. El `totalDivisa` se calcula con
+las reglas del gasto: sin cuota en las autoliquidadas ni en las exentas, más el recargo y menos la retención. La
+restricción es `ck_gasto_divisa`.
+
+### Cobros y pagos en divisa
+
+`POST /cobros` y `POST /pagos` admiten `importeDivisa`, que es lo cobrado o pagado en la divisa. El campo `importe`
+son entonces los euros que entran o salen del banco.
+
+- **Lo que se liquida.** Del documento se liquida el importe en divisa al tipo de cambio de la factura. Si salda todo
+  lo pendiente en divisa, se liquida exactamente lo pendiente en euros, para que no queden céntimos.
+- **Diferencia de cambio.** La diferencia entre los euros del banco y lo liquidado se guarda en el movimiento
+  (`diferenciaCambio`) y tiene su propio asiento:
+  - cobro con más euros, o pago con menos euros: 572 / 768, diferencia positiva;
+  - cobro con menos euros, o pago con más euros: 668 / 572, diferencia negativa.
+- **Saldo del banco.** Recoge los euros reales: lo liquidado más la diferencia.
+- **Sin `importeDivisa`.** Los euros liquidan lo mismo, sin diferencia, y su equivalente en divisa se calcula al tipo
+  de la factura.
+- **Errores.** Un importe en divisa sobre un documento en euros da 400 `movimiento.no_divisa`. Pagar más de lo
+  pendiente en divisa da 409 `movimiento.sobrepago`.
+- **Anulación.** Anular el cobro o el pago anula también su diferencia de cambio.
+
+Las cuentas 668 (Diferencias negativas de cambio) y 768 (Diferencias positivas de cambio) están en el plan básico.
+
+**En la interfaz:**
+- El editor de facturas y el de facturas de proveedor tienen el desplegable «Moneda» y el campo del tipo de cambio.
+  Muestran el total en la divisa y el contravalor.
+- Los diálogos de cobro y pago de un documento en divisa piden el importe en la divisa y los euros del banco.
 
 ## Tests
 

@@ -126,7 +126,13 @@ export interface LineaFactura {
   cuentaContable?: string | null;
   /** Anticipo facturado que descuenta esta línea (importes en negativo). */
   anticipoId?: string | null;
+  /** Factura en divisa: precio y base en la divisa (los de euros son su contravalor). */
+  precioDivisa?: number | null;
+  baseDivisa?: number | null;
 }
+
+/** Divisas habituales para facturar fuera de la zona euro. */
+export const DIVISAS = ["USD", "GBP", "CHF", "JPY", "CNY", "CAD", "MXN", "BRL", "SEK", "NOK", "DKK", "PLN", "MAD"];
 
 export interface Factura {
   id: string;
@@ -158,6 +164,11 @@ export interface Factura {
   avisoRiesgo?: string | null;
   mencionFiscal?: string | null;
   impuesto?: string;
+  moneda?: string | null;
+  tasaCambio?: number | null;
+  baseDivisa?: number | null;
+  cuotaDivisa?: number | null;
+  totalDivisa?: number | null;
 }
 
 export interface FacturaResumen {
@@ -420,6 +431,9 @@ export interface Gasto {
   numeroRectificado?: string | null;
   fechaRectificada?: string | null;
   motivoRectificacion?: string | null;
+  moneda?: string | null;
+  tasaCambio?: number | null;
+  totalDivisa?: number | null;
 }
 
 export interface Cuenta {

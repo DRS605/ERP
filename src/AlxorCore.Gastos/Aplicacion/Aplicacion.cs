@@ -25,7 +25,10 @@ public sealed record GastoDto(
     string? NumeroFactura = null, DateOnly? FechaFactura = null, decimal RecargoTotal = 0m,
     IReadOnlyList<LineaGastoDto>? Lineas = null, IReadOnlyList<VencimientoGasto>? Vencimientos = null, IReadOnlyList<DesgloseIvaDto>? Desglose = null,
     bool EsRectificativa = false, Guid? RectificaGastoId = null, string? NumeroRectificado = null, DateOnly? FechaRectificada = null, string? MotivoRectificacion = null,
-    Guid? CentroId = null)
+    Guid? CentroId = null,
+    string? Moneda = null,
+    decimal? TasaCambio = null,
+    decimal? TotalDivisa = null)
 {
     public static GastoDto Desde(Gasto g) => new(
         g.Id, g.ProveedorId, g.ProveedorTexto, g.Concepto, g.Fecha, g.BaseImponible, g.CodigoIva, g.PorcentajeIva, g.CuotaIva,
@@ -37,7 +40,10 @@ public sealed record GastoDto(
         Desglose: DesgloseDe(g),
         EsRectificativa: g.EsRectificativa, RectificaGastoId: g.RectificaGastoId, NumeroRectificado: g.NumeroRectificado, FechaRectificada: g.FechaRectificada,
         MotivoRectificacion: g.MotivoRectificacion,
-        CentroId: g.CentroId);
+        CentroId: g.CentroId,
+        Moneda: g.Moneda,
+        TasaCambio: g.TasaCambio,
+        TotalDivisa: g.TotalDivisa);
 
     /// <summary>Desglose por tipo. Un gasto antiguo sin líneas sale con una sola, la de su cabecera.</summary>
     public static IReadOnlyList<DesgloseIvaDto> DesgloseDe(Gasto g) =>
@@ -132,7 +138,66 @@ public sealed record RegistrarGastoComando(
     string? NumeroRectificado = null,
     DateOnly? FechaRectificada = null,
     string? MotivoRectificacion = null,
-    Guid? CentroId = null);
+    Guid? CentroId = null,
+    string? Moneda = null,
+    decimal? TasaCambio = null);
+
+/// <summary>Divisa de una factura recibida y su tipo de cambio congelado (euros por unidad).</summary>
+public sealed record DivisaGasto(string Moneda, decimal Tasa);
+
+/// <summary>
+/// Factura de proveedor en divisa: las bases de las líneas vienen en la divisa y se pasan a euros con el tipo de
+/// cambio indicado o el vigente a la fecha de la factura. El total en divisa se calcula con las mismas reglas que el
+/// de euros (impuesto línea a línea, sin cuota en las autoliquidadas, recargo y retención).
+/// </summary>
+public static class GastoEnDivisa
+{
+    public static async Task<Resultado<DivisaGasto?>> ResolverAsync(AlxorCore.Nucleo.Aplicacion.IConversorDivisa? conversor, Guid empresaId, string? moneda, decimal? tasa,
+        DateOnly fecha, CancellationToken ct)
+    {
+        var codigo = string.IsNullOrWhiteSpace(moneda) ? null : moneda.Trim().ToUpperInvariant();
+        if (codigo is null || codigo == "EUR")
+        {
+            return Resultado.Ok<DivisaGasto?>(null);
+        }
+
+        if (codigo.Length != 3 || !codigo.All(char.IsAsciiLetterUpper))
+        {
+            return Resultado.Fallo<DivisaGasto?>(Error.Validacion("gasto.moneda", $"«{moneda}» no es un código de divisa (USD, GBP, CHF…)."));
+        }
+
+        var t = tasa ?? (conversor is null ? null : await conversor.TasaVigenteAsync(empresaId, codigo, fecha, ct).ConfigureAwait(false));
+        if (t is null)
+        {
+            return Resultado.Fallo<DivisaGasto?>(Error.Validacion("gasto.sin_tipo_cambio",
+                $"No hay tipo de cambio de {codigo} a {fecha:dd/MM/yyyy}: regístralo en Divisas o indícalo en la factura."));
+        }
+
+        if (t <= 0m || t > 100_000m)
+        {
+            return Resultado.Fallo<DivisaGasto?>(Error.Validacion("gasto.tasa_cambio", "El tipo de cambio (euros por unidad de la divisa) es positivo."));
+        }
+
+        return Resultado.Ok<DivisaGasto?>(new DivisaGasto(codigo, Math.Round(t.Value, 8, MidpointRounding.AwayFromZero)));
+    }
+
+    /// <summary>Las líneas en euros y el total en la divisa (null si va en euros).</summary>
+    public static (List<NuevaLineaGasto> Lineas, decimal? TotalDivisa) Convertir(List<NuevaLineaGasto> lineas, DivisaGasto? divisa, decimal porcentajeIrpf)
+    {
+        ArgumentNullException.ThrowIfNull(lineas);
+        if (divisa is null)
+        {
+            return (lineas, null);
+        }
+
+        var baseDivisa = lineas.Sum(l => l.Base);
+        var total = baseDivisa
+            + lineas.Sum(l => l.Autoliquidada || l.SinCuota ? 0m : Redondeo.Dos(l.Base * l.PorcentajeIva / 100m))
+            + lineas.Sum(l => Redondeo.Dos(l.Base * l.PorcentajeRecargo / 100m))
+            - Redondeo.Dos(baseDivisa * porcentajeIrpf / 100m);
+        return (lineas.Select(l => l with { Base = Redondeo.Dos(l.Base * divisa.Tasa) }).ToList(), Redondeo.Dos(total));
+    }
+}
 
 /// <summary>
 /// Línea de una factura recibida. <see cref="PorcentajeIva"/> solo hace falta en inversión del sujeto pasivo e
@@ -161,6 +226,7 @@ public sealed class RegistrarGasto
     private readonly IReloj _reloj;
     private readonly AlxorCore.Catalogo.Aplicacion.IResolverIvaEmpresa? _resolverIva;
     private readonly AlxorCore.Nucleo.Autorizacion.IPermisosUsuario? _permisos;
+    private readonly AlxorCore.Nucleo.Aplicacion.IConversorDivisa? _conversor;
 
     public RegistrarGasto(
         IRepositorioGastos gastos,
@@ -174,8 +240,10 @@ public sealed class RegistrarGasto
         IConsultaEmpresas empresas,
         IReloj reloj,
         AlxorCore.Catalogo.Aplicacion.IResolverIvaEmpresa? resolverIva = null,
-        AlxorCore.Nucleo.Autorizacion.IPermisosUsuario? permisos = null)
+        AlxorCore.Nucleo.Autorizacion.IPermisosUsuario? permisos = null,
+        AlxorCore.Nucleo.Aplicacion.IConversorDivisa? conversor = null)
     {
+        _conversor = conversor;
         _permisos = permisos;
         _resolverIva = resolverIva;
         _gastos = gastos;
@@ -333,12 +401,21 @@ public sealed class RegistrarGasto
             return Resultado.Fallo<GastoDto>(rectificacion.Error);
         }
 
+        var divisa = await GastoEnDivisa.ResolverAsync(_conversor, empresaId, comando.Moneda, comando.TasaCambio, fechaFactura ?? fecha, ct).ConfigureAwait(false);
+        if (divisa.EsFallo)
+        {
+            return Resultado.Fallo<GastoDto>(divisa.Error);
+        }
+
+        var (lineasEur, totalDivisa) = GastoEnDivisa.Convertir(lineas.Valor, divisa.Valor, comando.PorcentajeIrpf);
         var gasto = Gasto.RegistrarFactura(empresaId, comando.ProveedorId, proveedorTexto, comando.Concepto, comando.NumeroFactura, fechaFactura, fecha,
-            lineas.Valor, comando.PorcentajeIrpf, comando.Vencimientos, vencimiento, _reloj, rectificacion.Valor);
+            lineasEur, comando.PorcentajeIrpf, comando.Vencimientos, vencimiento, _reloj, rectificacion.Valor);
         if (gasto.EsFallo)
         {
             return Resultado.Fallo<GastoDto>(gasto.Error);
         }
+
+        gasto.Valor.EstablecerDivisa(divisa.Valor?.Moneda, divisa.Valor?.Tasa, totalDivisa);
 
         // Una factura del proveedor no se registra dos veces (mismo número en el mismo año).
         if (comando.ProveedorId is { } provDup && gasto.Valor.NumeroFactura is { } numero
@@ -465,10 +542,13 @@ public sealed class ModificarGasto
     private readonly IConsultaFormasPago _formasPago;
     private readonly IReloj _reloj;
     private readonly AlxorCore.Catalogo.Aplicacion.IResolverIvaEmpresa? _resolverIva;
+    private readonly AlxorCore.Nucleo.Aplicacion.IConversorDivisa? _conversor;
 
     public ModificarGasto(IRepositorioGastos gastos, IConsultaProveedores proveedores, IUnidadDeTrabajoGastos unidad, EncolarSalidaGastos encolar, DespacharSalidaGastos despachar,
-        IConsultaEmpresas empresas, IConsultaFormasPago formasPago, IReloj reloj, AlxorCore.Catalogo.Aplicacion.IResolverIvaEmpresa? resolverIva = null)
+        IConsultaEmpresas empresas, IConsultaFormasPago formasPago, IReloj reloj, AlxorCore.Catalogo.Aplicacion.IResolverIvaEmpresa? resolverIva = null,
+        AlxorCore.Nucleo.Aplicacion.IConversorDivisa? conversor = null)
     {
+        _conversor = conversor;
         _gastos = gastos;
         _proveedores = proveedores;
         _unidad = unidad;
@@ -521,12 +601,21 @@ public sealed class ModificarGasto
             return Resultado.Fallo<GastoDto>(rectificacion.Error);
         }
 
-        var r = g.Modificar(comando.ProveedorId, proveedorTexto, comando.Concepto, comando.NumeroFactura, comando.FechaFactura, fecha, lineas.Valor,
+        var divisa = await GastoEnDivisa.ResolverAsync(_conversor, g.EmpresaId, comando.Moneda, comando.TasaCambio, comando.FechaFactura ?? fecha, ct).ConfigureAwait(false);
+        if (divisa.EsFallo)
+        {
+            return Resultado.Fallo<GastoDto>(divisa.Error);
+        }
+
+        var (lineasEur, totalDivisa) = GastoEnDivisa.Convertir(lineas.Valor, divisa.Valor, comando.PorcentajeIrpf);
+        var r = g.Modificar(comando.ProveedorId, proveedorTexto, comando.Concepto, comando.NumeroFactura, comando.FechaFactura, fecha, lineasEur,
             comando.PorcentajeIrpf, comando.Vencimientos, vencimiento, _reloj, rectificacion.Valor);
         if (r.EsFallo)
         {
             return Resultado.Fallo<GastoDto>(r.Error);
         }
+
+        g.EstablecerDivisa(divisa.Valor?.Moneda, divisa.Valor?.Tasa, totalDivisa);
 
         if (comando.ProveedorId is { } provDup && g.NumeroFactura is { } numero
             && await _gastos.ExisteFacturaAsync(g.EmpresaId, provDup, numero, (g.FechaFactura ?? g.Fecha).Year, g.Id, ct).ConfigureAwait(false))
