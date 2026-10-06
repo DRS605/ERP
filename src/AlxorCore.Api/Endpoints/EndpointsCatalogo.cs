@@ -44,6 +44,16 @@ public static class EndpointsCatalogo
             .WithSummary("Actualiza un producto.")
             .RequierePermiso(Permisos.ProductoGestionar);
 
+        productos.MapGet("/{id:guid}/traducciones", async (Guid id, TraduccionesArticulos caso, CancellationToken ct) =>
+                (await caso.ListarAsync(id, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Nombre del artículo en otros idiomas (para los documentos de clientes y proveedores extranjeros).")
+            .RequireAuthorization();
+
+        productos.MapPut("/{id:guid}/traducciones", async (Guid id, List<TraduccionArticuloDto> traducciones, TraduccionesArticulos caso, CancellationToken ct) =>
+                (await caso.FijarAsync(id, traducciones, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Sustituye las traducciones del nombre (en, fr, de, it, pt; las vacías se quitan).")
+            .RequierePermiso(Permisos.ProductoGestionar);
+
         productos.MapDelete("/{id:guid}", async (Guid id, BajasCatalogo caso, CancellationToken ct) =>
                 (await caso.EliminarProductoAsync(id, ct).ConfigureAwait(false)).AOk())
             .WithSummary("Elimina un artículo que no se ha usado (409 «producto.en_uso» si ya aparece en documentos: darlo de baja).")

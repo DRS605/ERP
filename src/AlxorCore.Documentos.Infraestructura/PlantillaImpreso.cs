@@ -1,3 +1,4 @@
+using AlxorCore.Documentos.Aplicacion;
 using AlxorCore.Organizacion.Aplicacion.Modelos;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
@@ -36,7 +37,7 @@ internal static class PlantillaImpreso
     }
 
     /// <summary>Pinta la identidad del emisor en la cabecera A4 (logo o razón social, NIF, dirección y contacto).</summary>
-    public static void EscribirEmisor(ColumnDescriptor col, EmpresaDto e, Color color)
+    public static void EscribirEmisor(ColumnDescriptor col, EmpresaDto e, Color color, string? idioma = null)
     {
         if (e.LogoPng is { Length: > 0 })
         {
@@ -53,7 +54,7 @@ internal static class PlantillaImpreso
             col.Item().Text(e.NombreComercial).FontSize(9).Italic();
         }
 
-        col.Item().Text($"NIF: {e.Nif}").FontSize(9);
+        col.Item().Text($"{TextosImpreso.T(idioma, "NIF")}: {e.Nif}").FontSize(9);
         var dir = LineaDireccion(e);
         if (dir is not null) col.Item().Text(dir).FontSize(9);
         var contacto = LineaContacto(e);

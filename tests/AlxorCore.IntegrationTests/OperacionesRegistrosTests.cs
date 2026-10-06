@@ -1,4 +1,4 @@
-using FluentAssertions;
+﻿using FluentAssertions;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -121,6 +121,8 @@ public sealed class OperacionesRegistrosTests : IClassFixture<FabricaApiPruebas>
         ["/contabilidad/existencias/{ejercicio}"] = "la regularización del ejercicio se anula en /contabilidad/existencias/{ejercicio}/anular",
         ["/contabilidad/periodificaciones/generar"] = "cuotas del periodo: se deshacen anulando la periodificación",
         ["/contabilidad/inmovilizado/amortizar"] = "dotaciones del periodo (asientos de amortización)",
+        ["/contabilidad/financiacion/cuotas"] = "cuotas del periodo: cada una se deshace en /contabilidad/financiacion/{id}/deshacer",
+        ["/contabilidad/financiacion/reclasificar"] = "traspaso a corto plazo del cierre: se deshace en /contabilidad/financiacion/{id}/deshacer",
         ["/contabilidad/analitica/imputar-pendientes"] = "imputa con las reglas (las imputaciones se corrigen una a una)",
         ["/contabilidad/analitica/repartos"] = "se deshace con DELETE /contabilidad/analitica/ejecuciones/{id}",
         ["/contabilidad/presupuestos/desde-real"] = "crea un presupuesto (se corrige en /contabilidad/presupuestos/{id})",

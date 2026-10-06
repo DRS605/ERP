@@ -32,7 +32,8 @@ public sealed record DatosCliente(
     Guid? EmpresaVinculadaId = null,
     string? Eori = null,
     string? Incoterm = null,
-    string? LugarIncoterm = null);
+    string? LugarIncoterm = null,
+    string? Idioma = null);
 
 /// <summary>Caso de uso: crear un cliente en la empresa activa.</summary>
 public sealed class CrearCliente
@@ -73,6 +74,11 @@ public sealed class CrearCliente
         if (cliente.Valor.EstablecerComercioExterior(datos.Eori, datos.Incoterm, datos.LugarIncoterm) is { EsFallo: true } exterior)
         {
             return Resultado.Fallo<ClienteDto>(exterior.Error);
+        }
+
+        if (cliente.Valor.EstablecerIdioma(datos.Idioma) is { EsFallo: true } idioma)
+        {
+            return Resultado.Fallo<ClienteDto>(idioma.Error);
         }
 
         _clientes.Agregar(cliente.Valor);
@@ -126,6 +132,11 @@ public sealed class ActualizarCliente
         if (cliente.EstablecerComercioExterior(datos.Eori, datos.Incoterm, datos.LugarIncoterm) is { EsFallo: true } exterior)
         {
             return Resultado.Fallo<ClienteDto>(exterior.Error);
+        }
+
+        if (cliente.EstablecerIdioma(datos.Idioma) is { EsFallo: true } idioma)
+        {
+            return Resultado.Fallo<ClienteDto>(idioma.Error);
         }
 
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);

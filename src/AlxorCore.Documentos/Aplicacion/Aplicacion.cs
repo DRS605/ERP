@@ -1,4 +1,5 @@
 using AlxorCore.Facturacion.Aplicacion;
+using AlxorCore.Nucleo.Comun;
 using AlxorCore.Nucleo.Resultados;
 using AlxorCore.Organizacion.Aplicacion.Modelos;
 using AlxorCore.Organizacion.Aplicacion.Puertos;
@@ -8,15 +9,58 @@ namespace AlxorCore.Documentos.Aplicacion;
 /// <summary>Puerto de generación del PDF de una factura.</summary>
 public interface IGeneradorPdfFactura
 {
-    /// <summary>Genera el PDF de la factura con los datos del emisor (la empresa).</summary>
-    byte[] Generar(FacturaDto factura, EmpresaDto emisor);
+    /// <summary>Genera el PDF de la factura con los datos del emisor (la empresa), con los textos fijos en el idioma.</summary>
+    byte[] Generar(FacturaDto factura, EmpresaDto emisor, string? idioma = null);
 }
 
 /// <summary>Puerto de generación del PDF de un presupuesto.</summary>
 public interface IGeneradorPdfPresupuesto
 {
-    /// <summary>Genera el PDF del presupuesto con los datos del emisor (la empresa).</summary>
-    byte[] Generar(PresupuestoDto presupuesto, EmpresaDto emisor);
+    /// <summary>Genera el PDF del presupuesto con los datos del emisor (la empresa), con los textos fijos en el idioma.</summary>
+    byte[] Generar(PresupuestoDto presupuesto, EmpresaDto emisor, string? idioma = null);
+}
+
+/// <summary>Nombre de un artículo en castellano y en el idioma del documento.</summary>
+public sealed record NombreTraducido(string Nombre, string Traducido);
+
+/// <summary>
+/// Idioma de los documentos de un tercero y nombres de los artículos en ese idioma (lo implementa la API con los
+/// módulos de Terceros y Catálogo).
+/// </summary>
+public interface IIdiomaDocumentos
+{
+    Task<string> DeClienteAsync(Guid? clienteId, CancellationToken ct = default);
+
+    Task<string> DeProveedorAsync(Guid? proveedorId, CancellationToken ct = default);
+
+    Task<IReadOnlyDictionary<Guid, NombreTraducido>> ArticulosAsync(IReadOnlyCollection<Guid> productoIds, string idioma, CancellationToken ct = default);
+}
+
+/// <summary>Traduce la descripción de las líneas que llevan el nombre del artículo.</summary>
+public static class TraduccionLineas
+{
+    /// <summary>
+    /// Si la descripción empieza por el nombre del artículo en castellano (tal cual se puso al elegirlo), ese nombre
+    /// se cambia por el traducido; una descripción escrita a mano se deja como está.
+    /// </summary>
+    public static string Descripcion(string descripcion, Guid? productoId, IReadOnlyDictionary<Guid, NombreTraducido> nombres)
+    {
+        ArgumentNullException.ThrowIfNull(descripcion);
+        ArgumentNullException.ThrowIfNull(nombres);
+        return productoId is { } id && nombres.TryGetValue(id, out var n) && n.Traducido != n.Nombre
+            && descripcion.StartsWith(n.Nombre, StringComparison.Ordinal)
+            ? n.Traducido + descripcion[n.Nombre.Length..]
+            : descripcion;
+    }
+
+    public static async Task<IReadOnlyDictionary<Guid, NombreTraducido>> NombresAsync(IIdiomaDocumentos? idiomas, IEnumerable<Guid?> productos, string idioma,
+        CancellationToken ct)
+    {
+        var ids = productos.Where(p => p is not null).Select(p => p!.Value).Distinct().ToList();
+        return idiomas is null || idioma == IdiomasDocumento.Castellano || ids.Count == 0
+            ? new Dictionary<Guid, NombreTraducido>()
+            : await idiomas.ArticulosAsync(ids, idioma, ct).ConfigureAwait(false);
+    }
 }
 
 /// <summary>Puerto de generación del PDF de una carta de porte.</summary>
@@ -66,15 +110,21 @@ public sealed class GenerarPdfFactura
     private readonly IConsultaFacturas _facturas;
     private readonly IConsultaEmpresas _empresas;
     private readonly IGeneradorPdfFactura _generador;
+    private readonly IIdiomaDocumentos? _idiomas;
 
-    public GenerarPdfFactura(IConsultaFacturas facturas, IConsultaEmpresas empresas, IGeneradorPdfFactura generador)
+    public GenerarPdfFactura(IConsultaFacturas facturas, IConsultaEmpresas empresas, IGeneradorPdfFactura generador, IIdiomaDocumentos? idiomas = null)
     {
         _facturas = facturas;
         _empresas = empresas;
         _generador = generador;
+        _idiomas = idiomas;
     }
 
-    public async Task<Resultado<DocumentoPdf>> EjecutarAsync(Guid empresaId, Guid facturaId, CancellationToken ct = default)
+    public Task<Resultado<DocumentoPdf>> EjecutarAsync(Guid empresaId, Guid facturaId, CancellationToken ct = default) =>
+        EjecutarAsync(empresaId, facturaId, null, ct);
+
+    /// <summary>En el idioma indicado o, si no, en el del cliente.</summary>
+    public async Task<Resultado<DocumentoPdf>> EjecutarAsync(Guid empresaId, Guid facturaId, string? idioma, CancellationToken ct = default)
     {
         var factura = await _facturas.ObtenerAsync(facturaId, ct).ConfigureAwait(false);
         if (factura is null)
@@ -88,13 +138,21 @@ public sealed class GenerarPdfFactura
             return Resultado.Fallo<DocumentoPdf>(Error.NoEncontrado("empresa.no_encontrada", "La empresa no existe."));
         }
 
-        var bytes = _generador.Generar(factura, empresa);
-        return Resultado.Ok(new DocumentoPdf($"{factura.NumeroCompleto.Replace('/', '-')}.pdf", bytes));
+        var lengua = IdiomasDocumento.Efectivo(idioma ?? (_idiomas is null ? null : await _idiomas.DeClienteAsync(factura.ClienteId, ct).ConfigureAwait(false)));
+        var nombres = await TraduccionLineas.NombresAsync(_idiomas, factura.Lineas.Select(l => l.ProductoId), lengua, ct).ConfigureAwait(false);
+        if (nombres.Count > 0)
+        {
+            factura = factura with { Lineas = factura.Lineas.Select(l => l with { Descripcion = TraduccionLineas.Descripcion(l.Descripcion, l.ProductoId, nombres) }).ToList() };
+        }
+
+        var bytes = _generador.Generar(factura, empresa, lengua);
+        return Resultado.Ok(new DocumentoPdf($"{factura.NumeroCompleto.Replace('/', '-')}.pdf", bytes, lengua, factura.NumeroCompleto));
     }
 }
 
 /// <summary>PDF generado (nombre de archivo y contenido).</summary>
-public sealed record DocumentoPdf(string NombreArchivo, byte[] Contenido);
+/// <summary>PDF generado; <see cref="Idioma"/> es el de sus textos y <see cref="Numero"/>, el del documento.</summary>
+public sealed record DocumentoPdf(string NombreArchivo, byte[] Contenido, string Idioma = IdiomasDocumento.Castellano, string? Numero = null);
 
 /// <summary>Caso de uso: generar el PDF de un presupuesto.</summary>
 public sealed class GenerarPdfPresupuesto
@@ -102,15 +160,21 @@ public sealed class GenerarPdfPresupuesto
     private readonly IConsultaPresupuestos _presupuestos;
     private readonly IConsultaEmpresas _empresas;
     private readonly IGeneradorPdfPresupuesto _generador;
+    private readonly IIdiomaDocumentos? _idiomas;
 
-    public GenerarPdfPresupuesto(IConsultaPresupuestos presupuestos, IConsultaEmpresas empresas, IGeneradorPdfPresupuesto generador)
+    public GenerarPdfPresupuesto(IConsultaPresupuestos presupuestos, IConsultaEmpresas empresas, IGeneradorPdfPresupuesto generador, IIdiomaDocumentos? idiomas = null)
     {
         _presupuestos = presupuestos;
         _empresas = empresas;
         _generador = generador;
+        _idiomas = idiomas;
     }
 
-    public async Task<Resultado<DocumentoPdf>> EjecutarAsync(Guid empresaId, Guid presupuestoId, CancellationToken ct = default)
+    public Task<Resultado<DocumentoPdf>> EjecutarAsync(Guid empresaId, Guid presupuestoId, CancellationToken ct = default) =>
+        EjecutarAsync(empresaId, presupuestoId, null, ct);
+
+    /// <summary>En el idioma indicado o, si no, en el del cliente.</summary>
+    public async Task<Resultado<DocumentoPdf>> EjecutarAsync(Guid empresaId, Guid presupuestoId, string? idioma, CancellationToken ct = default)
     {
         var presupuesto = await _presupuestos.ObtenerAsync(presupuestoId, ct).ConfigureAwait(false);
         if (presupuesto is null)
@@ -124,8 +188,15 @@ public sealed class GenerarPdfPresupuesto
             return Resultado.Fallo<DocumentoPdf>(Error.NoEncontrado("empresa.no_encontrada", "La empresa no existe."));
         }
 
-        var bytes = _generador.Generar(presupuesto, empresa);
-        return Resultado.Ok(new DocumentoPdf($"{presupuesto.NumeroCompleto.Replace('/', '-')}.pdf", bytes));
+        var lengua = IdiomasDocumento.Efectivo(idioma ?? (_idiomas is null ? null : await _idiomas.DeClienteAsync(presupuesto.ClienteId, ct).ConfigureAwait(false)));
+        var nombres = await TraduccionLineas.NombresAsync(_idiomas, presupuesto.Lineas.Select(l => l.ProductoId), lengua, ct).ConfigureAwait(false);
+        if (nombres.Count > 0)
+        {
+            presupuesto = presupuesto with { Lineas = presupuesto.Lineas.Select(l => l with { Descripcion = TraduccionLineas.Descripcion(l.Descripcion, l.ProductoId, nombres) }).ToList() };
+        }
+
+        var bytes = _generador.Generar(presupuesto, empresa, lengua);
+        return Resultado.Ok(new DocumentoPdf($"{presupuesto.NumeroCompleto.Replace('/', '-')}.pdf", bytes, lengua, presupuesto.NumeroCompleto));
     }
 }
 
@@ -161,8 +232,8 @@ public sealed class EnviarPresupuestoPorEmail
 
         var mensaje = new MensajeCorreo(
             comando.Email.Trim(),
-            $"Presupuesto {pdf.Valor.NombreArchivo}",
-            "Adjuntamos nuestro presupuesto. Quedamos a su disposición para cualquier duda.",
+            TextosImpreso.T(pdf.Valor.Idioma, "Asunto presupuesto", pdf.Valor.Numero ?? pdf.Valor.NombreArchivo),
+            TextosImpreso.T(pdf.Valor.Idioma, "Cuerpo presupuesto"),
             pdf.Valor.Contenido,
             pdf.Valor.NombreArchivo);
 
@@ -203,8 +274,8 @@ public sealed class EnviarFacturaPorEmail
 
         var mensaje = new MensajeCorreo(
             comando.Email.Trim(),
-            $"Factura {pdf.Valor.NombreArchivo}",
-            "Adjuntamos su factura. Gracias por su confianza.",
+            TextosImpreso.T(pdf.Valor.Idioma, "Asunto factura", pdf.Valor.Numero ?? pdf.Valor.NombreArchivo),
+            TextosImpreso.T(pdf.Valor.Idioma, "Cuerpo factura"),
             pdf.Valor.Contenido,
             pdf.Valor.NombreArchivo);
 

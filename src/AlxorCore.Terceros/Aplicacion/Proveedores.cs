@@ -11,12 +11,12 @@ public sealed record ProveedorDto(
     Guid Id, string Nombre, string? NifFiscal, string? Email,
     string Calle, string CodigoPostal, string Poblacion, string Provincia, string Pais,
     decimal PorcentajeIrpfDefecto, bool Activo, FormaPago FormaPago, string? NifIva, string? Tipo, Guid? FormaPagoDefectoId, decimal? LimiteRiesgo, string? Iban, Guid? ActividadNegocioId = null,
-    Guid? EmpresaVinculadaId = null)
+    Guid? EmpresaVinculadaId = null, string? Idioma = null)
 {
     public static ProveedorDto Desde(Proveedor p) => new(
         p.Id, p.Nombre, p.NifFiscal, p.Email,
         p.Direccion.Calle, p.Direccion.CodigoPostal, p.Direccion.Poblacion, p.Direccion.Provincia, p.Direccion.Pais,
-        p.PorcentajeIrpfDefecto, p.Activo, p.FormaPago, p.NifIva, p.Tipo, p.FormaPagoDefectoId, p.LimiteRiesgo, p.Iban, p.ActividadNegocioId, p.EmpresaVinculadaId);
+        p.PorcentajeIrpfDefecto, p.Activo, p.FormaPago, p.NifIva, p.Tipo, p.FormaPagoDefectoId, p.LimiteRiesgo, p.Iban, p.ActividadNegocioId, p.EmpresaVinculadaId, p.Idioma);
 }
 
 /// <summary>Repositorio de proveedores (escritura).</summary>
@@ -61,7 +61,8 @@ public sealed record DatosProveedor(
     decimal? LimiteRiesgo = null,
     string? Iban = null,
     Guid? ActividadNegocioId = null,
-    Guid? EmpresaVinculadaId = null);
+    Guid? EmpresaVinculadaId = null,
+    string? Idioma = null);
 
 /// <summary>Caso de uso: crear un proveedor.</summary>
 public sealed class CrearProveedor
@@ -99,6 +100,11 @@ public sealed class CrearProveedor
         proveedor.Valor.EstablecerIban(datos.Iban);
         proveedor.Valor.EstablecerActividad(datos.ActividadNegocioId);
         proveedor.Valor.EstablecerEmpresaVinculada(datos.EmpresaVinculadaId);
+        if (proveedor.Valor.EstablecerIdioma(datos.Idioma) is { EsFallo: true } idioma)
+        {
+            return Resultado.Fallo<ProveedorDto>(idioma.Error);
+        }
+
         _proveedores.Agregar(proveedor.Valor);
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return Resultado.Ok(ProveedorDto.Desde(proveedor.Valor));
@@ -147,6 +153,11 @@ public sealed class ActualizarProveedor
         proveedor.EstablecerIban(datos.Iban);
         proveedor.EstablecerActividad(datos.ActividadNegocioId);
         proveedor.EstablecerEmpresaVinculada(datos.EmpresaVinculadaId);
+        if (proveedor.EstablecerIdioma(datos.Idioma) is { EsFallo: true } idioma)
+        {
+            return Resultado.Fallo<ProveedorDto>(idioma.Error);
+        }
+
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return Resultado.Ok(ProveedorDto.Desde(proveedor));
     }

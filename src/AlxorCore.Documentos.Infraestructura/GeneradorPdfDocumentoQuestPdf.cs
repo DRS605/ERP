@@ -14,7 +14,7 @@ namespace AlxorCore.Documentos.Infraestructura;
 internal sealed class GeneradorPdfDocumentoQuestPdf : IGeneradorPdfDocumento
 {
     /// <summary>Cantidad con los decimales que tiene (hasta 3): 6.000 kg, 12,5 cajas.</summary>
-    private static string Cantidad(decimal v) => Redondeo.Formatear(v, v == decimal.Round(v) ? 0 : v * 10 == decimal.Round(v * 10) ? 1 : v * 100 == decimal.Round(v * 100) ? 2 : 3);
+    private static string Cantidad(decimal v, string idioma) => TextosImpreso.Numero(idioma, v, v == decimal.Round(v) ? 0 : v * 10 == decimal.Round(v * 10) ? 1 : v * 100 == decimal.Round(v * 100) ? 2 : 3);
 
     public byte[] Generar(DocumentoImpreso d, EmpresaDto emisor)
     {
@@ -22,6 +22,9 @@ internal sealed class GeneradorPdfDocumentoQuestPdf : IGeneradorPdfDocumento
         var conDescuento = d.Lineas.Any(l => l.Descuento is > 0);
         ArgumentNullException.ThrowIfNull(emisor);
         var color = PlantillaImpreso.ColorMarca(emisor);
+        var idioma = IdiomasDocumento.Efectivo(d.Idioma);
+        string T(string clave) => TextosImpreso.T(idioma, clave);
+        string N(decimal v, int decimales = 2) => TextosImpreso.Numero(idioma, v, decimales);
 
         return Document.Create(contenedor => contenedor.Page(pagina =>
         {
@@ -31,12 +34,12 @@ internal sealed class GeneradorPdfDocumentoQuestPdf : IGeneradorPdfDocumento
 
             pagina.Header().Row(fila =>
             {
-                fila.RelativeItem().Column(col => PlantillaImpreso.EscribirEmisor(col, emisor, color));
+                fila.RelativeItem().Column(col => PlantillaImpreso.EscribirEmisor(col, emisor, color, idioma));
                 fila.ConstantItem(220).AlignRight().Column(col =>
                 {
                     col.Item().AlignRight().Text(d.Titulo.ToUpperInvariant()).Bold().FontSize(15).FontColor(color);
                     col.Item().AlignRight().Text(d.Numero);
-                    col.Item().AlignRight().Text($"Fecha: {d.Fecha:dd/MM/yyyy}");
+                    col.Item().AlignRight().Text($"{T("Fecha")}: {d.Fecha:dd/MM/yyyy}");
                 });
             });
 
@@ -48,7 +51,7 @@ internal sealed class GeneradorPdfDocumentoQuestPdf : IGeneradorPdfDocumento
                     {
                         t.Item().Text(d.Tercero.Etiqueta).Bold();
                         t.Item().Text(d.Tercero.Nombre);
-                        if (!string.IsNullOrWhiteSpace(d.Tercero.Nif)) t.Item().Text($"NIF: {d.Tercero.Nif}").FontSize(9);
+                        if (!string.IsNullOrWhiteSpace(d.Tercero.Nif)) t.Item().Text($"{T("NIF")}: {d.Tercero.Nif}").FontSize(9);
                         if (!string.IsNullOrWhiteSpace(d.Tercero.Direccion)) t.Item().Text(d.Tercero.Direccion).FontSize(9);
                     });
                     if (d.Datos is { Count: > 0 })
@@ -84,13 +87,13 @@ internal sealed class GeneradorPdfDocumentoQuestPdf : IGeneradorPdfDocumento
                     tabla.Header(h =>
                     {
                         IContainer Celda(IContainer c) => c.BorderBottom(1.5f).BorderColor(color).PaddingBottom(3);
-                        Celda(h.Cell()).Text("Descripción").Bold().FontColor(color);
-                        Celda(h.Cell()).AlignRight().Text(d.TituloCantidad ?? "Cantidad").Bold().FontColor(color);
+                        Celda(h.Cell()).Text(T("Descripción")).Bold().FontColor(color);
+                        Celda(h.Cell()).AlignRight().Text(d.TituloCantidad ?? T("Cantidad")).Bold().FontColor(color);
                         if (d.Valorado)
                         {
-                            Celda(h.Cell()).AlignRight().Text("Precio").Bold().FontColor(color);
-                            if (conDescuento) Celda(h.Cell()).AlignRight().Text("Dto.").Bold().FontColor(color);
-                            Celda(h.Cell()).AlignRight().Text("Importe").Bold().FontColor(color);
+                            Celda(h.Cell()).AlignRight().Text(T("Precio")).Bold().FontColor(color);
+                            if (conDescuento) Celda(h.Cell()).AlignRight().Text(T("Dto.")).Bold().FontColor(color);
+                            Celda(h.Cell()).AlignRight().Text(T("Importe")).Bold().FontColor(color);
                         }
                     });
 
@@ -101,12 +104,12 @@ internal sealed class GeneradorPdfDocumentoQuestPdf : IGeneradorPdfDocumento
                             c.Item().Text(l.Descripcion);
                             if (!string.IsNullOrWhiteSpace(l.Detalle)) c.Item().Text(l.Detalle).FontSize(8).FontColor(Colors.Grey.Darken2);
                         });
-                        tabla.Cell().PaddingTop(3).AlignRight().Text($"{Cantidad(l.Cantidad)}{(l.Unidad is null ? "" : " " + l.Unidad)}");
+                        tabla.Cell().PaddingTop(3).AlignRight().Text($"{Cantidad(l.Cantidad, idioma)}{(l.Unidad is null ? "" : " " + l.Unidad)}");
                         if (d.Valorado)
                         {
-                            tabla.Cell().PaddingTop(3).AlignRight().Text(l.Precio is { } p ? Redondeo.Formatear(p, 4) : "—");
-                            if (conDescuento) tabla.Cell().PaddingTop(3).AlignRight().Text(l.Descuento is > 0 ? $"{Redondeo.Formatear(l.Descuento.Value)} %" : "");
-                            tabla.Cell().PaddingTop(3).AlignRight().Text(l.Importe is { } i ? Redondeo.Formatear(i) : "—");
+                            tabla.Cell().PaddingTop(3).AlignRight().Text(l.Precio is { } p ? N(p, 4) : "—");
+                            if (conDescuento) tabla.Cell().PaddingTop(3).AlignRight().Text(l.Descuento is > 0 ? $"{N(l.Descuento.Value)} %" : "");
+                            tabla.Cell().PaddingTop(3).AlignRight().Text(l.Importe is { } i ? N(i) : "—");
                         }
                     }
                 });
@@ -125,12 +128,12 @@ internal sealed class GeneradorPdfDocumentoQuestPdf : IGeneradorPdfDocumento
                             if (total.Destacado)
                             {
                                 t.Cell().BorderTop(1).BorderColor(color).PaddingTop(4).Text(total.Etiqueta).Bold().FontSize(12).FontColor(color);
-                                t.Cell().BorderTop(1).BorderColor(color).PaddingTop(4).AlignRight().Text($"{Redondeo.Formatear(total.Importe)} €").Bold().FontSize(12).FontColor(color);
+                                t.Cell().BorderTop(1).BorderColor(color).PaddingTop(4).AlignRight().Text($"{N(total.Importe)} €").Bold().FontSize(12).FontColor(color);
                             }
                             else
                             {
                                 t.Cell().Text(total.Etiqueta);
-                                t.Cell().AlignRight().Text($"{Redondeo.Formatear(total.Importe)} €");
+                                t.Cell().AlignRight().Text($"{N(total.Importe)} €");
                             }
                         }
                     });
@@ -140,7 +143,7 @@ internal sealed class GeneradorPdfDocumentoQuestPdf : IGeneradorPdfDocumento
                 {
                     col.Item().PaddingTop(18).Text(txt =>
                     {
-                        txt.Span("Observaciones: ").SemiBold();
+                        txt.Span(T("Observaciones") + ": ").SemiBold();
                         txt.Span(d.Observaciones);
                     });
                 }
@@ -154,9 +157,9 @@ internal sealed class GeneradorPdfDocumentoQuestPdf : IGeneradorPdfDocumento
             pagina.Footer().AlignCenter().Text(texto =>
             {
                 PlantillaImpreso.EscribirPie(texto, emisor);
-                texto.Span("   ·   Página ").FontSize(8).FontColor(Colors.Grey.Medium);
+                texto.Span($"   ·   {T("Página")} ").FontSize(8).FontColor(Colors.Grey.Medium);
                 texto.CurrentPageNumber().FontSize(8).FontColor(Colors.Grey.Medium);
-                texto.Span(" de ").FontSize(8).FontColor(Colors.Grey.Medium);
+                texto.Span($" {T("de")} ").FontSize(8).FontColor(Colors.Grey.Medium);
                 texto.TotalPages().FontSize(8).FontColor(Colors.Grey.Medium);
             });
         })).GeneratePdf();

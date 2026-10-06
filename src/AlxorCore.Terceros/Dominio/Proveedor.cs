@@ -141,6 +141,21 @@ public sealed class Proveedor : RaizAgregadoGrupo<Guid>
         ActividadNegocioId = actividadNegocioId is { } a && a != Guid.Empty ? a : null;
 
     /// <summary>Enlaza el proveedor con una empresa del grupo (null o vacío = tercero externo).</summary>
+    /// <summary>Idioma de sus documentos (ISO 639-1); null = castellano.</summary>
+    public string? Idioma { get; private set; }
+
+    public Resultado EstablecerIdioma(string? idioma)
+    {
+        var i = IdiomasDocumento.Normalizar(idioma);
+        if (!IdiomasDocumento.EsValido(i))
+        {
+            return Resultado.Fallo(Error.Validacion("tercero.idioma", $"«{idioma}» no es un idioma de documentos (es, en, fr, de, it, pt)."));
+        }
+
+        Idioma = i == IdiomasDocumento.Castellano ? null : i;
+        return Resultado.Ok();
+    }
+
     public void EstablecerEmpresaVinculada(Guid? empresaId) =>
         EmpresaVinculadaId = empresaId is { } e && e != Guid.Empty ? e : null;
 

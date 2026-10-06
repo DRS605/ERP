@@ -13,7 +13,7 @@ namespace AlxorCore.Documentos.Infraestructura;
 /// <summary>Genera el PDF de una factura con QuestPDF. Diseño limpio y sobrio (español).</summary>
 internal sealed class GeneradorPdfFacturaQuestPdf : IGeneradorPdfFactura
 {
-    public byte[] Generar(FacturaDto factura, EmpresaDto emisor)
+    public byte[] Generar(FacturaDto factura, EmpresaDto emisor, string? idioma = null)
     {
         ArgumentNullException.ThrowIfNull(factura);
         ArgumentNullException.ThrowIfNull(emisor);
@@ -21,7 +21,7 @@ internal sealed class GeneradorPdfFacturaQuestPdf : IGeneradorPdfFactura
         // Un ticket (factura simplificada) se imprime en formato rollo de 80 mm; el resto en A4.
         return string.Equals(factura.Tipo, "Simplificada", StringComparison.OrdinalIgnoreCase)
             ? GenerarTicket(factura, emisor)
-            : GenerarFacturaA4(factura, emisor);
+            : GenerarFacturaA4(factura, emisor, IdiomasDocumento.Efectivo(idioma));
     }
 
     /// <summary>Genera el PNG del QR de cotejo VeriFactu, o null si la factura aún no tiene huella.</summary>
@@ -38,8 +38,11 @@ internal sealed class GeneradorPdfFacturaQuestPdf : IGeneradorPdfFactura
         return new PngByteQRCode(datos).GetGraphic(12);
     }
 
-    private static byte[] GenerarFacturaA4(FacturaDto factura, EmpresaDto emisor)
+    private static byte[] GenerarFacturaA4(FacturaDto factura, EmpresaDto emisor, string idioma)
     {
+        string T(string clave) => TextosImpreso.T(idioma, clave);
+        string N(decimal v) => TextosImpreso.Numero(idioma, v);
+        var siglas = TextosImpreso.Impuesto(idioma, factura.SiglasImpuesto);
         var documento = Document.Create(contenedor =>
         {
             contenedor.Page(pagina =>
@@ -51,12 +54,12 @@ internal sealed class GeneradorPdfFacturaQuestPdf : IGeneradorPdfFactura
                 var color = PlantillaImpreso.ColorMarca(emisor);
                 pagina.Header().Row(fila =>
                 {
-                    fila.RelativeItem().Column(col => PlantillaImpreso.EscribirEmisor(col, emisor, color));
+                    fila.RelativeItem().Column(col => PlantillaImpreso.EscribirEmisor(col, emisor, color, idioma));
                     fila.ConstantItem(200).AlignRight().Column(col =>
                     {
-                        col.Item().Text("FACTURA").Bold().FontSize(16).FontColor(color);
+                        col.Item().Text(T("Factura").ToUpperInvariant()).Bold().FontSize(16).FontColor(color);
                         col.Item().Text(factura.NumeroCompleto);
-                        col.Item().Text($"Fecha: {factura.FechaEmision:dd/MM/yyyy}");
+                        col.Item().Text($"{T("Fecha")}: {factura.FechaEmision:dd/MM/yyyy}");
                     });
                 });
 
@@ -64,11 +67,11 @@ internal sealed class GeneradorPdfFacturaQuestPdf : IGeneradorPdfFactura
                 {
                     col.Item().PaddingBottom(10).Column(cliente =>
                     {
-                        cliente.Item().Text("Cliente").Bold();
+                        cliente.Item().Text(T("Cliente")).Bold();
                         cliente.Item().Text(factura.ClienteNombre);
                         if (!string.IsNullOrWhiteSpace(factura.ClienteNif))
                         {
-                            cliente.Item().Text($"NIF: {factura.ClienteNif}");
+                            cliente.Item().Text($"{T("NIF")}: {factura.ClienteNif}");
                         }
                     });
 
@@ -86,53 +89,53 @@ internal sealed class GeneradorPdfFacturaQuestPdf : IGeneradorPdfFactura
                         tabla.Header(encabezado =>
                         {
                             static IContainer Celda(IContainer c, Color color) => c.BorderBottom(1.5f).BorderColor(color).PaddingBottom(3);
-                            Celda(encabezado.Cell(), color).Text("Descripción").Bold().FontColor(color);
-                            Celda(encabezado.Cell(), color).AlignRight().Text("Cantidad").Bold().FontColor(color);
-                            Celda(encabezado.Cell(), color).AlignRight().Text("Precio").Bold().FontColor(color);
-                            Celda(encabezado.Cell(), color).AlignRight().Text(factura.SiglasImpuesto).Bold().FontColor(color);
-                            Celda(encabezado.Cell(), color).AlignRight().Text("Base").Bold().FontColor(color);
+                            Celda(encabezado.Cell(), color).Text(T("Descripción")).Bold().FontColor(color);
+                            Celda(encabezado.Cell(), color).AlignRight().Text(T("Cantidad")).Bold().FontColor(color);
+                            Celda(encabezado.Cell(), color).AlignRight().Text(T("Precio")).Bold().FontColor(color);
+                            Celda(encabezado.Cell(), color).AlignRight().Text(siglas).Bold().FontColor(color);
+                            Celda(encabezado.Cell(), color).AlignRight().Text(T("Base")).Bold().FontColor(color);
                         });
 
                         foreach (var linea in factura.Lineas)
                         {
                             tabla.Cell().Text(linea.Descripcion);
-                            tabla.Cell().AlignRight().Text(Redondeo.Formatear(linea.Cantidad));
-                            tabla.Cell().AlignRight().Text(Redondeo.Formatear(linea.PrecioUnitario));
+                            tabla.Cell().AlignRight().Text(N(linea.Cantidad));
+                            tabla.Cell().AlignRight().Text(N(linea.PrecioUnitario));
                             tabla.Cell().AlignRight().Text($"{Porcentaje(linea.PorcentajeIva)}%");
-                            tabla.Cell().AlignRight().Text(Redondeo.Formatear(linea.Base - linea.ImporteConceptos));
+                            tabla.Cell().AlignRight().Text(N(linea.Base - linea.ImporteConceptos));
                             foreach (var c in (linea.Conceptos ?? []).Where(c => c.Efecto == EfectoConcepto.Precio))
                             {
-                                tabla.Cell().PaddingLeft(10).Text($"· {c.Nombre}{(c.Calculo == CalculoConcepto.Porcentaje ? $" ({Redondeo.Formatear(c.Valor)} %)" : string.Empty)}").FontSize(8).FontColor(Colors.Grey.Darken2);
+                                tabla.Cell().PaddingLeft(10).Text($"· {c.Nombre}{(c.Calculo == CalculoConcepto.Porcentaje ? $" ({N(c.Valor)} %)" : string.Empty)}").FontSize(8).FontColor(Colors.Grey.Darken2);
                                 tabla.Cell();
                                 tabla.Cell();
                                 tabla.Cell();
-                                tabla.Cell().AlignRight().Text(Redondeo.Formatear(c.Importe)).FontSize(8).FontColor(Colors.Grey.Darken2);
+                                tabla.Cell().AlignRight().Text(N(c.Importe)).FontSize(8).FontColor(Colors.Grey.Darken2);
                             }
                         }
                     });
 
                     col.Item().AlignRight().PaddingTop(15).Column(totales =>
                     {
-                        totales.Item().Text($"Base imponible: {Redondeo.Formatear(factura.BaseImponible)} €");
-                        totales.Item().Text($"{factura.SiglasImpuesto}: {Redondeo.Formatear(factura.CuotaIva)} €");
+                        totales.Item().Text($"{T("Base imponible")}: {N(factura.BaseImponible)} €");
+                        totales.Item().Text($"{siglas}: {N(factura.CuotaIva)} €");
                         if (factura.RecargoTotal > 0)
                         {
-                            totales.Item().Text($"Recargo de equivalencia: {Redondeo.Formatear(factura.RecargoTotal)} €");
+                            totales.Item().Text($"{T("Recargo de equivalencia")}: {N(factura.RecargoTotal)} €");
                         }
 
                         if (factura.RetencionIrpf > 0)
                         {
-                            totales.Item().Text($"Retención IRPF ({factura.PorcentajeIrpf:0}%): -{Redondeo.Formatear(factura.RetencionIrpf)} €");
+                            totales.Item().Text($"{T("Retención IRPF")} ({factura.PorcentajeIrpf:0}%): -{N(factura.RetencionIrpf)} €");
                         }
 
                         // Suplidos y fianzas: fuera de la base imponible y sin impuesto.
                         foreach (var g in factura.Lineas.SelectMany(l => l.Conceptos ?? []).Where(c => c.Efecto == EfectoConcepto.Suplido && c.Importe != 0m)
                                      .GroupBy(c => c.Nombre))
                         {
-                            totales.Item().Text($"{g.Key} (suplido, sin {factura.SiglasImpuesto}): {Redondeo.Formatear(g.Sum(c => c.Importe))} €");
+                            totales.Item().Text($"{TextosImpreso.T(idioma, "suplido", g.Key, siglas)}: {N(g.Sum(c => c.Importe))} €");
                         }
 
-                        totales.Item().Text($"TOTAL: {Redondeo.Formatear(factura.Total)} €").Bold().FontSize(13).FontColor(color);
+                        totales.Item().Text($"{T("TOTAL")}: {N(factura.Total)} €").Bold().FontSize(13).FontColor(color);
                     });
 
                     // Mención fiscal obligatoria (exención, inversión del sujeto pasivo, no sujeto,
@@ -140,7 +143,7 @@ internal sealed class GeneradorPdfFacturaQuestPdf : IGeneradorPdfFactura
                     if (!string.IsNullOrWhiteSpace(factura.MencionFiscal))
                     {
                         col.Item().PaddingTop(12).BorderTop(0.75f).BorderColor(Colors.Grey.Lighten1).PaddingTop(6)
-                            .Text(factura.MencionFiscal).FontSize(8).Italic().FontColor(Colors.Grey.Darken2);
+                            .Text(TextosImpreso.MencionFiscal(idioma, factura.MencionFiscal)).FontSize(8).Italic().FontColor(Colors.Grey.Darken2);
                     }
 
                     var qr = GenerarQr(factura, emisor);

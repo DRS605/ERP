@@ -28,11 +28,14 @@ public sealed class ImpresosComerciales
     private readonly OrdenesCargaAgro? _ordenes;
     private readonly AlxorCore.Tesoreria.Aplicacion.LiquidacionesPagos? _liquidacionesPagos;
     private readonly EnvasesTerceros? _envases;
+    private readonly IIdiomaDocumentos? _idiomas;
 
     public ImpresosComerciales(IGeneradorPdfDocumento generador, IConsultaEmpresas empresas, IConsultaClientes clientes, IConsultaProveedores proveedores,
         ConsultarAlbaranesVenta albaranes, ObtenerPedidoVenta pedidosVenta, ObtenerPedido pedidosCompra, LiquidacionesAgro liquidaciones, IRepositorioAgro agro,
-        OrdenesCargaAgro? ordenes = null, AlxorCore.Tesoreria.Aplicacion.LiquidacionesPagos? liquidacionesPagos = null, EnvasesTerceros? envases = null)
+        OrdenesCargaAgro? ordenes = null, AlxorCore.Tesoreria.Aplicacion.LiquidacionesPagos? liquidacionesPagos = null, EnvasesTerceros? envases = null,
+        IIdiomaDocumentos? idiomas = null)
     {
+        _idiomas = idiomas;
         _envases = envases;
         _ordenes = ordenes;
         _liquidacionesPagos = liquidacionesPagos;
@@ -48,7 +51,7 @@ public sealed class ImpresosComerciales
     }
 
     /// <summary>Albarán de venta; <paramref name="valorado"/> = false lo imprime sin precios (el que viaja con la mercancía).</summary>
-    public async Task<Resultado<DocumentoPdf>> AlbaranAsync(Guid empresaId, Guid id, bool valorado, CancellationToken ct = default)
+    public async Task<Resultado<DocumentoPdf>> AlbaranAsync(Guid empresaId, Guid id, bool valorado, string? idioma, CancellationToken ct = default)
     {
         var a = await _albaranes.ObtenerAsync(id, ct).ConfigureAwait(false);
         if (a is null)
@@ -56,19 +59,22 @@ public sealed class ImpresosComerciales
             return Resultado.Fallo<DocumentoPdf>(Error.NoEncontrado("albaranventa.no_encontrado", "El albarán no existe."));
         }
 
-        var lineas = a.Lineas.OrderBy(l => l.Orden).Select(l => new LineaImpresa(l.Descripcion, l.Cantidad, null,
+        var i = await IdiomaAsync(idioma, () => _idiomas!.DeClienteAsync(a.ClienteId, ct)).ConfigureAwait(false);
+        string T(string clave) => TextosImpreso.T(i, clave);
+        var nombres = await TraduccionLineas.NombresAsync(_idiomas, a.Lineas.Select(l => l.ProductoId), i, ct).ConfigureAwait(false);
+        var lineas = a.Lineas.OrderBy(l => l.Orden).Select(l => new LineaImpresa(TraduccionLineas.Descripcion(l.Descripcion, l.ProductoId, nombres), l.Cantidad, null,
             valorado && l.PrecioFijado ? l.PrecioUnitario : null, l.PorcentajeDescuento, valorado && l.PrecioFijado ? l.Base : null,
-            l.PrecioFijado || !valorado ? null : "Precio por fijar")).ToList();
+            l.PrecioFijado || !valorado ? null : T("Precio por fijar"))).ToList();
         var datos = new List<(string, string)>();
-        if (!string.IsNullOrWhiteSpace(a.Referencia)) datos.Add(("Referencia", a.Referencia));
-        if (a.Anulado) datos.Add(("Estado", "ANULADO"));
-        var totales = valorado ? new List<TotalImpreso> { new("Base", a.Base, Destacado: true) } : [];
-        var doc = new DocumentoImpreso("Albarán", a.NumeroCompleto, a.Fecha, await ClienteAsync(a.ClienteId, a.ClienteNombre, ct).ConfigureAwait(false),
-            lineas, totales, datos, a.Observaciones, valorado ? "Importes sin impuestos: el IVA se aplica en la factura." : null, Valorado: valorado);
+        if (!string.IsNullOrWhiteSpace(a.Referencia)) datos.Add((T("Referencia"), a.Referencia));
+        if (a.Anulado) datos.Add((T("Estado"), T("ANULADO")));
+        var totales = valorado ? new List<TotalImpreso> { new(T("Base"), a.Base, Destacado: true) } : [];
+        var doc = new DocumentoImpreso(T("Albarán"), a.NumeroCompleto, a.Fecha, await ClienteAsync(a.ClienteId, a.ClienteNombre, ct, i).ConfigureAwait(false),
+            lineas, totales, datos, a.Observaciones, valorado ? T("Leyenda albarán") : null, Valorado: valorado, Idioma: i);
         return await PdfAsync(empresaId, doc, $"albaran-{a.NumeroCompleto}", ct).ConfigureAwait(false);
     }
 
-    public async Task<Resultado<DocumentoPdf>> PedidoVentaAsync(Guid empresaId, Guid id, CancellationToken ct = default)
+    public async Task<Resultado<DocumentoPdf>> PedidoVentaAsync(Guid empresaId, Guid id, string? idioma, CancellationToken ct = default)
     {
         var p = await _pedidosVenta.EjecutarAsync(id, ct).ConfigureAwait(false);
         if (p is null)
@@ -76,15 +82,19 @@ public sealed class ImpresosComerciales
             return Resultado.Fallo<DocumentoPdf>(Error.NoEncontrado("pedidoventa.no_encontrado", "El pedido no existe."));
         }
 
-        var lineas = p.Lineas.Select(l => new LineaImpresa(l.Descripcion, l.Cantidad, null, l.PrecioUnitario, l.PorcentajeDescuento, l.Base,
-            l.CantidadServida > 0 ? $"Servido: {Redondeo.Formatear(l.CantidadServida, 3)}" : null)).ToList();
-        var doc = new DocumentoImpreso("Pedido de venta", p.NumeroCompleto, p.Fecha, await ClienteAsync(p.ClienteId, p.ClienteNombre, ct).ConfigureAwait(false),
-            lineas, [new TotalImpreso("Base", Redondeo.Dos(p.Lineas.Sum(l => l.Base)), Destacado: true)], [("Estado", p.Estado)],
-            Leyenda: "Confirmación de pedido. Importes sin impuestos.");
+        var i = await IdiomaAsync(idioma, () => _idiomas!.DeClienteAsync(p.ClienteId, ct)).ConfigureAwait(false);
+        string T(string clave) => TextosImpreso.T(i, clave);
+        var nombres = await TraduccionLineas.NombresAsync(_idiomas, p.Lineas.Select(l => l.ProductoId), i, ct).ConfigureAwait(false);
+        var lineas = p.Lineas.Select(l => new LineaImpresa(TraduccionLineas.Descripcion(l.Descripcion, l.ProductoId, nombres), l.Cantidad, null, l.PrecioUnitario,
+            l.PorcentajeDescuento, l.Base, l.CantidadServida > 0 ? $"{T("Servido")}: {TextosImpreso.Numero(i, l.CantidadServida, 3)}" : null)).ToList();
+        // El estado (borrador, confirmado…) solo sale en castellano: es un dato interno.
+        var doc = new DocumentoImpreso(T("Pedido de venta"), p.NumeroCompleto, p.Fecha, await ClienteAsync(p.ClienteId, p.ClienteNombre, ct, i).ConfigureAwait(false),
+            lineas, [new TotalImpreso(T("Base"), Redondeo.Dos(p.Lineas.Sum(l => l.Base)), Destacado: true)], i == IdiomasDocumento.Castellano ? [("Estado", p.Estado)] : [],
+            Leyenda: T("Leyenda pedido venta"), Idioma: i);
         return await PdfAsync(empresaId, doc, $"pedido-{p.NumeroCompleto}", ct).ConfigureAwait(false);
     }
 
-    public async Task<Resultado<DocumentoPdf>> PedidoCompraAsync(Guid empresaId, Guid id, CancellationToken ct = default)
+    public async Task<Resultado<DocumentoPdf>> PedidoCompraAsync(Guid empresaId, Guid id, string? idioma, CancellationToken ct = default)
     {
         var p = await _pedidosCompra.EjecutarAsync(id, ct).ConfigureAwait(false);
         if (p is null)
@@ -93,11 +103,14 @@ public sealed class ImpresosComerciales
         }
 
         var proveedor = p.ProveedorId is { } pid ? await _proveedores.ObtenerAsync(pid, ct).ConfigureAwait(false) : null;
-        var tercero = new TerceroImpreso("Proveedor", proveedor?.Nombre ?? p.ProveedorTexto, proveedor?.NifFiscal,
+        var i = IdiomasDocumento.Efectivo(idioma ?? proveedor?.Idioma);
+        string T(string clave) => TextosImpreso.T(i, clave);
+        var tercero = new TerceroImpreso(T("Proveedor"), proveedor?.Nombre ?? p.ProveedorTexto, proveedor?.NifFiscal,
             proveedor is null ? null : Direccion(proveedor.Calle, proveedor.CodigoPostal, proveedor.Poblacion, proveedor.Provincia));
-        var lineas = p.Lineas.Select(l => new LineaImpresa(l.Descripcion, l.Cantidad, null, l.PrecioUnitario, null, l.Importe)).ToList();
-        var doc = new DocumentoImpreso("Pedido de compra", p.NumeroCompleto, p.Fecha, tercero, lineas,
-            [new TotalImpreso("Total", p.Total, Destacado: true)], [("Estado", p.Estado)], Leyenda: "Rogamos confirmen la recepción de este pedido.");
+        var nombres = await TraduccionLineas.NombresAsync(_idiomas, p.Lineas.Select(l => l.ProductoId), i, ct).ConfigureAwait(false);
+        var lineas = p.Lineas.Select(l => new LineaImpresa(TraduccionLineas.Descripcion(l.Descripcion, l.ProductoId, nombres), l.Cantidad, null, l.PrecioUnitario, null, l.Importe)).ToList();
+        var doc = new DocumentoImpreso(T("Pedido de compra"), p.NumeroCompleto, p.Fecha, tercero, lineas,
+            [new TotalImpreso(T("Total"), p.Total, Destacado: true)], i == IdiomasDocumento.Castellano ? [("Estado", p.Estado)] : [], Leyenda: T("Leyenda pedido compra"), Idioma: i);
         return await PdfAsync(empresaId, doc, $"pedido-compra-{p.NumeroCompleto}", ct).ConfigureAwait(false);
     }
 
@@ -286,10 +299,14 @@ public sealed class ImpresosComerciales
         }
     }
 
-    private async Task<TerceroImpreso> ClienteAsync(Guid clienteId, string nombre, CancellationToken ct)
+    /// <summary>El idioma pedido o, si no, el del tercero (castellano sin puerto de idiomas).</summary>
+    private async Task<string> IdiomaAsync(string? pedido, Func<Task<string>> delTercero) =>
+        IdiomasDocumento.Efectivo(pedido ?? (_idiomas is null ? null : await delTercero().ConfigureAwait(false)));
+
+    private async Task<TerceroImpreso> ClienteAsync(Guid clienteId, string nombre, CancellationToken ct, string? idioma = null)
     {
         var c = clienteId == Guid.Empty ? null : await _clientes.ObtenerAsync(clienteId, ct).ConfigureAwait(false);
-        return new TerceroImpreso("Cliente", c?.Nombre ?? nombre, c?.NifFiscal, c is null ? null : Direccion(c.Calle, c.CodigoPostal, c.Poblacion, c.Provincia));
+        return new TerceroImpreso(TextosImpreso.T(idioma, "Cliente"), c?.Nombre ?? nombre, c?.NifFiscal, c is null ? null : Direccion(c.Calle, c.CodigoPostal, c.Poblacion, c.Provincia));
     }
 
     private static string? Direccion(string? calle, string? cp, string? poblacion, string? provincia)
@@ -308,6 +325,6 @@ public sealed class ImpresosComerciales
             return Resultado.Fallo<DocumentoPdf>(Error.NoEncontrado("empresa.no_encontrada", "La empresa no existe."));
         }
 
-        return Resultado.Ok(new DocumentoPdf($"{nombre.Replace('/', '-').Replace(' ', '-')}.pdf", _generador.Generar(doc, empresa)));
+        return Resultado.Ok(new DocumentoPdf($"{nombre.Replace('/', '-').Replace(' ', '-')}.pdf", _generador.Generar(doc, empresa), IdiomasDocumento.Efectivo(doc.Idioma), doc.Numero));
     }
 }

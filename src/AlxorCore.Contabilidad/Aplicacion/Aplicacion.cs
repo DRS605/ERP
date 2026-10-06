@@ -201,6 +201,7 @@ public static class PlanBasico
         ("572", "Bancos"),
         ("626", "Servicios bancarios y similares"),
         ("662", "Intereses de deudas"),
+        ("6623", "Intereses de deudas con entidades de crédito"),
         ("669", "Otros gastos financieros"),
         ("769", "Otros ingresos financieros"),
         ("600", "Compras de mercaderías"),
@@ -230,6 +231,13 @@ public static class PlanBasico
         ("4740", "Activos por diferencias temporarias deducibles"),
         ("479", "Pasivos por diferencias temporarias imponibles"),
         ("6301", "Impuesto diferido"),
+
+        // Financiación: préstamos, leasing y pólizas de crédito.
+        ("170", "Deudas a largo plazo con entidades de crédito"),
+        ("174", "Acreedores por arrendamiento financiero a largo plazo"),
+        ("520", "Deudas a corto plazo con entidades de crédito"),
+        ("5201", "Deudas a corto plazo por crédito dispuesto"),
+        ("524", "Acreedores por arrendamiento financiero a corto plazo"),
 
         // Periodificaciones.
         ("480", "Gastos anticipados"),

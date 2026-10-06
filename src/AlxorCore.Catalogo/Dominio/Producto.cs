@@ -65,6 +65,26 @@ public sealed class ComponenteArticulo
     public decimal Cantidad { get; private set; }
 }
 
+/// <summary>Nombre del artículo en otro idioma, para los documentos de clientes y proveedores extranjeros.</summary>
+public sealed class TraduccionArticulo
+{
+    private TraduccionArticulo() { Idioma = null!; Nombre = null!; }
+
+    internal TraduccionArticulo(Guid id, string idioma, string nombre)
+    {
+        Id = id;
+        Idioma = idioma;
+        Nombre = nombre;
+    }
+
+    public Guid Id { get; private set; }
+
+    /// <summary>Código ISO 639-1 (en, fr, de, it, pt).</summary>
+    public string Idioma { get; private set; }
+
+    public string Nombre { get; private set; }
+}
+
 /// <summary>Valor de un eje de variante (p. ej. Talla=M, Color=Rojo) de un artículo.</summary>
 public sealed class AtributoVariante
 {
@@ -99,6 +119,7 @@ public sealed class Producto : RaizAgregadoGrupo<Guid>
 
     private readonly List<ComponenteArticulo> _componentes = new();
     private readonly List<AtributoVariante> _atributos = new();
+    private readonly List<TraduccionArticulo> _traducciones = new();
 
     private Producto(Guid id)
         : base(id, Guid.Empty)
@@ -385,6 +406,50 @@ public sealed class Producto : RaizAgregadoGrupo<Guid>
 
     /// <summary>Ejes de la variante (p. ej. Talla=M, Color=Rojo).</summary>
     public IReadOnlyList<AtributoVariante> Atributos => _atributos;
+
+    /// <summary>Nombre del artículo en otros idiomas.</summary>
+    public IReadOnlyList<TraduccionArticulo> Traducciones => _traducciones;
+
+    /// <summary>Nombre en un idioma (el propio si no hay traducción o es castellano).</summary>
+    public string NombreEn(string? idioma) =>
+        _traducciones.FirstOrDefault(t => t.Idioma == IdiomasDocumento.Normalizar(idioma))?.Nombre ?? Nombre;
+
+    /// <summary>Sustituye las traducciones del nombre (una por idioma; las vacías se quitan).</summary>
+    public Resultado FijarTraducciones(IReadOnlyList<(string? Idioma, string? Nombre)> traducciones, IReloj reloj)
+    {
+        ArgumentNullException.ThrowIfNull(traducciones);
+        ArgumentNullException.ThrowIfNull(reloj);
+        var nuevas = new List<TraduccionArticulo>();
+        foreach (var (idioma, nombre) in traducciones)
+        {
+            var i = IdiomasDocumento.Normalizar(idioma);
+            if (i is null || i == IdiomasDocumento.Castellano || !IdiomasDocumento.EsValido(i))
+            {
+                return Resultado.Fallo(Error.Validacion("producto.idioma", $"«{idioma}» no es un idioma de traducción (en, fr, de, it, pt)."));
+            }
+
+            if (nuevas.Any(t => t.Idioma == i))
+            {
+                return Resultado.Fallo(Error.Validacion("producto.idioma_repetido", $"El idioma «{i}» está repetido."));
+            }
+
+            var n = (nombre ?? string.Empty).Trim();
+            if (n.Length > LongitudMaximaNombre)
+            {
+                return Resultado.Fallo(Error.Validacion("producto.traduccion_larga", $"La traducción es demasiado larga (hasta {LongitudMaximaNombre} caracteres)."));
+            }
+
+            if (n.Length > 0)
+            {
+                nuevas.Add(new TraduccionArticulo(Guid.NewGuid(), i, n));
+            }
+        }
+
+        _traducciones.Clear();
+        _traducciones.AddRange(nuevas);
+        ActualizadoEn = reloj.AhoraUtc;
+        return Resultado.Ok();
+    }
 
     /// <summary>Resumen legible de los atributos («M · Rojo»); vacío si no es variante.</summary>
     public string ResumenVariante => string.Join(" · ", _atributos.Select(a => a.Valor));

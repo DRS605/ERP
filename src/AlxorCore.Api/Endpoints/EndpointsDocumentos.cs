@@ -38,14 +38,14 @@ public static class EndpointsDocumentos
         return rutas;
     }
 
-    private static async Task<IResult> PdfAsync(Guid id, IContextoEmpresa contexto, GenerarPdfFactura caso, CancellationToken ct)
+    private static async Task<IResult> PdfAsync(Guid id, string? idioma, IContextoEmpresa contexto, GenerarPdfFactura caso, CancellationToken ct)
     {
         if (contexto.EmpresaId is null)
         {
             return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
         }
 
-        var resultado = await caso.EjecutarAsync(contexto.EmpresaId.Value, id, ct).ConfigureAwait(false);
+        var resultado = await caso.EjecutarAsync(contexto.EmpresaId.Value, id, idioma, ct).ConfigureAwait(false);
         return resultado.EsCorrecto
             ? Results.File(resultado.Valor.Contenido, "application/pdf", resultado.Valor.NombreArchivo)
             : ResultadosHttp.AProblema(resultado.Error);
@@ -62,14 +62,14 @@ public static class EndpointsDocumentos
         return resultado.ASinContenido();
     }
 
-    private static async Task<IResult> PdfPresupuestoAsync(Guid id, IContextoEmpresa contexto, GenerarPdfPresupuesto caso, CancellationToken ct)
+    private static async Task<IResult> PdfPresupuestoAsync(Guid id, string? idioma, IContextoEmpresa contexto, GenerarPdfPresupuesto caso, CancellationToken ct)
     {
         if (contexto.EmpresaId is null)
         {
             return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
         }
 
-        var resultado = await caso.EjecutarAsync(contexto.EmpresaId.Value, id, ct).ConfigureAwait(false);
+        var resultado = await caso.EjecutarAsync(contexto.EmpresaId.Value, id, idioma, ct).ConfigureAwait(false);
         return resultado.EsCorrecto
             ? Results.File(resultado.Valor.Contenido, "application/pdf", resultado.Valor.NombreArchivo)
             : ResultadosHttp.AProblema(resultado.Error);

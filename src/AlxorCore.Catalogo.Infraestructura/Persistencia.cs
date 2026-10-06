@@ -115,6 +115,16 @@ internal sealed class ConfiguracionProducto : IEntityTypeConfiguration<Producto>
             a.Property(x => x.Nombre).HasColumnName("nombre").HasMaxLength(60).IsRequired();
             a.Property(x => x.Valor).HasColumnName("valor").HasMaxLength(80).IsRequired();
         });
+        builder.OwnsMany(p => p.Traducciones, t =>
+        {
+            t.ToTable("traduccion_articulo");
+            t.WithOwner().HasForeignKey("producto_id");
+            t.HasKey(x => x.Id);
+            t.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+            t.Property(x => x.Idioma).HasColumnName("idioma").HasMaxLength(2).IsRequired();
+            t.Property(x => x.Nombre).HasColumnName("nombre").HasMaxLength(Producto.LongitudMaximaNombre).IsRequired();
+            t.HasIndex("producto_id", nameof(TraduccionArticulo.Idioma)).IsUnique().HasDatabaseName("ux_traduccion_articulo_idioma");
+        });
     }
 }
 
@@ -302,7 +312,7 @@ internal sealed class RepositorioHistoricoPrecios : IRepositorioHistoricoPrecios
     }
 }
 
-internal sealed class RepositorioProductos : IRepositorioProductos, IConsultaProductos
+internal sealed class RepositorioProductos : IRepositorioProductos, IConsultaProductos, IConsultaTraduccionesArticulos
 {
     private readonly CatalogoDbContext _contexto;
 
@@ -317,6 +327,17 @@ internal sealed class RepositorioProductos : IRepositorioProductos, IConsultaPro
 
     public async Task<IReadOnlyList<Producto>> CompuestosConComponenteAsync(Guid componenteId, CancellationToken ct = default) =>
         await _contexto.Productos.Where(p => p.EsCompuesto && p.Componentes.Any(c => c.ComponenteId == componenteId)).ToListAsync(ct).ConfigureAwait(false);
+
+    public async Task<IReadOnlyDictionary<Guid, NombreArticuloIdioma>> NombresEnIdiomaAsync(IReadOnlyCollection<Guid> productoIds, string idioma, CancellationToken ct = default)
+    {
+        if (productoIds.Count == 0)
+        {
+            return new Dictionary<Guid, NombreArticuloIdioma>();
+        }
+
+        var productos = await _contexto.Productos.AsNoTracking().Where(p => productoIds.Contains(p.Id)).ToListAsync(ct).ConfigureAwait(false);
+        return productos.ToDictionary(p => p.Id, p => new NombreArticuloIdioma(p.Nombre, p.NombreEn(idioma)));
+    }
 
     public async Task<IReadOnlyList<Producto>> CompuestosAsync(Guid grupoId, CancellationToken ct = default) =>
         await _contexto.Productos.Where(p => p.GrupoId == grupoId && p.EsCompuesto).ToListAsync(ct).ConfigureAwait(false);

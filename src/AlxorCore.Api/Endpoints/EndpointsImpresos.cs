@@ -12,15 +12,15 @@ public static class EndpointsImpresos
     {
         ArgumentNullException.ThrowIfNull(rutas);
 
-        rutas.MapGet("/albaranes-venta/{id:guid}/pdf", (Guid id, bool? valorado, IContextoEmpresa c, ImpresosComerciales i, CancellationToken ct) =>
-                Pdf(c, e => i.AlbaranAsync(e, id, valorado != false, ct)))
-            .WithTags("Documentos").WithSummary("PDF del albarán de venta (?valorado=false: sin precios, el que viaja con la mercancía).")
+        rutas.MapGet("/albaranes-venta/{id:guid}/pdf", (Guid id, bool? valorado, string? idioma, IContextoEmpresa c, ImpresosComerciales i, CancellationToken ct) =>
+                Pdf(c, e => i.AlbaranAsync(e, id, valorado != false, idioma, ct)))
+            .WithTags("Documentos").WithSummary("PDF del albarán de venta (?valorado=false: sin precios, el que viaja con la mercancía; ?idioma=en: en otro idioma, por defecto el del cliente).")
             .RequierePermiso(Permisos.FacturaLeer);
-        rutas.MapGet("/pedidos-venta/{id:guid}/pdf", (Guid id, IContextoEmpresa c, ImpresosComerciales i, CancellationToken ct) => Pdf(c, e => i.PedidoVentaAsync(e, id, ct)))
-            .WithTags("Documentos").WithSummary("PDF del pedido de venta (confirmación de pedido).")
+        rutas.MapGet("/pedidos-venta/{id:guid}/pdf", (Guid id, string? idioma, IContextoEmpresa c, ImpresosComerciales i, CancellationToken ct) => Pdf(c, e => i.PedidoVentaAsync(e, id, idioma, ct)))
+            .WithTags("Documentos").WithSummary("PDF del pedido de venta (confirmación de pedido), en el idioma del cliente o el de ?idioma=.")
             .RequierePermiso(Permisos.FacturaLeer);
-        rutas.MapGet("/compras/pedidos/{id:guid}/pdf", (Guid id, IContextoEmpresa c, ImpresosComerciales i, CancellationToken ct) => Pdf(c, e => i.PedidoCompraAsync(e, id, ct)))
-            .WithTags("Documentos").WithSummary("PDF del pedido de compra para enviar al proveedor.")
+        rutas.MapGet("/compras/pedidos/{id:guid}/pdf", (Guid id, string? idioma, IContextoEmpresa c, ImpresosComerciales i, CancellationToken ct) => Pdf(c, e => i.PedidoCompraAsync(e, id, idioma, ct)))
+            .WithTags("Documentos").WithSummary("PDF del pedido de compra para enviar al proveedor, en su idioma o el de ?idioma=.")
             .RequierePermiso(Permisos.CompraLeer);
         rutas.MapGet("/agro/liquidaciones/{id:guid}/pdf", (Guid id, IContextoEmpresa c, ImpresosComerciales i, CancellationToken ct) => Pdf(c, e => i.LiquidacionAsync(e, id, ct)))
             .WithTags("Documentos").WithSummary("PDF de la liquidación al agricultor (autofactura o recibo de compensación REAGP).")

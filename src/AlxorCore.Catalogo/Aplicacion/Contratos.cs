@@ -39,7 +39,8 @@ public sealed record ProductoDto(
     decimal? PesoKg = null,
     string? CodigoArancelario = null,
     string? PaisOrigen = null,
-    string? CodigoIgic = null)
+    string? CodigoIgic = null,
+    IReadOnlyList<TraduccionArticuloDto>? Traducciones = null)
 {
     /// <summary>
     /// Construye el DTO. Las existencias (<paramref name="stock"/>) son por empresa (el catálogo se
@@ -52,7 +53,7 @@ public sealed record ProductoDto(
         return new ProductoDto(p.Id, p.Referencia, p.Nombre, p.Tipo, p.PrecioUnitario, p.CodigoIva, porcentaje, p.Unidad, p.Activo, p.PrecioCompra, p.ProveedorHabitualId, p.ControlarStock, stock,
             p.UnidadCompra, p.FactorCompra, p.UnidadVenta, p.FactorVenta, p.PrecioCompraPorUnidadCompra, p.PrecioVentaPorUnidadVenta, p.Seguimiento, p.EsCompuesto,
             p.ProductoPadreId, p.EsPlantilla, p.ResumenVariante, p.Familia, p.FamiliaId, p.ActividadNegocioId, p.Composicion.ToString(), p.PesoKg,
-            p.CodigoArancelario, p.PaisOrigen, p.CodigoIgic);
+            p.CodigoArancelario, p.PaisOrigen, p.CodigoIgic, p.Traducciones.Select(t => new TraduccionArticuloDto(t.Idioma, t.Nombre)).ToList());
     }
 }
 
@@ -137,6 +138,57 @@ public interface IConsultaProductos
     Task<IReadOnlyList<Guid>> IdsFiltradosAsync(Guid grupoId, FiltroProductos filtro, CancellationToken ct = default);
 
     Task<IReadOnlyList<ProductoDto>> ListarVariantesAsync(Guid padreId, CancellationToken ct = default);
+}
+
+/// <summary>Nombre de un artículo en otro idioma.</summary>
+public sealed record TraduccionArticuloDto(string Idioma, string Nombre);
+
+/// <summary>Nombre del artículo en castellano y en el idioma pedido (el mismo si no tiene traducción).</summary>
+public sealed record NombreArticuloIdioma(string Nombre, string Traducido);
+
+/// <summary>Nombres traducidos de los artículos (para imprimir documentos en otro idioma).</summary>
+public interface IConsultaTraduccionesArticulos
+{
+    Task<IReadOnlyDictionary<Guid, NombreArticuloIdioma>> NombresEnIdiomaAsync(IReadOnlyCollection<Guid> productoIds, string idioma, CancellationToken ct = default);
+}
+
+/// <summary>Consulta y cambio de las traducciones del nombre de un artículo.</summary>
+public sealed class TraduccionesArticulos
+{
+    private readonly IRepositorioProductos _productos;
+    private readonly IUnidadDeTrabajoCatalogo _unidad;
+    private readonly AlxorCore.Nucleo.Tiempo.IReloj _reloj;
+
+    public TraduccionesArticulos(IRepositorioProductos productos, IUnidadDeTrabajoCatalogo unidad, AlxorCore.Nucleo.Tiempo.IReloj reloj)
+    {
+        _productos = productos;
+        _unidad = unidad;
+        _reloj = reloj;
+    }
+
+    public async Task<Resultado<IReadOnlyList<TraduccionArticuloDto>>> ListarAsync(Guid productoId, CancellationToken ct = default) =>
+        await _productos.ObtenerPorIdAsync(productoId, ct).ConfigureAwait(false) is { } p
+            ? Resultado.Ok<IReadOnlyList<TraduccionArticuloDto>>(p.Traducciones.Select(t => new TraduccionArticuloDto(t.Idioma, t.Nombre)).ToList())
+            : Resultado.Fallo<IReadOnlyList<TraduccionArticuloDto>>(Error.NoEncontrado("producto.no_encontrado", "El artículo no existe."));
+
+    public async Task<Resultado<IReadOnlyList<TraduccionArticuloDto>>> FijarAsync(Guid productoId, IReadOnlyList<TraduccionArticuloDto> traducciones, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(traducciones);
+        var p = await _productos.ObtenerPorIdAsync(productoId, ct).ConfigureAwait(false);
+        if (p is null)
+        {
+            return Resultado.Fallo<IReadOnlyList<TraduccionArticuloDto>>(Error.NoEncontrado("producto.no_encontrado", "El artículo no existe."));
+        }
+
+        var r = p.FijarTraducciones(traducciones.Select(t => ((string?)t.Idioma, (string?)t.Nombre)).ToList(), _reloj);
+        if (r.EsFallo)
+        {
+            return Resultado.Fallo<IReadOnlyList<TraduccionArticuloDto>>(r.Error);
+        }
+
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        return Resultado.Ok<IReadOnlyList<TraduccionArticuloDto>>(p.Traducciones.Select(t => new TraduccionArticuloDto(t.Idioma, t.Nombre)).ToList());
+    }
 }
 
 /// <summary>Repositorio del histórico de precios (solo escritura: se añaden filas).</summary>

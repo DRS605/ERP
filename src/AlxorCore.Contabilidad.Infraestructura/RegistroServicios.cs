@@ -56,6 +56,8 @@ public static class RegistroServicios
         servicios.AddScoped<GestionDiarios>();
         servicios.AddScoped<CierreMensual>();
         servicios.AddScoped<GestionPeriodificaciones>();
+        servicios.AddScoped<IRepositorioFinanciacion, RepositorioFinanciacion>();
+        servicios.AddScoped<GestionFinanciacion>();
         servicios.AddScoped<RegularizacionExistencias>();
         servicios.AddScoped<GenerarModeloDeposito>();
         servicios.AddScoped<LibrosLegalizacion>();

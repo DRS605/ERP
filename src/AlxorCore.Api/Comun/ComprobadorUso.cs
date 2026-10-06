@@ -274,6 +274,7 @@ public static class ReferenciasRegistros
     public static IReadOnlyCollection<string> Propias { get; } =
     [
         "catalogo.atributo_variante.producto_id",
+        "catalogo.traduccion_articulo.producto_id",
         "catalogo.componente_articulo.producto_id",
         "catalogo.existencia_simple.producto_id",
         "catalogo.historico_precio.producto_id",

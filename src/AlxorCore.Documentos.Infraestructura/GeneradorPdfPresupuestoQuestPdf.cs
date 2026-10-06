@@ -14,10 +14,14 @@ namespace AlxorCore.Documentos.Infraestructura;
 /// </summary>
 internal sealed class GeneradorPdfPresupuestoQuestPdf : IGeneradorPdfPresupuesto
 {
-    public byte[] Generar(PresupuestoDto presupuesto, EmpresaDto emisor)
+    public byte[] Generar(PresupuestoDto presupuesto, EmpresaDto emisor, string? idioma = null)
     {
         ArgumentNullException.ThrowIfNull(presupuesto);
         ArgumentNullException.ThrowIfNull(emisor);
+        var lengua = IdiomasDocumento.Efectivo(idioma);
+        string T(string clave) => TextosImpreso.T(lengua, clave);
+        string N(decimal v) => TextosImpreso.Numero(lengua, v);
+        var siglas = TextosImpreso.Impuesto(lengua, emisor.ImpuestoIndirecto.Siglas());
 
         var documento = Document.Create(contenedor =>
         {
@@ -30,13 +34,13 @@ internal sealed class GeneradorPdfPresupuestoQuestPdf : IGeneradorPdfPresupuesto
                 var color = PlantillaImpreso.ColorMarca(emisor);
                 pagina.Header().Row(fila =>
                 {
-                    fila.RelativeItem().Column(col => PlantillaImpreso.EscribirEmisor(col, emisor, color));
+                    fila.RelativeItem().Column(col => PlantillaImpreso.EscribirEmisor(col, emisor, color, lengua));
                     fila.ConstantItem(200).AlignRight().Column(col =>
                     {
-                        col.Item().Text("PRESUPUESTO").Bold().FontSize(16).FontColor(color);
+                        col.Item().Text(T("Presupuesto").ToUpperInvariant()).Bold().FontSize(16).FontColor(color);
                         col.Item().Text(presupuesto.NumeroCompleto);
-                        col.Item().Text($"Fecha: {presupuesto.Fecha:dd/MM/yyyy}");
-                        col.Item().Text($"Válido hasta: {presupuesto.Validez:dd/MM/yyyy}").FontColor(Colors.Grey.Darken1);
+                        col.Item().Text($"{T("Fecha")}: {presupuesto.Fecha:dd/MM/yyyy}");
+                        col.Item().Text($"{T("Válido hasta")}: {presupuesto.Validez:dd/MM/yyyy}").FontColor(Colors.Grey.Darken1);
                     });
                 });
 
@@ -44,7 +48,7 @@ internal sealed class GeneradorPdfPresupuestoQuestPdf : IGeneradorPdfPresupuesto
                 {
                     col.Item().PaddingBottom(10).Column(cliente =>
                     {
-                        cliente.Item().Text("Cliente").Bold();
+                        cliente.Item().Text(T("Cliente")).Bold();
                         cliente.Item().Text(presupuesto.ClienteNombre);
                     });
 
@@ -62,39 +66,39 @@ internal sealed class GeneradorPdfPresupuestoQuestPdf : IGeneradorPdfPresupuesto
                         tabla.Header(encabezado =>
                         {
                             static QuestPDF.Infrastructure.IContainer Celda(QuestPDF.Infrastructure.IContainer c, QuestPDF.Infrastructure.Color color) => c.BorderBottom(1.5f).BorderColor(color).PaddingBottom(3);
-                            Celda(encabezado.Cell(), color).Text("Descripción").Bold().FontColor(color);
-                            Celda(encabezado.Cell(), color).AlignRight().Text("Cantidad").Bold().FontColor(color);
-                            Celda(encabezado.Cell(), color).AlignRight().Text("Precio").Bold().FontColor(color);
-                            Celda(encabezado.Cell(), color).AlignRight().Text(emisor.ImpuestoIndirecto.Siglas()).Bold().FontColor(color);
-                            Celda(encabezado.Cell(), color).AlignRight().Text("Base").Bold().FontColor(color);
+                            Celda(encabezado.Cell(), color).Text(T("Descripción")).Bold().FontColor(color);
+                            Celda(encabezado.Cell(), color).AlignRight().Text(T("Cantidad")).Bold().FontColor(color);
+                            Celda(encabezado.Cell(), color).AlignRight().Text(T("Precio")).Bold().FontColor(color);
+                            Celda(encabezado.Cell(), color).AlignRight().Text(siglas).Bold().FontColor(color);
+                            Celda(encabezado.Cell(), color).AlignRight().Text(T("Base")).Bold().FontColor(color);
                         });
 
                         foreach (var linea in presupuesto.Lineas)
                         {
                             tabla.Cell().Text(linea.Descripcion);
-                            tabla.Cell().AlignRight().Text(Redondeo.Formatear(linea.Cantidad));
-                            tabla.Cell().AlignRight().Text(Redondeo.Formatear(linea.PrecioUnitario));
+                            tabla.Cell().AlignRight().Text(N(linea.Cantidad));
+                            tabla.Cell().AlignRight().Text(N(linea.PrecioUnitario));
                             tabla.Cell().AlignRight().Text($"{Porcentaje(linea.PorcentajeIva)}%");
-                            tabla.Cell().AlignRight().Text(Redondeo.Formatear(linea.Base - linea.ImporteConceptos));
+                            tabla.Cell().AlignRight().Text(N(linea.Base - linea.ImporteConceptos));
                             foreach (var c in (linea.Conceptos ?? []).Where(c => c.Efecto == EfectoConcepto.Precio))
                             {
-                                tabla.Cell().PaddingLeft(10).Text($"· {c.Nombre}{(c.Calculo == CalculoConcepto.Porcentaje ? $" ({Redondeo.Formatear(c.Valor)} %)" : string.Empty)}").FontSize(8).FontColor(Colors.Grey.Darken2);
+                                tabla.Cell().PaddingLeft(10).Text($"· {c.Nombre}{(c.Calculo == CalculoConcepto.Porcentaje ? $" ({N(c.Valor)} %)" : string.Empty)}").FontSize(8).FontColor(Colors.Grey.Darken2);
                                 tabla.Cell();
                                 tabla.Cell();
                                 tabla.Cell();
-                                tabla.Cell().AlignRight().Text(Redondeo.Formatear(c.Importe)).FontSize(8).FontColor(Colors.Grey.Darken2);
+                                tabla.Cell().AlignRight().Text(N(c.Importe)).FontSize(8).FontColor(Colors.Grey.Darken2);
                             }
                         }
                     });
 
                     col.Item().AlignRight().PaddingTop(15).Column(totales =>
                     {
-                        totales.Item().Text($"Base imponible: {Redondeo.Formatear(presupuesto.BaseImponible)} €");
-                        totales.Item().Text($"{emisor.ImpuestoIndirecto.Siglas()}: {Redondeo.Formatear(presupuesto.CuotaIva)} €");
-                        totales.Item().Text($"TOTAL: {Redondeo.Formatear(presupuesto.Total)} €").Bold().FontSize(13).FontColor(color);
+                        totales.Item().Text($"{T("Base imponible")}: {N(presupuesto.BaseImponible)} €");
+                        totales.Item().Text($"{siglas}: {N(presupuesto.CuotaIva)} €");
+                        totales.Item().Text($"{T("TOTAL")}: {N(presupuesto.Total)} €").Bold().FontSize(13).FontColor(color);
                     });
 
-                    col.Item().PaddingTop(24).Text("Este documento es un presupuesto (oferta) y no tiene carácter de factura. Los importes son válidos hasta la fecha indicada.")
+                    col.Item().PaddingTop(24).Text(T("Leyenda presupuesto"))
                         .FontSize(8).FontColor(Colors.Grey.Darken1);
                 });
 

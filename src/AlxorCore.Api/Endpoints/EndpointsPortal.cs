@@ -208,7 +208,7 @@ public static class EndpointsPortal
                         return NoEsSuyo();
                     }
 
-                    var pdf = await impresos.AlbaranAsync(c.EmpresaId!.Value, id, true, ct).ConfigureAwait(false);
+                    var pdf = await impresos.AlbaranAsync(c.EmpresaId!.Value, id, true, null, ct).ConfigureAwait(false);
                     return pdf.EsCorrecto ? Results.File(pdf.Valor.Contenido, "application/pdf", pdf.Valor.NombreArchivo) : ResultadosHttp.AProblema(pdf.Error);
                 }))
             .WithSummary("PDF de un albarán del cliente.").RequireAuthorization();
