@@ -29,6 +29,7 @@ public sealed class ExtensionesDbContext : DbContextEmpresaBase, IUnidadDeTrabaj
         DELETE FROM extensiones.adjunto WHERE empresa_id = {0};
         DELETE FROM extensiones.plantilla_etiqueta WHERE empresa_id = {0};
         DELETE FROM extensiones.referencia_cliente WHERE empresa_id = {0};
+        DELETE FROM extensiones.acceso_portal WHERE empresa_id = {0};
         """;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -332,4 +333,36 @@ internal sealed class RepositorioEtiquetas : IRepositorioEtiquetas
         await _ctx.Set<ReferenciaCliente>().Where(r => r.EmpresaId == empresaId && (clienteId == null || r.ClienteId == clienteId)).ToListAsync(ct).ConfigureAwait(false);
 
     public Task<ReferenciaCliente?> ReferenciaAsync(Guid id, CancellationToken ct = default) => _ctx.Set<ReferenciaCliente>().FirstOrDefaultAsync(r => r.Id == id, ct);
+}
+
+internal sealed class ConfiguracionAccesoPortal : IEntityTypeConfiguration<AccesoPortal>
+{
+    public void Configure(EntityTypeBuilder<AccesoPortal> b)
+    {
+        Columnas.Base(b, "acceso_portal");
+        Columnas.Enum(b.Property(x => x.Tipo), "tipo");
+        b.Property(x => x.TerceroId).HasColumnName("tercero_id").IsRequired();
+        b.Property(x => x.Nombre).HasColumnName("nombre").HasMaxLength(200).IsRequired();
+        b.Property(x => x.Huella).HasColumnName("huella").HasMaxLength(64).IsRequired();
+        b.Property(x => x.CreadoEn).HasColumnName("creado_en").IsRequired();
+        b.Property(x => x.Caduca).HasColumnName("caduca");
+        b.Property(x => x.RevocadoEn).HasColumnName("revocado_en");
+        b.Property(x => x.UltimoAcceso).HasColumnName("ultimo_acceso");
+        b.Property(x => x.Accesos).HasColumnName("accesos").IsRequired();
+        b.HasIndex(x => new { x.Tipo, x.TerceroId }).HasDatabaseName("ix_acceso_portal_tercero");
+    }
+}
+
+internal sealed class RepositorioPortal : IRepositorioPortal
+{
+    private readonly ExtensionesDbContext _ctx;
+
+    public RepositorioPortal(ExtensionesDbContext ctx) => _ctx = ctx;
+
+    public void Agregar(AccesoPortal acceso) => _ctx.Add(acceso);
+
+    public async Task<IReadOnlyList<AccesoPortal>> ListarAsync(Guid empresaId, CancellationToken ct = default) =>
+        await _ctx.Set<AccesoPortal>().Where(a => a.EmpresaId == empresaId).ToListAsync(ct).ConfigureAwait(false);
+
+    public Task<AccesoPortal?> ObtenerAsync(Guid id, CancellationToken ct = default) => _ctx.Set<AccesoPortal>().FirstOrDefaultAsync(a => a.Id == id, ct);
 }

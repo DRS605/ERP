@@ -20,4 +20,7 @@ public static class ClaimsAlxor
 
     /// <summary>Módulo contratado (puede aparecer varias veces, uno por módulo).</summary>
     public const string Modulo = "modulo";
+
+    /// <summary>Sesión del portal de un agricultor o un cliente (valor «Tipo:accesoId:terceroId»): solo puede usar las rutas /portal.</summary>
+    public const string Portal = "portal";
 }

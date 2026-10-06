@@ -10,7 +10,7 @@ public sealed record IdentidadUsuario(Guid Id, string Email, string Nombre, bool
 /// </summary>
 public sealed record AlcanceEmpresa(
     Guid EmpresaId, Guid GrupoId, string RolCodigo, IReadOnlyCollection<string> Permisos,
-    string? Edicion = null, IReadOnlyCollection<string>? Modulos = null);
+    string? Edicion = null, IReadOnlyCollection<string>? Modulos = null, IReadOnlyDictionary<string, string>? Extras = null);
 
 /// <summary>Token de acceso emitido para un usuario autenticado.</summary>
 public sealed record TokenAcceso(string Token, DateTimeOffset ExpiraEn);

@@ -47,6 +47,8 @@ internal sealed class ProveedorTokensJwt : IProveedorTokens
                 claims.Add(new Claim(ClaimsAlxor.Edicion, alcance.Edicion));
                 claims.AddRange((alcance.Modulos ?? []).Select(m => new Claim(ClaimsAlxor.Modulo, m)));
             }
+
+            claims.AddRange((alcance.Extras ?? new Dictionary<string, string>()).Select(x => new Claim(x.Key, x.Value)));
         }
 
         var clave = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_opciones.ClaveSecreta));

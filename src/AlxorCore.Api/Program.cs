@@ -296,6 +296,7 @@ app.UseRateLimiter();
 app.UseAuthentication();
 // Plan contratado: antes que la autorización por permisos, para que el motivo del 403 sea claro.
 app.UseMiddleware<AlxorCore.Api.Comun.MiddlewareModulos>();
+app.UseMiddleware<AlxorCore.Api.Endpoints.MiddlewarePortal>();
 app.UseMiddleware<AlxorCore.Api.Comun.MiddlewareCentros>();
 app.UseAuthorization();
 
@@ -355,6 +356,8 @@ app.MapearVivero();
 app.MapearExtensiones();
 app.MapearCentros();
 app.MapearSeguroCredito();
+app.MapearPortal();
+app.MapearPanelAgro();
 app.MapearPlastico();
 app.MapearMigracion();
 app.MapearCobranza();

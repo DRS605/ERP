@@ -272,6 +272,7 @@ public static class ReferenciasRegistros
         "organizacion.acceso_centro.centro_id",
         "organizacion.caja_centro.centro_id",
         "fiscal.ficha_plastico.producto_id",
+        "extensiones.acceso_portal.tercero_id",
     ];
 }
 

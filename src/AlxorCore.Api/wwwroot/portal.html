@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<title>Portal</title>
+<style>
+  :root { --bg:#f5f6f8; --card:#fff; --txt:#1c2330; --muted:#667085; --line:#e4e7ec; --accent:#2563eb; --ok:#067647; --warn:#b54708; --neg:#b42318; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0f141b; --card:#18202b; --txt:#e6e9ee; --muted:#98a2b3; --line:#2a3441; --accent:#5b8def; --ok:#47cd89; --warn:#fdb022; --neg:#f97066; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--txt); font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  header { background:var(--card); border-bottom:1px solid var(--line); padding:14px 16px; }
+  header h1 { margin:0; font-size:17px; }
+  header small { color:var(--muted); }
+  main { max-width:760px; margin:0 auto; padding:16px; }
+  .tarjetas { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-bottom:16px; }
+  .tarjeta, .bloque { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
+  .tarjeta .t { color:var(--muted); font-size:12px; }
+  .tarjeta .v { font-size:22px; font-weight:700; }
+  .bloque { margin-bottom:16px; padding:0; overflow:hidden; }
+  .bloque h2 { font-size:15px; margin:0; padding:12px 14px; border-bottom:1px solid var(--line); }
+  .fila { display:flex; justify-content:space-between; gap:12px; padding:10px 14px; border-bottom:1px solid var(--line); align-items:center; }
+  .fila:last-child { border-bottom:0; }
+  .fila .d { min-width:0; }
+  .fila small { color:var(--muted); display:block; }
+  .num { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+  .neg { color:var(--neg); } .ok { color:var(--ok); } .warn { color:var(--warn); }
+  button { font:inherit; border:1px solid var(--line); background:var(--card); color:var(--accent); border-radius:8px; padding:5px 10px; cursor:pointer; }
+  .vacio, .error { color:var(--muted); padding:14px; }
+  .error { color:var(--neg); }
+  .centro { text-align:center; padding:60px 16px; color:var(--muted); }
+</style>
+</head>
+<body>
+<header><h1 id="titulo">Portal</h1><small id="subtitulo"></small></header>
+<main id="main"><div class="centro">Entrando…</div></main>
+<script>
+  const main = document.getElementById("main");
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+  // es-ES no agrupa los miles de 4 cifras («1799,20»): se agrupa a mano.
+  const miles = (n, dec) => { const [e, d] = Math.abs(Number(n || 0)).toFixed(dec).split("."); return (Number(n) < 0 ? "-" : "") + e.replace(/\B(?=(\d{3})+(?!\d))/g, ".") + (d ? "," + d : ""); };
+  const eur = n => miles(n, 2) + " €";
+  const kg = n => miles(n, 0) + " kg";
+  const fecha = d => d ? d.slice(8,10) + "/" + d.slice(5,7) + "/" + d.slice(0,4) : "—";
+  let token = null;
+  try { token = sessionStorage.getItem("portalToken"); } catch (e) {}
+
+  function fallo(texto) { main.innerHTML = `<div class="centro">${esc(texto)}</div>`; }
+
+  async function api(ruta) {
+    const r = await fetch(ruta, { headers: { Authorization: "Bearer " + token } });
+    if (r.status === 401) { try { sessionStorage.removeItem("portalToken"); } catch (e) {} throw new Error("La sesión ha caducado o el acceso se ha revocado. Vuelve a abrir el enlace."); }
+    if (!r.ok) { const p = await r.json().catch(() => ({})); throw new Error(p.title || "No se ha podido cargar."); }
+    return r.json();
+  }
+
+  async function pdf(ruta, boton) {
+    boton.disabled = true;
+    try {
+      const r = await fetch(ruta, { headers: { Authorization: "Bearer " + token } });
+      if (!r.ok) throw new Error();
+      const url = URL.createObjectURL(await r.blob());
+      window.open(url, "_blank") || (location.href = url);
+    } catch (e) { alert("No se ha podido descargar el documento."); }
+    boton.disabled = false;
+  }
+
+  async function entrar() {
+    const clave = decodeURIComponent(location.hash.slice(1));
+    if (clave) {
+      const r = await fetch("/portal/entrar", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ clave }) });
+      if (!r.ok) { fallo(r.status === 429 ? "Demasiados intentos. Espera un momento." : "El enlace no es válido, ha caducado o se ha revocado. Pide uno nuevo a la empresa."); return null; }
+      const s = await r.json();
+      token = s.token;
+      try { sessionStorage.setItem("portalToken", token); } catch (e) {}
+    }
+    if (!token) { fallo("Abre el enlace que te ha enviado la empresa."); return null; }
+    return api("/portal/yo");
+  }
+
+  const bloque = (titulo, filas, vacio) => `<section class="bloque"><h2>${titulo}</h2>${filas.length ? filas.join("") : `<div class="vacio">${vacio}</div>`}</section>`;
+  const tarjeta = (t, v, cls = "") => `<div class="tarjeta"><div class="t">${t}</div><div class="v ${cls}">${v}</div></div>`;
+
+  async function agricultor() {
+    const [r, entregas, liqs] = await Promise.all([api("/portal/agricultor/resumen"), api("/portal/agricultor/entregas"), api("/portal/agricultor/liquidaciones")]);
+    main.innerHTML = `<div class="tarjetas">${tarjeta("Entregado", kg(r.kilosEntregados))}${tarjeta("Liquidado", kg(r.kilosLiquidados))}${tarjeta("Pendiente de liquidar", kg(r.kilosPendientesLiquidar), r.kilosPendientesLiquidar > 0 ? "warn" : "")}${tarjeta("Importe liquidado", eur(r.importeLiquidado))}</div>`
+      + bloque("Liquidaciones", liqs.map(l => `<div class="fila"><div class="d"><strong>${esc(l.numero || "")}</strong><small>${fecha(l.desde)} – ${fecha(l.hasta)} · ${kg(l.kilos)}</small></div><div class="num">${eur(l.aPagar)}<br><button data-pdf="/portal/agricultor/liquidaciones/${l.id}/pdf">PDF</button></div></div>`), "Todavía no hay liquidaciones.")
+      + bloque("Entregas", entregas.map(e => `<div class="fila"><div class="d"><strong>${fecha(e.fecha)}</strong> <span style="color:var(--muted)">${esc(e.numero || "")}</span><small>${e.lineas.map(l => `${esc(l.producto)}${l.calibre ? " (" + esc(l.calibre) + ")" : ""}: ${kg(l.netoKg)}`).join(" · ")}</small></div><div class="num">${kg(e.netoKg)}</div></div>`), "Todavía no hay entregas.");
+  }
+
+  async function cliente() {
+    const [r, facturas, albaranes] = await Promise.all([api("/portal/cliente/resumen"), api("/portal/cliente/facturas"), api("/portal/cliente/albaranes")]);
+    main.innerHTML = `<div class="tarjetas">${tarjeta("Pendiente de pago", eur(r.pendiente))}${tarjeta("Vencido", eur(r.vencido), r.vencido > 0 ? "neg" : "")}${tarjeta("Próximo vencimiento", fecha(r.proximoVencimiento))}</div>`
+      + bloque("Facturas", facturas.map(f => `<div class="fila"><div class="d"><strong>${esc(f.numero)}</strong><small>${fecha(f.fecha)} · vence ${fecha(f.vencimiento)}${f.pendiente > 0 ? (f.vencida ? ' · <span class="neg">vencida</span>' : "") : ' · <span class="ok">pagada</span>'}</small></div><div class="num">${eur(f.total)}${f.pendiente > 0 && f.pendiente < f.total ? `<small>pendiente ${eur(f.pendiente)}</small>` : ""}<br><button data-pdf="/portal/cliente/facturas/${f.id}/pdf">PDF</button></div></div>`), "No hay facturas.")
+      + bloque("Albaranes", albaranes.map(a => `<div class="fila"><div class="d"><strong>${esc(a.numero)}</strong><small>${fecha(a.fecha)}${a.referencia ? " · " + esc(a.referencia) : ""}</small></div><div class="num">${eur(a.base)}<br><button data-pdf="/portal/cliente/albaranes/${a.id}/pdf">PDF</button></div></div>`), "No hay albaranes.");
+  }
+
+  main.addEventListener("click", e => { const b = e.target.closest("button[data-pdf]"); if (b) pdf(b.dataset.pdf, b); });
+
+  (async () => {
+    try {
+      const yo = await entrar();
+      if (!yo) return;
+      document.title = yo.empresa ? `Portal · ${yo.empresa}` : "Portal";
+      document.getElementById("titulo").textContent = yo.empresa || "Portal";
+      document.getElementById("subtitulo").textContent = (yo.tipo === "Agricultor" ? "Portal del agricultor · " : "Portal del cliente · ") + yo.nombre;
+      await (yo.tipo === "Agricultor" ? agricultor() : cliente());
+    } catch (e) { fallo(e.message); }
+  })();
+</script>
+</body>
+</html>
