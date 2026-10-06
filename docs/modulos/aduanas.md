@@ -119,5 +119,5 @@ código postal y rectificativas.
 ## Certificados fitosanitarios
 
 Cada carta de porte (la expedición) puede llevar certificados fitosanitarios: de exportación, de reexportación o
-pasaporte fitosanitario UE. Se imprimen en la casilla 5 del CMR y salen en los datos para el agente de aduanas. Ver
+pasaporte fitosanitario UE. Se citan en el PDF de la carta de porte y salen en los datos para el agente de aduanas. Ver
 [carta de porte](../carta-de-porte.md#certificados-fitosanitarios).

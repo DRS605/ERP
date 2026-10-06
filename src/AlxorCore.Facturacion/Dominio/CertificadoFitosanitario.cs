@@ -19,7 +19,7 @@ public enum TipoCertificadoFitosanitario
 
 /// <summary>
 /// Certificado fitosanitario de una expedición (su carta de porte): número, fecha, país de destino, organismo que lo
-/// expide y, opcionalmente, el documento escaneado. Se cita en los documentos anexos del CMR y en los datos de aduana.
+/// expide y, opcionalmente, el documento escaneado. Se cita en los documentos que acompañan a la carta de porte y en los datos de aduana.
 /// </summary>
 public sealed class CertificadoFitosanitario : RaizAgregadoEmpresa<Guid>
 {

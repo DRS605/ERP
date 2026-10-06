@@ -18,25 +18,12 @@ aquí se emite como documento con su PDF, opcionalmente ligado a un albarán de 
   carga**, **observaciones** y **líneas de mercancía** (descripción, bultos, peso en kg). Totales de
   bultos y peso calculados.
 
-## Carta de porte internacional (CMR)
+## Datos de transporte
 
-Si el país de origen (la empresa) y el de destino (el cliente) son distintos, la carta de porte es **internacional**
-y su PDF es un **CMR**: el modelo del Convenio de Ginebra de 1956, con sus 24 casillas numeradas y bilingües, en tres
-ejemplares (remitente en rojo, consignatario en azul y transportista en verde). El tipo también se puede fijar a
-mano.
-
-| Casilla | Qué lleva |
-|---|---|
-| 1 · 2 · 16 | Remitente con NIF y EORI; consignatario; transportista, matrícula, remolque y conductores |
-| 3 · 4 · 21 | Lugar de entrega, lugar y fecha de carga con sus países, y lugar y fecha de emisión |
-| 5 | Documentos anexos (los indicados en la carta y los certificados fitosanitarios registrados) |
-| 6 a 12 | Por línea: marcas, bultos, embalaje, mercancía (con su peso neto), número estadístico (código arancelario), peso bruto y volumen |
-| 13 | Instrucciones del remitente; la temperatura de consigna y el termógrafo, en negrita |
-| 14 · 19 | Portes pagados o debidos; Incoterm 2020 y su lugar, contenedor y precinto |
-| 15 · 17 · 18 · 20 · 22 a 24 | En blanco: las rellenan a mano el transportista y el consignatario (reservas, firmas y recibo) |
-
-La carta de porte nacional mantiene su formato, con el remolque, el conductor, la temperatura, el Incoterm y los
-portes cuando se indican.
+La carta de porte es siempre el documento **nacional** (no se emite CMR). Cuando se indican, el PDF lleva además el
+remolque, el conductor, la temperatura de consigna y el termógrafo, el Incoterm y su lugar, los países de origen y
+destino, los portes, los documentos que acompañan a la mercancía (los indicados en la carta y los certificados
+fitosanitarios registrados) y las instrucciones del remitente.
 
 ## Transporte y comercio exterior
 
@@ -90,7 +77,7 @@ Cada certificado guarda:
 - el organismo emisor, la mercancía y unas observaciones;
 - el documento escaneado, opcional: PDF, JPG o PNG de hasta 5 MB (400 `certificado.documento` si no cumple).
 
-Salen en `certificados` del detalle de la carta («Certificado fitosanitario nº …»), en la casilla 5 del CMR y en los
+Salen en `certificados` del detalle de la carta («Certificado fitosanitario nº …»), en los documentos que acompañan del PDF de la carta y en los
 datos de aduana de la factura. A una carta anulada no se le añaden certificados (409 `certificado.carta_anulada`).
 
 API:
@@ -107,8 +94,7 @@ En la pantalla de cartas de porte, el botón **«Certificados»** los lista, añ
   opcional, `transporte` (ver arriba) y las líneas de mercancía.
 - `GET /transporte/incoterms`; CRUD de `/transporte/transportistas` y `/transporte/vehiculos`.
 - `GET /cartas-porte` y `GET /cartas-porte/{id}` — listado y detalle (permiso `factura.leer`).
-- `GET /cartas-porte/{id}/pdf` — genera el PDF (QuestPDF): el CMR de 24 casillas en tres ejemplares si es
-  internacional; si no, la carta de porte nacional con remitente, destinatario, ruta, transporte, mercancías y firmas.
+- `GET /cartas-porte/{id}/pdf` — genera el PDF (QuestPDF): la carta de porte nacional con remitente, destinatario, ruta, transporte, mercancías y firmas.
 
 ## SPA
 

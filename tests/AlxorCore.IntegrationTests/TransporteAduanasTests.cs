@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using FluentAssertions;
@@ -7,7 +7,7 @@ using Xunit;
 namespace AlxorCore.IntegrationTests;
 
 /// <summary>
-/// Transporte y aduanas: transportistas y vehículos, carta de porte internacional (CMR) con sus datos de comercio
+/// Transporte y aduanas: transportistas y vehículos, carta de porte con sus datos de comercio
 /// exterior, y el DUA de exportación de las facturas exentas (MRN, salida y datos para el agente de aduanas).
 /// </summary>
 public sealed class TransporteAduanasTests : IClassFixture<FabricaApiPruebas>
@@ -22,7 +22,7 @@ public sealed class TransporteAduanasTests : IClassFixture<FabricaApiPruebas>
     private sealed record VehiculoResp(Guid Id, string Matricula, string? MatriculaRemolque, bool Frigorifico);
     private sealed record TransporteResp(string? Incoterm, string? LugarIncoterm, string? PaisOrigen, string? PaisDestino, decimal? TemperaturaConsigna, string? Portes, string? MatriculaRemolque);
     private sealed record LineaResp(string Descripcion, string? CodigoArancelario, decimal? PesoNetoKg);
-    private sealed record CartaResp(Guid Id, string Tipo, string? TransportistaNombre, string? Matricula, TransporteResp Transporte, List<LineaResp> Lineas);
+    private sealed record CartaResp(Guid Id, string? TransportistaNombre, string? Matricula, TransporteResp Transporte, List<LineaResp> Lineas);
     private sealed record DespachoResp(Guid Id, string Mrn, DateOnly? FechaSalida);
     private sealed record ExportacionResp(Guid FacturaId, string Situacion, string? PaisDestino, decimal BaseExportacion);
     private sealed record PartidaResp(string? CodigoArancelario, string? PaisOrigen, decimal Cantidad, decimal? PesoNetoKg, decimal Valor);
@@ -39,7 +39,7 @@ public sealed class TransporteAduanasTests : IClassFixture<FabricaApiPruebas>
     private static async Task<string> CodigoAsync(HttpResponseMessage r) => (await r.Content.ReadFromJsonAsync<ProblemaResp>())!.Codigo;
 
     [Fact]
-    public async Task La_carta_de_porte_a_otro_pais_es_un_cmr_con_transporte_temperatura_incoterm_y_codigo_arancelario()
+    public async Task La_carta_de_porte_a_otro_pais_lleva_transporte_temperatura_incoterm_y_codigo_arancelario()
     {
         var (api, _) = await Ayudas.ConEmpresaAsync(_fabrica);
         var transportista = (await (await api.PostAsJsonAsync("/transporte/transportistas", new { Nombre = "Frigoríficos del Turia SL", Nif = "B98765432", Pais = "España" }))
@@ -66,7 +66,6 @@ public sealed class TransporteAduanasTests : IClassFixture<FabricaApiPruebas>
         });
         r.StatusCode.Should().Be(HttpStatusCode.Created, await r.Content.ReadAsStringAsync());
         var carta = (await r.Content.ReadFromJsonAsync<CartaResp>())!;
-        carta.Tipo.Should().Be("Internacional", "sale de España hacia Francia");
         carta.TransportistaNombre.Should().Be("Frigoríficos del Turia SL", "el transportista es el del vehículo");
         carta.Matricula.Should().Be("1234ABC");
         carta.Transporte.Should().BeEquivalentTo(new TransporteResp("DAP", "Rungis", "ES", "FR", 6m, "Pagados", "R9876BCD"));
@@ -76,12 +75,11 @@ public sealed class TransporteAduanasTests : IClassFixture<FabricaApiPruebas>
         pdf.StatusCode.Should().Be(HttpStatusCode.OK);
         var bytes = await pdf.Content.ReadAsByteArrayAsync();
         Encoding.ASCII.GetString(bytes, 0, 4).Should().Be("%PDF");
-        Encoding.Latin1.GetString(bytes).Should().Contain("/Count 3", "tres ejemplares: remitente, consignatario y transportista");
 
-        // Nacional, y validaciones.
+        // Validaciones.
         var local = await IdAsync(api, "/clientes", new { Nombre = "Frutas Valencia SL", Pais = "España" });
         var nacional = await api.PostAsJsonAsync("/cartas-porte", new { DestinatarioClienteId = local, Lineas = new[] { new { Descripcion = "Naranja", Bultos = 10, PesoKg = 200m } } });
-        (await nacional.Content.ReadFromJsonAsync<CartaResp>())!.Tipo.Should().Be("Nacional");
+        nacional.StatusCode.Should().Be(HttpStatusCode.Created);
         (await CodigoAsync(await api.PostAsJsonAsync("/cartas-porte", new
         {
             DestinatarioClienteId = local, Transporte = new { Incoterm = "FOBX" }, Lineas = new[] { new { Descripcion = "Naranja", Bultos = 1, PesoKg = 1m } },

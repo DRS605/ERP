@@ -43,7 +43,7 @@ public sealed record CartaPorteDto(
     string? TransportistaNombre, string? TransportistaNif, string? Matricula,
     string LugarOrigen, string LugarDestino, DateOnly? FechaCarga, string? Observaciones,
     Guid? AlbaranId, int TotalBultos, decimal TotalPesoKg, IReadOnlyList<LineaCartaPorteDto> Lineas, bool Anulada = false, string? MotivoAnulacion = null,
-    string Tipo = "Nacional", decimal? TotalPesoNetoKg = null, decimal? TotalVolumenM3 = null, TransporteCarta? Transporte = null,
+    decimal? TotalPesoNetoKg = null, decimal? TotalVolumenM3 = null, TransporteCarta? Transporte = null,
     IReadOnlyList<string>? Certificados = null)
 {
     public static CartaPorteDto Desde(CartaPorte c) => new(
@@ -52,9 +52,9 @@ public sealed record CartaPorteDto(
         c.TransportistaNombre, c.TransportistaNif, c.Matricula,
         c.LugarOrigen, c.LugarDestino, c.FechaCarga, c.Observaciones,
         c.AlbaranId, c.TotalBultos, c.TotalPesoKg, c.Lineas.Select(LineaCartaPorteDto.Desde).ToList(), c.AnuladaEn is not null, c.MotivoAnulacion,
-        c.Tipo.ToString(), c.TotalPesoNetoKg, c.TotalVolumenM3, new TransporteCarta
+        c.TotalPesoNetoKg, c.TotalVolumenM3, new TransporteCarta
         {
-            Tipo = c.Tipo, Modo = c.Modo, TransportistaId = c.TransportistaId, VehiculoId = c.VehiculoId, MatriculaRemolque = c.MatriculaRemolque,
+            Modo = c.Modo, TransportistaId = c.TransportistaId, VehiculoId = c.VehiculoId, MatriculaRemolque = c.MatriculaRemolque,
             Conductor = c.Conductor, Conductor2 = c.Conductor2, TemperaturaConsigna = c.TemperaturaConsigna, Termografo = c.Termografo,
             Incoterm = c.Incoterm, LugarIncoterm = c.LugarIncoterm, Portes = c.Portes, DocumentosAnexos = c.DocumentosAnexos, Instrucciones = c.Instrucciones,
             PaisOrigen = c.PaisOrigen, PaisDestino = c.PaisDestino, Naviera = c.Naviera, Buque = c.Buque, Contenedor = c.Contenedor, Precinto = c.Precinto,
@@ -65,7 +65,7 @@ public sealed record CartaPorteDto(
 /// <summary>Resumen de una carta de porte para listados.</summary>
 public sealed record CartaPorteResumen(Guid Id, string NumeroCompleto, DateOnly FechaExpedicion, string DestinatarioNombre, string LugarDestino, int TotalBultos, decimal TotalPesoKg,
     string LugarOrigen = "", string? TransportistaNombre = null, string? Matricula = null, bool Anulada = false, string? MotivoAnulacion = null,
-    string Tipo = "Nacional", string? PaisDestino = null, string? Incoterm = null);
+    string? PaisDestino = null, string? Incoterm = null);
 
 /// <summary>Repositorio de cartas de porte (escritura y numeración).</summary>
 public interface IRepositorioCartasPorte
