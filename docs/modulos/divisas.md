@@ -109,6 +109,78 @@ Las cuentas 668 (Diferencias negativas de cambio) y 768 (Diferencias positivas d
 - El editor de facturas y el de facturas de proveedor tienen el desplegable «Moneda» y el campo del tipo de cambio.
   Muestran el total en la divisa y el contravalor.
 - Los diálogos de cobro y pago de un documento en divisa piden el importe en la divisa y los euros del banco.
+- El editor de presupuestos y pedidos tiene el desplegable «Moneda». La rectificativa muestra la divisa de la original,
+  sin poder cambiarla. El alta de albarán de la SPA también tiene el desplegable, y el listado muestra la divisa.
+
+### Presupuestos, pedidos y albaranes en divisa
+
+El presupuesto, el pedido de venta y el albarán de venta llevan `moneda` (vacío o `EUR`: euros). Sus precios e
+importes están en esa divisa. El tipo de cambio no se guarda en ellos: se fija **al facturar**.
+
+- **Precios.** Cada línea lleva su precio en la divisa, porque la tarifa y el precio del artículo están en euros. Una
+  línea sin precio da 400 `documento.divisa_precio`. En el albarán se admite la línea «por fijar»: se valora después,
+  también en la divisa.
+- **Conceptos.** Los conceptos de línea se definen en euros, así que no se ponen: los automáticos del cliente no se
+  aplican y pedirlos expresamente da 400 `documento.divisa_conceptos`.
+- **Código.** Un código que no sea de tres letras da 400 `documento.moneda`.
+- **De un documento a otro.**
+  - El pedido creado desde un presupuesto hereda su divisa, y los albaranes de entrega, la del pedido.
+  - Aceptar el presupuesto, facturar el pedido o facturar los albaranes emite la factura en la misma divisa, al tipo
+    del día de la emisión (módulo Divisas).
+  - `POST /pedidos-venta/{id}/facturar` y `POST /albaranes-venta/facturar` admiten `tasaCambio` para indicarlo a mano.
+- **Varios albaranes.** No se facturan juntos albaranes en divisas distintas (409 `albaranventa.monedas_distintas`).
+  La facturación masiva los agrupa por cliente, centro y divisa.
+- **PDF.** Los importes llevan el código de la divisa en lugar de «€».
+
+### Rectificativa de una factura en divisa
+
+La rectificativa va en la misma divisa y al **tipo de cambio de la original**. Sus precios se escriben en la divisa y
+cada línea lleva el suyo (400 `documento.divisa_precio`).
+
+## Revalorización al cierre
+
+Lo que queda pendiente de cobro o de pago en divisa al cierre del ejercicio se valora al tipo de cambio del 31/12 (NRV
+11.ª del PGC: partidas monetarias al tipo de cierre). Entran:
+
+- las facturas de venta en divisa emitidas hasta el 31/12 que no estén anuladas;
+- los gastos (facturas de proveedor) en divisa que no estén anulados.
+
+Para cada documento se calcula, con los cobros o pagos hasta el 31/12:
+
+- **Pendiente en divisa:** total en divisa − lo cobrado o pagado en divisa.
+- **Valor en libros:** total en euros − lo liquidado en euros.
+- **Valor al cierre:** pendiente en divisa × tipo vigente a 31/12.
+- **Diferencia:** valor al cierre − valor en libros. Un cliente que vale más, o un proveedor que vale menos, es
+  ganancia (768); al revés, pérdida (668).
+
+Asientos, con origen `RevalorizacionDivisa`, uno por documento:
+
+| Caso | 31/12 | 1/1 del año siguiente |
+|---|---|---|
+| Cliente, ganancia | 430 / 768 | 768 / 430 |
+| Cliente, pérdida | 668 / 430 | 430 / 668 |
+| Proveedor, ganancia | 400 / 768 | 768 / 400 |
+| Proveedor, pérdida | 668 / 400 | 400 / 668 |
+
+La reversión del 1/1 devuelve el saldo al valor en libros. Así, el cobro o el pago del año siguiente calcula su
+diferencia de cambio sobre el valor original, como siempre.
+
+- **Simular** (`simular: true`) calcula sin guardar ni contabilizar nada.
+- **Una por ejercicio.** Repetirla da 409 `revalorizacion.hecha`. Para rehacerla se anula antes.
+- **Anular** deshace los asientos del cierre y de la reversión. Anular dos veces da 409 `revalorizacion.anulada`.
+- **Sin tipo de cambio** de una divisa a 31/12 (ni anterior) da 400 `revalorizacion.sin_tipo_cambio`.
+
+**API:**
+- `GET /divisas/revalorizaciones` (permiso `contabilidad.leer`).
+- `POST /divisas/revalorizaciones` `{ ejercicio, simular }`: 200 al simular, 201 al registrar (permiso
+  `contabilidad.gestionar`).
+- `POST /divisas/revalorizaciones/{id}/anular`.
+
+**Persistencia:** `tesoreria.revalorizacion_divisa` (RLS por empresa, una vigente por ejercicio) y sus líneas en
+`tesoreria.linea_revalorizacion_divisa`, que comparten su RLS.
+
+**En la interfaz:** la pantalla **Divisas** tiene la pestaña «Revalorización al cierre», con Simular, Registrar
+asientos, la lista de las hechas y Anular.
 
 ## Tests
 

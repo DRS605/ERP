@@ -41,6 +41,27 @@ public static class EndpointsDivisas
             .WithSummary("Convierte un importe en divisa a euros a una fecha (tasa vigente).")
             .RequireAuthorization();
 
+        rutas.MapGet("/divisas/revalorizaciones", async (IContextoEmpresa c, AlxorCore.Tesoreria.Aplicacion.GestionRevalorizacionDivisa caso, CancellationToken ct) =>
+                c.EmpresaId is { } e ? Results.Ok(await caso.ListarAsync(e, ct).ConfigureAwait(false))
+                    : ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero.")))
+            .WithTags("Divisas").WithSummary("Revalorizaciones de saldos en divisa al cierre.")
+            .RequierePermiso(Permisos.ContabilidadLeer);
+
+        rutas.MapPost("/divisas/revalorizaciones", async (PeticionRevalorizacion p, IContextoEmpresa c, AlxorCore.Tesoreria.Aplicacion.GestionRevalorizacionDivisa caso,
+                CancellationToken ct) =>
+                c.EmpresaId is not { } e ? ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."))
+                : p.Simular ? (await caso.CalcularAsync(e, p.Ejercicio, false, ct).ConfigureAwait(false)).AOk()
+                : (await caso.CalcularAsync(e, p.Ejercicio, true, ct).ConfigureAwait(false)).ACreado("/divisas/revalorizaciones"))
+            .WithTags("Divisas").WithSummary("Revaloriza a 31/12 lo pendiente de facturas y gastos en divisa (668/768 y reversión el 1/1); ?simular sin guardar.")
+            .RequierePermiso(Permisos.ContabilidadGestionar);
+
+        rutas.MapPost("/divisas/revalorizaciones/{id:guid}/anular", async (Guid id, IContextoEmpresa c, AlxorCore.Tesoreria.Aplicacion.GestionRevalorizacionDivisa caso,
+                CancellationToken ct) =>
+                c.EmpresaId is { } e ? (await caso.AnularAsync(e, id, ct).ConfigureAwait(false)).AOk()
+                    : ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero.")))
+            .WithTags("Divisas").WithSummary("Anula una revalorización con los contraasientos de su ajuste y su reversión.")
+            .RequierePermiso(Permisos.ContabilidadGestionar);
+
         rutas.MapPost("/divisas/diferencias-cambio", DiferenciasAsync)
             .WithTags("Divisas")
             .WithSummary("Calcula las diferencias de cambio de posiciones abiertas en divisa a una fecha.")
@@ -93,4 +114,7 @@ public static class EndpointsDivisas
 
         return (await caso.EjecutarAsync(contexto.EmpresaId.Value, comando, ct).ConfigureAwait(false)).AOk();
     }
+
+    /// <summary>Revalorización del ejercicio; <see cref="Simular"/> la calcula sin guardar.</summary>
+    public sealed record PeticionRevalorizacion(int Ejercicio, bool Simular = false);
 }

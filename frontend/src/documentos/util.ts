@@ -6,6 +6,8 @@ const formatoCant = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 3 })
 
 export const eur = (n: number | null | undefined) => `${formatoEur.format(Number(n) || 0)} €`;
 export const num2 = (n: number | null | undefined) => formatoEur.format(Number(n) || 0);
+/** Importe en euros o, si el documento va en divisa, en esa divisa (1.500,00 USD). */
+export const dinero = (n: number | null | undefined, moneda?: string | null) => (moneda ? `${num2(n)} ${moneda}` : eur(n));
 export const cant = (n: number | null | undefined) => formatoCant.format(Number(n) || 0);
 export const fecha = (s: string | null | undefined) => {
   if (!s) return "";

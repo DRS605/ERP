@@ -121,6 +121,11 @@ public sealed class Presupuesto : RaizAgregadoEmpresa<Guid>
     /// <summary>Fija el centro del documento (al crearlo; los que nacen de otro heredan el suyo).</summary>
     public void AsignarCentro(Guid? centroId) => CentroId = centroId == Guid.Empty ? null : centroId;
 
+    /// <summary>Divisa del documento (ISO 4217); null = euros. Sus precios e importes van en esa divisa.</summary>
+    public string? Moneda { get; private set; }
+
+    public void EstablecerMoneda(string? moneda) => Moneda = moneda;
+
     public string ClienteNombre { get; private set; }
 
     public DateOnly Fecha { get; private set; }

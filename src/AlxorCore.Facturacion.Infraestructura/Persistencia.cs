@@ -367,6 +367,11 @@ internal sealed class RepositorioFacturas : IRepositorioFacturas, IConsultaFactu
             .ToList();
     }
 
+    public async Task<IReadOnlyList<FacturaDto>> EnDivisaAsync(Guid empresaId, DateOnly hasta, CancellationToken ct = default) =>
+        (await _contexto.Facturas.AsNoTracking()
+            .Where(f => f.EmpresaId == empresaId && f.Moneda != null && f.FechaEmision <= hasta && f.Estado != EstadoFactura.Anulada)
+            .ToListAsync(ct).ConfigureAwait(false)).Select(FacturaDto.Desde).ToList();
+
     public async Task<FacturaDto?> ObtenerAsync(Guid facturaId, CancellationToken ct = default)
     {
         var factura = await _contexto.Facturas.SingleOrDefaultAsync(f => f.Id == facturaId, ct).ConfigureAwait(false);
@@ -516,6 +521,7 @@ internal sealed class ConfiguracionPresupuesto : IEntityTypeConfiguration<Presup
         builder.ToTable("presupuesto");
         builder.HasKey(p => p.Id);
         builder.Property(p => p.CentroId).HasColumnName("centro_id");
+        builder.Property(p => p.Moneda).HasColumnName("moneda").HasMaxLength(3);
         builder.Property(p => p.Id).HasColumnName("id");
         builder.Property(p => p.EmpresaId).HasColumnName("empresa_id").IsRequired();
         builder.Property(p => p.NumeroCompleto).HasColumnName("numero_completo").HasMaxLength(30).IsRequired();

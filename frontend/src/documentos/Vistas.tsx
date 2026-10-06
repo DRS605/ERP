@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { abrirFichero, descargarFichero, useDocs } from "./contexto";
 import { ConceptosAplicados, Dialogo } from "./Componentes";
 import { anticiposDisponibles, anticiposFacturados, repartoAnticipos, type Albaran, type Almacen, type Anticipo, type Factura, type FormaPago, type PedidoCompra, type PedidoVenta, type Presupuesto, type Saldo, type TipoIva } from "./tipos";
-import { cant, clasePill, eur, fecha, hoyIso, num2 } from "./util";
+import { cant, clasePill, dinero, eur, fecha, hoyIso, num2 } from "./util";
 
 function Cabecera(props: { titulo: ReactNode; estado?: string; extra?: ReactNode; acciones?: ReactNode; volver: () => void }) {
   return (
@@ -74,7 +74,8 @@ export function VistaFactura(props: { id: string }) {
   const disponibleAnticipos = anticipos.reduce((t, a) => t + a.disponible, 0);
   if (error) return <div className="panel"><p className="dx-rojo">{error}</p></div>;
   if (!f) return <div className="muted">Cargando…</div>;
-  const semilla = { clienteId: f.clienteId ?? undefined, lineas: f.lineas };
+  // En divisa, los precios de partida son los de la divisa; la rectificativa conserva además el tipo de cambio.
+  const semilla = { clienteId: f.clienteId ?? undefined, lineas: f.lineas.map((l) => ({ ...l, precioUnitario: l.precioDivisa ?? l.precioUnitario })), moneda: f.moneda, tasaCambio: f.tasaCambio };
   const coste = f.lineas.reduce((t, l) => t + (l.base - l.margen), 0);
   const emitida = f.estado === "Emitida";
   // Factura de un anticipo: su base va a la 438 (no es venta) y se descontará en la factura final.
@@ -205,7 +206,7 @@ export function VistaPresupuesto(props: { id: string }) {
   if (error) return <div className="panel"><p className="dx-rojo">{error}</p></div>;
   if (!p) return <div className="muted">Cargando…</div>;
   const borrador = p.estado === "Borrador";
-  const semilla = { clienteId: p.clienteId, lineas: p.lineas };
+  const semilla = { clienteId: p.clienteId, lineas: p.lineas, moneda: p.moneda };
   return (
     <div className="dx-editor">
       <div className="panel">
@@ -232,14 +233,14 @@ export function VistaPresupuesto(props: { id: string }) {
         <table>
           <thead><tr><th>Descripción</th><th className="num">Cantidad</th><th className="num">Precio</th><th className="num">Dto</th><th>Impuesto</th><th className="num">Importe</th></tr></thead>
           <tbody>{p.lineas.map((l, i) => (
-            <tr key={i}><td>{l.descripcion}<ConceptosAplicados conceptos={l.conceptos} /></td><td className="num">{cant(l.cantidad)}</td><td className="num">{eur(l.precioUnitario)}</td>
-              <td className="num">{l.porcentajeDescuento ? `${num2(l.porcentajeDescuento)} %` : ""}</td><td>{l.codigoIva}</td><td className="num"><strong>{eur(l.base)}</strong></td></tr>
+            <tr key={i}><td>{l.descripcion}<ConceptosAplicados conceptos={l.conceptos} /></td><td className="num">{cant(l.cantidad)}</td><td className="num">{dinero(l.precioUnitario, p.moneda)}</td>
+              <td className="num">{l.porcentajeDescuento ? `${num2(l.porcentajeDescuento)} %` : ""}</td><td>{l.codigoIva}</td><td className="num"><strong>{dinero(l.base, p.moneda)}</strong></td></tr>
           ))}</tbody>
         </table>
         <div className="dx-totales-vista">
-          <div className="dx-tot"><span className="muted">Base imponible</span><span>{eur(p.baseImponible)}</span></div>
-          <div className="dx-tot"><span className="muted">Impuestos</span><span>{eur(p.cuotaIva)}</span></div>
-          <div className="dx-tot dx-grande"><span>Total</span><span>{eur(p.total)}</span></div>
+          <div className="dx-tot"><span className="muted">Base imponible</span><span>{dinero(p.baseImponible, p.moneda)}</span></div>
+          <div className="dx-tot"><span className="muted">Impuestos</span><span>{dinero(p.cuotaIva, p.moneda)}</span></div>
+          <div className="dx-tot dx-grande"><span>Total</span><span>{dinero(p.total, p.moneda)}</span></div>
         </div>
       </div>
     </div>
@@ -265,7 +266,7 @@ export function VistaPedidoVenta(props: { id: string }) {
   const modificable = (p.estado === "Borrador" || p.estado === "Confirmado") && p.lineas.every((l) => l.cantidadServida === 0);
   const pendiente = p.lineas.some((l) => l.pendienteServir > 0);
   const vivo = p.estado !== "Cancelado" && p.estado !== "Facturado";
-  const semilla = { clienteId: p.clienteId, fecha: p.fecha, lineas: p.lineas };
+  const semilla = { clienteId: p.clienteId, fecha: p.fecha, lineas: p.lineas, moneda: p.moneda };
   return (
     <div className="dx-editor">
       <div className="panel">
@@ -295,11 +296,11 @@ export function VistaPedidoVenta(props: { id: string }) {
           <thead><tr><th>Descripción</th><th className="num">Pedido</th><th className="num">Servido</th><th className="num">Pendiente</th><th className="num">Precio</th><th className="num">Dto</th><th className="num">Importe</th></tr></thead>
           <tbody>{p.lineas.map((l) => (
             <tr key={l.id}><td>{l.descripcion}<ConceptosAplicados conceptos={l.conceptos} /></td><td className="num">{cant(l.cantidad)}</td><td className="num">{cant(l.cantidadServida)}</td>
-              <td className="num">{l.pendienteServir > 0 ? <strong>{cant(l.pendienteServir)}</strong> : "—"}</td><td className="num">{eur(l.precioUnitario)}</td>
-              <td className="num">{l.porcentajeDescuento ? `${num2(l.porcentajeDescuento)} %` : ""}</td><td className="num"><strong>{eur(l.base)}</strong></td></tr>
+              <td className="num">{l.pendienteServir > 0 ? <strong>{cant(l.pendienteServir)}</strong> : "—"}</td><td className="num">{dinero(l.precioUnitario, p.moneda)}</td>
+              <td className="num">{l.porcentajeDescuento ? `${num2(l.porcentajeDescuento)} %` : ""}</td><td className="num"><strong>{dinero(l.base, p.moneda)}</strong></td></tr>
           ))}</tbody>
         </table>
-        <div className="dx-totales-vista"><div className="dx-tot dx-grande"><span>Total (sin impuestos)</span><span>{eur(p.total)}</span></div></div>
+        <div className="dx-totales-vista"><div className="dx-tot dx-grande"><span>Total (sin impuestos)</span><span>{dinero(p.total, p.moneda)}</span></div></div>
       </div>
       <div className="panel">
         <div className="panel-head"><h2>Albaranes de entrega</h2></div>

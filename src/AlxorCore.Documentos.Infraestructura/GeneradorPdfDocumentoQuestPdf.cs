@@ -1,4 +1,4 @@
-using AlxorCore.Documentos.Aplicacion;
+﻿using AlxorCore.Documentos.Aplicacion;
 using AlxorCore.Nucleo.Comun;
 using AlxorCore.Organizacion.Aplicacion.Modelos;
 using QuestPDF.Fluent;
@@ -128,12 +128,12 @@ internal sealed class GeneradorPdfDocumentoQuestPdf : IGeneradorPdfDocumento
                             if (total.Destacado)
                             {
                                 t.Cell().BorderTop(1).BorderColor(color).PaddingTop(4).Text(total.Etiqueta).Bold().FontSize(12).FontColor(color);
-                                t.Cell().BorderTop(1).BorderColor(color).PaddingTop(4).AlignRight().Text($"{N(total.Importe)} €").Bold().FontSize(12).FontColor(color);
+                                t.Cell().BorderTop(1).BorderColor(color).PaddingTop(4).AlignRight().Text($"{N(total.Importe)} {d.Moneda ?? "€"}").Bold().FontSize(12).FontColor(color);
                             }
                             else
                             {
                                 t.Cell().Text(total.Etiqueta);
-                                t.Cell().AlignRight().Text($"{N(total.Importe)} €");
+                                t.Cell().AlignRight().Text($"{N(total.Importe)} {d.Moneda ?? "€"}");
                             }
                         }
                     });

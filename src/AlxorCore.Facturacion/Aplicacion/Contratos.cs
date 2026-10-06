@@ -141,6 +141,10 @@ public interface IConsultaFacturas
 {
     Task<FacturaDto?> ObtenerAsync(Guid facturaId, CancellationToken ct = default);
 
+    /// <summary>Facturas en divisa emitidas hasta la fecha (no anuladas): para revalorizar lo pendiente al cierre.</summary>
+    Task<IReadOnlyList<FacturaDto>> EnDivisaAsync(Guid empresaId, DateOnly hasta, CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<FacturaDto>>([]);
+
     Task<IReadOnlyList<FacturaResumen>> ListarAsync(Guid empresaId, CancellationToken ct = default);
 
     /// <summary>Búsqueda paginada y filtrada de facturas (el filtrado ocurre en la base de datos).</summary>

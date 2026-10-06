@@ -22,6 +22,8 @@ public sealed class TesoreriaDbContext : DbContextEmpresaBase, IUnidadDeTrabajoT
 
     public DbSet<Movimiento> Movimientos => Set<Movimiento>();
 
+    public DbSet<RevalorizacionDivisa> Revalorizaciones => Set<RevalorizacionDivisa>();
+
     public DbSet<PrevisionTesoreria> Previsiones => Set<PrevisionTesoreria>();
 
     public DbSet<Anticipo> Anticipos => Set<Anticipo>();
@@ -435,4 +437,56 @@ internal sealed class RepositorioSalidaTesoreria : IRepositorioSalidaTesoreria
 
     public async Task<IReadOnlyList<MensajeSalida>> PendientesAsync(int maximo, CancellationToken ct = default) =>
         await _ctx.MensajesSalida.Where(m => !m.Procesado).OrderBy(m => m.CreadoEn).Take(maximo).ToListAsync(ct).ConfigureAwait(false);
+}
+
+internal sealed class ConfiguracionRevalorizacionDivisa : IEntityTypeConfiguration<RevalorizacionDivisa>
+{
+    public void Configure(EntityTypeBuilder<RevalorizacionDivisa> builder)
+    {
+        builder.ToTable("revalorizacion_divisa");
+        builder.HasKey(r => r.Id);
+        builder.Property(r => r.Id).HasColumnName("id").ValueGeneratedNever();
+        builder.Property(r => r.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        builder.Property(r => r.Ejercicio).HasColumnName("ejercicio").IsRequired();
+        builder.Property(r => r.Anulada).HasColumnName("anulada").IsRequired();
+        builder.Property(r => r.CreadaEn).HasColumnName("creada_en").IsRequired();
+        builder.Ignore(r => r.FechaCierre);
+        builder.Ignore(r => r.FechaReversion);
+        builder.OwnsMany(r => r.Lineas, l =>
+        {
+            l.ToTable("linea_revalorizacion_divisa");
+            l.WithOwner().HasForeignKey("revalorizacion_id");
+            l.HasKey(x => x.Id);
+            l.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+            l.Property(x => x.TipoDocumento).HasColumnName("tipo_documento").HasMaxLength(10).HasConversion<string>().IsRequired();
+            l.Property(x => x.DocumentoId).HasColumnName("documento_id").IsRequired();
+            l.Property(x => x.Referencia).HasColumnName("referencia").HasMaxLength(200).IsRequired();
+            l.Property(x => x.TerceroId).HasColumnName("tercero_id");
+            l.Property(x => x.TerceroNombre).HasColumnName("tercero_nombre").HasMaxLength(200).IsRequired();
+            l.Property(x => x.Moneda).HasColumnName("moneda").HasMaxLength(3).IsRequired();
+            l.Property(x => x.PendienteDivisa).HasColumnName("pendiente_divisa").HasColumnType("numeric(14,2)").IsRequired();
+            l.Property(x => x.ValorLibros).HasColumnName("valor_libros").HasColumnType("numeric(14,2)").IsRequired();
+            l.Property(x => x.TasaCierre).HasColumnName("tasa_cierre").HasColumnType("numeric(18,8)").IsRequired();
+            l.Property(x => x.ValorCierre).HasColumnName("valor_cierre").HasColumnType("numeric(14,2)").IsRequired();
+            l.Ignore(x => x.Diferencia);
+            l.Ignore(x => x.EsGanancia);
+            l.HasIndex(x => x.DocumentoId).HasDatabaseName("ix_linea_revalorizacion_documento");
+        });
+        builder.HasIndex(r => new { r.EmpresaId, r.Ejercicio }).HasDatabaseName("ix_revalorizacion_divisa_ejercicio");
+        builder.Ignore(r => r.EventosDominio);
+    }
+}
+
+internal sealed class RepositorioRevalorizaciones : IRepositorioRevalorizaciones
+{
+    private readonly TesoreriaDbContext _contexto;
+
+    public RepositorioRevalorizaciones(TesoreriaDbContext contexto) => _contexto = contexto;
+
+    public async Task<IReadOnlyList<RevalorizacionDivisa>> ListarAsync(Guid empresaId, CancellationToken ct = default) =>
+        await _contexto.Revalorizaciones.Where(r => r.EmpresaId == empresaId).ToListAsync(ct).ConfigureAwait(false);
+
+    public Task<RevalorizacionDivisa?> ObtenerAsync(Guid id, CancellationToken ct = default) => _contexto.Revalorizaciones.SingleOrDefaultAsync(r => r.Id == id, ct);
+
+    public void Agregar(RevalorizacionDivisa revalorizacion) => _contexto.Revalorizaciones.Add(revalorizacion);
 }

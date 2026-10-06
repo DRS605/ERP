@@ -4528,7 +4528,7 @@
           `<button class="btn small ghost" onclick="abrirPdfRuta('/albaranes-venta/${a.id}/pdf${a.estado==="PendienteValorar"?"?valorado=false":""}')" title="PDF (con precios si está valorado)">PDF</button>`,
           a.estado==="PendienteFacturar"||a.estado==="Facturado"?`<button class="btn small ghost" onclick="modalDevolucionVenta('${a.id}')" title="Registrar lo que el cliente devuelve">Devolver</button>`:"",
           a.estado!=="Anulado"?`<button class="btn small ghost" onclick="descargarRuta('/integraciones/edi/albaranes/${a.id}/desadv')" title="Aviso de expedición EDIFACT DESADV con los SSCC de los palés">DESADV</button>`:""].filter(Boolean).join(" ");
-        return `<tr><td>${sel}</td><td class="mono">${a.numeroCompleto}</td><td class="muted">${fdate(a.fecha)}</td><td>${a.clienteNombre}</td><td>${a.pedidoId?'<span class="muted">de pedido</span>':"directo"}</td><td class="num">${a.lineas.length}</td><td class="num">${eur(a.base)}</td><td>${ESTADO_ALB[a.estado]||a.estado}</td><td class="right" style="white-space:nowrap">${acc}</td></tr>`;}).join("");
+        return `<tr><td>${sel}</td><td class="mono">${a.numeroCompleto}</td><td class="muted">${fdate(a.fecha)}</td><td>${a.clienteNombre}</td><td>${a.pedidoId?'<span class="muted">de pedido</span>':"directo"}</td><td class="num">${a.lineas.length}</td><td class="num">${a.moneda?`${a.base.toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})} ${a.moneda}`:eur(a.base)}</td><td>${ESTADO_ALB[a.estado]||a.estado}</td><td class="right" style="white-space:nowrap">${acc}</td></tr>`;}).join("");
       const cuerpo=lista.length?`<table data-seleccion="no"><thead><tr><th></th><th>Número</th><th>Fecha</th><th>Cliente</th><th>Origen</th><th class="num">Líneas</th><th class="num">Base</th><th>Estado</th><th></th></tr></thead><tbody>${filas}</tbody></table>`
         :'<p class="muted" style="margin:0">No hay albaranes con este filtro.</p>';
       view(panel("Albaranes de venta",`<p class="muted" style="margin:0 0 12px">La mercancía sale del almacén con el albarán. Un albarán a precio por fijar se valora antes de facturar; marca varios del mismo cliente para sacarlos en una sola factura, o usa la facturación masiva.</p>`+filtros+cuerpo,
@@ -4753,14 +4753,15 @@
       const [clientes,productos]=await Promise.all([api("/clientes"),api("/productos")]); const hoy=new Date().toISOString().slice(0,10); albLineas=1;
       window._albProductos=productos;
       abrir("Nuevo albarán de venta",`<div class="grid2"><div><label>Cliente</label><select id="alb_cli">${clientes.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join("")}</select></div><div><label>Fecha</label><input id="alb_fec" type="date" value="${hoy}"/></div></div>
-        <label>Referencia (opcional)</label><input id="alb_ref" placeholder="Nº de pedido del cliente, matrícula…"/>
+        <div class="grid2"><div><label>Referencia (opcional)</label><input id="alb_ref" placeholder="Nº de pedido del cliente, matrícula…"/></div>
+        <div><label>Moneda</label><select id="alb_mon" title="En divisa, los precios se escriben en esa divisa y el tipo de cambio se fija al facturar">${["EUR","USD","GBP","CHF","NOK","SEK","DKK","PLN","CZK","CAD","JPY","CNY","MAD"].map(m=>`<option value="${m}">${m==="EUR"?"Euros":m}</option>`).join("")}</select></div></div>
         ${IMP.ambos?`<label>Territorio de la operación</label><select id="alb_imp"><option value="Iva"${IMP.siglas==="IVA"?" selected":""}>Península y Baleares · IVA</option><option value="Igic"${IMP.siglas==="IGIC"?" selected":""}>Canarias · IGIC</option></select>`:""}
         <div id="alb_lineas" style="margin-top:10px">${filaAlbaran(0,productos)}</div>
         <button class="btn small ghost" style="margin-top:8px" onclick="masLineaAlbaran()">+ Línea</button>
         <p class="muted" style="font-size:12px;margin:8px 0 0">«Por fijar»: se entrega con un precio estimado (o el de tarifa) y se valora después, antes de facturar.</p>`,
         async()=>{ const lineas=[]; for(let i=0;i<albLineas;i++){ if(!document.getElementById("alb_c"+i)) continue; const pr=val("alb_pr"+i);
             lineas.push({productoId:val("alb_p"+i)||null,descripcion:val("alb_d"+i)||null,cantidad:Number(val("alb_c"+i)),precioUnitario:pr===""?null:Number(pr),precioPorFijar:document.getElementById("alb_f"+i).checked}); }
-          const a=await api("/albaranes-venta",{method:"POST",body:JSON.stringify({clienteId:val("alb_cli"),fecha:val("alb_fec"),referencia:val("alb_ref")||null,impuesto:IMP.ambos?val("alb_imp"):null,lineas})});
+          const a=await api("/albaranes-venta",{method:"POST",body:JSON.stringify({clienteId:val("alb_cli"),fecha:val("alb_fec"),referencia:val("alb_ref")||null,impuesto:IMP.ambos?val("alb_imp"):null,moneda:val("alb_mon")==="EUR"?null:val("alb_mon"),lineas})});
           toast(`Albarán ${a.numeroCompleto} emitido.`,"ok"); vAlbaranesVenta(); });
     }
     function masLineaAlbaran(){ document.getElementById("alb_lineas").insertAdjacentHTML("beforeend",filaAlbaran(albLineas++,window._albProductos||[])); }
@@ -5397,7 +5398,7 @@
     let _divisasCat=[], _difLineas=[];
     async function vDivisas(){
       view('<div class="muted">Cargando…</div>');
-      const [cat,tipos]=await Promise.all([api("/divisas").catch(()=>[]),api("/tipos-cambio").catch(()=>[])]);
+      const [cat,tipos,revs]=await Promise.all([api("/divisas").catch(()=>[]),api("/tipos-cambio").catch(()=>[]),api("/divisas/revalorizaciones").catch(()=>[])]);
       _divisasCat=cat;
       const hoy=new Date().toISOString().slice(0,10);
       window._tiposCambio=tipos;
@@ -5420,8 +5421,32 @@
          <div style="display:flex;gap:10px;align-items:end;margin-bottom:10px"><div><label style="font-size:11px;color:var(--muted);display:block">Fecha de valoración</label><input id="df_fecha" type="date" value="${hoy}"/></div>
          <button class="btn small secondary" onclick="difAnadir()">+ Posición</button><button class="btn small" onclick="calcularDiferencias()">Calcular</button></div>
          <div id="df_lineas"></div><div id="df_res" style="margin-top:12px"></div>`,``);
-      view(pestanas("divisas",[["Tipos de cambio",panelTc],["Conversor",panelConv],["Diferencias de cambio",panelDif]]));
+      const filasRev=revs.length?revs.map(r=>`<tr${r.anulada?' style="opacity:.55"':""}><td><strong>${r.ejercicio}</strong></td><td class="muted">${fdate(r.fechaCierre)} · reversión ${fdate(r.fechaReversion)}</td><td class="num">${eur(r.ganancias)}</td><td class="num">${eur(r.perdidas)}</td><td>${r.lineas.length} documentos</td><td>${r.anulada?'<span class="pill">Anulada</span>':""}</td><td class="right">${r.anulada?"":`<button class="btn small ghost" onclick="anularRevalorizacion('${r.id}',${r.ejercicio})">Anular</button>`}</td></tr>`).join("")
+        :`<tr><td colspan="7" class="muted">Aún no se ha revalorizado ningún cierre.</td></tr>`;
+      const panelRev=panel("Revalorización al cierre",
+        `<p class="muted" style="margin:0 0 10px">Lo pendiente de cobro y de pago de las facturas y gastos en divisa se valora al tipo de cambio del 31/12. La diferencia con el valor en libros va a <strong>768</strong> (ganancia) o <strong>668</strong> (pérdida) contra la cuenta del cliente o del proveedor, y se revierte el 1/1 del ejercicio siguiente. Necesita el tipo de cambio de cada divisa a 31/12 (o anterior).</p>
+         <div style="display:flex;gap:10px;align-items:end;margin-bottom:10px"><div><label style="font-size:11px;color:var(--muted);display:block">Ejercicio</label><input id="rv_ej" type="number" value="${new Date().getFullYear()}" style="width:100px"/></div>
+         <button class="btn small secondary" onclick="revalorizar(true)">Simular</button><button class="btn small" onclick="revalorizar(false)">Registrar asientos</button></div>
+         <div id="rv_res"></div>
+         <h4 style="margin:16px 0 6px">Hechas</h4>
+         <table><thead><tr><th>Ejercicio</th><th>Fechas</th><th class="num">Ganancias</th><th class="num">Pérdidas</th><th></th><th></th><th></th></tr></thead><tbody>${filasRev}</tbody></table>`);
+      view(pestanas("divisas",[["Tipos de cambio",panelTc],["Conversor",panelConv],["Diferencias de cambio",panelDif],["Revalorización al cierre",panelRev]]));
       _difLineas=[]; difAnadir();
+    }
+    async function revalorizar(simular){
+      const res=document.getElementById("rv_res"); const ejercicio=Number(val("rv_ej"));
+      try{
+        const r=await api("/divisas/revalorizaciones",{method:"POST",body:JSON.stringify({ejercicio,simular})});
+        const filas=r.lineas.map(l=>`<tr><td>${l.tipoDocumento==="Factura"?"Factura":"Gasto"} ${agEsc(l.referencia)}</td><td>${agEsc(l.terceroNombre)}</td><td class="num">${l.pendienteDivisa.toLocaleString("es-ES",{minimumFractionDigits:2,maximumFractionDigits:2})} ${l.moneda}</td><td class="num">${eur(l.valorLibros)}</td><td class="num">${l.tasaCierre.toLocaleString("es-ES",{maximumFractionDigits:6})}</td><td class="num">${eur(l.valorCierre)}</td><td class="num" style="color:${l.cuenta==="768"?"var(--pos)":"var(--neg)"}">${eur(l.diferencia)}</td><td class="mono">${l.cuenta}</td></tr>`).join("");
+        res.innerHTML=r.lineas.length?`<table><thead><tr><th>Documento</th><th>Tercero</th><th class="num">Pendiente</th><th class="num">En libros</th><th class="num">Cambio 31/12</th><th class="num">Al cierre</th><th class="num">Diferencia</th><th>Cuenta</th></tr></thead><tbody>${filas}</tbody></table>
+          <p style="margin-top:8px"><strong>Ganancias ${eur(r.ganancias)}</strong> · <strong>Pérdidas ${eur(r.perdidas)}</strong>${simular?' <span class="muted">(simulación: no se ha registrado nada)</span>':""}</p>`
+          :`<p class="muted">No hay nada pendiente en divisa a ${fdate(r.fechaCierre)}.</p>`;
+        if(!simular){ toast("Revalorización registrada: asientos a 31/12 y su reversión a 1/1.","ok"); setTimeout(vDivisas,600); }
+      }catch(e){ res.innerHTML=`<span style="color:var(--neg)">${agEsc(e.message)}</span>`; }
+    }
+    async function anularRevalorizacion(id,ejercicio){
+      if(!confirm(`¿Anular la revalorización de ${ejercicio}? Se anulan sus asientos de cierre y de reversión.`)) return;
+      try{ await api(`/divisas/revalorizaciones/${id}/anular`,{method:"POST"}); toast("Revalorización anulada.","ok"); vDivisas(); }catch(e){ toast(e.message,"err"); }
     }
     function modalTipoCambio(id){
       const hoy=new Date().toISOString().slice(0,10); const t=id?(window._tiposCambio||[]).find(x=>x.id===id):null;

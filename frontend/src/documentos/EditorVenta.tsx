@@ -26,6 +26,9 @@ export interface SemillaVenta {
     conceptos?: ConceptoAplicado[] | null;
   }[];
   rectificaId?: string;
+  /** Divisa del documento de partida (y, en una rectificativa, el tipo de cambio de la original). */
+  moneda?: string | null;
+  tasaCambio?: number | null;
   rectificaNumero?: string;
 }
 
@@ -70,10 +73,11 @@ export function EditorVenta(props: { tipo: TipoVenta; id?: string | null; semill
   const territorioSemilla: "Iva" | "Igic" | null = props.semilla?.lineas.some((l) => /^(IGIC|REAGPIGIC)/i.test(l.codigoIva ?? "")) ? "Igic"
     : props.semilla?.lineas.length ? "Iva" : null;
   const [territorio, setTerritorio] = useState<"Iva" | "Igic">(territorioSemilla ?? "Iva");
-  // Factura en divisa: los precios se escriben en la divisa; el tipo de cambio, si no se indica, es el del día (Divisas).
-  const [moneda, setMoneda] = useState("");
-  const [tasa, setTasa] = useState<number | null>(null);
-  const enDivisa = props.tipo === "factura" && !rectificativa && !!moneda;
+  // Documento en divisa: los precios se escriben en la divisa. En la factura, el tipo de cambio, si no se indica, es el del
+  // día (Divisas); el presupuesto y el pedido lo fijan al facturarse; la rectificativa va en la divisa y al cambio de la original.
+  const [moneda, setMoneda] = useState(props.semilla?.moneda ?? "");
+  const [tasa, setTasa] = useState<number | null>(rectificativa ? props.semilla?.tasaCambio ?? null : null);
+  const enDivisa = !!moneda;
 
   const [calculo, setCalculo] = useState<Factura | null>(null);
   const [errorCalculo, setErrorCalculo] = useState("");
@@ -161,7 +165,7 @@ export function EditorVenta(props: { tipo: TipoVenta; id?: string | null; semill
       formaPagoId: formaPagoId || null,
       recargoEquivalencia: recargo,
       porcentajeIrpf: irpf,
-      conceptosDocumento: conceptosDoc,
+      conceptosDocumento: enDivisa ? [] : conceptosDoc,
       impuesto: ambos && !rectificativa ? territorio : null,
       descontarAnticipos: descontar && facturados.length && !enDivisa ? facturados.map((a) => ({ anticipoId: a.id })) : null,
       moneda: enDivisa ? moneda : null,
@@ -173,7 +177,7 @@ export function EditorVenta(props: { tipo: TipoVenta; id?: string | null; semill
         codigoIva: l.iva,
         porcentajeDescuento: l.dto,
         productoId: l.productoId,
-        ...(rectificativa ? { conceptos: [] } : l.conceptos === undefined ? {} : { conceptos: l.conceptos }),
+        ...(rectificativa || enDivisa ? { conceptos: [] } : l.conceptos === undefined ? {} : { conceptos: l.conceptos }),
       })),
     }),
     [clienteId, fecha, serie, dias, formaPagoId, recargo, irpf, conceptosDoc, validas, props.tipo, rectificativa, descontar, facturados, ambos, territorio, enDivisa, moneda, tasa],
@@ -253,7 +257,7 @@ export function EditorVenta(props: { tipo: TipoVenta; id?: string | null; semill
           codigoIva: c.codigoIva,
           porcentajeDescuento: c.porcentajeDescuento,
           productoId: l.productoId,
-          ...(rectificativa ? {} : l.conceptos === undefined ? {} : { conceptos: l.conceptos }),
+          ...(rectificativa || enDivisa ? {} : l.conceptos === undefined ? {} : { conceptos: l.conceptos }),
         };
       });
       let id: string;
@@ -277,10 +281,10 @@ export function EditorVenta(props: { tipo: TipoVenta; id?: string | null; semill
           return;
         }
       } else if (props.tipo === "presupuesto") {
-        const cuerpo = { clienteId, diasValidez: validez, lineas: lineasFijas, conceptosDocumento: conceptosDoc, impuesto: comando.impuesto };
+        const cuerpo = { clienteId, diasValidez: validez, lineas: lineasFijas, conceptosDocumento: comando.conceptosDocumento, impuesto: comando.impuesto, moneda: comando.moneda };
         id = props.id ? (await api.put<{ id: string }>(`/presupuestos/${props.id}`, cuerpo)).id : (await api.post<{ id: string }>("/presupuestos", cuerpo)).id;
       } else {
-        const cuerpo = { clienteId, fecha, lineas: lineasFijas, conceptosDocumento: conceptosDoc, impuesto: comando.impuesto };
+        const cuerpo = { clienteId, fecha, lineas: lineasFijas, conceptosDocumento: comando.conceptosDocumento, impuesto: comando.impuesto, moneda: comando.moneda };
         id = props.id ? (await api.put<{ id: string }>(`/pedidos-venta/${props.id}`, cuerpo)).id : (await api.post<{ id: string }>("/pedidos-venta", cuerpo)).id;
       }
       anfitrion.aviso(props.tipo === "factura" ? "Factura emitida." : "Documento guardado.", "ok");
@@ -365,16 +369,16 @@ export function EditorVenta(props: { tipo: TipoVenta; id?: string | null; semill
                   )}
                 </>
               )}
-              {props.tipo === "factura" && !rectificativa && (
+              {(!rectificativa || enDivisa) && (
                 <>
                   <div>
                     <label>Moneda</label>
-                    <select value={moneda} onChange={(e) => setMoneda(e.target.value)}>
+                    <select value={moneda} disabled={rectificativa} title={rectificativa ? "La rectificativa va en la divisa de la original" : undefined} onChange={(e) => setMoneda(e.target.value)}>
                       <option value="">EUR · euros</option>
                       {DIVISAS.map((d) => <option key={d} value={d}>{d}</option>)}
                     </select>
                   </div>
-                  {enDivisa && (
+                  {enDivisa && props.tipo === "factura" && (
                     <div>
                       <label>Tipo de cambio (€ por 1 {moneda})</label>
                       <input type="number" step="0.000001" min="0" value={tasa ?? ""} placeholder="El del día" onChange={(e) => setTasa(e.target.value === "" ? null : Number(e.target.value))} />

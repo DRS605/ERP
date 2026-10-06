@@ -1,4 +1,4 @@
-using AlxorCore.Documentos.Aplicacion;
+﻿using AlxorCore.Documentos.Aplicacion;
 using AlxorCore.Facturacion.Aplicacion;
 using AlxorCore.Nucleo.Comun;
 using AlxorCore.Organizacion.Aplicacion.Modelos;
@@ -22,6 +22,7 @@ internal sealed class GeneradorPdfPresupuestoQuestPdf : IGeneradorPdfPresupuesto
         string T(string clave) => TextosImpreso.T(lengua, clave);
         string N(decimal v) => TextosImpreso.Numero(lengua, v);
         var siglas = TextosImpreso.Impuesto(lengua, emisor.ImpuestoIndirecto.Siglas());
+        var simbolo = presupuesto.Moneda ?? "€";
 
         var documento = Document.Create(contenedor =>
         {
@@ -93,9 +94,9 @@ internal sealed class GeneradorPdfPresupuestoQuestPdf : IGeneradorPdfPresupuesto
 
                     col.Item().AlignRight().PaddingTop(15).Column(totales =>
                     {
-                        totales.Item().Text($"{T("Base imponible")}: {N(presupuesto.BaseImponible)} €");
-                        totales.Item().Text($"{siglas}: {N(presupuesto.CuotaIva)} €");
-                        totales.Item().Text($"{T("TOTAL")}: {N(presupuesto.Total)} €").Bold().FontSize(13).FontColor(color);
+                        totales.Item().Text($"{T("Base imponible")}: {N(presupuesto.BaseImponible)} {simbolo}");
+                        totales.Item().Text($"{siglas}: {N(presupuesto.CuotaIva)} {simbolo}");
+                        totales.Item().Text($"{T("TOTAL")}: {N(presupuesto.Total)} {simbolo}").Bold().FontSize(13).FontColor(color);
                     });
 
                     col.Item().PaddingTop(24).Text(T("Leyenda presupuesto"))

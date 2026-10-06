@@ -1,4 +1,4 @@
-using AlxorCore.Nucleo.Aplicacion;
+﻿using AlxorCore.Nucleo.Aplicacion;
 using AlxorCore.Organizacion.Infraestructura.Persistencia;
 using Microsoft.EntityFrameworkCore;
 
@@ -36,6 +36,7 @@ public static class ReferenciasRegistros
                 ("tesoreria.efecto_cartera.tercero_id", "efectos de cartera"),
                 ("tesoreria.renovacion_efecto.tercero_id", "renovaciones de efectos"),
                 ("tesoreria.situacion_deuda.tercero_id", "deudas impagadas o dudosas"),
+                ("tesoreria.linea_revalorizacion_divisa.tercero_id", "revalorizaciones de saldos en divisa"),
                 ("agro.pale.cliente_id", "palés expedidos"),
                 ("agro.plantilla_pale.cliente_id", "plantillas de palé"),
                 ("agro.linea_plan.cliente_id", "planes comerciales"),
@@ -74,6 +75,7 @@ public static class ReferenciasRegistros
                 ("catalogo.producto.proveedor_habitual_id", "artículos de los que es proveedor habitual"),
                 ("inventario.ubicacion_defecto.proveedor_id", "ubicaciones por defecto"),
                 ("tesoreria.efecto_cartera.tercero_id", "efectos de cartera"),
+                ("tesoreria.linea_revalorizacion_divisa.tercero_id", "revalorizaciones de saldos en divisa"),
                 ("contabilidad.cuenta.tercero_id", "movimientos en su subcuenta contable"),
                 ("contabilidad.documento_pendiente.tercero_id", "documentos pendientes de contabilizar"),
                 ("contabilidad.regla_analitica.tercero_id", "reglas de analítica"),

@@ -96,6 +96,10 @@ public interface IConsultaGastos
 {
     Task<GastoDto?> ObtenerAsync(Guid gastoId, CancellationToken ct = default);
 
+    /// <summary>Facturas de proveedor en divisa registradas hasta la fecha (no anuladas): para revalorizar lo pendiente al cierre.</summary>
+    Task<IReadOnlyList<GastoDto>> EnDivisaAsync(Guid empresaId, DateOnly hasta, CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<GastoDto>>([]);
+
     Task<IReadOnlyList<GastoDto>> ListarAsync(Guid empresaId, CancellationToken ct = default);
 
     /// <summary>Búsqueda paginada y filtrada de gastos (el filtrado ocurre en la base de datos).</summary>

@@ -228,6 +228,8 @@ export interface LineaPresupuesto {
 
 export interface Presupuesto {
   id: string;
+  /** Divisa (null en euros): los importes están en ella. */
+  moneda?: string | null;
   numeroCompleto: string;
   clienteId: string;
   clienteNombre: string;
@@ -272,6 +274,7 @@ export interface LineaPedidoVenta {
 
 export interface PedidoVenta {
   id: string;
+  moneda?: string | null;
   estado: string;
   numeroCompleto: string;
   clienteId: string;
@@ -286,6 +289,7 @@ export interface PedidoVenta {
 
 export interface Albaran {
   id: string;
+  moneda?: string | null;
   numeroCompleto: string;
   fecha: string;
   referencia?: string | null;

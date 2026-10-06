@@ -1,4 +1,4 @@
-using AlxorCore.Catalogo.Aplicacion;
+﻿using AlxorCore.Catalogo.Aplicacion;
 using AlxorCore.Facturacion.Dominio;
 using AlxorCore.Nucleo.Aplicacion;
 using AlxorCore.Nucleo.Autorizacion;
@@ -53,6 +53,47 @@ public sealed record DivisaFactura(string Moneda, decimal Tasa);
 /// <summary>Valida la divisa de una factura y congela su tipo de cambio.</summary>
 public static class FacturaEnDivisa
 {
+    /// <summary>Código de la divisa en mayúsculas, o null si el documento va en euros (vacío o EUR).</summary>
+    public static string? Normalizar(string? moneda)
+    {
+        var codigo = string.IsNullOrWhiteSpace(moneda) ? null : moneda.Trim().ToUpperInvariant();
+        return codigo is null or "EUR" ? null : codigo;
+    }
+
+    /// <summary>
+    /// Divisa de un presupuesto, pedido o albarán: null si va en euros. Los precios del documento están en esa divisa
+    /// y el tipo de cambio se fija al facturar.
+    /// </summary>
+    public static Resultado<string?> ValidarMoneda(string? moneda)
+    {
+        var codigo = Normalizar(moneda);
+        return codigo is not null && (codigo.Length != 3 || !codigo.All(char.IsAsciiLetterUpper))
+            ? Resultado.Fallo<string?>(Error.Validacion("documento.moneda", $"«{moneda}» no es un código de divisa (USD, GBP, CHF…)."))
+            : Resultado.Ok(codigo);
+    }
+
+    /// <summary>
+    /// Divisa de un presupuesto, pedido o albarán con sus líneas: los precios se escriben en la divisa (la tarifa está en
+    /// euros) y no se ponen conceptos de línea, que se definen en euros.
+    /// </summary>
+    public static Resultado<string?> ValidarDocumento(string? moneda, bool lineasSinPrecio, bool conConceptos)
+    {
+        var codigo = ValidarMoneda(moneda);
+        if (codigo.EsFallo || codigo.Valor is null)
+        {
+            return codigo;
+        }
+
+        if (lineasSinPrecio)
+        {
+            return Resultado.Fallo<string?>(Error.Validacion("documento.divisa_precio", $"En un documento en {codigo.Valor} cada línea lleva su precio en esa divisa."));
+        }
+
+        return conConceptos
+            ? Resultado.Fallo<string?>(Error.Validacion("documento.divisa_conceptos", "Un documento en divisa no lleva conceptos de línea (se definen en euros)."))
+            : codigo;
+    }
+
     /// <summary>
     /// Null si la factura va en euros. La tasa es la indicada o la vigente a la fecha en el módulo de Divisas. Una
     /// factura en divisa no admite conceptos de línea, suplidos ni descuento de anticipos (que se definen en euros).
@@ -280,8 +321,8 @@ public sealed class EmitirFactura
             return Resultado.Fallo<FacturaDto>(resolucion.Error);
         }
 
-        var conConceptos = await ResolucionLineasFactura.AplicarConceptosAsync(_conceptos, cliente.Id, comando.Lineas, resolucion.Valor, comando.ConceptosDocumento, true,
-            new ContextoConceptos(cliente.Tipo, fechaPrecio), ct)
+        var conConceptos = await ResolucionLineasFactura.AplicarConceptosAsync(_conceptos, cliente.Id, comando.Lineas, resolucion.Valor, comando.ConceptosDocumento,
+            FacturaEnDivisa.Normalizar(comando.Moneda) is null, new ContextoConceptos(cliente.Tipo, fechaPrecio), ct)
             .ConfigureAwait(false);
         if (conConceptos.EsFallo)
         {

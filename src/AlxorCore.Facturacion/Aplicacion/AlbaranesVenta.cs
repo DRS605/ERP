@@ -1,4 +1,4 @@
-using AlxorCore.Catalogo.Aplicacion;
+﻿using AlxorCore.Catalogo.Aplicacion;
 using AlxorCore.Facturacion.Dominio;
 using AlxorCore.Nucleo.Comun;
 using AlxorCore.Nucleo.Resultados;
@@ -20,14 +20,16 @@ public sealed record LineaAlbaranComando(decimal Cantidad, string? Descripcion =
 
 /// <summary>Albarán directo. Sin conceptos en una línea se ponen los automáticos del cliente y el artículo (sus reglas).</summary>
 public sealed record CrearAlbaranVentaComando(Guid ClienteId, IReadOnlyList<LineaAlbaranComando> Lineas, DateOnly? Fecha = null, string? Referencia = null,
-    string? Observaciones = null, IReadOnlyList<ConceptoSolicitado>? ConceptosDocumento = null, AlxorCore.Nucleo.Comun.TipoImpuesto? Impuesto = null, Guid? CentroId = null);
+    string? Observaciones = null, IReadOnlyList<ConceptoSolicitado>? ConceptosDocumento = null, AlxorCore.Nucleo.Comun.TipoImpuesto? Impuesto = null, Guid? CentroId = null,
+    string? Moneda = null);
 
 /// <summary>Precio definitivo de una línea (por su número de orden en el albarán).</summary>
 public sealed record PrecioLineaAlbaranComando(int Orden, decimal PrecioUnitario, decimal? PorcentajeDescuento = null);
 
 public sealed record ValorarAlbaranVentaComando(IReadOnlyList<PrecioLineaAlbaranComando> Lineas);
 
-public sealed record FacturarAlbaranesComando(IReadOnlyList<Guid> AlbaranIds, DateOnly? FechaEmision = null, Guid? FormaPagoId = null, int? DiasVencimiento = null);
+public sealed record FacturarAlbaranesComando(IReadOnlyList<Guid> AlbaranIds, DateOnly? FechaEmision = null, Guid? FormaPagoId = null, int? DiasVencimiento = null,
+    decimal? TasaCambio = null);
 
 /// <summary>
 /// Facturación masiva: los albaranes valorados y pendientes hasta una fecha (de un cliente o de todos), una factura por
@@ -159,6 +161,14 @@ public sealed class CrearAlbaranVenta
             return Resultado.Fallo<AlbaranVentaDto>(Error.NoEncontrado("cliente.no_encontrado", "El cliente no existe."));
         }
 
+        // En divisa los precios van en la divisa (o por fijar) y no hay conceptos, que se definen en euros.
+        var moneda = FacturaEnDivisa.ValidarDocumento(comando.Moneda, (comando.Lineas ?? []).Any(l => l.PrecioUnitario is null && !l.PrecioPorFijar),
+            (comando.ConceptosDocumento ?? []).Count > 0 || (comando.Lineas ?? []).Any(l => (l.Conceptos ?? []).Count > 0));
+        if (moneda.EsFallo)
+        {
+            return Resultado.Fallo<AlbaranVentaDto>(moneda.Error);
+        }
+
         var fecha = comando.Fecha ?? DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
         var empresa = _empresas is null ? null : await _empresas.ObtenerAsync(empresaId, ct).ConfigureAwait(false);
         var territorio = TerritorioOperacion.Resolver(empresa, comando.Impuesto, (comando.Lineas ?? []).Select(l => l.CodigoIva));
@@ -216,7 +226,7 @@ public sealed class CrearAlbaranVenta
         }
 
         // Cargos y abonos: los pedidos en cada línea o los automáticos del cliente (reglas por cliente, tipo y artículo), y los del documento.
-        if (_conceptos is not null && lineas.Count > 0)
+        if (_conceptos is not null && lineas.Count > 0 && moneda.Valor is null)
         {
             var entrada = lineas.Select((l, i) => new LineaConceptos(l.ProductoId, l.Cantidad,
                 AlxorCore.Nucleo.Comun.Redondeo.Dos(l.Cantidad * (l.PrecioUnitario ?? 0m) * (1m - l.PorcentajeDescuento / 100m)), comando.Lineas![i].Conceptos,
@@ -240,6 +250,7 @@ public sealed class CrearAlbaranVenta
         }
 
         albaran.Valor.AsignarCentro(comando.CentroId);
+        albaran.Valor.EstablecerMoneda(moneda.Valor);
 
         _albaranes.Agregar(albaran.Valor);
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
@@ -336,7 +347,7 @@ public sealed class FacturarAlbaranesVenta
             return Resultado.Fallo<FacturaDto>(Error.NoEncontrado("albaranventa.no_encontrado", "Algún albarán no existe."));
         }
 
-        return await FacturarAsync(empresaId, albaranes, comando.FechaEmision, comando.FormaPagoId, comando.DiasVencimiento, ct).ConfigureAwait(false);
+        return await FacturarAsync(empresaId, albaranes, comando.FechaEmision, comando.FormaPagoId, comando.DiasVencimiento, ct, comando.TasaCambio).ConfigureAwait(false);
     }
 
     /// <summary>Factura masiva de los albaranes pendientes y valorados hasta una fecha.</summary>
@@ -351,7 +362,7 @@ public sealed class FacturarAlbaranesVenta
 
         var grupos = comando.UnaFacturaPorAlbaran
             ? listos.OrderBy(a => a.ClienteNombre, StringComparer.CurrentCulture).ThenBy(a => a.Fecha).ThenBy(a => a.Numero).Select(a => (IReadOnlyList<AlbaranVentaDto>)[a]).ToList()
-            : listos.GroupBy(a => (a.ClienteId, a.CentroId)).OrderBy(g => g.First().ClienteNombre, StringComparer.CurrentCulture).Select(g => (IReadOnlyList<AlbaranVentaDto>)g.ToList()).ToList();
+            : listos.GroupBy(a => (a.ClienteId, a.CentroId, a.Moneda)).OrderBy(g => g.First().ClienteNombre, StringComparer.CurrentCulture).Select(g => (IReadOnlyList<AlbaranVentaDto>)g.ToList()).ToList();
 
         var facturas = new List<FacturaGeneradaDto>();
         var errores = new List<ErrorFacturacionDto>();
@@ -373,7 +384,7 @@ public sealed class FacturarAlbaranesVenta
     }
 
     private async Task<Resultado<FacturaDto>> FacturarAsync(Guid empresaId, IReadOnlyList<AlbaranVenta> albaranes, DateOnly? fechaEmision, Guid? formaPagoId,
-        int? diasVencimiento, CancellationToken ct)
+        int? diasVencimiento, CancellationToken ct, decimal? tasaCambio = null)
     {
         if (albaranes.Select(a => a.ClienteId).Distinct().Count() > 1)
         {
@@ -395,6 +406,11 @@ public sealed class FacturarAlbaranesVenta
             return Resultado.Fallo<FacturaDto>(Error.Conflicto("albaranventa.centros_distintos", "Los albaranes son de centros distintos: factúralos por separado."));
         }
 
+        if (ordenados.Select(a => a.Moneda).Distinct().Count() > 1)
+        {
+            return Resultado.Fallo<FacturaDto>(Error.Conflicto("albaranventa.monedas_distintas", "Los albaranes van en divisas distintas: factúralos por separado."));
+        }
+
         // Lo devuelto y aún sin abonar se descuenta en la propia factura del albarán.
         var devoluciones = _devoluciones is null ? []
             : (await _devoluciones.DeAlbaranesAsync(ordenados.Select(a => a.Id).ToList(), ct).ConfigureAwait(false))
@@ -406,7 +422,8 @@ public sealed class FacturarAlbaranesVenta
         }
 
         // La fecha de operación es la de la última entrega (art. 75 LIVA: el devengo es la puesta a disposición).
-        var comando = new EmitirFacturaComando(ordenados[0].ClienteId, lineas, fechaEmision, ordenados[^1].Fecha, DiasVencimiento: diasVencimiento, FormaPagoId: formaPagoId, CentroId: centros[0]);
+        var comando = new EmitirFacturaComando(ordenados[0].ClienteId, lineas, fechaEmision, ordenados[^1].Fecha, DiasVencimiento: diasVencimiento, FormaPagoId: formaPagoId, CentroId: centros[0],
+            Moneda: ordenados[0].Moneda, TasaCambio: tasaCambio);
         var factura = await _emitir.EjecutarAsync(empresaId, comando, ct).ConfigureAwait(false);
         if (factura.EsFallo)
         {

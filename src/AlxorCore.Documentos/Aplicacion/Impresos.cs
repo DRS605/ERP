@@ -1,4 +1,4 @@
-using AlxorCore.Organizacion.Aplicacion.Modelos;
+﻿using AlxorCore.Organizacion.Aplicacion.Modelos;
 
 namespace AlxorCore.Documentos.Aplicacion;
 
@@ -22,7 +22,7 @@ public sealed record TotalImpreso(string Etiqueta, decimal Importe, bool Destaca
 public sealed record DocumentoImpreso(
     string Titulo, string Numero, DateOnly Fecha, TerceroImpreso Tercero, IReadOnlyList<LineaImpresa> Lineas,
     IReadOnlyList<TotalImpreso> Totales, IReadOnlyList<(string Etiqueta, string Valor)>? Datos = null, string? Observaciones = null,
-    string? Leyenda = null, string? TituloCantidad = null, bool Valorado = true, string? Idioma = null);
+    string? Leyenda = null, string? TituloCantidad = null, bool Valorado = true, string? Idioma = null, string? Moneda = null);
 
 /// <summary>Puerto de generación del PDF de un documento comercial genérico.</summary>
 public interface IGeneradorPdfDocumento

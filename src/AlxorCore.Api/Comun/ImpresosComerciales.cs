@@ -1,4 +1,4 @@
-using AlxorCore.Agro.Aplicacion;
+﻿using AlxorCore.Agro.Aplicacion;
 using AlxorCore.Compras.Aplicacion;
 using AlxorCore.Documentos.Aplicacion;
 using AlxorCore.Facturacion.Aplicacion;
@@ -70,7 +70,7 @@ public sealed class ImpresosComerciales
         if (a.Anulado) datos.Add((T("Estado"), T("ANULADO")));
         var totales = valorado ? new List<TotalImpreso> { new(T("Base"), a.Base, Destacado: true) } : [];
         var doc = new DocumentoImpreso(T("Albarán"), a.NumeroCompleto, a.Fecha, await ClienteAsync(a.ClienteId, a.ClienteNombre, ct, i).ConfigureAwait(false),
-            lineas, totales, datos, a.Observaciones, valorado ? T("Leyenda albarán") : null, Valorado: valorado, Idioma: i);
+            lineas, totales, datos, a.Observaciones, valorado ? T("Leyenda albarán") : null, Valorado: valorado, Idioma: i, Moneda: a.Moneda);
         return await PdfAsync(empresaId, doc, $"albaran-{a.NumeroCompleto}", ct).ConfigureAwait(false);
     }
 
@@ -90,7 +90,7 @@ public sealed class ImpresosComerciales
         // El estado (borrador, confirmado…) solo sale en castellano: es un dato interno.
         var doc = new DocumentoImpreso(T("Pedido de venta"), p.NumeroCompleto, p.Fecha, await ClienteAsync(p.ClienteId, p.ClienteNombre, ct, i).ConfigureAwait(false),
             lineas, [new TotalImpreso(T("Base"), Redondeo.Dos(p.Lineas.Sum(l => l.Base)), Destacado: true)], i == IdiomasDocumento.Castellano ? [("Estado", p.Estado)] : [],
-            Leyenda: T("Leyenda pedido venta"), Idioma: i);
+            Leyenda: T("Leyenda pedido venta"), Idioma: i, Moneda: p.Moneda);
         return await PdfAsync(empresaId, doc, $"pedido-{p.NumeroCompleto}", ct).ConfigureAwait(false);
     }
 

@@ -1,4 +1,4 @@
-using AlxorCore.Catalogo.Aplicacion;
+﻿using AlxorCore.Catalogo.Aplicacion;
 using AlxorCore.Facturacion.Dominio;
 using AlxorCore.Nucleo.Comun;
 using AlxorCore.Nucleo.Resultados;
@@ -74,6 +74,12 @@ public sealed class EmitirRectificativa
             return Resultado.Fallo<FacturaDto>(marcado.Error);
         }
 
+        // En divisa, los precios van en la divisa de la original (el del artículo está en euros).
+        if (original.Moneda is { } enDivisa && comando.Lineas.Any(l => l.PrecioUnitario is null))
+        {
+            return Resultado.Fallo<FacturaDto>(Error.Validacion("documento.divisa_precio", $"En una rectificativa en {enDivisa} cada línea lleva su precio en esa divisa."));
+        }
+
         // La rectificativa corrige la original: lleva su mismo impuesto (IVA o IGIC).
         var resolucion = await ResolucionLineasFactura.ResolverAsync(comando.Lineas, _productos, ct, false, empresaId, _resolverIva, impuestoEmpresa: original.Impuesto).ConfigureAwait(false);
         if (resolucion.EsFallo)
@@ -81,7 +87,14 @@ public sealed class EmitirRectificativa
             return Resultado.Fallo<FacturaDto>(resolucion.Error);
         }
 
-        var mencionFiscal = await ResolucionLineasFactura.MencionFiscalAsync(empresaId, resolucion.Valor, _resolverIva, ct).ConfigureAwait(false);
+        // La rectificativa de una factura en divisa va en la misma divisa y al tipo de cambio de la original.
+        var lineas = resolucion.Valor;
+        if (original.Moneda is { } moneda && original.TasaCambio is { } tasa)
+        {
+            lineas = lineas.Select(l => l with { PrecioDivisa = l.PrecioUnitario, TasaCambio = tasa }).ToList();
+        }
+
+        var mencionFiscal = await ResolucionLineasFactura.MencionFiscalAsync(empresaId, lineas, _resolverIva, ct).ConfigureAwait(false);
         var cliente = new ClienteFacturado(
             original.ClienteId, original.ClienteNombre, original.ClienteNif,
             original.ClienteCalle, original.ClienteCodigoPostal, original.ClientePoblacion, original.ClienteProvincia, original.Pais, original.ActividadNegocioId);
@@ -108,7 +121,7 @@ public sealed class EmitirRectificativa
 
         var numeroFactura = numero.Valor;
         var rectificativa = Factura.EmitirRectificativa(
-            empresaId, numeroFactura, fecha, cliente, resolucion.Valor, porcentajeIrpf, facturaOriginalId, comando.Motivo, _reloj);
+            empresaId, numeroFactura, fecha, cliente, lineas, porcentajeIrpf, facturaOriginalId, comando.Motivo, _reloj);
         if (rectificativa.EsFallo)
         {
             return Resultado.Fallo<FacturaDto>(rectificativa.Error);
@@ -116,6 +129,11 @@ public sealed class EmitirRectificativa
 
         rectificativa.Valor.EstablecerMencionFiscal(mencionFiscal);
         rectificativa.Valor.EstablecerImpuesto(original.Impuesto);
+        if (original.Moneda is { } m && original.TasaCambio is { } t)
+        {
+            rectificativa.Valor.EstablecerDivisa(m, t);
+        }
+
         rectificativa.Valor.AsignarCentro(original.CentroId, original.CajaId);
         await RegistroVerifactu.AplicarAsync(empresaId, rectificativa.Valor, _empresas, _facturas, _reloj, ct).ConfigureAwait(false);
         _facturas.Agregar(rectificativa.Valor);

@@ -213,6 +213,11 @@ internal sealed class RepositorioGastos : IRepositorioGastos, IConsultaGastos
             && g.NumeroFactura != null && EF.Functions.ILike(g.NumeroFactura, patron) && (g.FechaFactura ?? g.Fecha).Year == anio && g.Id != excluirId, ct);
     }
 
+    public async Task<IReadOnlyList<GastoDto>> EnDivisaAsync(Guid empresaId, DateOnly hasta, CancellationToken ct = default) =>
+        (await _contexto.Gastos.AsNoTracking()
+            .Where(g => g.EmpresaId == empresaId && g.Moneda != null && g.Fecha <= hasta && g.Estado != EstadoGasto.Anulado)
+            .ToListAsync(ct).ConfigureAwait(false)).Select(GastoDto.Desde).ToList();
+
     public async Task<GastoDto?> ObtenerAsync(Guid gastoId, CancellationToken ct = default)
     {
         var gasto = await _contexto.Gastos.SingleOrDefaultAsync(g => g.Id == gastoId, ct).ConfigureAwait(false);

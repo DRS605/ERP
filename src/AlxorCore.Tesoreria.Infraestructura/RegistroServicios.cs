@@ -54,6 +54,8 @@ public static class RegistroServicios
         servicios.AddScoped<AnularMovimiento>();
         servicios.AddScoped<IRepositorioSalidaTesoreria, RepositorioSalidaTesoreria>();
         servicios.AddScoped<ContabilizacionTesoreria>();
+        servicios.AddScoped<IRepositorioRevalorizaciones, RepositorioRevalorizaciones>();
+        servicios.AddScoped<GestionRevalorizacionDivisa>();
         servicios.AddScoped<ActualizarPrevision>();
         servicios.AddScoped<AnularAnticipo>();
         servicios.AddScoped<CrearPrevision>();
