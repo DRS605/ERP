@@ -6,7 +6,7 @@ using AlxorCore.Nucleo.Tiempo;
 namespace AlxorCore.Facturacion.Dominio;
 
 /// <summary>
-/// Mercancía de una línea: descripción, bultos y peso bruto, y sus datos de transporte (marcas, embalaje, número
+/// Mercancía de una línea: descripción, bultos y peso bruto, y las casillas del CMR (marcas, embalaje, número
 /// estadístico o código arancelario, volumen) y el peso neto.
 /// </summary>
 public sealed record DatosLineaCarta(string? Descripcion, int Bultos, decimal PesoKg, string? Marcas = null, string? Embalaje = null,
@@ -28,7 +28,7 @@ public sealed class LineaCartaPorte
         PesoKg = pesoKg;
     }
 
-    /// <summary>Marcas y números de los bultos .</summary>
+    /// <summary>Marcas y números de los bultos (casilla 6 del CMR).</summary>
     public string? Marcas { get; private set; }
 
     /// <summary>Clase de embalaje: palés, cajas, a granel… (casilla 8).</summary>
@@ -151,7 +151,8 @@ public sealed class CartaPorte : RaizAgregadoEmpresa<Guid>
 
     public string? MotivoAnulacion { get; private set; }
 
-    // --- Comercio exterior (Incoterm, portes, países) ---
+    // --- Tipo y comercio exterior (CMR, Incoterm, portes, países) ---
+    public TipoCartaPorte Tipo { get; private set; } = TipoCartaPorte.Nacional;
     public ModoTransporte Modo { get; private set; } = ModoTransporte.Carretera;
     public string? Incoterm { get; private set; }
     public string? LugarIncoterm { get; private set; }
@@ -183,7 +184,8 @@ public sealed class CartaPorte : RaizAgregadoEmpresa<Guid>
     public string? Reserva { get; private set; }
 
     /// <summary>
-    /// Aplica los datos de transporte (ya normalizados).
+    /// Aplica los datos de transporte (ya normalizados). Sin tipo indicado, es internacional (CMR) si los países de
+    /// origen y destino son distintos.
     /// </summary>
     public void AplicarTransporte(TransporteCarta t)
     {
@@ -213,6 +215,7 @@ public sealed class CartaPorte : RaizAgregadoEmpresa<Guid>
         Vuelo = t.Vuelo;
         Awb = t.Awb;
         Reserva = t.Reserva;
+        Tipo = t.Tipo ?? (PaisOrigen is { } o && PaisDestino is { } d && o != d ? TipoCartaPorte.Internacional : TipoCartaPorte.Nacional);
     }
 
     /// <summary>Peso neto total, si todas las líneas lo tienen.</summary>

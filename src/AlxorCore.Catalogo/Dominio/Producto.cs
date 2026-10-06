@@ -263,7 +263,7 @@ public sealed class Producto : RaizAgregadoGrupo<Guid>
         return Resultado.Ok();
     }
 
-    /// <summary>Código arancelario (NC de 8 dígitos o TARIC de 10) para la aduana e Intrastat.</summary>
+    /// <summary>Código arancelario (NC de 8 dígitos o TARIC de 10) para la aduana, el CMR e Intrastat.</summary>
     public string? CodigoArancelario { get; private set; }
 
     /// <summary>País de origen de la mercancía (ISO alfa-2).</summary>

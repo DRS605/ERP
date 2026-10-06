@@ -402,6 +402,14 @@ namespace AlxorCore.Facturacion.Infraestructura.Persistencia.Migraciones
                         .HasColumnType("character varying(40)")
                         .HasColumnName("termografo");
 
+                    b.Property<string>("Tipo")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(15)
+                        .HasColumnType("character varying(15)")
+                        .HasDefaultValue("Nacional")
+                        .HasColumnName("tipo");
+
                     b.Property<Guid?>("TransportistaId")
                         .HasColumnType("uuid")
                         .HasColumnName("transportista_id");

@@ -253,6 +253,7 @@ internal sealed class ConfiguracionCartaPorte : IEntityTypeConfiguration<CartaPo
         builder.Property(c => c.CreadoEn).HasColumnName("creado_en").IsRequired();
         builder.Property(c => c.AnuladaEn).HasColumnName("anulada_en");
         builder.Property(c => c.MotivoAnulacion).HasColumnName("motivo_anulacion").HasMaxLength(CartaPorte.LongitudMaximaTexto);
+        builder.Property(c => c.Tipo).HasColumnName("tipo").HasMaxLength(15).HasConversion<string>().IsRequired().HasDefaultValue(TipoCartaPorte.Nacional).HasSentinel((TipoCartaPorte)0);
         builder.Property(c => c.Modo).HasColumnName("modo").HasMaxLength(15).HasConversion<string>().IsRequired().HasDefaultValue(ModoTransporte.Carretera).HasSentinel((ModoTransporte)0);
         builder.Property(c => c.Incoterm).HasColumnName("incoterm").HasMaxLength(3);
         builder.Property(c => c.LugarIncoterm).HasColumnName("lugar_incoterm").HasMaxLength(100);
@@ -516,7 +517,7 @@ internal sealed class RepositorioCartasPorte : IRepositorioCartasPorte, IConsult
             .ToListAsync(ct).ConfigureAwait(false);
         return cartas
             .Select(c => new CartaPorteResumen(c.Id, c.NumeroCompleto, c.FechaExpedicion, c.DestinatarioNombre, c.LugarDestino, c.TotalBultos, c.TotalPesoKg,
-                c.LugarOrigen, c.TransportistaNombre, c.Matricula, c.AnuladaEn is not null, c.MotivoAnulacion, c.PaisDestino, c.Incoterm))
+                c.LugarOrigen, c.TransportistaNombre, c.Matricula, c.AnuladaEn is not null, c.MotivoAnulacion, c.Tipo.ToString(), c.PaisDestino, c.Incoterm))
             .ToList();
     }
 
@@ -528,7 +529,7 @@ internal sealed class RepositorioCartasPorte : IRepositorioCartasPorte, IConsult
         return await ConCertificadosAsync(cartas.Select(CartaPorteDto.Desde).ToList(), ct).ConfigureAwait(false);
     }
 
-    /// <summary>Añade a cada carta los certificados fitosanitarios que la acompañan (para la carta de porte y la aduana).</summary>
+    /// <summary>Añade a cada carta los certificados fitosanitarios que la acompañan (para el CMR y la aduana).</summary>
     private async Task<IReadOnlyList<CartaPorteDto>> ConCertificadosAsync(IReadOnlyList<CartaPorteDto> cartas, CancellationToken ct)
     {
         var ids = cartas.Select(c => c.Id).ToList();

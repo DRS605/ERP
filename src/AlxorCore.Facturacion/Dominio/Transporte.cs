@@ -4,6 +4,13 @@ using AlxorCore.Nucleo.Resultados;
 
 namespace AlxorCore.Facturacion.Dominio;
 
+/// <summary>Carta de porte nacional o internacional (CMR, Convenio de Ginebra de 1956).</summary>
+public enum TipoCartaPorte
+{
+    Nacional = 1,
+    Internacional = 2,
+}
+
 public enum ModoTransporte
 {
     Carretera = 1,
@@ -13,7 +20,7 @@ public enum ModoTransporte
     Multimodal = 5,
 }
 
-/// <summary>Quién paga el porte.</summary>
+/// <summary>Quién paga el porte (casilla 14 del CMR).</summary>
 public enum Portes
 {
     Pagados = 1,
@@ -136,12 +143,13 @@ public sealed class Vehiculo : RaizAgregadoEmpresa<Guid>
 }
 
 /// <summary>
-/// Datos de transporte y de comercio exterior de una carta de porte: los del transporte (portes, documentos anexos,
+/// Datos de transporte y de comercio exterior de una carta de porte: los del CMR (tipo, portes, documentos anexos,
 /// instrucciones del remitente, Incoterm), el vehículo y los conductores, la temperatura de consigna y el termógrafo
 /// (mercancía perecedera), y los de un envío marítimo o aéreo.
 /// </summary>
 public sealed record TransporteCarta
 {
+    public TipoCartaPorte? Tipo { get; init; }
 
     public ModoTransporte Modo { get; init; } = ModoTransporte.Carretera;
 
@@ -168,10 +176,10 @@ public sealed record TransporteCarta
 
     public Portes? Portes { get; init; }
 
-    /// <summary>Documentos que acompañan (factura, certificado fitosanitario…).</summary>
+    /// <summary>Documentos que acompañan (factura, certificado fitosanitario…): casilla 5 del CMR.</summary>
     public string? DocumentosAnexos { get; init; }
 
-    /// <summary>Instrucciones del remitente (aduanas, temperatura…).</summary>
+    /// <summary>Instrucciones del remitente (aduanas, temperatura…): casilla 13 del CMR.</summary>
     public string? Instrucciones { get; init; }
 
     public string? PaisOrigen { get; init; }
@@ -203,6 +211,11 @@ public sealed record TransporteCarta
     /// <summary>Valida y normaliza (textos recortados, códigos en mayúsculas).</summary>
     public Resultado<TransporteCarta> Normalizar()
     {
+        if (Tipo is { } t && !Enum.IsDefined(t))
+        {
+            return Fallo("cartaporte.tipo", "El tipo es Nacional o Internacional.");
+        }
+
         if (!Enum.IsDefined(Modo))
         {
             return Fallo("cartaporte.modo", "El modo de transporte no es válido.");
