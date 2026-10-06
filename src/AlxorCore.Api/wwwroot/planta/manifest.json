@@ -1,0 +1,15 @@
+{
+  "name": "Planta · volcado de palots",
+  "short_name": "Planta",
+  "description": "Terminal de la línea: lee los palots que se vuelcan, también sin conexión.",
+  "start_url": "/planta/index.html",
+  "scope": "/planta/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0f141b",
+  "theme_color": "#0f141b",
+  "lang": "es",
+  "icons": [
+    { "src": "/planta/icono.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

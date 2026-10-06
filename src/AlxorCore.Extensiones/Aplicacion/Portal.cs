@@ -60,6 +60,12 @@ public sealed class AccesosPortal
     public async Task<Resultado<ClaveAccesoPortalDto>> CrearAsync(Guid empresaId, DatosAccesoPortal d, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(d);
+        if (d.Tipo == TipoPortal.TerminalPlanta)
+        {
+            // Un terminal no es de ningún tercero: se identifica a sí mismo.
+            d = d with { TerceroId = Guid.NewGuid() };
+        }
+
         if ((await _repo.ListarAsync(empresaId, ct).ConfigureAwait(false)).Any(a => a.Tipo == d.Tipo && a.TerceroId == d.TerceroId && a.VigenteEl(Hoy)))
         {
             return Resultado.Fallo<ClaveAccesoPortalDto>(Error.Conflicto("portal.duplicado", "Ya tiene un acceso vigente: regenera su clave o revócalo."));

@@ -14,6 +14,12 @@ public enum TipoPortal
 
     /// <summary>Un cliente: sus albaranes, sus facturas y lo que tiene pendiente.</summary>
     Cliente = 2,
+
+    /// <summary>
+    /// Un terminal de la planta (tableta o lector en una línea): registra volcados de palots. No es de ningún tercero: su
+    /// «tercero» es el propio acceso.
+    /// </summary>
+    TerminalPlanta = 3,
 }
 
 /// <summary>
@@ -67,7 +73,7 @@ public sealed class AccesoPortal : RaizAgregadoEmpresa<Guid>
         ArgumentNullException.ThrowIfNull(reloj);
         if (!Enum.IsDefined(tipo))
         {
-            return Resultado.Fallo<(AccesoPortal, string)>(Error.Validacion("portal.tipo", "El acceso es de un agricultor o de un cliente."));
+            return Resultado.Fallo<(AccesoPortal, string)>(Error.Validacion("portal.tipo", "El acceso es de un agricultor, de un cliente o de un terminal de la planta."));
         }
 
         if (terceroId == Guid.Empty || string.IsNullOrWhiteSpace(nombre))

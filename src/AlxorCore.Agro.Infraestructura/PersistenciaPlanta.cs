@@ -137,7 +137,8 @@ internal sealed class RepositorioPlanta : IRepositorioPlanta
     public async Task<bool> LineaEnUsoAsync(Guid id, CancellationToken ct = default) =>
         await _ctx.Set<Calibrado>().AnyAsync(x => x.LineaId == id, ct).ConfigureAwait(false)
         || await _ctx.Set<OrdenLinea>().AnyAsync(x => x.LineaId == id, ct).ConfigureAwait(false)
-        || await _ctx.Set<ParadaLinea>().AnyAsync(x => x.LineaId == id, ct).ConfigureAwait(false);
+        || await _ctx.Set<ParadaLinea>().AnyAsync(x => x.LineaId == id, ct).ConfigureAwait(false)
+        || await _ctx.Set<VolcadoPalot>().AnyAsync(x => x.LineaId == id, ct).ConfigureAwait(false);
 
     public async Task<IReadOnlyList<Calibrado>> CalibradosAsync(Guid empresaId, Guid? partidaId, DateOnly? desde, DateOnly? hasta, CancellationToken ct = default) =>
         await _ctx.Set<Calibrado>().Where(x => x.EmpresaId == empresaId && (partidaId == null || x.PartidaId == partidaId)
@@ -158,4 +159,55 @@ internal sealed class RepositorioPlanta : IRepositorioPlanta
     public void Agregar(object entidad) => _ctx.Add(entidad);
 
     public void Eliminar(object entidad) => _ctx.Remove(entidad);
+}
+
+internal sealed class ConfiguracionVolcadoPalot : IEntityTypeConfiguration<VolcadoPalot>
+{
+    public void Configure(EntityTypeBuilder<VolcadoPalot> b)
+    {
+        Columnas.Base(b, "volcado_palot");
+        b.Property(x => x.LineaId).HasColumnName("linea_id").IsRequired();
+        b.Property(x => x.OrdenLineaId).HasColumnName("orden_linea_id");
+        b.Property(x => x.PaleId).HasColumnName("pale_id").IsRequired();
+        b.Property(x => x.Sscc).HasColumnName("sscc").HasMaxLength(18).IsRequired();
+        b.Property(x => x.Kilos).HasColumnName("kilos").HasColumnType(Columnas.Kilos).IsRequired();
+        b.Property(x => x.VolcadoEn).HasColumnName("volcado_en").IsRequired();
+        b.Property(x => x.Fecha).HasColumnName("fecha").IsRequired();
+        b.Property(x => x.RegistradoEn).HasColumnName("registrado_en").IsRequired();
+        b.Property(x => x.ClaveTerminal).HasColumnName("clave_terminal").HasMaxLength(VolcadoPalot.LongitudClave).IsRequired();
+        b.Property(x => x.Terminal).HasColumnName("terminal").HasMaxLength(VolcadoPalot.LongitudTerminal).IsRequired();
+        Columnas.Enum(b.Property(x => x.Estado), "estado");
+        b.Property(x => x.ParteConfeccionId).HasColumnName("parte_confeccion_id");
+        b.Property(x => x.MotivoAnulacion).HasColumnName("motivo_anulacion").HasMaxLength(200);
+        b.HasIndex(x => new { x.EmpresaId, x.ClaveTerminal }).IsUnique().HasDatabaseName("ux_volcado_palot_clave");
+        b.HasIndex(x => new { x.EmpresaId, x.Fecha }).HasDatabaseName("ix_volcado_palot_fecha");
+        b.HasIndex(x => x.LineaId).HasDatabaseName("ix_volcado_palot_linea");
+        b.HasIndex(x => x.OrdenLineaId).HasDatabaseName("ix_volcado_palot_orden");
+        b.HasIndex(x => x.PaleId).HasDatabaseName("ix_volcado_palot_pale");
+        b.HasIndex(x => x.ParteConfeccionId).HasDatabaseName("ix_volcado_palot_parte");
+    }
+}
+
+internal sealed class RepositorioVolcados : IRepositorioVolcados
+{
+    private readonly AgroDbContext _ctx;
+
+    public RepositorioVolcados(AgroDbContext ctx) => _ctx = ctx;
+
+    public async Task<IReadOnlyList<VolcadoPalot>> ListarAsync(Guid empresaId, DateOnly desde, DateOnly hasta, Guid? lineaId, CancellationToken ct = default) =>
+        await _ctx.Set<VolcadoPalot>().Where(x => x.EmpresaId == empresaId && x.Fecha >= desde && x.Fecha <= hasta && (lineaId == null || x.LineaId == lineaId))
+            .ToListAsync(ct).ConfigureAwait(false);
+
+    public Task<VolcadoPalot?> ObtenerAsync(Guid id, CancellationToken ct = default) => _ctx.Set<VolcadoPalot>().SingleOrDefaultAsync(x => x.Id == id, ct);
+
+    public Task<VolcadoPalot?> PorClaveAsync(Guid empresaId, string clave, CancellationToken ct = default) =>
+        _ctx.Set<VolcadoPalot>().SingleOrDefaultAsync(x => x.EmpresaId == empresaId && x.ClaveTerminal == clave, ct);
+
+    public async Task<IReadOnlyList<VolcadoPalot>> VivosDelPaleAsync(Guid paleId, CancellationToken ct = default) =>
+        await _ctx.Set<VolcadoPalot>().Where(x => x.PaleId == paleId && x.Estado != EstadoVolcado.Anulado).ToListAsync(ct).ConfigureAwait(false);
+
+    public async Task<IReadOnlyList<VolcadoPalot>> DelParteAsync(Guid parteId, CancellationToken ct = default) =>
+        await _ctx.Set<VolcadoPalot>().Where(x => x.ParteConfeccionId == parteId).ToListAsync(ct).ConfigureAwait(false);
+
+    public void Agregar(VolcadoPalot volcado) => _ctx.Add(volcado);
 }

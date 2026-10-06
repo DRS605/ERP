@@ -6,7 +6,8 @@ empresa.
 
 ## Accesos
 
-*Configuración → Portal de agricultores y clientes* (permiso de gestionar usuarios).
+*Configuración → Portal y terminales de planta* (permiso de gestionar usuarios). Los terminales de la planta usan el
+mismo mecanismo de enlace: ver [app-planta.md](app-planta.md).
 
 - **Nuevo acceso**: se elige el agricultor o el cliente y, si se quiere, una fecha de caducidad. Se muestra el enlace
   `https://…/portal.html#<clave>` **una sola vez**. La base de datos guarda solo la huella SHA-256 del secreto.

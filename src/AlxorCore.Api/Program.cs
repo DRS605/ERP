@@ -358,6 +358,7 @@ app.MapearCentros();
 app.MapearSeguroCredito();
 app.MapearPortal();
 app.MapearPanelAgro();
+app.MapearVolcados();
 app.MapearPlastico();
 app.MapearMigracion();
 app.MapearCobranza();
@@ -383,6 +384,8 @@ app.MapearExportacion();
 
 // La nueva interfaz (SPA React) se sirve bajo /app con enrutado en el cliente: cualquier ruta
 // /app/... que no sea un fichero devuelve su index.html. Debe ir antes del fallback general.
+// App de planta (PWA del terminal de línea): la entrada es siempre su index.html; el fragmento con la clave se conserva.
+app.MapGet("/planta", () => Results.Redirect("/planta/index.html")).ExcludeFromDescription().AllowAnonymous();
 app.MapFallbackToFile("/app/{*rest}", "app/index.html");
 
 // Cualquier otra ruta no-API devuelve la interfaz clásica (enrutado en el cliente).

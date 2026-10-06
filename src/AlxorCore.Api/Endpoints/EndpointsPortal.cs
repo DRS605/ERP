@@ -43,7 +43,7 @@ public static class EndpointsPortal
     public sealed record ResumenClientePortalDto(decimal Pendiente, decimal Vencido, int FacturasPendientes, DateOnly? ProximoVencimiento);
 
     /// <summary>La sesión del portal de la petición (del claim).</summary>
-    private sealed record Sesion(TipoPortal Tipo, Guid AccesoId, Guid TerceroId);
+    internal sealed record Sesion(TipoPortal Tipo, Guid AccesoId, Guid TerceroId);
 
     public static IEndpointRouteBuilder MapearPortal(this IEndpointRouteBuilder rutas)
     {
@@ -58,6 +58,7 @@ public static class EndpointsPortal
                 {
                     string? nombre = d.Tipo switch
                     {
+                        TipoPortal.TerminalPlanta => string.IsNullOrWhiteSpace(d.Nombre) ? null : d.Nombre.Trim(),
                         TipoPortal.Cliente => (await clientes.ObtenerAsync(d.TerceroId, ct).ConfigureAwait(false))?.Nombre,
                         TipoPortal.Agricultor =>
                             (await maestros.AgricultoresAsync(e, ct).ConfigureAwait(false)).FirstOrDefault(x => x.Id == d.TerceroId)?.Nombre,
@@ -65,7 +66,7 @@ public static class EndpointsPortal
                     };
                     if (nombre is null)
                     {
-                        return ResultadosHttp.AProblema(Error.NoEncontrado("portal.tercero", "No existe ese agricultor o cliente."));
+                        return ResultadosHttp.AProblema(Error.NoEncontrado("portal.tercero", d.Tipo == TipoPortal.TerminalPlanta ? "Ponle un nombre al terminal (por ejemplo, «Volcador línea 1»)." : "No existe ese agricultor o cliente."));
                     }
 
                     var r = await s.CrearAsync(e, d with { Nombre = nombre }, ct).ConfigureAwait(false);
@@ -232,7 +233,7 @@ public static class EndpointsPortal
     private static IResult NoEsSuyo() => ResultadosHttp.AProblema(Error.NoEncontrado("portal.no_encontrado", "El documento no existe."));
 
     /// <summary>Comprueba que la sesión es del portal, del tipo pedido y que su acceso sigue vigente (revocado o caducado, se acaba).</summary>
-    private static async Task<IResult> ConSesion(ClaimsPrincipal u, AccesosPortal accesos, TipoPortal? tipo,
+    internal static async Task<IResult> ConSesion(ClaimsPrincipal u, AccesosPortal accesos, TipoPortal? tipo,
         Func<Sesion, AccesoPortal, Task<IResult>> accion, CancellationToken ct)
     {
         var partes = (u.FindFirstValue(ClaimsAlxor.Portal) ?? string.Empty).Split(':');
