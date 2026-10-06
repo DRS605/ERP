@@ -3,6 +3,7 @@ using System;
 using AlxorCore.Inventario.Infraestructura;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AlxorCore.Inventario.Infraestructura.Persistencia.Migraciones
 {
     [DbContext(typeof(InventarioDbContext))]
-    partial class InventarioDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261006093237_RecuentosInventario")]
+    partial class RecuentosInventario
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -270,58 +273,6 @@ namespace AlxorCore.Inventario.Infraestructura.Persistencia.Migraciones
                         .HasDatabaseName("ux_recuento_inventario_codigo");
 
                     b.ToTable("recuento_inventario", "inventario");
-                });
-
-            modelBuilder.Entity("AlxorCore.Inventario.Dominio.ReglaReaprovisionamiento", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<bool>("Activa")
-                        .HasColumnType("boolean")
-                        .HasColumnName("activa");
-
-                    b.Property<Guid?>("AlmacenId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("almacen_id");
-
-                    b.Property<Guid>("EmpresaId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("empresa_id");
-
-                    b.Property<decimal>("Maximo")
-                        .HasColumnType("numeric(14,3)")
-                        .HasColumnName("maximo");
-
-                    b.Property<decimal>("Minimo")
-                        .HasColumnType("numeric(14,3)")
-                        .HasColumnName("minimo");
-
-                    b.Property<decimal>("Multiplo")
-                        .HasColumnType("numeric(14,3)")
-                        .HasColumnName("multiplo");
-
-                    b.Property<Guid>("ProductoId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("producto_id");
-
-                    b.Property<Guid?>("ProveedorId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("proveedor_id");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AlmacenId")
-                        .HasDatabaseName("ix_regla_reaprovisionamiento_almacen");
-
-                    b.HasIndex("ProductoId")
-                        .HasDatabaseName("ix_regla_reaprovisionamiento_producto");
-
-                    b.HasIndex("ProveedorId")
-                        .HasDatabaseName("ix_regla_reaprovisionamiento_proveedor");
-
-                    b.ToTable("regla_reaprovisionamiento", "inventario");
                 });
 
             modelBuilder.Entity("AlxorCore.Inventario.Dominio.Ubicacion", b =>

@@ -32,6 +32,10 @@ public static class RegistroServicios
         servicios.AddScoped<IRepositorioUbicacionesDefecto, RepositorioUbicacionesDefecto>();
         servicios.AddScoped<IRepositorioLotes, RepositorioLotes>();
         servicios.AddScoped<LotesArticulos>();
+        servicios.AddScoped<IRepositorioRecuentos, RepositorioRecuentos>();
+        servicios.AddScoped<RecuentosInventario>();
+        servicios.AddScoped<IRepositorioReglasReaprovisionamiento, RepositorioReglasReaprovisionamiento>();
+        servicios.AddScoped<ReglasReaprovisionamiento>();
 
         servicios.AddScoped<GestionAlmacenes>();
         servicios.AddScoped<MovimientosInventario>();
@@ -39,6 +43,7 @@ public static class RegistroServicios
         servicios.AddScoped<UbicacionesPorDefecto>();
         servicios.AddScoped<TrazabilidadLote>();
         servicios.AddScoped<IConsultaComposicion, ConsultaComposicionCatalogo>();
+        servicios.AddScoped<IConsultaSeguimiento, ConsultaSeguimientoCatalogo>();
         servicios.AddScoped<MontajeArticulo>();
 
         // Una sola existencia: las ventas salen del almacén y la ficha del artículo refleja el total de los almacenes.

@@ -63,6 +63,50 @@ public static class EndpointsInventario
         g.MapPost("/traspaso", TraspasoAsync).WithSummary("Traspasa stock entre almacenes/ubicaciones.").RequierePermiso(Permisos.InventarioGestionar);
         g.MapPost("/montaje", MontajeAsync).WithSummary("Monta un artículo compuesto: consume componentes y produce el compuesto.").RequierePermiso(Permisos.InventarioGestionar);
 
+        // Números de serie.
+        g.MapPost("/series/entrada", async (EntradaSeriesComando cmd, IContextoEmpresa c, MovimientosInventario caso, CancellationToken ct) =>
+                c.EmpresaId is null ? SinEmpresa() : (await caso.EntradaSeriesAsync(c.EmpresaId.Value, cmd, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Entrada de varias unidades con su número de serie (entran todas o ninguna).").RequierePermiso(Permisos.InventarioGestionar);
+        g.MapGet("/series/{productoId:guid}", async (Guid productoId, IContextoEmpresa c, ConsultasInventario caso, CancellationToken ct) =>
+                c.EmpresaId is null ? SinEmpresa()
+                    : Results.Ok((await caso.StockDeProductoAsync(c.EmpresaId.Value, productoId, ct).ConfigureAwait(false))
+                        .Where(e => e.Cantidad > 0m && e.Lote is not null).OrderBy(e => e.Lote, StringComparer.Ordinal).ToList()))
+            .WithSummary("Números de serie (o lotes) de un artículo que hay en existencias, con su almacén y ubicación.").RequierePermiso(Permisos.InventarioLeer);
+
+        // Stock mínimo y máximo (reaprovisionamiento).
+        g.MapGet("/reaprovisionamiento", async (IContextoEmpresa c, ReglasReaprovisionamiento caso, CancellationToken ct) =>
+                c.EmpresaId is null ? SinEmpresa() : Results.Ok(await caso.ListarAsync(c.EmpresaId.Value, ct).ConfigureAwait(false)))
+            .WithSummary("Reglas de stock mínimo y máximo de los artículos.").RequierePermiso(Permisos.InventarioLeer);
+        g.MapPost("/reaprovisionamiento", async (DatosReglaReaprovisionamiento d, IContextoEmpresa c, ReglasReaprovisionamiento caso, CancellationToken ct) =>
+                c.EmpresaId is null ? SinEmpresa() : (await caso.FijarAsync(c.EmpresaId.Value, d, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Fija el mínimo, el máximo y el múltiplo de compra de un artículo (en un almacén o en todos).").RequierePermiso(Permisos.InventarioGestionar);
+        g.MapDelete("/reaprovisionamiento/{id:guid}", async (Guid id, ReglasReaprovisionamiento caso, CancellationToken ct) =>
+                (await caso.EliminarAsync(id, ct).ConfigureAwait(false)).ASinContenido())
+            .WithSummary("Quita una regla de reaprovisionamiento.").RequierePermiso(Permisos.InventarioGestionar);
+
+        // Inventario físico (recuentos).
+        g.MapGet("/recuentos", async (IContextoEmpresa c, RecuentosInventario caso, CancellationToken ct) =>
+                c.EmpresaId is null ? SinEmpresa() : Results.Ok(await caso.ListarAsync(c.EmpresaId.Value, ct).ConfigureAwait(false)))
+            .WithSummary("Recuentos de inventario físico.").RequierePermiso(Permisos.InventarioLeer);
+        g.MapGet("/recuentos/{id:guid}", async (Guid id, IContextoEmpresa c, RecuentosInventario caso, CancellationToken ct) =>
+                c.EmpresaId is null ? SinEmpresa()
+                    : await caso.ObtenerAsync(c.EmpresaId.Value, id, ct).ConfigureAwait(false) is { } r ? Results.Ok(r)
+                    : ResultadosHttp.AProblema(Error.NoEncontrado("recuento.no_encontrado", "El recuento no existe.")))
+            .WithSummary("Recuento con sus líneas: teórico al abrir, contado y diferencia.").RequierePermiso(Permisos.InventarioLeer);
+        g.MapPost("/recuentos", async (DatosRecuento d, IContextoEmpresa c, RecuentosInventario caso, CancellationToken ct) =>
+                c.EmpresaId is null ? SinEmpresa() : (await caso.AbrirAsync(c.EmpresaId.Value, d, ct).ConfigureAwait(false)) is var r && r.EsCorrecto
+                    ? Results.Created($"/inventario/recuentos/{r.Valor.Id}", r.Valor) : ResultadosHttp.AProblema(r.Error))
+            .WithSummary("Abre un recuento de un almacén (o ubicación, o artículos) congelando su stock teórico.").RequierePermiso(Permisos.InventarioGestionar);
+        g.MapPut("/recuentos/{id:guid}/conteos", async (Guid id, DatosConteo d, IContextoEmpresa c, RecuentosInventario caso, CancellationToken ct) =>
+                c.EmpresaId is null ? SinEmpresa() : (await caso.ContarAsync(c.EmpresaId.Value, id, d, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Anota lo contado (lo que no estaba en el teórico se añade).").RequierePermiso(Permisos.InventarioGestionar);
+        g.MapPost("/recuentos/{id:guid}/cerrar", async (Guid id, DatosCierreRecuento? d, IContextoEmpresa c, RecuentosInventario caso, CancellationToken ct) =>
+                c.EmpresaId is null ? SinEmpresa() : (await caso.CerrarAsync(c.EmpresaId.Value, id, d, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Cierra el recuento y regulariza las diferencias con ajustes.").RequierePermiso(Permisos.InventarioGestionar);
+        g.MapPost("/recuentos/{id:guid}/anular", async (Guid id, RecuentosInventario caso, CancellationToken ct) =>
+                (await caso.AnularAsync(id, ct).ConfigureAwait(false)).ASinContenido())
+            .WithSummary("Anula un recuento abierto sin regularizar nada.").RequierePermiso(Permisos.InventarioGestionar);
+
         g.MapGet("/ubicacion-defecto/producto/{productoId:guid}", ListarUbiDefAsync).WithSummary("Ubicaciones por defecto de un artículo.").RequierePermiso(Permisos.InventarioLeer);
         g.MapPost("/ubicacion-defecto", FijarUbiDefAsync).WithSummary("Fija la ubicación por defecto (por almacén o por proveedor+almacén).").RequierePermiso(Permisos.InventarioGestionar);
 

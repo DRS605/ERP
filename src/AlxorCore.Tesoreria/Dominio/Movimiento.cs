@@ -93,9 +93,28 @@ public sealed class Movimiento : RaizAgregadoEmpresa<Guid>
     /// </summary>
     public string? CuentaPuente { get; private set; }
 
+    /// <summary>Aplicación de un abono de proveedor: el único movimiento (no anulación) con importe negativo.</summary>
+    public bool EsAplicacionAbono { get; private set; }
+
     public const int LongitudCuentaPuente = 12;
 
     public const string MetodoAnulacion = "Anulación";
+
+    /// <summary>
+    /// Aplicación de un abono de proveedor (factura rectificativa recibida, en negativo): el abono queda liquidado con un
+    /// importe negativo contra la cuenta puente, y la factura a la que se aplica, con un pago por lo mismo.
+    /// </summary>
+    public static Resultado<Movimiento> CrearAplicacionAbono(Guid empresaId, Guid abonoId, decimal importe, DateOnly fecha, string? metodo, string cuentaPuente, IReloj reloj)
+    {
+        ArgumentNullException.ThrowIfNull(reloj);
+        if (importe <= 0)
+        {
+            return Resultado.Fallo<Movimiento>(Error.Validacion("movimiento.importe_invalido", "El importe debe ser mayor que cero."));
+        }
+
+        return Resultado.Ok(new Movimiento(Guid.NewGuid(), empresaId, TipoDocumentoTesoreria.Gasto, abonoId, SentidoMovimiento.Pago, -Redondeo.Dos(importe), fecha,
+            string.IsNullOrWhiteSpace(metodo) ? null : Recortar(metodo.Trim()), reloj.AhoraUtc) { CuentaPuente = cuentaPuente, EsAplicacionAbono = true });
+    }
 
     /// <summary>Anulación de un cobro o pago: mismo documento y sentido, importe en negativo.</summary>
     public static Resultado<Movimiento> CrearAnulacion(Movimiento original, DateOnly fecha, IReloj reloj, string? metodo = null)
@@ -118,6 +137,7 @@ public sealed class Movimiento : RaizAgregadoEmpresa<Guid>
             AnulaMovimientoId = original.Id,
             CuentaBancariaId = original.CuentaBancariaId,
             CuentaPuente = original.CuentaPuente,
+            EsAplicacionAbono = original.EsAplicacionAbono,
         };
         return Resultado.Ok(anulacion);
     }

@@ -25,6 +25,13 @@ public static class EndpointsTesoreria
             .WithTags("Tesorería").WithSummary("Registra un pago contra un gasto.")
             .RequierePermiso(Permisos.PagoRegistrar);
 
+        rutas.MapPost("/pagos/abonos/{abonoId:guid}/aplicar", async (Guid abonoId, AplicarAbonoComando? cmd, IContextoEmpresa contexto, AplicarAbonoProveedor caso,
+                CancellationToken ct) =>
+                contexto.EmpresaId is { } e ? (await caso.EjecutarAsync(e, abonoId, cmd, ct).ConfigureAwait(false)).AOk()
+                    : ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero.")))
+            .WithTags("Tesorería").WithSummary("Aplica un abono del proveedor (rectificativa recibida) a una de sus facturas pendientes.")
+            .RequierePermiso(Permisos.PagoRegistrar);
+
         rutas.MapPost("/tesoreria/movimientos/{id:guid}/anular", async (Guid id, PeticionAnularMovimiento? peticion, IContextoEmpresa contexto, AnularMovimiento caso, CancellationToken ct) =>
                 contexto.EmpresaId is null
                     ? ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."))

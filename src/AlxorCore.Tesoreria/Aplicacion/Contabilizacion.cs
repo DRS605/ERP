@@ -93,7 +93,7 @@ public sealed class ContabilizacionTesoreria
         var cuentaDocumento = await CuentaDocumentoAsync(datos, ct).ConfigureAwait(false);
         _salida.Agregar(MensajeSalida.Crear(movimiento.EmpresaId, MensajeSalida.TipoContabilizacion, SalidaJson.Serializar(new DocumentoContabilizable(
             sentido, OrigenMovimiento, movimiento.Id, referencia, terceroId, tercero, movimiento.Fecha,
-            0m, string.Empty, 0m, 0m, 0m, Math.Abs(movimiento.Importe), Anulacion: original is not null, CuentaTesoreria: tesoreria, CuentaTercero: cuentaDocumento)),
+            0m, string.Empty, 0m, 0m, 0m, Math.Abs(movimiento.Importe), Anulacion: (original is not null) != (datos.Importe < 0m), CuentaTesoreria: tesoreria, CuentaTercero: cuentaDocumento)),
             _reloj.AhoraUtc));
 
         // Deuda fuera de su cuenta (impagado 4315, dudoso 436): lo cobrado vuelve antes a la de origen y su deterioro se

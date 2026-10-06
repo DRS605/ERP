@@ -101,6 +101,10 @@ public interface IEntradaInventarioCompras
     /// <summary>Salida del almacén al anular una recepción (deshace la entrada; falla si ya no hay esas existencias).</summary>
     Task<Resultado> RegistrarSalidaAsync(Guid empresaId, Guid productoId, Guid almacenId, Guid? proveedorId, decimal cantidad, string? referencia, DateOnly fecha,
         CancellationToken ct = default) => Task.FromResult(Resultado.Ok());
+
+    /// <summary>Salida del almacén por una devolución al proveedor (con su lote o número de serie).</summary>
+    Task<Resultado> DevolverAsync(Guid empresaId, Guid productoId, Guid almacenId, Guid? proveedorId, decimal cantidad, string? lote, string? referencia, DateOnly fecha,
+        CancellationToken ct = default) => RegistrarSalidaAsync(empresaId, productoId, almacenId, proveedorId, cantidad, referencia, fecha, ct);
 }
 
 // ---------------------------------------------------------------------------- Comandos
@@ -801,10 +805,12 @@ public sealed class FacturarPedido
     private readonly IContabilizador _contabilizador;
     private readonly IUnidadDeTrabajoCompras _unidad;
     private readonly IReloj _reloj;
+    private readonly GestionDevolucionesCompra? _devoluciones;
 
-    public FacturarPedido(IRepositorioPedidos pedidos, IContabilizador contabilizador, IUnidadDeTrabajoCompras unidad, IReloj reloj)
+    public FacturarPedido(IRepositorioPedidos pedidos, IContabilizador contabilizador, IUnidadDeTrabajoCompras unidad, IReloj reloj,
+        GestionDevolucionesCompra? devoluciones = null)
     {
-        _pedidos = pedidos; _contabilizador = contabilizador; _unidad = unidad; _reloj = reloj;
+        _pedidos = pedidos; _contabilizador = contabilizador; _unidad = unidad; _reloj = reloj; _devoluciones = devoluciones;
     }
 
     public async Task<Resultado<PedidoDto>> EjecutarAsync(Guid empresaId, Guid pedidoId, FacturarPedidoComando comando, CancellationToken ct = default)
@@ -822,6 +828,9 @@ public sealed class FacturarPedido
             return Resultado.Fallo<PedidoDto>(facturado.Error);
         }
 
+        // Lo devuelto antes de facturar no se factura: la factura sale sin ello.
+        var devuelto = _devoluciones is null ? 0m : await _devoluciones.DescontarEnFacturaAsync(pedido.Id, ct).ConfigureAwait(false);
+        var importe = Redondeo.Dos(facturado.Valor - devuelto);
         var concepto = $"Compra a {pedido.ProveedorTexto}";
         // Los conceptos con cuenta propia (portes pagados a la 624, por ejemplo) van en su propia línea de la factura
         // recibida, a su cuenta; el resto de la línea, a la cuenta de compras.
@@ -831,12 +840,12 @@ public sealed class FacturarPedido
         {
             var propios = pedido.Lineas.SelectMany(l => l.Conceptos.Where(Propio)).GroupBy(c => (c.CuentaContable, c.Nombre))
                 .Select(g => (Redondeo.Dos(g.Sum(c => c.Importe)), (string?)g.Key.CuentaContable, (string?)g.Key.Nombre)).ToList();
-            var resto = Redondeo.Dos(facturado.Valor - propios.Sum(p => p.Item1));
+            var resto = Redondeo.Dos(importe - propios.Sum(p => p.Item1));
             lineas = [(resto, null, concepto), .. propios];
         }
 
         var datos = new DatosContabilizacion(pedido.ProveedorId, pedido.ProveedorTexto, concepto,
-            DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime), facturado.Valor,
+            DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime), importe,
             string.IsNullOrWhiteSpace(comando.CodigoIva) ? "IVA21" : comando.CodigoIva!, comando.PorcentajeIrpf, comando.NumeroFactura, comando.FechaFactura, lineas);
 
         var contabilizado = await _contabilizador.ContabilizarAsync(empresaId, datos, ct).ConfigureAwait(false);
@@ -845,6 +854,7 @@ public sealed class FacturarPedido
             return Resultado.Fallo<PedidoDto>(contabilizado.Error);
         }
 
+        pedido.AnotarFactura(contabilizado.Valor.GastoId, datos.CodigoIva, comando.PorcentajeIrpf, comando.NumeroFactura, comando.FechaFactura);
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return Resultado.Ok(PedidoDto.Desde(pedido));
     }

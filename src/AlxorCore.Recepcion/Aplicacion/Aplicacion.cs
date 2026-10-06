@@ -59,7 +59,10 @@ public interface IUnidadDeTrabajoRecepcion : IUnidadDeTrabajo;
 public sealed record DatosContabilizacion(
     Guid? ProveedorId, string? ProveedorTexto, string Concepto, DateOnly Fecha,
     decimal BaseImponible, string CodigoIva, decimal PorcentajeIrpf, string? NumeroFactura = null, DateOnly? FechaFactura = null,
-    IReadOnlyList<(decimal Base, string? Cuenta, string? Descripcion)>? Lineas = null);
+    IReadOnlyList<(decimal Base, string? Cuenta, string? Descripcion)>? Lineas = null, DatosRectificacionRecibida? Rectificacion = null);
+
+/// <summary>Una factura rectificativa recibida (abono del proveedor): base en negativo y la factura que rectifica.</summary>
+public sealed record DatosRectificacionRecibida(Guid? RectificaGastoId, string? NumeroRectificado, DateOnly? FechaRectificada, string? Motivo);
 
 /// <summary>Resultado de contabilizar: el gasto generado (y, en el futuro, el asiento).</summary>
 public sealed record ResultadoContabilizacion(Guid GastoId, Guid? AsientoId = null);

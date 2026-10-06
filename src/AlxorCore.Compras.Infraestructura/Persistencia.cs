@@ -80,6 +80,11 @@ internal sealed class ConfiguracionPedido : IEntityTypeConfiguration<PedidoCompr
         builder.Property(p => p.Serie).HasColumnName("serie").HasMaxLength(10);
         builder.Ignore(p => p.NumeroCompleto);
         builder.Property(p => p.SolicitudOrigenId).HasColumnName("solicitud_origen_id");
+        builder.Property(p => p.GastoId).HasColumnName("gasto_id");
+        builder.Property(p => p.CodigoIvaFactura).HasColumnName("codigo_iva_factura").HasMaxLength(20);
+        builder.Property(p => p.PorcentajeIrpfFactura).HasColumnName("porcentaje_irpf_factura").HasColumnType("numeric(5,2)").HasDefaultValue(0m).IsRequired();
+        builder.Property(p => p.NumeroFacturaProveedor).HasColumnName("numero_factura_proveedor").HasMaxLength(60);
+        builder.Property(p => p.FechaFacturaProveedor).HasColumnName("fecha_factura_proveedor");
         builder.Property(p => p.EmpresaOrigenId).HasColumnName("empresa_origen_id");
         builder.Property(p => p.PedidoVentaOrigenId).HasColumnName("pedido_venta_origen_id");
         builder.Ignore(p => p.EsTraspasoIntragrupo);
@@ -282,6 +287,80 @@ internal sealed class RepositorioAlbaranes : IRepositorioAlbaranes
         var max = await _contexto.Albaranes.AsNoTracking()
             .Where(a => a.EmpresaId == empresaId && a.Fecha >= desde && a.Fecha <= hasta)
             .MaxAsync(a => (int?)a.Numero, ct).ConfigureAwait(false);
+        return (max ?? 0) + 1;
+    }
+}
+
+internal sealed class ConfiguracionDevolucionCompra : IEntityTypeConfiguration<DevolucionCompra>
+{
+    public void Configure(EntityTypeBuilder<DevolucionCompra> b)
+    {
+        b.ToTable("devolucion_compra");
+        b.HasKey(x => x.Id);
+        b.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+        b.Property(x => x.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        b.Property(x => x.PedidoId).HasColumnName("pedido_id").IsRequired();
+        b.Property(x => x.ProveedorId).HasColumnName("proveedor_id");
+        b.Property(x => x.ProveedorTexto).HasColumnName("proveedor_texto").HasMaxLength(PedidoCompra.LongitudMaximaTexto).IsRequired();
+        b.Property(x => x.Ejercicio).HasColumnName("ejercicio").IsRequired();
+        b.Property(x => x.Numero).HasColumnName("numero").IsRequired();
+        b.Ignore(x => x.NumeroCompleto);
+        b.Property(x => x.Fecha).HasColumnName("fecha").IsRequired();
+        b.Property(x => x.Motivo).HasColumnName("motivo").HasMaxLength(DevolucionCompra.LongitudMotivo);
+        b.Property(x => x.AlmacenId).HasColumnName("almacen_id");
+        b.Property(x => x.Estado).HasColumnName("estado").HasMaxLength(20).HasConversion<string>().IsRequired();
+        b.Property(x => x.GastoAbonoId).HasColumnName("gasto_abono_id");
+        b.Property(x => x.CreadoEn).HasColumnName("creado_en").IsRequired();
+        b.Ignore(x => x.Base);
+        b.Ignore(x => x.Viva);
+        b.HasIndex(x => new { x.EmpresaId, x.Ejercicio, x.Numero }).IsUnique().HasDatabaseName("ux_devolucion_compra_numero");
+        b.HasIndex(x => x.PedidoId).HasDatabaseName("ix_devolucion_compra_pedido");
+        b.HasIndex(x => x.ProveedorId).HasDatabaseName("ix_devolucion_compra_proveedor");
+        b.HasIndex(x => x.AlmacenId).HasDatabaseName("ix_devolucion_compra_almacen");
+        b.HasIndex(x => x.GastoAbonoId).HasDatabaseName("ix_devolucion_compra_gasto");
+        b.OwnsMany(x => x.Lineas, l =>
+        {
+            l.ToTable("linea_devolucion_compra");
+            l.WithOwner().HasForeignKey("devolucion_id");
+            l.HasKey(x => x.Id);
+            l.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+            l.Property<Guid>("devolucion_id").HasColumnName("devolucion_id");
+            l.Property(x => x.LineaPedidoId).HasColumnName("linea_pedido_id").IsRequired();
+            l.Property(x => x.ProductoId).HasColumnName("producto_id");
+            l.Property(x => x.Descripcion).HasColumnName("descripcion").HasMaxLength(PedidoCompra.LongitudMaximaTexto).IsRequired();
+            l.Property(x => x.Cantidad).HasColumnName("cantidad").HasColumnType("numeric(14,3)").IsRequired();
+            l.Property(x => x.PrecioUnitario).HasColumnName("precio_unitario").HasColumnType("numeric(14,4)").IsRequired();
+            l.Property(x => x.Lote).HasColumnName("lote").HasMaxLength(80);
+            l.Ignore(x => x.Base);
+            l.HasIndex("devolucion_id").HasDatabaseName("ix_linea_devolucion_compra_devolucion");
+            l.HasIndex(x => x.ProductoId).HasDatabaseName("ix_linea_devolucion_compra_producto");
+        });
+        b.Navigation(x => x.Lineas).UsePropertyAccessMode(PropertyAccessMode.Field);
+        b.Ignore(x => x.EventosDominio);
+    }
+}
+
+internal sealed class RepositorioDevolucionesCompra : IRepositorioDevolucionesCompra
+{
+    private readonly ComprasDbContext _contexto;
+
+    public RepositorioDevolucionesCompra(ComprasDbContext contexto) => _contexto = contexto;
+
+    public void Agregar(DevolucionCompra devolucion) => _contexto.Add(devolucion);
+
+    public Task<DevolucionCompra?> ObtenerAsync(Guid id, CancellationToken ct = default) => _contexto.Set<DevolucionCompra>().SingleOrDefaultAsync(d => d.Id == id, ct);
+
+    public async Task<IReadOnlyList<DevolucionCompra>> ListarAsync(Guid empresaId, CancellationToken ct = default) =>
+        await _contexto.Set<DevolucionCompra>().Where(d => d.EmpresaId == empresaId).ToListAsync(ct).ConfigureAwait(false);
+
+    public async Task<IReadOnlyList<DevolucionCompra>> DePedidoAsync(Guid pedidoId, CancellationToken ct = default) =>
+        await _contexto.Set<DevolucionCompra>().Where(d => d.PedidoId == pedidoId).ToListAsync(ct).ConfigureAwait(false);
+
+    public async Task<int> SiguienteNumeroAsync(Guid empresaId, int ejercicio, CancellationToken ct = default)
+    {
+        await _contexto.BloquearAsync($"compras.devolucion_compra.{empresaId}.{ejercicio}", ct).ConfigureAwait(false);
+        var max = await _contexto.Set<DevolucionCompra>().AsNoTracking().Where(d => d.EmpresaId == empresaId && d.Ejercicio == ejercicio)
+            .MaxAsync(d => (int?)d.Numero, ct).ConfigureAwait(false);
         return (max ?? 0) + 1;
     }
 }

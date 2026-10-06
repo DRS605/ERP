@@ -48,6 +48,42 @@ public static class EndpointsCompras
         ped.MapPost("/{id:guid}/facturar", FacturarAsync).WithSummary("Factura el pedido (genera el gasto y, en modo Completo, el asiento).").RequierePermiso(Permisos.CompraGestionar);
         ped.MapPost("/{id:guid}/cancelar", CancelarPedidoAsync).WithSummary("Cancela un pedido.").RequierePermiso(Permisos.CompraGestionar);
 
+        // Propuesta de compra (stock mínimo y necesidades de fabricación).
+        rutas.MapGet("/compras/propuesta", async (IContextoEmpresa c, PropuestaCompra caso, CancellationToken ct) =>
+                Empresa(c) is { } e ? Results.Ok(await caso.CalcularAsync(e, ct).ConfigureAwait(false)) : SinEmpresa())
+            .WithTags("Compras · Propuesta").WithSummary("Qué comprar: artículos bajo su mínimo y componentes que faltan para las órdenes de fabricación.")
+            .RequierePermiso(Permisos.CompraLeer);
+        rutas.MapPost("/compras/propuesta/pedidos", async (DatosGenerarPedidos d, IContextoEmpresa c, PropuestaCompra caso, CancellationToken ct) =>
+                Empresa(c) is { } e ? (await caso.GenerarPedidosAsync(e, d, ct).ConfigureAwait(false)).AOk() : SinEmpresa())
+            .WithTags("Compras · Propuesta").WithSummary("Convierte las líneas elegidas de la propuesta en pedidos de compra en borrador, uno por proveedor.")
+            .RequierePermiso(Permisos.CompraGestionar);
+
+        // Devoluciones a proveedor.
+        var dev = rutas.MapGroup("/compras/devoluciones").WithTags("Compras · Devoluciones");
+        dev.MapGet("", async (IContextoEmpresa c, GestionDevolucionesCompra caso, CancellationToken ct) =>
+                Empresa(c) is { } e ? Results.Ok(await caso.ListarAsync(e, ct).ConfigureAwait(false)) : SinEmpresa())
+            .WithSummary("Devoluciones de mercancía a proveedores.").RequierePermiso(Permisos.CompraLeer);
+        dev.MapGet("/{id:guid}", async (Guid id, GestionDevolucionesCompra caso, CancellationToken ct) =>
+                await caso.ObtenerAsync(id, ct).ConfigureAwait(false) is { } d ? Results.Ok(d)
+                    : ResultadosHttp.AProblema(Error.NoEncontrado("devolucion_compra.no_encontrada", "La devolución no existe.")))
+            .WithSummary("Una devolución a proveedor.").RequierePermiso(Permisos.CompraLeer);
+        dev.MapGet("/devolubles/{pedidoId:guid}", async (Guid pedidoId, GestionDevolucionesCompra caso, CancellationToken ct) =>
+                (await caso.DevolublesAsync(pedidoId, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Lo que aún se puede devolver de cada línea recibida del pedido.").RequierePermiso(Permisos.CompraLeer);
+        dev.MapPost("", async (CrearDevolucionCompraComando cmd, IContextoEmpresa c, GestionDevolucionesCompra caso, CancellationToken ct) =>
+                Empresa(c) is { } e ? (await caso.CrearAsync(e, cmd, ct).ConfigureAwait(false)) is var r && r.EsCorrecto
+                    ? Results.Created($"/compras/devoluciones/{r.Valor.Id}", r.Valor) : ResultadosHttp.AProblema(r.Error) : SinEmpresa())
+            .WithSummary("Devuelve mercancía recibida al proveedor (sale del almacén y queda pendiente de abono).").RequierePermiso(Permisos.CompraGestionar);
+        dev.MapPost("/{id:guid}/abonar", async (Guid id, AbonarDevolucionCompraComando cmd, IContextoEmpresa c, GestionDevolucionesCompra caso, CancellationToken ct) =>
+                Empresa(c) is { } e ? (await caso.AbonarAsync(e, id, cmd, ct).ConfigureAwait(false)).AOk() : SinEmpresa())
+            .WithSummary("Registra el abono del proveedor: factura rectificativa recibida en negativo que rectifica la del pedido.").RequierePermiso(Permisos.CompraGestionar);
+        dev.MapPost("/{id:guid}/cerrar-sin-abono", async (Guid id, GestionDevolucionesCompra caso, CancellationToken ct) =>
+                (await caso.CerrarSinAbonoAsync(id, ct).ConfigureAwait(false)).AOk())
+            .WithSummary("Cierra la devolución sin abono (el proveedor repone la mercancía).").RequierePermiso(Permisos.CompraGestionar);
+        dev.MapPost("/{id:guid}/anular", async (Guid id, IContextoEmpresa c, GestionDevolucionesCompra caso, CancellationToken ct) =>
+                Empresa(c) is { } e ? (await caso.AnularAsync(e, id, ct).ConfigureAwait(false)).ASinContenido() : SinEmpresa())
+            .WithSummary("Anula una devolución pendiente: la mercancía vuelve a entrar en el almacén.").RequierePermiso(Permisos.CompraGestionar);
+
         return rutas;
     }
 

@@ -30,6 +30,10 @@ internal sealed class ContabilizadorGastos : IContabilizador
             Fecha: datos.Fecha,
             NumeroFactura: datos.NumeroFactura,
             FechaFactura: datos.FechaFactura,
+            RectificaGastoId: datos.Rectificacion?.RectificaGastoId,
+            NumeroRectificado: datos.Rectificacion?.NumeroRectificado,
+            FechaRectificada: datos.Rectificacion?.FechaRectificada,
+            MotivoRectificacion: datos.Rectificacion?.Motivo,
             Lineas: datos.Lineas is { Count: > 0 } l
                 ? l.Select(x => new LineaGastoComando(x.Base, datos.CodigoIva, x.Descripcion, CuentaGasto: x.Cuenta)).ToList()
                 : null);

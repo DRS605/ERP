@@ -132,6 +132,28 @@ public sealed class PedidoCompra : RaizAgregadoEmpresa<Guid>
 
     public Guid? SolicitudOrigenId { get; private set; }
 
+    /// <summary>Gasto (factura recibida) con que se facturó el pedido: lo rectifican los abonos de sus devoluciones.</summary>
+    public Guid? GastoId { get; private set; }
+
+    /// <summary>Tipo de IVA y retención con que se facturó (los abonos llevan los mismos).</summary>
+    public string? CodigoIvaFactura { get; private set; }
+
+    public decimal PorcentajeIrpfFactura { get; private set; }
+
+    public string? NumeroFacturaProveedor { get; private set; }
+
+    public DateOnly? FechaFacturaProveedor { get; private set; }
+
+    /// <summary>Anota la factura con que se facturó el pedido.</summary>
+    public void AnotarFactura(Guid gastoId, string codigoIva, decimal porcentajeIrpf, string? numeroFactura, DateOnly? fechaFactura)
+    {
+        GastoId = gastoId;
+        CodigoIvaFactura = codigoIva;
+        PorcentajeIrpfFactura = porcentajeIrpf;
+        NumeroFacturaProveedor = string.IsNullOrWhiteSpace(numeroFactura) ? null : numeroFactura.Trim();
+        FechaFacturaProveedor = fechaFactura;
+    }
+
     /// <summary>Empresa del grupo que vende (traspaso intragrupo): el pedido nace de su albarán de venta.</summary>
     public Guid? EmpresaOrigenId { get; private set; }
 

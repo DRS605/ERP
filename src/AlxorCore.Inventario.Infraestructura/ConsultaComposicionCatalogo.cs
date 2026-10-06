@@ -26,3 +26,19 @@ internal sealed class ConsultaComposicionCatalogo : IConsultaComposicion
         return r.Valor.Componentes.Select(c => (c.ComponenteId, c.Cantidad)).ToList();
     }
 }
+
+/// <summary>Implementa <see cref="IConsultaSeguimiento"/> con la ficha del artículo en Catálogo.</summary>
+internal sealed class ConsultaSeguimientoCatalogo : IConsultaSeguimiento
+{
+    private readonly IConsultaProductos _productos;
+
+    public ConsultaSeguimientoCatalogo(IConsultaProductos productos) => _productos = productos;
+
+    public async Task<SeguimientoStock> SeguimientoAsync(Guid productoId, CancellationToken ct = default) =>
+        (await _productos.ObtenerAsync(productoId, ct).ConfigureAwait(false))?.Seguimiento switch
+        {
+            AlxorCore.Catalogo.Dominio.SeguimientoArticulo.Serie => SeguimientoStock.Serie,
+            AlxorCore.Catalogo.Dominio.SeguimientoArticulo.Lote => SeguimientoStock.Lote,
+            _ => SeguimientoStock.Ninguno,
+        };
+}

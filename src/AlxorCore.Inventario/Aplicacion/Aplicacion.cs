@@ -70,6 +70,22 @@ public interface IRepositorioLotes
 
 public interface IUnidadDeTrabajoInventario : IUnidadDeTrabajo;
 
+/// <summary>Cómo se sigue un artículo en el almacén (lo dice su ficha en Catálogo).</summary>
+public enum SeguimientoStock
+{
+    Ninguno = 0,
+    Lote = 1,
+
+    /// <summary>Cada unidad lleva su número: los movimientos son de una unidad y un número no puede estar dos veces en existencias.</summary>
+    Serie = 2,
+}
+
+/// <summary>Seguimiento de un artículo (lo implementa la infraestructura sobre Catálogo).</summary>
+public interface IConsultaSeguimiento
+{
+    Task<SeguimientoStock> SeguimientoAsync(Guid productoId, CancellationToken ct = default);
+}
+
 /// <summary>
 /// Aviso de que han cambiado las existencias de unos artículos, para que la ficha del artículo (Catálogo) muestre el
 /// total de los almacenes. Lo implementa la infraestructura.
@@ -85,6 +101,10 @@ public sealed record CrearUbicacionComando(Guid AlmacenId, string Codigo, string
 public sealed record MovimientoComando(Guid ProductoId, Guid AlmacenId, decimal Cantidad, Guid? UbicacionId = null, DateOnly? Fecha = null, string? Motivo = null, string? Referencia = null, string? Lote = null, decimal? CosteUnitario = null,
     DateOnly? FechaCaducidad = null);
 public sealed record TraspasoComando(Guid ProductoId, decimal Cantidad, Guid AlmacenOrigenId, Guid AlmacenDestinoId, Guid? UbicacionOrigenId = null, Guid? UbicacionDestinoId = null, DateOnly? Fecha = null, string? Lote = null);
+/// <summary>Entrada de varias unidades con número de serie (una existencia por número).</summary>
+public sealed record EntradaSeriesComando(Guid ProductoId, Guid AlmacenId, IReadOnlyList<string>? Series, Guid? UbicacionId = null, DateOnly? Fecha = null,
+    string? Motivo = null, string? Referencia = null, decimal? CosteUnitario = null);
+
 public sealed record UbicacionDefectoComando(Guid ProductoId, Guid AlmacenId, Guid UbicacionId, Guid? ProveedorId = null);
 
 // ---------------------------------------------------------------------------- Almacenes y ubicaciones
@@ -250,11 +270,93 @@ public sealed class MovimientosInventario
     private readonly IRepositorioAlmacenes? _almacenes;
     private readonly IAvisoExistencias? _aviso;
     private readonly IRepositorioLotes? _lotes;
+    private readonly IConsultaSeguimiento? _seguimiento;
+
+    /// <summary>Máximo de números de serie en una entrada.</summary>
+    public const int MaximoSeries = 1000;
 
     public MovimientosInventario(IRepositorioExistencias existencias, IRepositorioMovimientos movimientos, IUnidadDeTrabajoInventario unidad, IReloj reloj,
-        IRepositorioAlmacenes? almacenes = null, IAvisoExistencias? aviso = null, IRepositorioLotes? lotes = null)
+        IRepositorioAlmacenes? almacenes = null, IAvisoExistencias? aviso = null, IRepositorioLotes? lotes = null, IConsultaSeguimiento? seguimiento = null)
     {
         _existencias = existencias; _movimientos = movimientos; _unidad = unidad; _reloj = reloj; _almacenes = almacenes; _aviso = aviso; _lotes = lotes;
+        _seguimiento = seguimiento;
+    }
+
+    /// <summary>Seguimiento del artículo (Ninguno si la empresa no tiene Catálogo enlazado).</summary>
+    public async Task<SeguimientoStock> SeguimientoAsync(Guid productoId, CancellationToken ct = default) =>
+        _seguimiento is null ? SeguimientoStock.Ninguno : await _seguimiento.SeguimientoAsync(productoId, ct).ConfigureAwait(false);
+
+    /// <summary>
+    /// Reglas de los artículos con número de serie: cada movimiento lleva su número y es de una unidad, y en una entrada
+    /// el número no puede estar ya en existencias. Null si se cumplen (o si el artículo no va por serie).
+    /// </summary>
+    private async Task<Error?> ReglaSerieAsync(Guid empresaId, Guid productoId, string? serie, decimal cantidad, bool entrada, CancellationToken ct, bool ajuste = false)
+    {
+        if (await SeguimientoAsync(productoId, ct).ConfigureAwait(false) != SeguimientoStock.Serie)
+        {
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(serie))
+        {
+            return Error.Validacion("inventario.serie_requerida", "Este artículo se controla por número de serie: indica el número de cada unidad.");
+        }
+
+        if (ajuste ? cantidad is not (0m or 1m) : cantidad != 1m)
+        {
+            return Error.Validacion("inventario.serie_unidad",
+                ajuste ? "Con número de serie, el recuento de cada número es 0 o 1." : "Con número de serie, cada movimiento es de una unidad (una por número).");
+        }
+
+        if (entrada && (await _existencias.ListarPorLoteAsync(empresaId, productoId, serie.Trim(), ct).ConfigureAwait(false)).Any(e => e.Cantidad > 0m))
+        {
+            return Error.Conflicto("inventario.serie_duplicada", $"El número de serie {serie.Trim()} ya está en existencias.");
+        }
+
+        return null;
+    }
+
+    /// <summary>Entrada de varias unidades con su número de serie: o entran todas o ninguna.</summary>
+    public async Task<Resultado<IReadOnlyList<ExistenciaDto>>> EntradaSeriesAsync(Guid empresaId, EntradaSeriesComando c, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(c);
+        var series = (c.Series ?? []).Select(x => x?.Trim()).Where(x => !string.IsNullOrEmpty(x)).Select(x => x!).ToList();
+        if (series.Count == 0 || series.Count > MaximoSeries)
+        {
+            return Resultado.Fallo<IReadOnlyList<ExistenciaDto>>(Error.Validacion("inventario.series", $"Indica entre 1 y {MaximoSeries} números de serie."));
+        }
+
+        if (await SeguimientoAsync(c.ProductoId, ct).ConfigureAwait(false) != SeguimientoStock.Serie)
+        {
+            return Resultado.Fallo<IReadOnlyList<ExistenciaDto>>(Error.Validacion("inventario.sin_serie", "El artículo no se controla por número de serie (cámbialo en su ficha)."));
+        }
+
+        if (series.GroupBy(x => x, StringComparer.Ordinal).FirstOrDefault(g => g.Count() > 1) is { } repetida)
+        {
+            return Resultado.Fallo<IReadOnlyList<ExistenciaDto>>(Error.Validacion("inventario.serie_repetida", $"El número {repetida.Key} está repetido en la lista."));
+        }
+
+        foreach (var serie in series)
+        {
+            if (await ReglaSerieAsync(empresaId, c.ProductoId, serie, 1m, true, ct).ConfigureAwait(false) is { } error)
+            {
+                return Resultado.Fallo<IReadOnlyList<ExistenciaDto>>(error);
+            }
+        }
+
+        var resultado = new List<ExistenciaDto>();
+        foreach (var serie in series)
+        {
+            var e = await ObtenerOCrearAsync(empresaId, c.ProductoId, c.AlmacenId, c.UbicacionId, serie, ct).ConfigureAwait(false);
+            e.Aumentar(1m);
+            _movimientos.Agregar(MovimientoInventario.Registrar(empresaId, c.ProductoId, c.AlmacenId, c.UbicacionId, TipoMovimientoInventario.Entrada, 1m, c.Fecha ?? Hoy(),
+                c.Motivo, c.Referencia, _reloj, serie, c.CosteUnitario));
+            resultado.Add(new ExistenciaDto(e.ProductoId, e.AlmacenId, string.Empty, e.UbicacionId, null, e.Cantidad, e.Lote));
+        }
+
+        await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
+        await AvisarAsync(empresaId, c.ProductoId, ct).ConfigureAwait(false);
+        return Resultado.Ok<IReadOnlyList<ExistenciaDto>>(resultado);
     }
 
     private Task AvisarAsync(Guid empresaId, Guid productoId, CancellationToken ct) =>
@@ -338,6 +440,11 @@ public sealed class MovimientosInventario
             return Resultado.Fallo<ExistenciaDto>(Error.Validacion("inventario.cantidad_invalida", "La cantidad debe ser mayor que cero."));
         }
 
+        if (await ReglaSerieAsync(empresaId, c.ProductoId, c.Lote, c.Cantidad, true, ct).ConfigureAwait(false) is { } serie)
+        {
+            return Resultado.Fallo<ExistenciaDto>(serie);
+        }
+
         // La entrada de un lote con caducidad la anota en el lote (la última manda).
         if (c.FechaCaducidad is { } caducidad && !string.IsNullOrWhiteSpace(c.Lote) && _lotes is not null)
         {
@@ -375,6 +482,11 @@ public sealed class MovimientosInventario
             return Resultado.Fallo<ExistenciaDto>(Error.Validacion("inventario.cantidad_invalida", "La cantidad debe ser mayor que cero."));
         }
 
+        if (await ReglaSerieAsync(empresaId, c.ProductoId, c.Lote, c.Cantidad, false, ct).ConfigureAwait(false) is { } serie)
+        {
+            return Resultado.Fallo<ExistenciaDto>(serie);
+        }
+
         var e = await _existencias.ObtenerAsync(empresaId, c.ProductoId, c.AlmacenId, c.UbicacionId, c.Lote, ct).ConfigureAwait(false);
         if (e is null)
         {
@@ -403,6 +515,11 @@ public sealed class MovimientosInventario
             return Resultado.Fallo<ExistenciaDto>(Error.Validacion("inventario.cantidad_invalida", "La cantidad contada no puede ser negativa."));
         }
 
+        if (await ReglaSerieAsync(empresaId, c.ProductoId, c.Lote, c.Cantidad, false, ct, ajuste: true).ConfigureAwait(false) is { } serie)
+        {
+            return Resultado.Fallo<ExistenciaDto>(serie);
+        }
+
         var e = await ObtenerOCrearAsync(empresaId, c.ProductoId, c.AlmacenId, c.UbicacionId, c.Lote, ct).ConfigureAwait(false);
         var diferencia = Math.Round(c.Cantidad - e.Cantidad, 3, MidpointRounding.AwayFromZero);
         e.Fijar(c.Cantidad);
@@ -423,6 +540,11 @@ public sealed class MovimientosInventario
         if (c.Cantidad <= 0m)
         {
             return Resultado.Fallo(Error.Validacion("inventario.cantidad_invalida", "La cantidad debe ser mayor que cero."));
+        }
+
+        if (await ReglaSerieAsync(empresaId, c.ProductoId, c.Lote, c.Cantidad, false, ct).ConfigureAwait(false) is { } serie)
+        {
+            return Resultado.Fallo(serie);
         }
 
         var origen = await _existencias.ObtenerAsync(empresaId, c.ProductoId, c.AlmacenOrigenId, c.UbicacionOrigenId, c.Lote, ct).ConfigureAwait(false);

@@ -297,3 +297,103 @@ public sealed class InventarioDbContextFactory : IDesignTimeDbContextFactory<Inv
         public Guid? EmpresaId => null;
     }
 }
+
+internal sealed class ConfiguracionRecuento : IEntityTypeConfiguration<RecuentoInventario>
+{
+    public void Configure(EntityTypeBuilder<RecuentoInventario> b)
+    {
+        b.ToTable("recuento_inventario");
+        b.HasKey(x => x.Id);
+        b.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+        b.Property(x => x.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        b.Property(x => x.Codigo).HasColumnName("codigo").HasMaxLength(20).IsRequired();
+        b.Property(x => x.AlmacenId).HasColumnName("almacen_id").IsRequired();
+        b.Property(x => x.UbicacionId).HasColumnName("ubicacion_id");
+        b.Property(x => x.Fecha).HasColumnName("fecha").IsRequired();
+        b.Property(x => x.Descripcion).HasColumnName("descripcion").HasMaxLength(RecuentoInventario.LongitudDescripcion);
+        b.Property(x => x.Estado).HasColumnName("estado").HasMaxLength(20).HasConversion<string>().IsRequired();
+        b.Property(x => x.AbiertoEn).HasColumnName("abierto_en").IsRequired();
+        b.Property(x => x.CerradoEn).HasColumnName("cerrado_en");
+        b.Property(x => x.NoContadosACero).HasColumnName("no_contados_a_cero").IsRequired();
+        b.HasIndex(x => new { x.EmpresaId, x.Codigo }).IsUnique().HasDatabaseName("ux_recuento_inventario_codigo");
+        b.HasIndex(x => x.AlmacenId).HasDatabaseName("ix_recuento_inventario_almacen");
+        b.HasIndex(x => x.UbicacionId).HasDatabaseName("ix_recuento_inventario_ubicacion");
+        b.OwnsMany(x => x.Lineas, l =>
+        {
+            l.ToTable("linea_recuento");
+            l.WithOwner().HasForeignKey("recuento_id");
+            l.HasKey(x => x.Id);
+            l.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+            l.Property<Guid>("recuento_id").HasColumnName("recuento_id");
+            l.Property(x => x.ProductoId).HasColumnName("producto_id").IsRequired();
+            l.Property(x => x.UbicacionId).HasColumnName("ubicacion_id");
+            l.Property(x => x.Lote).HasColumnName("lote").HasMaxLength(80);
+            l.Property(x => x.Teorico).HasColumnName("teorico").HasColumnType("numeric(14,3)").IsRequired();
+            l.Property(x => x.Contado).HasColumnName("contado").HasColumnType("numeric(14,3)");
+            l.Property(x => x.Diferencia).HasColumnName("diferencia").HasColumnType("numeric(14,3)");
+            l.Property(x => x.Añadida).HasColumnName("anadida").IsRequired();
+            l.HasIndex("recuento_id").HasDatabaseName("ix_linea_recuento_recuento");
+            l.HasIndex(x => x.ProductoId).HasDatabaseName("ix_linea_recuento_producto");
+            l.HasIndex(x => x.UbicacionId).HasDatabaseName("ix_linea_recuento_ubicacion");
+        });
+        b.Navigation(x => x.Lineas).UsePropertyAccessMode(PropertyAccessMode.Field);
+        b.Ignore(x => x.EventosDominio);
+    }
+}
+
+internal sealed class RepositorioRecuentos : IRepositorioRecuentos
+{
+    private readonly InventarioDbContext _ctx;
+
+    public RepositorioRecuentos(InventarioDbContext ctx) => _ctx = ctx;
+
+    public void Agregar(RecuentoInventario recuento) => _ctx.Add(recuento);
+
+    public Task<RecuentoInventario?> ObtenerAsync(Guid id, CancellationToken ct = default) =>
+        _ctx.Set<RecuentoInventario>().FirstOrDefaultAsync(r => r.Id == id, ct);
+
+    public async Task<IReadOnlyList<RecuentoInventario>> ListarAsync(Guid empresaId, CancellationToken ct = default) =>
+        await _ctx.Set<RecuentoInventario>().Where(r => r.EmpresaId == empresaId).ToListAsync(ct).ConfigureAwait(false);
+
+    public Task<int> ContarDelAnioAsync(Guid empresaId, int anio, CancellationToken ct = default) =>
+        _ctx.Set<RecuentoInventario>().CountAsync(r => r.EmpresaId == empresaId && r.Fecha.Year == anio, ct);
+}
+
+internal sealed class ConfiguracionReglaReaprovisionamiento : IEntityTypeConfiguration<ReglaReaprovisionamiento>
+{
+    public void Configure(EntityTypeBuilder<ReglaReaprovisionamiento> b)
+    {
+        b.ToTable("regla_reaprovisionamiento");
+        b.HasKey(x => x.Id);
+        b.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+        b.Property(x => x.EmpresaId).HasColumnName("empresa_id").IsRequired();
+        b.Property(x => x.ProductoId).HasColumnName("producto_id").IsRequired();
+        b.Property(x => x.AlmacenId).HasColumnName("almacen_id");
+        b.Property(x => x.Minimo).HasColumnName("minimo").HasColumnType("numeric(14,3)").IsRequired();
+        b.Property(x => x.Maximo).HasColumnName("maximo").HasColumnType("numeric(14,3)").IsRequired();
+        b.Property(x => x.Multiplo).HasColumnName("multiplo").HasColumnType("numeric(14,3)").IsRequired();
+        b.Property(x => x.ProveedorId).HasColumnName("proveedor_id");
+        b.Property(x => x.Activa).HasColumnName("activa").IsRequired();
+        b.HasIndex(x => x.ProductoId).HasDatabaseName("ix_regla_reaprovisionamiento_producto");
+        b.HasIndex(x => x.AlmacenId).HasDatabaseName("ix_regla_reaprovisionamiento_almacen");
+        b.HasIndex(x => x.ProveedorId).HasDatabaseName("ix_regla_reaprovisionamiento_proveedor");
+        b.Ignore(x => x.EventosDominio);
+    }
+}
+
+internal sealed class RepositorioReglasReaprovisionamiento : IRepositorioReglasReaprovisionamiento
+{
+    private readonly InventarioDbContext _ctx;
+
+    public RepositorioReglasReaprovisionamiento(InventarioDbContext ctx) => _ctx = ctx;
+
+    public void Agregar(ReglaReaprovisionamiento regla) => _ctx.Add(regla);
+
+    public void Eliminar(ReglaReaprovisionamiento regla) => _ctx.Remove(regla);
+
+    public Task<ReglaReaprovisionamiento?> ObtenerAsync(Guid id, CancellationToken ct = default) =>
+        _ctx.Set<ReglaReaprovisionamiento>().FirstOrDefaultAsync(r => r.Id == id, ct);
+
+    public async Task<IReadOnlyList<ReglaReaprovisionamiento>> ListarAsync(Guid empresaId, CancellationToken ct = default) =>
+        await _ctx.Set<ReglaReaprovisionamiento>().Where(r => r.EmpresaId == empresaId).ToListAsync(ct).ConfigureAwait(false);
+}

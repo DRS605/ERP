@@ -23,6 +23,7 @@ public static class RutasModulos
             ("/albaranes-venta", CatalogoModulos.Ventas),
             ("/devoluciones-venta", CatalogoModulos.Ventas),
             ("/liquidaciones-comision", CatalogoModulos.Ventas),
+            ("/comisiones", CatalogoModulos.Ventas),
             ("/reclamaciones", CatalogoModulos.Ventas),
             ("/presupuestos", CatalogoModulos.Ventas),
             ("/cartas-porte", CatalogoModulos.Ventas),

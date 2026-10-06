@@ -53,4 +53,15 @@ internal sealed class EntradaInventarioCompras : IEntradaInventarioCompras
             .ConfigureAwait(false);
         return r.EsFallo ? Resultado.Fallo(r.Error) : Resultado.Ok();
     }
+
+    public async Task<Resultado> DevolverAsync(Guid empresaId, Guid productoId, Guid almacenId, Guid? proveedorId, decimal cantidad, string? lote, string? referencia,
+        DateOnly fecha, CancellationToken ct = default)
+    {
+        var producto = await _productos.ObtenerAsync(productoId, ct).ConfigureAwait(false);
+        var factor = (producto is not null && producto.FactorCompra > 0m) ? producto.FactorCompra : 1m;
+        var ubicacionId = await _ubicaciones.ResolverAsync(empresaId, productoId, almacenId, proveedorId, ct).ConfigureAwait(false);
+        var r = await _movimientos.SalidaAsync(empresaId, new MovimientoComando(productoId, almacenId, Math.Round(cantidad * factor, 3, MidpointRounding.AwayFromZero),
+            ubicacionId, fecha, "Devolución a proveedor", referencia, string.IsNullOrWhiteSpace(lote) ? null : lote.Trim()), ct).ConfigureAwait(false);
+        return r.EsFallo ? Resultado.Fallo(r.Error) : Resultado.Ok();
+    }
 }

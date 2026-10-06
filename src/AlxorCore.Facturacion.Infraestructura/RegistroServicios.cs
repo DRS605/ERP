@@ -71,6 +71,7 @@ public static class RegistroServicios
         servicios.AddScoped<IRepositorioPedidosVenta, RepositorioPedidosVenta>();
         servicios.AddScoped<IRepositorioAlbaranesVenta, RepositorioAlbaranesVenta>();
         servicios.AddScoped<IRepositorioDevolucionesVenta, RepositorioDevolucionesVenta>();
+        servicios.AddScoped<IRepositorioComisiones, RepositorioComisiones>();
         servicios.AddScoped<IRepositorioLiquidacionesComision, RepositorioLiquidacionesComision>();
         servicios.AddScoped<LiquidacionesComision>();
         servicios.AddScoped<IRepositorioReclamaciones, RepositorioReclamaciones>();

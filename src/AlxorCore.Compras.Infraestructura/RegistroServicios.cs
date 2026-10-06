@@ -46,6 +46,8 @@ public static class RegistroServicios
         servicios.AddScoped<AlmacenesTraspaso>();
         servicios.AddScoped<ListarAlbaranesPedido>();
         servicios.AddScoped<FacturarPedido>();
+        servicios.AddScoped<IRepositorioDevolucionesCompra, RepositorioDevolucionesCompra>();
+        servicios.AddScoped<GestionDevolucionesCompra>();
 
         return servicios;
     }

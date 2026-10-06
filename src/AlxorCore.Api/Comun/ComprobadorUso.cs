@@ -23,6 +23,8 @@ public static class ReferenciasRegistros
                 ("tesoreria.clasificacion_seguro.cliente_id", "clasificaciones del seguro de crédito"),
                 ("tesoreria.aviso_impago.cliente_id", "avisos de impago al seguro de crédito"),
                 ("facturacion.factura.cliente_id", "facturas"),
+                ("facturacion.asignacion_agente.cliente_id", "asignación a un agente comercial"),
+                ("facturacion.regla_comision.cliente_id", "reglas de comisión de agentes"),
                 ("facturacion.albaran_venta.cliente_id", "albaranes de venta"),
                 ("facturacion.pedido_venta.cliente_id", "pedidos de venta"),
                 ("facturacion.presupuesto.cliente_id", "presupuestos"),
@@ -60,6 +62,9 @@ public static class ReferenciasRegistros
                 ("facturacion.liquidacion_comision.proveedor_id", "liquidaciones de venta en comisión (como comisionista)"),
                 ("recepcion.factura_recibida.proveedor_id", "facturas recibidas"),
                 ("compras.pedido_compra.proveedor_id", "pedidos de compra"),
+                ("compras.devolucion_compra.proveedor_id", "devoluciones a proveedor"),
+                ("inventario.regla_reaprovisionamiento.proveedor_id", "reglas de stock mínimo"),
+                ("facturacion.agente_comercial.proveedor_id", "ficha de agente comercial"),
                 ("agro.agricultor.proveedor_id", "ficha de agricultor"),
                 ("cooperativa.socio.proveedor_id", "ficha de socio de la cooperativa"),
                 ("bodega.entrada_uva.viticultor_id", "entradas de uva de la bodega"),
@@ -97,6 +102,9 @@ public static class ReferenciasRegistros
                 ("compras.linea_albaran.producto_id", "albaranes de compra"),
                 ("inventario.movimiento_inventario.producto_id", "movimientos de almacén"),
                 ("inventario.existencia.producto_id", "existencias en almacén"),
+                ("inventario.linea_recuento.producto_id", "recuentos de inventario"),
+                ("compras.linea_devolucion_compra.producto_id", "devoluciones a proveedor"),
+                ("inventario.regla_reaprovisionamiento.producto_id", "reglas de stock mínimo"),
                 ("inventario.ubicacion_defecto.producto_id", "ubicaciones por defecto"),
                 ("catalogo.movimiento_stock.producto_id", "movimientos de stock"),
                 ("catalogo.linea_tarifa.producto_id", "tarifas de precios"),
@@ -145,6 +153,9 @@ public static class ReferenciasRegistros
             [
                 ("organizacion.centro.almacen_id", "centros que lo tienen por almacén habitual"),
                 ("inventario.existencia.almacen_id", "existencias"),
+                ("inventario.recuento_inventario.almacen_id", "recuentos de inventario"),
+                ("compras.devolucion_compra.almacen_id", "devoluciones a proveedor"),
+                ("inventario.regla_reaprovisionamiento.almacen_id", "reglas de stock mínimo"),
                 ("agro.tratamiento_parcela.almacen_id", "tratamientos del cuaderno de campo"),
                 ("inventario.movimiento_inventario.almacen_id", "movimientos"),
                 ("inventario.ubicacion_defecto.almacen_id", "ubicaciones por defecto de artículos"),
@@ -156,6 +167,8 @@ public static class ReferenciasRegistros
             [TiposRegistro.Ubicacion] =
             [
                 ("inventario.existencia.ubicacion_id", "existencias"),
+                ("inventario.recuento_inventario.ubicacion_id", "recuentos de inventario"),
+                ("inventario.linea_recuento.ubicacion_id", "recuentos de inventario"),
                 ("logistica.unidad_logistica.ubicacion_id", "palés y unidades logísticas"),
                 ("inventario.movimiento_inventario.ubicacion_id", "movimientos"),
                 ("inventario.ubicacion_defecto.ubicacion_id", "artículos que la tienen por defecto"),
@@ -234,6 +247,8 @@ public static class ReferenciasRegistros
             ],
             [TiposRegistro.Gasto] =
             [
+                ("compras.devolucion_compra.gasto_abono_id", "devoluciones a proveedor abonadas"),
+                ("compras.pedido_compra.gasto_id", "pedidos de compra facturados"),
                 ("agro.liquidacion.gasto_id", "la autofactura de una liquidación agrícola"),
             ],
             [TiposRegistro.Actividad] =
