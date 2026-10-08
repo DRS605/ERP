@@ -1,0 +1,80 @@
+===========================================================
+  ALXOR Core — ERP para la tienda  (version de prueba)
+===========================================================
+
+Esto es un programa de gestion (facturas, clientes, articulos,
+cobros, gastos e informes) que funciona DENTRO de este ordenador.
+No necesita internet para usarse, ni enviar datos a ningun sitio.
+Todo se guarda aqui, en este mismo PC.
+
+
+-----------------------------------------------------------
+  COMO INSTALARLO  (se hace una sola vez)
+-----------------------------------------------------------
+
+1) Copia TODA esta carpeta "AlxorCore-Tienda" a un sitio comodo
+   del ordenador, por ejemplo al Escritorio o a "Documentos".
+
+2) Entra en la carpeta y haz DOBLE CLIC en:
+
+        ArrancarTienda.bat
+
+   La primera vez descargara un componente de la base de datos
+   (hara falta internet solo esa primera vez; tarda unos minutos).
+   Veras una ventana negra con mensajes: es normal, dejala abierta.
+
+3) Cuando este listo, se abrira SOLO el navegador en la direccion:
+
+        http://localhost:8080
+
+   Si Windows pregunta por el "Firewall", puedes permitir el acceso
+   (solo para la red privada). Si no, tambien funciona igual.
+
+
+-----------------------------------------------------------
+  COMO ENTRAR LA PRIMERA VEZ
+-----------------------------------------------------------
+
+- En la pantalla de inicio, pulsa "Crear cuenta" y registra tu
+  tienda (nombre, correo y una contrasena). Con eso ya puedes
+  empezar a crear clientes, articulos y facturas.
+
+- Si solo quieres PROBAR con datos de ejemplo, haz doble clic en
+  "CargarDatosDeEjemplo.bat" (con el ERP ya arrancado) y luego
+  entra con:
+        Usuario:    demo@alxorcore.es
+        Contrasena: Demo1234!
+
+
+-----------------------------------------------------------
+  EL DIA A DIA
+-----------------------------------------------------------
+
+- Para ABRIR el programa:   doble clic en  ArrancarTienda.bat
+- Para CERRARLO del todo:    doble clic en  DetenerTienda.bat
+  (o simplemente cierra la ventana negra)
+
+Mientras la ventana negra este abierta, el programa esta en marcha.
+Puedes minimizarla.
+
+
+-----------------------------------------------------------
+  PREGUNTAS FRECUENTES
+-----------------------------------------------------------
+
+* "No se abre el navegador":
+    Abre tu el navegador y escribe:  http://localhost:8080
+
+* "Dice que el puerto esta ocupado":
+    Avisame y te cambio el numero de puerto (es un ajuste de 1 linea).
+
+* "Donde estan mis datos":
+    En la subcarpeta "datos" de esta misma carpeta. Si copias toda
+    la carpeta a otro PC, te llevas tambien tus datos.
+    (Haz copias de seguridad de esa carpeta de vez en cuando.)
+
+* "Esto es definitivo?":
+    No: es una version de PRUEBA para ver si os encaja. La parte
+    fiscal (VeriFactu) se activa mas adelante, cuando toque.
+
+Cualquier cosa, me dices.  — D.

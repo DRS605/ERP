@@ -1,0 +1,4 @@
+# Artefactos de compilacion/empaquetado (no se versionan: son binarios grandes)
+_build/
+_dist/
+*.zip
