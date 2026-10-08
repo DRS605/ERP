@@ -101,7 +101,11 @@ Log "=============================================================" "Green"
 Log ""
 
 try {
-    & $AppExe
+    # Importante: ejecutar DENTRO de la carpeta 'app' para que .NET encuentre la
+    # interfaz web (wwwroot). Si se lanza desde otra ruta, la API responde pero "/"
+    # devuelve 404 (no encuentra wwwroot).
+    Set-Location (Join-Path $Base "app")
+    & ".\AlxorCore.Api.exe"
 } finally {
     Remove-Job $abrir -Force -ErrorAction SilentlyContinue
     Log "Deteniendo PostgreSQL..." "DarkGray"
