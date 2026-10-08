@@ -45,11 +45,20 @@ if (-not (Test-Path (Join-Path $DataDir "PG_VERSION"))) {
 }
 
 # --- 3) Arrancar PostgreSQL si no esta ya en marcha ---
-$pgCtl = Join-Path $PgBin "pg_ctl.exe"
+$pgCtl   = Join-Path $PgBin "pg_ctl.exe"
+$pgReady = Join-Path $PgBin "pg_isready.exe"
 & $pgCtl -D $DataDir status *> $null
 if ($LASTEXITCODE -ne 0) {
     Log "Arrancando PostgreSQL..." "Cyan"
-    & $pgCtl -D $DataDir -l (Join-Path $LogDir "postgres.log") -o "-p $PuertoPg -c listen_addresses=localhost" -w start | Out-Null
+    # OJO: se arranca SIN '-w' a proposito. En Windows 'pg_ctl start -w' puede quedarse
+    # colgado aunque el servidor ya este listo; lo lanzamos y comprobamos nosotros con pg_isready.
+    $env:PGCTLTIMEOUT = "60"
+    & $pgCtl -D $DataDir -l (Join-Path $LogDir "postgres.log") -o "-p $PuertoPg -c listen_addresses=localhost" start | Out-Null
+    for ($i = 0; $i -lt 60; $i++) {
+        & $pgReady -h localhost -p $PuertoPg *> $null
+        if ($LASTEXITCODE -eq 0) { break }
+        Start-Sleep -Seconds 1
+    }
 } else {
     Log "PostgreSQL ya estaba en marcha." "DarkGray"
 }
