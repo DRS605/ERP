@@ -1,4 +1,4 @@
-using AlxorCore.Nucleo.Comun;
+﻿using AlxorCore.Nucleo.Comun;
 using AlxorCore.Nucleo.Dominio;
 using AlxorCore.Nucleo.Resultados;
 using AlxorCore.Nucleo.Tiempo;
@@ -129,6 +129,11 @@ public sealed class FacturaRecurrente : RaizAgregadoEmpresa<Guid>
         return Resultado.Ok(recurrente);
     }
 
+    /// <summary>Cargos y abonos puestos al documento entero en cada emisión (los de importe fijo se reparten entre las líneas).</summary>
+    public IReadOnlyList<ConceptoPlantilla> ConceptosDocumento { get; private set; } = [];
+
+    public void FijarConceptosDocumento(IReadOnlyList<ConceptoPlantilla>? conceptos) => ConceptosDocumento = conceptos?.ToList() ?? [];
+
     /// <summary>Actualiza los datos y la plantilla de líneas de la recurrencia.</summary>
     public Resultado Actualizar(
         string? nombre,
@@ -257,7 +262,11 @@ public sealed record LineaPlantilla(
     string CodigoIva,
     decimal PorcentajeIva,
     decimal PorcentajeDescuento = 0m,
-    Guid? ProductoId = null);
+    Guid? ProductoId = null,
+    IReadOnlyList<ConceptoPlantilla>? Conceptos = null);
+
+/// <summary>Concepto de línea (cargo o abono) propio de una plantilla periódica; sin valor, el de su regla o el del concepto.</summary>
+public sealed record ConceptoPlantilla(Guid ConceptoId, decimal? Valor = null);
 
 /// <summary>
 /// Línea de la plantilla de una factura recurrente. Se copia a cada factura emitida; sus importes
@@ -286,6 +295,7 @@ public sealed class LineaRecurrente : EntidadBase<Guid>
         PorcentajeDescuento = datos.PorcentajeDescuento;
         CodigoIva = datos.CodigoIva;
         PorcentajeIva = datos.PorcentajeIva;
+        Conceptos = datos.Conceptos?.ToList();
 
         Base = Redondeo.Dos(Cantidad * PrecioUnitario * (1 - (PorcentajeDescuento / 100m)));
         CuotaIva = Redondeo.Dos(Base * PorcentajeIva / 100m);
@@ -310,6 +320,12 @@ public sealed class LineaRecurrente : EntidadBase<Guid>
     public decimal Base { get; private set; }
 
     public decimal CuotaIva { get; private set; }
+
+    /// <summary>
+    /// Cargos y abonos propios de la línea: null, los automáticos del cliente y del artículo al emitir; una lista (también
+    /// vacía), exactamente esos.
+    /// </summary>
+    public IReadOnlyList<ConceptoPlantilla>? Conceptos { get; private set; }
 }
 
 /// <summary>Se ha creado una factura recurrente.</summary>

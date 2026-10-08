@@ -68,6 +68,8 @@ export interface ConceptoCatalogo {
   sentido: "Suma" | "Resta";
   calculo: "Porcentaje" | "PorUnidad" | "PorKilo" | "Importe";
   valor: number;
+  /** Reglas del concepto (solo interesa el envase: las líneas pueden elegir el suyo). */
+  asignaciones?: { envaseProductoId?: string | null }[];
 }
 
 export interface ConceptoAplicado {
@@ -79,6 +81,8 @@ export interface ConceptoAplicado {
   calculo: "Porcentaje" | "PorUnidad" | "PorKilo" | "Importe";
   valor: number;
   importe: number;
+  /** Factura en divisa: el importe en la divisa (el importe es su contravalor en euros). */
+  importeDivisa?: number | null;
   repartido: boolean;
 }
 
@@ -100,6 +104,8 @@ export interface LineaEdicion {
   iva: string | null;
   /** Conceptos puestos a mano; undefined = los que se pongan solos. */
   conceptos?: ConceptoSolicitado[];
+  /** Envase de la línea (un artículo): decide las reglas de conceptos por envase. */
+  envaseProductoId?: string | null;
   unidad?: string;
   stock?: number | null;
   controlarStock?: boolean;
@@ -369,6 +375,7 @@ export interface LineaGasto {
   cuotaRecargo: number;
   porcentajeDeducible: number;
   cuotaDeducible: number;
+  suplido?: boolean;
 }
 
 /** Anticipo (entrega a cuenta) de un cliente: lo disponible se aplica a sus facturas (asiento 438 a 430). */
@@ -438,6 +445,8 @@ export interface Gasto {
   moneda?: string | null;
   tasaCambio?: number | null;
   totalDivisa?: number | null;
+  /** Suplidos (fuera de la base, sin impuesto): suman al total a pagar. */
+  suplidos?: number;
 }
 
 export interface Cuenta {

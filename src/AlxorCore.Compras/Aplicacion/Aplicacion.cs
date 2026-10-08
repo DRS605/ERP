@@ -1,4 +1,4 @@
-using AlxorCore.Catalogo.Aplicacion;
+﻿using AlxorCore.Catalogo.Aplicacion;
 using AlxorCore.Nucleo.Comun;
 using AlxorCore.Compras.Dominio;
 using AlxorCore.Nucleo.Aplicacion;
@@ -25,13 +25,14 @@ public sealed record LineaPedidoDto(Guid Id, Guid? ProductoId, string Descripcio
     decimal Importe, decimal CantidadRecibida, decimal CantidadFacturada, decimal PendienteRecibir, IReadOnlyList<ConceptoAplicado>? Conceptos = null, decimal ImporteConceptos = 0m, decimal CosteConceptos = 0m, decimal CosteUnitarioEntrada = 0m);
 
 public sealed record PedidoDto(Guid Id, string Estado, int Ejercicio, int Numero, string NumeroCompleto, Guid? ProveedorId, string ProveedorTexto, DateOnly Fecha,
-    Guid? SolicitudOrigenId, decimal Total, bool RecibidoCompleto, IReadOnlyList<LineaPedidoDto> Lineas, Guid? EmpresaOrigenId = null, Guid? PedidoVentaOrigenId = null)
+    Guid? SolicitudOrigenId, decimal Total, bool RecibidoCompleto, IReadOnlyList<LineaPedidoDto> Lineas, Guid? EmpresaOrigenId = null, Guid? PedidoVentaOrigenId = null,
+    decimal Suplidos = 0m)
 {
     public static PedidoDto Desde(PedidoCompra p) => new(p.Id, p.Estado.ToString(), p.Ejercicio, p.Numero, p.NumeroCompleto, p.ProveedorId, p.ProveedorTexto,
         p.Fecha, p.SolicitudOrigenId, p.Total, p.RecibidoCompleto,
         p.Lineas.Select(l => new LineaPedidoDto(l.Id, l.ProductoId, l.Descripcion, l.Cantidad, l.PrecioUnitario, l.Importe,
             l.CantidadRecibida, l.CantidadFacturada, l.PendienteRecibir, l.Conceptos, l.ImporteConceptos, l.CosteConceptos, l.CosteUnitarioEntrada)).ToList(),
-        p.EmpresaOrigenId, p.PedidoVentaOrigenId);
+        p.EmpresaOrigenId, p.PedidoVentaOrigenId, p.Suplidos);
 }
 
 public sealed record LineaAlbaranDto(Guid LineaPedidoId, Guid? ProductoId, string Descripcion, decimal Cantidad);
@@ -844,9 +845,14 @@ public sealed class FacturarPedido
             lineas = [(resto, null, concepto), .. propios];
         }
 
+        // Los suplidos (tasas, aranceles… que el proveedor pagó por la empresa) van aparte: sin impuesto y a su cuenta.
+        var suplidos = pedido.Lineas.SelectMany(l => l.Conceptos.Where(c => c.Efecto == EfectoConcepto.Suplido && c.Importe != 0m))
+            .GroupBy(c => (c.CuentaContable, c.Nombre))
+            .Select(g => (Redondeo.Dos(g.Sum(c => c.Importe)), g.Key.CuentaContable ?? "4709", (string?)g.Key.Nombre)).ToList();
         var datos = new DatosContabilizacion(pedido.ProveedorId, pedido.ProveedorTexto, concepto,
             DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime), importe,
-            string.IsNullOrWhiteSpace(comando.CodigoIva) ? "IVA21" : comando.CodigoIva!, comando.PorcentajeIrpf, comando.NumeroFactura, comando.FechaFactura, lineas);
+            string.IsNullOrWhiteSpace(comando.CodigoIva) ? "IVA21" : comando.CodigoIva!, comando.PorcentajeIrpf, comando.NumeroFactura, comando.FechaFactura, lineas,
+            Suplidos: suplidos.Count > 0 ? suplidos : null);
 
         var contabilizado = await _contabilizador.ContabilizarAsync(empresaId, datos, ct).ConfigureAwait(false);
         if (contabilizado.EsFallo)

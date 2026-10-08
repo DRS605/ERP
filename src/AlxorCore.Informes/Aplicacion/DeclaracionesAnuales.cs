@@ -1,4 +1,4 @@
-using AlxorCore.Facturacion.Aplicacion;
+﻿using AlxorCore.Facturacion.Aplicacion;
 using AlxorCore.Gastos.Aplicacion;
 using AlxorCore.Nucleo.Comun;
 using AlxorCore.Organizacion.Aplicacion.Puertos;
@@ -157,8 +157,9 @@ public sealed class GenerarDeclaracionAnual
                     nif = null;
                 }
 
-                var (t1, t2, t3, t4) = PorTrimestre(g.Select(x => (x.Fecha, x.Total)));
-                return new Modelo347LineaDto(g.Key, nombre, nif, "Proveedor", "A", Redondeo.Dos(g.Sum(x => x.Total)), t1, t2, t3, t4);
+                // Los suplidos no son operaciones del proveedor: no cuentan en el 347.
+                var (t1, t2, t3, t4) = PorTrimestre(g.Select(x => (x.Fecha, x.Total - x.Suplidos)));
+                return new Modelo347LineaDto(g.Key, nombre, nif, "Proveedor", "A", Redondeo.Dos(g.Sum(x => x.Total - x.Suplidos)), t1, t2, t3, t4);
             })
             .Where(l => l.ImporteAnual > Umbral347)
             .OrderByDescending(l => l.ImporteAnual)

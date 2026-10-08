@@ -1,4 +1,4 @@
-using AlxorCore.Persistencia;
+﻿using AlxorCore.Persistencia;
 using AlxorCore.Facturacion.Aplicacion;
 using AlxorCore.Facturacion.Dominio;
 using Microsoft.EntityFrameworkCore;
@@ -36,6 +36,7 @@ internal sealed class ConfiguracionPedidoVenta : IEntityTypeConfiguration<Pedido
             linea.HasKey(l => l.Id);
             linea.Property(l => l.Id).HasColumnName("id").ValueGeneratedNever();
             linea.Property(l => l.ProductoId).HasColumnName("producto_id");
+            linea.Property(l => l.EnvaseProductoId).HasColumnName("envase_producto_id");
             linea.Property(l => l.Descripcion).HasColumnName("descripcion").HasMaxLength(300).IsRequired();
             linea.Property(l => l.Cantidad).HasColumnName("cantidad").HasColumnType("numeric(14,3)").IsRequired();
             linea.Property(l => l.PrecioUnitario).HasColumnName("precio_unitario").HasColumnType("numeric(14,4)").IsRequired();
@@ -92,6 +93,7 @@ internal sealed class ConfiguracionAlbaranVenta : IEntityTypeConfiguration<Albar
             linea.Property(l => l.Id).HasColumnName("id").ValueGeneratedNever();
             linea.Property(l => l.LineaPedidoId).HasColumnName("linea_pedido_id");
             linea.Property(l => l.ProductoId).HasColumnName("producto_id");
+            linea.Property(l => l.EnvaseProductoId).HasColumnName("envase_producto_id");
             linea.Property(l => l.Descripcion).HasColumnName("descripcion").HasMaxLength(300).IsRequired();
             linea.Property(l => l.Cantidad).HasColumnName("cantidad").HasColumnType("numeric(14,3)").IsRequired();
             linea.Property(l => l.PrecioUnitario).HasColumnName("precio_unitario").HasColumnType("numeric(14,4)").HasDefaultValue(0m).IsRequired();

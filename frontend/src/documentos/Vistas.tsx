@@ -134,12 +134,12 @@ export function VistaFactura(props: { id: string }) {
           <tbody>
             {f.lineas.map((l, i) => (
               <tr key={i}>
-                <td>{l.descripcion}<ConceptosAplicados conceptos={l.conceptos} /></td>
+                <td>{l.descripcion}<ConceptosAplicados conceptos={l.conceptos} moneda={f.moneda} /></td>
                 <td className="num">{cant(l.cantidad)}</td>
-                <td className="num">{eur(l.precioUnitario)}</td>
+                <td className="num">{dinero(l.precioDivisa ?? l.precioUnitario, f.moneda)}</td>
                 <td className="num">{l.porcentajeDescuento ? `${num2(l.porcentajeDescuento)} %` : ""}</td>
                 <td>{l.codigoIva} · {num2(l.porcentajeIva)} %</td>
-                <td className="num"><strong>{eur(l.base)}</strong></td>
+                <td className="num"><strong>{dinero(l.baseDivisa ?? l.base, f.moneda)}</strong></td>
                 <td className="num muted">{l.costeUnitario || l.costeConceptos ? eur(l.margen) : ""}</td>
               </tr>
             ))}
@@ -150,7 +150,8 @@ export function VistaFactura(props: { id: string }) {
           <div className="dx-tot"><span className="muted">{f.impuesto === "Igic" ? "IGIC" : "IVA"}</span><span>{eur(f.cuotaIva)}</span></div>
           {!!f.recargoTotal && <div className="dx-tot"><span className="muted">Recargo de equivalencia</span><span>{eur(f.recargoTotal)}</span></div>}
           {!!f.retencionIrpf && <div className="dx-tot"><span className="muted">Retención IRPF ({num2(f.porcentajeIrpf)} %)</span><span>−{eur(f.retencionIrpf)}</span></div>}
-          <div className="dx-tot dx-grande"><span>Total</span><span>{eur(f.total)}</span></div>
+          <div className={f.moneda ? "dx-tot" : "dx-tot dx-grande"}><span>{f.moneda ? `Total en euros (1 ${f.moneda} = ${String(f.tasaCambio ?? 0).replace(".", ",")} €)` : "Total"}</span><span>{eur(f.total)}</span></div>
+          {f.moneda && <div className="dx-tot dx-grande"><span>Total {f.moneda}</span><span>{dinero(f.totalDivisa, f.moneda)}</span></div>}
           {coste > 0 && <div className="dx-tot"><span className="muted">Margen</span><span className="muted">{eur(f.baseImponible - coste)} ({num2(f.baseImponible ? ((f.baseImponible - coste) / f.baseImponible) * 100 : 0)} %)</span></div>}
         </div>
         {f.mencionFiscal && <p className="muted" style={{ fontSize: 12 }}>{f.mencionFiscal}</p>}
@@ -233,7 +234,7 @@ export function VistaPresupuesto(props: { id: string }) {
         <table>
           <thead><tr><th>Descripción</th><th className="num">Cantidad</th><th className="num">Precio</th><th className="num">Dto</th><th>Impuesto</th><th className="num">Importe</th></tr></thead>
           <tbody>{p.lineas.map((l, i) => (
-            <tr key={i}><td>{l.descripcion}<ConceptosAplicados conceptos={l.conceptos} /></td><td className="num">{cant(l.cantidad)}</td><td className="num">{dinero(l.precioUnitario, p.moneda)}</td>
+            <tr key={i}><td>{l.descripcion}<ConceptosAplicados conceptos={l.conceptos} moneda={p.moneda} /></td><td className="num">{cant(l.cantidad)}</td><td className="num">{dinero(l.precioUnitario, p.moneda)}</td>
               <td className="num">{l.porcentajeDescuento ? `${num2(l.porcentajeDescuento)} %` : ""}</td><td>{l.codigoIva}</td><td className="num"><strong>{dinero(l.base, p.moneda)}</strong></td></tr>
           ))}</tbody>
         </table>
@@ -295,7 +296,7 @@ export function VistaPedidoVenta(props: { id: string }) {
         <table>
           <thead><tr><th>Descripción</th><th className="num">Pedido</th><th className="num">Servido</th><th className="num">Pendiente</th><th className="num">Precio</th><th className="num">Dto</th><th className="num">Importe</th></tr></thead>
           <tbody>{p.lineas.map((l) => (
-            <tr key={l.id}><td>{l.descripcion}<ConceptosAplicados conceptos={l.conceptos} /></td><td className="num">{cant(l.cantidad)}</td><td className="num">{cant(l.cantidadServida)}</td>
+            <tr key={l.id}><td>{l.descripcion}<ConceptosAplicados conceptos={l.conceptos} moneda={p.moneda} /></td><td className="num">{cant(l.cantidad)}</td><td className="num">{cant(l.cantidadServida)}</td>
               <td className="num">{l.pendienteServir > 0 ? <strong>{cant(l.pendienteServir)}</strong> : "—"}</td><td className="num">{dinero(l.precioUnitario, p.moneda)}</td>
               <td className="num">{l.porcentajeDescuento ? `${num2(l.porcentajeDescuento)} %` : ""}</td><td className="num"><strong>{dinero(l.base, p.moneda)}</strong></td></tr>
           ))}</tbody>

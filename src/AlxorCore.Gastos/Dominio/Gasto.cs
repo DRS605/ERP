@@ -1,4 +1,4 @@
-using AlxorCore.Nucleo.Comun;
+﻿using AlxorCore.Nucleo.Comun;
 using AlxorCore.Nucleo.Dominio;
 using AlxorCore.Nucleo.Resultados;
 using AlxorCore.Nucleo.Tiempo;
@@ -26,7 +26,8 @@ public sealed record NuevaLineaGasto(
     bool SinCuota = false,
     decimal PorcentajeRecargo = 0m,
     decimal PorcentajeDeducible = 100m,
-    string? CuentaGasto = null);
+    string? CuentaGasto = null,
+    bool Suplido = false);
 
 /// <summary>
 /// Factura rectificativa recibida (abono o cargo del proveedor por diferencias): a qué factura rectifica y por qué. Sus
@@ -57,10 +58,12 @@ public sealed class LineaGasto
         CuentaGasto = string.IsNullOrWhiteSpace(d.CuentaGasto) ? null : d.CuentaGasto.Trim();
         Base = Redondeo.Dos(d.Base);
         CodigoIva = d.CodigoIva;
-        PorcentajeIva = Redondeo.Dos(d.PorcentajeIva);
-        Autoliquidada = d.Autoliquidada;
-        Cuota = d.SinCuota ? 0m : Redondeo.Dos(Base * PorcentajeIva / 100m);
-        PorcentajeRecargo = Redondeo.Dos(d.PorcentajeRecargo);
+        Suplido = d.Suplido;
+        // Un suplido no lleva impuesto ni recargo: es un gasto que el proveedor pagó por cuenta de la empresa.
+        PorcentajeIva = Suplido ? 0m : Redondeo.Dos(d.PorcentajeIva);
+        Autoliquidada = !Suplido && d.Autoliquidada;
+        Cuota = d.SinCuota || Suplido ? 0m : Redondeo.Dos(Base * PorcentajeIva / 100m);
+        PorcentajeRecargo = Suplido ? 0m : Redondeo.Dos(d.PorcentajeRecargo);
         CuotaRecargo = Redondeo.Dos(Base * PorcentajeRecargo / 100m);
         PorcentajeDeducible = Redondeo.Dos(d.PorcentajeDeducible);
         CuotaDeducible = Redondeo.Dos(Cuota * PorcentajeDeducible / 100m);
@@ -74,6 +77,12 @@ public sealed class LineaGasto
 
     /// <summary>Cuenta de gasto de la línea (null: la de las reglas de contabilización).</summary>
     public string? CuentaGasto { get; private set; }
+
+    /// <summary>
+    /// Suplido: lo que el proveedor pagó por cuenta de la empresa y repercute sin impuesto (tasas, aranceles…). No forma
+    /// parte de la base imponible ni del libro de IVA; suma al total a pagar y va a su propia cuenta.
+    /// </summary>
+    public bool Suplido { get; private set; }
 
     public decimal Base { get; private set; }
 
@@ -215,6 +224,9 @@ public sealed class Gasto : RaizAgregadoEmpresa<Guid>
     public decimal PorcentajeIrpf { get; private set; }
 
     public decimal RetencionIrpf { get; private set; }
+
+    /// <summary>Suplidos de la factura (líneas fuera de la base, sin impuesto): suman al total a pagar.</summary>
+    public decimal Suplidos { get; private set; }
 
     public decimal Total { get; private set; }
 
@@ -397,7 +409,13 @@ public sealed class Gasto : RaizAgregadoEmpresa<Guid>
         }
 
         var nuevas = lineas.Select((l, i) => new LineaGasto(i + 1, l)).ToList();
-        var baseTotal = Redondeo.Dos(nuevas.Sum(l => l.Base));
+        if (nuevas.Any(l => l.Suplido && (l.CuentaGasto is null || l.Base < 0m && !EsRectificativa)))
+        {
+            return Resultado.Fallo(Error.Validacion("gasto.suplido", "Un suplido lleva su cuenta contable y suma (sin impuesto) al total de la factura."));
+        }
+
+        var suplidos = Redondeo.Dos(nuevas.Where(l => l.Suplido).Sum(l => l.Base));
+        var baseTotal = Redondeo.Dos(nuevas.Where(l => !l.Suplido).Sum(l => l.Base));
         if (baseTotal < 0m && !EsRectificativa)
         {
             return Resultado.Fallo(Error.Validacion("gasto.base_negativa", "La base no puede ser negativa: un abono del proveedor se registra como rectificativa."));
@@ -407,7 +425,7 @@ public sealed class Gasto : RaizAgregadoEmpresa<Guid>
         var cobrada = Redondeo.Dos(nuevas.Where(l => !l.Autoliquidada).Sum(l => l.Cuota));
         var recargo = Redondeo.Dos(nuevas.Sum(l => l.CuotaRecargo));
         var retencion = Redondeo.Dos(baseTotal * porcentajeIrpf / 100m);
-        var total = Redondeo.Dos(baseTotal + cobrada + recargo - retencion);
+        var total = Redondeo.Dos(baseTotal + cobrada + recargo - retencion + suplidos);
 
         var plazos = (vencimientos is { Count: > 0 } ? vencimientos : [new VencimientoGasto(vencimientoPorDefecto, total)])
             .Select(v => new VencimientoGasto(v.Fecha, Redondeo.Dos(v.Importe))).OrderBy(v => v.Fecha).ToList();
@@ -416,7 +434,7 @@ public sealed class Gasto : RaizAgregadoEmpresa<Guid>
             return Resultado.Fallo(Error.Validacion("gasto.vencimientos", $"Los vencimientos suman {plazos.Sum(v => v.Importe):F2} y la factura {total:F2}."));
         }
 
-        var principal = nuevas.OrderByDescending(l => Math.Abs(l.Base)).First();
+        var principal = nuevas.Where(l => !l.Suplido).DefaultIfEmpty(nuevas[0]).OrderByDescending(l => Math.Abs(l.Base)).First();
         Concepto = textoConcepto;
         NumeroFactura = numero;
         FechaFactura = fechaFactura;
@@ -428,6 +446,7 @@ public sealed class Gasto : RaizAgregadoEmpresa<Guid>
         PorcentajeIva = principal.PorcentajeIva;
         PorcentajeIrpf = Redondeo.Dos(porcentajeIrpf);
         RetencionIrpf = retencion;
+        Suplidos = suplidos;
         Total = total;
         _lineas.Clear();
         _lineas.AddRange(nuevas);

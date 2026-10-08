@@ -24,6 +24,7 @@ export interface SemillaVenta {
     porcentajeDescuento: number;
     codigoIva: string;
     conceptos?: ConceptoAplicado[] | null;
+    envaseProductoId?: string | null;
   }[];
   rectificaId?: string;
   /** Divisa del documento de partida (y, en una rectificativa, el tipo de cambio de la original). */
@@ -55,6 +56,7 @@ export function EditorVenta(props: { tipo: TipoVenta; id?: string | null; semill
   const [formas, setFormas] = useState<FormaPago[]>([]);
   const [series, setSeries] = useState<string[]>([]);
   const [catalogo, setCatalogo] = useState<ConceptoCatalogo[]>([]);
+  const [envases, setEnvases] = useState<{ id: string; nombre: string }[]>([]);
 
   const [clienteId, setClienteId] = useState(props.semilla?.clienteId ?? "");
   const [fecha, setFecha] = useState(props.tipo === "pedido" && props.semilla?.fecha ? props.semilla.fecha : hoyIso());
@@ -98,7 +100,15 @@ export function EditorVenta(props: { tipo: TipoVenta; id?: string | null; semill
     api.get<TipoIva[]>("/tipos-iva").then((t) => setIvas(t.filter((x) => x.activo))).catch(() => setIvas([]));
     api.get<FormaPago[]>("/formas-pago").then((f) => setFormas(f.filter((x) => x.activo))).catch(() => setFormas([]));
     api.get<{ prefijo: string; tipoDocumento: string }[]>("/series").then((s) => setSeries([...new Set(s.filter((x) => x.tipoDocumento === "Factura").map((x) => x.prefijo))])).catch(() => setSeries([]));
-    api.get<ConceptoCatalogo[]>("/conceptos-linea?ambito=Ventas&activos=true").then(setCatalogo).catch(() => setCatalogo([]));
+    api.get<ConceptoCatalogo[]>("/conceptos-linea?ambito=Ventas&activos=true")
+      .then((c) => {
+        setCatalogo(c);
+        // Los envases que usan las reglas: son los que puede elegir cada línea.
+        const ids = [...new Set(c.flatMap((x) => (x.asignaciones ?? []).map((a) => a.envaseProductoId)).filter((x): x is string => !!x))];
+        Promise.all(ids.map((id) => api.get<Producto>(`/productos/${id}`).then((p) => ({ id, nombre: p.nombre })).catch(() => ({ id, nombre: id }))))
+          .then(setEnvases);
+      })
+      .catch(() => setCatalogo([]));
     api.get<{ territorioFiscal: string; operaEnAmbosTerritorios?: boolean }>("/empresas/actual")
       .then((e) => { setAmbos(!!e.operaEnAmbosTerritorios); setTerritorio(territorioSemilla ?? (e.territorioFiscal === "Canarias" ? "Igic" : "Iva")); })
       .catch(() => setAmbos(false));
@@ -124,6 +134,7 @@ export function EditorVenta(props: { tipo: TipoVenta; id?: string | null; semill
       precio: l.precioUnitario,
       dto: l.porcentajeDescuento,
       iva: l.codigoIva,
+      envaseProductoId: l.envaseProductoId ?? null,
       conceptos: rectificativa ? [] : porLinea[i],
     }));
     setLineas(base);
@@ -165,7 +176,7 @@ export function EditorVenta(props: { tipo: TipoVenta; id?: string | null; semill
       formaPagoId: formaPagoId || null,
       recargoEquivalencia: recargo,
       porcentajeIrpf: irpf,
-      conceptosDocumento: enDivisa ? [] : conceptosDoc,
+      conceptosDocumento: conceptosDoc,
       impuesto: ambos && !rectificativa ? territorio : null,
       descontarAnticipos: descontar && facturados.length && !enDivisa ? facturados.map((a) => ({ anticipoId: a.id })) : null,
       moneda: enDivisa ? moneda : null,
@@ -177,7 +188,8 @@ export function EditorVenta(props: { tipo: TipoVenta; id?: string | null; semill
         codigoIva: l.iva,
         porcentajeDescuento: l.dto,
         productoId: l.productoId,
-        ...(rectificativa || enDivisa ? { conceptos: [] } : l.conceptos === undefined ? {} : { conceptos: l.conceptos }),
+        envaseProductoId: l.envaseProductoId ?? null,
+        ...(rectificativa ? { conceptos: [] } : l.conceptos === undefined ? {} : { conceptos: l.conceptos }),
       })),
     }),
     [clienteId, fecha, serie, dias, formaPagoId, recargo, irpf, conceptosDoc, validas, props.tipo, rectificativa, descontar, facturados, ambos, territorio, enDivisa, moneda, tasa],
@@ -257,7 +269,8 @@ export function EditorVenta(props: { tipo: TipoVenta; id?: string | null; semill
           codigoIva: c.codigoIva,
           porcentajeDescuento: c.porcentajeDescuento,
           productoId: l.productoId,
-          ...(rectificativa || enDivisa ? {} : l.conceptos === undefined ? {} : { conceptos: l.conceptos }),
+          envaseProductoId: l.envaseProductoId ?? null,
+          ...(rectificativa ? {} : l.conceptos === undefined ? {} : { conceptos: l.conceptos }),
         };
       });
       let id: string;
@@ -441,7 +454,8 @@ export function EditorVenta(props: { tipo: TipoVenta; id?: string | null; semill
       </div>
 
       <div className="panel">
-        <Rejilla modo="venta" lineas={lineas} alCambiar={setLineas} calculos={calculos} ivas={ivasTerritorio} catalogo={rectificativa ? [] : catalogo} sugeridos={sugeridos} alElegirArticulo={elegirArticulo} />
+        <Rejilla modo="venta" lineas={lineas} alCambiar={setLineas} calculos={calculos} ivas={ivasTerritorio} catalogo={rectificativa ? [] : catalogo} sugeridos={sugeridos} alElegirArticulo={elegirArticulo}
+          envases={envases} />
         {!rectificativa && catalogo.length > 0 && (
           <div style={{ marginTop: 10 }}>
             <EditorConceptos catalogo={catalogo} lista={conceptosDoc} alCambiar={(l) => setConceptosDoc(l ?? [])} documento />

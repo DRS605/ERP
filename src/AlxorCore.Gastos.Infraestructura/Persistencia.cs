@@ -1,4 +1,4 @@
-using AlxorCore.Gastos.Aplicacion;
+﻿using AlxorCore.Gastos.Aplicacion;
 using AlxorCore.Gastos.Dominio;
 using AlxorCore.Nucleo.Aplicacion;
 using AlxorCore.Nucleo.Consultas;
@@ -71,6 +71,20 @@ internal sealed class RepositorioCargosAcreedor : IRepositorioCargosAcreedor
 
     public async Task<IReadOnlyList<CargoAcreedorLiquidado>> DeGastoAsync(Guid gastoId, CancellationToken ct = default) =>
         await _db.CargosAcreedorLiquidados.AsNoTracking().Where(x => x.GastoId == gastoId).ToListAsync(ct).ConfigureAwait(false);
+
+    public async Task<IReadOnlyList<(Guid DocumentoId, Guid ConceptoId)>> LiquidadosAsync(string origen, IReadOnlyCollection<Guid> documentos, CancellationToken ct = default)
+    {
+        if (documentos.Count == 0)
+        {
+            return [];
+        }
+
+        var filas = await (from x in _db.CargosAcreedorLiquidados.AsNoTracking()
+                           join g in _db.Gastos.AsNoTracking() on x.GastoId equals g.Id
+                           where x.Origen == origen && documentos.Contains(x.DocumentoId) && g.Estado != EstadoGasto.Anulado
+                           select new { x.DocumentoId, x.ConceptoId }).Distinct().ToListAsync(ct).ConfigureAwait(false);
+        return filas.Select(f => (f.DocumentoId, f.ConceptoId)).ToList();
+    }
 }
 
 internal sealed class ConfiguracionGasto : IEntityTypeConfiguration<Gasto>
@@ -113,6 +127,7 @@ internal sealed class ConfiguracionGasto : IEntityTypeConfiguration<Gasto>
         builder.Property(g => g.MotivoRectificacion).HasColumnName("motivo_rectificacion").HasMaxLength(Gasto.LongitudMaximaConcepto);
         builder.HasIndex(g => g.RectificaGastoId).HasDatabaseName("ix_gasto_rectifica");
         builder.Property(g => g.RecargoTotal).HasColumnName("recargo_total").HasColumnType("numeric(14,2)").HasDefaultValue(0m).IsRequired();
+        builder.Property(g => g.Suplidos).HasColumnName("suplidos").HasColumnType("numeric(14,2)").HasDefaultValue(0m).IsRequired();
 
         builder.OwnsMany(g => g.Lineas, l =>
         {
@@ -132,6 +147,7 @@ internal sealed class ConfiguracionGasto : IEntityTypeConfiguration<Gasto>
             l.Property(x => x.CuotaRecargo).HasColumnName("cuota_recargo").HasColumnType("numeric(14,2)").IsRequired();
             l.Property(x => x.PorcentajeDeducible).HasColumnName("porcentaje_deducible").HasColumnType("numeric(5,2)").IsRequired();
             l.Property(x => x.CuotaDeducible).HasColumnName("cuota_deducible").HasColumnType("numeric(14,2)").IsRequired();
+            l.Property(x => x.Suplido).HasColumnName("suplido").HasDefaultValue(false).IsRequired();
             l.HasIndex("gasto_id").HasDatabaseName("ix_linea_gasto_gasto");
         });
         builder.Navigation(g => g.Lineas).UsePropertyAccessMode(PropertyAccessMode.Field);

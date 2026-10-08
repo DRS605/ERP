@@ -1,4 +1,4 @@
-using AlxorCore.Nucleo.Comun;
+﻿using AlxorCore.Nucleo.Comun;
 using AlxorCore.Nucleo.Dominio;
 using AlxorCore.Nucleo.Resultados;
 using AlxorCore.Nucleo.Tiempo;
@@ -137,7 +137,7 @@ public sealed class Factura : RaizAgregadoEmpresa<Guid>
 
     /// <summary>
     /// Marca la factura en divisa (sus líneas ya llevan el precio en divisa y la tasa) y calcula sus importes en la
-    /// divisa con el mismo redondeo que en euros: base, impuesto línea a línea, recargo y retención.
+    /// divisa con el mismo redondeo que en euros: base, impuesto línea a línea, recargo, retención y suplidos.
     /// </summary>
     public void EstablecerDivisa(string moneda, decimal tasa)
     {
@@ -145,7 +145,8 @@ public sealed class Factura : RaizAgregadoEmpresa<Guid>
         TasaCambio = tasa;
         BaseDivisa = Redondeo.Dos(_lineas.Sum(l => l.BaseDivisa ?? 0m));
         CuotaDivisa = Redondeo.Dos(_lineas.Sum(l => Redondeo.Dos((l.BaseDivisa ?? 0m) * l.PorcentajeIva / 100m) + Redondeo.Dos((l.BaseDivisa ?? 0m) * l.PorcentajeRecargo / 100m)));
-        TotalDivisa = Redondeo.Dos(BaseDivisa.Value + CuotaDivisa.Value - Redondeo.Dos(BaseDivisa.Value * PorcentajeIrpf / 100m));
+        TotalDivisa = Redondeo.Dos(BaseDivisa.Value + CuotaDivisa.Value - Redondeo.Dos(BaseDivisa.Value * PorcentajeIrpf / 100m)
+            + _lineas.Sum(l => l.SuplidosDivisa));
     }
 
     // --- Importes ---

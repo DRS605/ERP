@@ -33,6 +33,7 @@ public sealed class EmitirRectificativa
     private readonly IUnidadDeTrabajoFacturacion _unidadDeTrabajo;
     private readonly IResolverIvaEmpresa _resolverIva;
     private readonly IReloj _reloj;
+    private readonly IResolverConceptos? _conceptos;
 
     public EmitirRectificativa(
         IConsultaProductos productos,
@@ -41,8 +42,10 @@ public sealed class EmitirRectificativa
         IConsultaEmpresas empresas,
         IUnidadDeTrabajoFacturacion unidadDeTrabajo,
         IResolverIvaEmpresa resolverIva,
-        IReloj reloj)
+        IReloj reloj,
+        IResolverConceptos? conceptos = null)
     {
+        _conceptos = conceptos;
         _productos = productos;
         _resolverSerie = resolverSerie;
         _facturas = facturas;
@@ -94,6 +97,13 @@ public sealed class EmitirRectificativa
             lineas = lineas.Select(l => l with { PrecioDivisa = l.PrecioUnitario, TasaCambio = tasa }).ToList();
         }
 
+        var conConceptos = await ConceptosRectificativaAsync(original, comando.Lineas, lineas, ct).ConfigureAwait(false);
+        if (conConceptos.EsFallo)
+        {
+            return Resultado.Fallo<FacturaDto>(conConceptos.Error);
+        }
+
+        lineas = conConceptos.Valor;
         var mencionFiscal = await ResolucionLineasFactura.MencionFiscalAsync(empresaId, lineas, _resolverIva, ct).ConfigureAwait(false);
         var cliente = new ClienteFacturado(
             original.ClienteId, original.ClienteNombre, original.ClienteNif,
@@ -139,5 +149,42 @@ public sealed class EmitirRectificativa
         _facturas.Agregar(rectificativa.Valor);
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return Resultado.Ok(FacturaDto.Desde(rectificativa.Valor));
+    }
+
+    /// <summary>
+    /// Cargos y abonos de la rectificativa (por sustitución: lleva las líneas corregidas). Una línea con conceptos pedidos
+    /// lleva exactamente esos. Si no, la del mismo artículo (o, sin artículo, la misma descripción) en la factura original le
+    /// pasa los suyos, recalculados sobre la línea corregida (como al pasar un documento a otro). Los cargos con acreedor
+    /// pierden el acreedor: el servicio ya se prestó y su cargo es el de la original.
+    /// </summary>
+    private async Task<Resultado<List<NuevaLinea>>> ConceptosRectificativaAsync(Factura original, IReadOnlyList<LineaComando> comandos, List<NuevaLinea> lineas,
+        CancellationToken ct)
+    {
+        if (_conceptos is null || comandos.Count != lineas.Count)
+        {
+            return Resultado.Ok(lineas);
+        }
+
+        var conCopias = comandos.Select((c, i) =>
+        {
+            if (c.Conceptos is not null)
+            {
+                return c;
+            }
+
+            var l = lineas[i];
+            var origen = original.Lineas.FirstOrDefault(o => l.ProductoId is { } p ? o.ProductoId == p
+                : o.ProductoId is null && string.Equals(o.Descripcion, l.Descripcion, StringComparison.OrdinalIgnoreCase));
+            return origen is null || origen.Conceptos.Count == 0
+                ? c with { Conceptos = [] }
+                : c with
+                {
+                    // En la moneda del documento (en divisa, el importe en la divisa) y sin acreedor.
+                    ConceptosCopiados = origen.Conceptos.Select(x => x with { Importe = x.ImporteDivisa ?? x.Importe, ImporteDivisa = null, AcreedorId = null, Provisionado = false })
+                        .ToList(),
+                };
+        }).ToList();
+        return await ResolucionLineasFactura.AplicarConceptosAsync(_conceptos, original.ClienteId, conCopias, lineas, null, false,
+            new ContextoConceptos(null, original.FechaEmision, original.Moneda, original.TasaCambio), ct).ConfigureAwait(false);
     }
 }

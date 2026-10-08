@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode, type KeyboardEvent } from "react";
 import { useDocs } from "./contexto";
 import type { ConceptoCatalogo, ConceptoSolicitado, Producto, Tercero } from "./tipos";
-import { cant, eur, useRetardado, useUltimaPeticion } from "./util";
+import { cant, dinero, eur, useRetardado, useUltimaPeticion } from "./util";
 
 export function Dialogo(props: { titulo: string; children: ReactNode; alCerrar: () => void; acciones?: ReactNode; ancho?: number }) {
   useEffect(() => {
@@ -219,7 +219,11 @@ export function EditorConceptos(props: {
 }
 
 /** Línea de detalle de un concepto aplicado (en las vistas). */
-export function ConceptosAplicados(props: { conceptos?: { nombre: string; calculo: string; valor: number; importe: number; efecto: string; repartido: boolean }[] | null }) {
+/** Conceptos aplicados a una línea. En un documento en divisa, sus importes en la divisa (en la factura, el de la divisa y no su contravalor). */
+export function ConceptosAplicados(props: {
+  conceptos?: { nombre: string; calculo: string; valor: number; importe: number; importeDivisa?: number | null; efecto: string; repartido: boolean }[] | null;
+  moneda?: string | null;
+}) {
   if (!props.conceptos?.length) return null;
   return (
     <div className="dx-aplicados">
@@ -228,7 +232,7 @@ export function ConceptosAplicados(props: { conceptos?: { nombre: string; calcul
           · {c.nombre}
           {c.calculo === "Porcentaje" ? ` (${cant(c.valor)} %)` : ""}
           {c.repartido ? " · del documento" : ""}
-          {c.efecto === "Coste" ? " · coste" : ""}: <strong>{eur(c.importe)}</strong>
+          {c.efecto === "Coste" ? " · coste" : ""}: <strong>{dinero(c.importeDivisa ?? c.importe, props.moneda)}</strong>
         </div>
       ))}
     </div>

@@ -1,4 +1,4 @@
-using AlxorCore.Api.Comun;
+﻿using AlxorCore.Api.Comun;
 using AlxorCore.Catalogo.Aplicacion;
 using AlxorCore.Nucleo.Autorizacion;
 using AlxorCore.Nucleo.Comun;
@@ -51,16 +51,23 @@ public static class EndpointsConceptosLinea
             .WithSummary("Elimina un concepto que ningún documento usa; si ya se usó, lo da de baja.")
             .RequierePermiso(Permisos.ProductoGestionar);
 
-        g.MapGet("/sugeridos", async (AmbitoConcepto? ambito, Guid? terceroId, Guid? productoId, DateOnly? fecha, IResolverConceptos caso,
-                AlxorCore.Terceros.Aplicacion.IConsultaClientes clientes, AlxorCore.Terceros.Aplicacion.IConsultaProveedores proveedores, CancellationToken ct) =>
+        g.MapGet("/sugeridos", async (AmbitoConcepto? ambito, Guid? terceroId, Guid? productoId, Guid? envaseProductoId, DateOnly? fecha, string? moneda, decimal? tasaCambio,
+                IResolverConceptos caso, AlxorCore.Terceros.Aplicacion.IConsultaClientes clientes, AlxorCore.Terceros.Aplicacion.IConsultaProveedores proveedores,
+                AlxorCore.Nucleo.Aplicacion.IConversorDivisa conversor, AlxorCore.Nucleo.Multiempresa.IContextoEmpresa contexto, CancellationToken ct) =>
             {
                 // El tipo del cliente o proveedor decide las reglas por tipo de tercero.
                 var a = ambito ?? AmbitoConcepto.Ventas;
                 var tipo = terceroId is not { } t ? null
                     : a == AmbitoConcepto.Compras ? (await proveedores.ObtenerAsync(t, ct).ConfigureAwait(false))?.Tipo
                     : (await clientes.ObtenerAsync(t, ct).ConfigureAwait(false))?.Tipo;
-                return Results.Ok(await caso.SugeridosAsync(a, terceroId, productoId, new ContextoConceptos(tipo, fecha ?? DateOnly.FromDateTime(DateTime.Today)), ct)
-                    .ConfigureAwait(false));
+                var datos = new ContextoConceptos(tipo, fecha ?? DateOnly.FromDateTime(DateTime.Today));
+                // En un documento en divisa, los valores en euros se enseñan ya en la divisa (al tipo indicado o al del día).
+                if (contexto.EmpresaId is { } empresaId)
+                {
+                    datos = await AlxorCore.Facturacion.Aplicacion.FacturaEnDivisa.ContextoAsync(conversor, empresaId, moneda, tasaCambio, datos, ct).ConfigureAwait(false);
+                }
+
+                return Results.Ok(await caso.SugeridosAsync(a, terceroId, productoId, datos, envaseProductoId, ct).ConfigureAwait(false));
             })
             .WithSummary("Conceptos que se pondrían solos en una línea para ese cliente o proveedor y ese artículo.")
             .RequireAuthorization();

@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using AlxorCore.Analisis.Aplicacion;
 using AlxorCore.Gastos.Aplicacion;
 using AlxorCore.Gastos.Dominio;
@@ -10,7 +10,8 @@ namespace AlxorCore.Api.Comun;
 
 /// <summary>Un cargo con acreedor en un documento (pendiente o no de liquidar).</summary>
 public sealed record CargoAcreedorDto(string Origen, Guid DocumentoId, string Numero, DateOnly Fecha, string Tercero, int LineaOrden, string Linea,
-    Guid ConceptoId, string Codigo, string Concepto, string Efecto, decimal Importe, Guid AcreedorId, string AcreedorNombre)
+    Guid ConceptoId, string Codigo, string Concepto, string Efecto, decimal Importe, Guid AcreedorId, string AcreedorNombre, bool Provisionado = false,
+    string? CuentaContable = null)
 {
     /// <summary>Clave del cargo: origen, documento, línea y concepto.</summary>
     public string Clave => $"{Origen}:{DocumentoId:N}:{LineaOrden.ToString(CultureInfo.InvariantCulture)}:{ConceptoId:N}";
@@ -24,7 +25,7 @@ public sealed record LiquidacionAcreedorDto(Guid GastoId, string NumeroFactura, 
 
 /// <summary>
 /// Cargos y abonos con acreedor (portes al transportista, comisión del comisionista…), como en Hispatec: cada concepto
-/// de línea que lleva acreedor es una deuda con él. Se leen de las facturas de venta (las que no vienen de albaranes),
+/// de línea que lleva acreedor es una deuda con él, en euros. Se leen de las facturas de venta (las que no vienen de albaranes),
 /// los albaranes de venta y los pedidos de compra vivos; los liquidados en una factura del acreedor no anulada dejan de
 /// estar pendientes. La liquidación registra la factura del acreedor (un gasto, con su IVA y su retención) con una línea
 /// por concepto, y anota qué cargos cubre.
@@ -35,7 +36,7 @@ public sealed class CargosAcreedores
     private const string Sql = """
         WITH cargos AS (
             SELECT 'FacturaVenta' AS origen, f.id AS documento_id, f.numero_completo AS numero, f.fecha_emision AS fecha, f.cliente_nombre AS tercero,
-                   l.orden, l.descripcion AS linea, e
+                   l.orden, l.descripcion AS linea, e, 1::numeric AS tasa, coalesce((e ->> 'provisionado')::boolean, false) AS provisionado
             FROM facturacion.factura f
             JOIN facturacion.linea_factura l ON l.factura_id = f.id
             CROSS JOIN LATERAL jsonb_array_elements(l.conceptos) e
@@ -43,7 +44,15 @@ public sealed class CargosAcreedores
             UNION ALL
             SELECT 'AlbaranVenta', a.id,
                    CASE WHEN a.serie IS NOT NULL THEN a.serie || extract(year FROM a.fecha)::int || '/' || lpad(a.numero::text, 5, '0') ELSE a.numero::text END,
-                   a.fecha, a.cliente_nombre, l.orden, l.descripcion, e
+                   a.fecha, a.cliente_nombre, l.orden, l.descripcion, e,
+                   -- Un albarán en divisa lleva sus conceptos en la divisa: se pasan a euros al tipo del día del albarán.
+                   CASE WHEN a.moneda IS NULL THEN 1::numeric ELSE coalesce((SELECT t.tasa_eur FROM divisas.tipo_cambio t
+                        WHERE t.empresa_id = a.empresa_id AND t.divisa = a.moneda AND t.fecha <= a.fecha ORDER BY t.fecha DESC LIMIT 1), 1) END,
+                   -- Provisionado en la factura que recoge el albarán.
+                   EXISTS (SELECT 1 FROM facturacion.linea_factura lf JOIN facturacion.factura fa ON fa.id = lf.factura_id
+                           CROSS JOIN LATERAL jsonb_array_elements(lf.conceptos) x
+                           WHERE lf.albaran_venta_id = a.id AND fa.estado <> 'Anulada' AND x ->> 'conceptoId' = e ->> 'conceptoId'
+                             AND coalesce((x ->> 'provisionado')::boolean, false))
             FROM facturacion.albaran_venta a
             JOIN facturacion.linea_albaran_venta l ON l.albaran_venta_id = a.id
             CROSS JOIN LATERAL jsonb_array_elements(l.conceptos) e
@@ -51,13 +60,13 @@ public sealed class CargosAcreedores
             UNION ALL
             SELECT 'PedidoCompra', p.id,
                    CASE WHEN p.serie IS NOT NULL THEN p.serie || p.ejercicio || '/' || lpad(p.numero::text, 5, '0') ELSE p.numero::text END,
-                   p.fecha, p.proveedor_texto, l.orden, l.descripcion, e
+                   p.fecha, p.proveedor_texto, l.orden, l.descripcion, e, 1::numeric, false
             FROM compras.pedido_compra p
             JOIN compras.linea_pedido l ON l.pedido_id = p.id
             CROSS JOIN LATERAL jsonb_array_elements(l.conceptos) e
             WHERE p.empresa_id = NULLIF(current_setting('app.empresa_actual', true), '')::uuid AND p.estado <> 'Cancelado')
         SELECT c.origen, c.documento_id::text, c.numero, c.fecha, c.tercero, c.orden, c.linea,
-               c.e ->> 'conceptoId', c.e ->> 'codigo', c.e ->> 'nombre', c.e ->> 'efecto', (c.e ->> 'importe')::numeric, c.e ->> 'acreedorId'
+               c.e ->> 'conceptoId', c.e ->> 'codigo', c.e ->> 'nombre', c.e ->> 'efecto', round((c.e ->> 'importe')::numeric * c.tasa, 2), c.e ->> 'acreedorId', c.provisionado, c.e ->> 'cuentaContable'
         FROM cargos c
         WHERE c.e ->> 'acreedorId' IS NOT NULL
           AND (@acreedor = '' OR c.e ->> 'acreedorId' = @acreedor)
@@ -111,7 +120,8 @@ public sealed class CargosAcreedores
 
             resultado.Add(new CargoAcreedorDto((string)f[0]!, Guid.Parse((string)f[1]!), (string)f[2]!, Fecha(f[3]), (string?)f[4] ?? string.Empty,
                 Convert.ToInt32(f[5], CultureInfo.InvariantCulture), (string?)f[6] ?? string.Empty, Guid.Parse((string)f[7]!), (string?)f[8] ?? string.Empty,
-                (string?)f[9] ?? string.Empty, (string?)f[10] ?? string.Empty, Convert.ToDecimal(f[11], CultureInfo.InvariantCulture), acreedor, nombre));
+                (string?)f[9] ?? string.Empty, (string?)f[10] ?? string.Empty, Convert.ToDecimal(f[11], CultureInfo.InvariantCulture), acreedor, nombre,
+                f[13] is bool provisionado && provisionado, (string?)f[14]));
         }
 
         return resultado;
@@ -145,8 +155,11 @@ public sealed class CargosAcreedores
         }
 
         // Lo que se debe al acreedor es el importe del cargo (en valor absoluto: un abono en la venta también es un coste a pagarle).
-        var lineas = elegidos.GroupBy(c => (c.Codigo, c.Concepto)).Select(g => new LineaGastoComando(
-            Math.Round(g.Sum(c => Math.Abs(c.Importe)), 2), comando.CodigoIva, $"{g.Key.Concepto} ({g.Count()} cargo{(g.Count() == 1 ? string.Empty : "s")})")).ToList();
+        // El coste ya provisionado en la venta cancela la 4009; el resto va a la cuenta de gasto (6xx) del concepto o a la de gastos.
+        var lineas = elegidos.GroupBy(c => (c.Codigo, c.Concepto, Cuenta: c.Provisionado ? AlxorCore.Facturacion.Aplicacion.ProvisionCargos.CuentaProvision
+                : c.CuentaContable is { } cuenta && cuenta.StartsWith('6') ? cuenta : null))
+            .Select(g => new LineaGastoComando(Math.Round(g.Sum(c => Math.Abs(c.Importe)), 2), comando.CodigoIva,
+                $"{g.Key.Concepto} ({g.Count()} cargo{(g.Count() == 1 ? string.Empty : "s")})", CuentaGasto: g.Key.Cuenta)).ToList();
         var fecha = comando.FechaFactura ?? DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
         var gasto = await _registrar.EjecutarAsync(empresaId, new RegistrarGastoComando(
             $"Liquidación de cargos {elegidos.Min(c => c.Fecha):dd/MM/yyyy}–{elegidos.Max(c => c.Fecha):dd/MM/yyyy}", lineas.Sum(l => l.Base), comando.AcreedorId,
@@ -173,4 +186,15 @@ public sealed class CargosAcreedores
         DateTime dt => DateOnly.FromDateTime(dt),
         _ => DateOnly.Parse(Convert.ToString(valor, CultureInfo.InvariantCulture)!, CultureInfo.InvariantCulture),
     };
+}
+
+/// <summary>Los cargos de los albaranes ya liquidados en la factura de su acreedor (para no provisionarlos al facturar el albarán).</summary>
+public sealed class CargosLiquidadosFacturacion : AlxorCore.Facturacion.Aplicacion.ICargosAcreedorLiquidados
+{
+    private readonly IRepositorioCargosAcreedor _liquidados;
+
+    public CargosLiquidadosFacturacion(IRepositorioCargosAcreedor liquidados) => _liquidados = liquidados;
+
+    public Task<IReadOnlyList<(Guid AlbaranId, Guid ConceptoId)>> DeAlbaranesAsync(IReadOnlyCollection<Guid> albaranes, CancellationToken ct = default) =>
+        _liquidados.LiquidadosAsync("AlbaranVenta", albaranes, ct);
 }

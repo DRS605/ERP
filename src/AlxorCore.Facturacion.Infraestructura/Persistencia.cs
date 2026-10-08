@@ -1,4 +1,4 @@
-using AlxorCore.Facturacion.Aplicacion;
+﻿using AlxorCore.Facturacion.Aplicacion;
 using AlxorCore.Facturacion.Dominio;
 using AlxorCore.Nucleo.Aplicacion;
 using AlxorCore.Nucleo.Comun;
@@ -158,10 +158,12 @@ internal sealed class ConfiguracionFactura : IEntityTypeConfiguration<Factura>
             linea.Property(l => l.AnticipoId).HasColumnName("anticipo_id");
             linea.HasIndex(l => l.AnticipoId).HasDatabaseName("ix_linea_factura_anticipo");
             linea.Property(l => l.AlbaranVentaId).HasColumnName("albaran_venta_id");
+            linea.Property(l => l.EnvaseProductoId).HasColumnName("envase_producto_id");
             linea.Property(l => l.PrecioDivisa).HasColumnName("precio_divisa").HasColumnType("numeric(14,4)");
             linea.Property(l => l.BaseDivisa).HasColumnName("base_divisa").HasColumnType("numeric(14,2)");
             linea.HasIndex(l => l.AlbaranVentaId).HasDatabaseName("ix_linea_factura_albaran_venta");
             linea.Ignore(l => l.CosteTotal);
+            linea.Ignore(l => l.SuplidosDivisa);
             linea.Ignore(l => l.Margen);
         });
         builder.Navigation(f => f.Lineas).UsePropertyAccessMode(PropertyAccessMode.Field);
@@ -209,8 +211,17 @@ internal sealed class ConfiguracionFacturaRecurrente : IEntityTypeConfiguration<
             linea.Property(l => l.PorcentajeIva).HasColumnName("porcentaje_iva").HasColumnType("numeric(5,2)").IsRequired();
             linea.Property(l => l.Base).HasColumnName("base").HasColumnType("numeric(14,2)").IsRequired();
             linea.Property(l => l.CuotaIva).HasColumnName("cuota_iva").HasColumnType("numeric(14,2)").IsRequired();
+            linea.Property(l => l.Conceptos).HasColumnName("conceptos").HasColumnType("jsonb")
+                .HasConversion(v => ConceptosPlantillaJson.AJson(v), s => ConceptosPlantillaJson.DesdeJsonONulo(s),
+                    new Microsoft.EntityFrameworkCore.ChangeTracking.ValueComparer<IReadOnlyList<ConceptoPlantilla>?>((a, b) => ConceptosPlantillaJson.AJson(a) == ConceptosPlantillaJson.AJson(b),
+                        v => (ConceptosPlantillaJson.AJson(v) ?? string.Empty).GetHashCode(StringComparison.Ordinal), v => ConceptosPlantillaJson.DesdeJsonONulo(ConceptosPlantillaJson.AJson(v))));
         });
         builder.Navigation(r => r.Lineas).UsePropertyAccessMode(PropertyAccessMode.Field);
+        builder.Property(r => r.ConceptosDocumento).HasColumnName("conceptos_documento").HasColumnType("jsonb").HasDefaultValueSql("'[]'::jsonb").IsRequired()
+            .HasConversion(v => ConceptosPlantillaJson.AJson(v) ?? "[]", s => ConceptosPlantillaJson.DesdeJsonONulo(s) ?? new List<ConceptoPlantilla>(),
+                new Microsoft.EntityFrameworkCore.ChangeTracking.ValueComparer<IReadOnlyList<ConceptoPlantilla>>((a, b) => ConceptosPlantillaJson.AJson(a) == ConceptosPlantillaJson.AJson(b),
+                    v => (ConceptosPlantillaJson.AJson(v) ?? string.Empty).GetHashCode(StringComparison.Ordinal),
+                    v => ConceptosPlantillaJson.DesdeJsonONulo(ConceptosPlantillaJson.AJson(v)) ?? new List<ConceptoPlantilla>()));
     }
 }
 
@@ -545,6 +556,7 @@ internal sealed class ConfiguracionPresupuesto : IEntityTypeConfiguration<Presup
             linea.Property(l => l.Id).HasColumnName("id").ValueGeneratedNever();
             linea.Property(l => l.EmpresaId).HasColumnName("empresa_id").IsRequired();
             linea.Property(l => l.ProductoId).HasColumnName("producto_id");
+            linea.Property(l => l.EnvaseProductoId).HasColumnName("envase_producto_id");
             linea.Property(l => l.Descripcion).HasColumnName("descripcion").HasMaxLength(300).IsRequired();
             linea.Property(l => l.Cantidad).HasColumnName("cantidad").HasColumnType("numeric(14,3)").IsRequired();
             linea.Property(l => l.PrecioUnitario).HasColumnName("precio_unitario").HasColumnType("numeric(14,4)").IsRequired();
@@ -622,4 +634,16 @@ public sealed class FacturacionDbContextFactory : IDesignTimeDbContextFactory<Fa
     {
         public Guid? EmpresaId => null;
     }
+}
+
+/// <summary>Serialización de los conceptos propios de las plantillas periódicas (null: los automáticos).</summary>
+internal static class ConceptosPlantillaJson
+{
+    private static readonly System.Text.Json.JsonSerializerOptions Opciones = new() { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase };
+
+    public static string? AJson(IReadOnlyList<ConceptoPlantilla>? conceptos) =>
+        conceptos is null ? null : System.Text.Json.JsonSerializer.Serialize(conceptos, Opciones);
+
+    public static IReadOnlyList<ConceptoPlantilla>? DesdeJsonONulo(string? json) =>
+        string.IsNullOrWhiteSpace(json) ? null : System.Text.Json.JsonSerializer.Deserialize<List<ConceptoPlantilla>>(json, Opciones);
 }

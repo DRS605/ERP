@@ -1,4 +1,4 @@
-using AlxorCore.Gastos.Dominio;
+﻿using AlxorCore.Gastos.Dominio;
 using AlxorCore.Nucleo.Aplicacion;
 using AlxorCore.Nucleo.Comun;
 using AlxorCore.Nucleo.Consultas;
@@ -11,7 +11,7 @@ using AlxorCore.Terceros.Aplicacion;
 namespace AlxorCore.Gastos.Aplicacion;
 
 public sealed record LineaGastoDto(string? Descripcion, string? CuentaGasto, decimal Base, string CodigoIva, decimal PorcentajeIva, decimal Cuota, bool Autoliquidada,
-    decimal PorcentajeRecargo, decimal CuotaRecargo, decimal PorcentajeDeducible, decimal CuotaDeducible);
+    decimal PorcentajeRecargo, decimal CuotaRecargo, decimal PorcentajeDeducible, decimal CuotaDeducible, bool Suplido = false);
 
 /// <summary>Bases y cuotas de la factura por tipo de impuesto (lo que usan los libros, el 303, el 390 y el SII).</summary>
 public sealed record DesgloseIvaDto(string CodigoIva, decimal PorcentajeIva, decimal Base, decimal Cuota, decimal CuotaDeducible, decimal CuotaRecargo, bool Autoliquidada);
@@ -28,14 +28,15 @@ public sealed record GastoDto(
     Guid? CentroId = null,
     string? Moneda = null,
     decimal? TasaCambio = null,
-    decimal? TotalDivisa = null)
+    decimal? TotalDivisa = null,
+    decimal Suplidos = 0m)
 {
     public static GastoDto Desde(Gasto g) => new(
         g.Id, g.ProveedorId, g.ProveedorTexto, g.Concepto, g.Fecha, g.BaseImponible, g.CodigoIva, g.PorcentajeIva, g.CuotaIva,
         g.PorcentajeIrpf, g.RetencionIrpf, g.Total, g.Estado.ToString(), ActividadNegocioId: g.ActividadNegocioId, Afectacion: g.Afectacion,
         NumeroFactura: g.NumeroFactura, FechaFactura: g.FechaFactura, RecargoTotal: g.RecargoTotal,
         Lineas: g.Lineas.OrderBy(l => l.Orden).Select(l => new LineaGastoDto(l.Descripcion, l.CuentaGasto, l.Base, l.CodigoIva, l.PorcentajeIva, l.Cuota, l.Autoliquidada,
-            l.PorcentajeRecargo, l.CuotaRecargo, l.PorcentajeDeducible, l.CuotaDeducible)).ToList(),
+            l.PorcentajeRecargo, l.CuotaRecargo, l.PorcentajeDeducible, l.CuotaDeducible, l.Suplido)).ToList(),
         Vencimientos: g.Vencimientos.OrderBy(v => v.Fecha).ToList(),
         Desglose: DesgloseDe(g),
         EsRectificativa: g.EsRectificativa, RectificaGastoId: g.RectificaGastoId, NumeroRectificado: g.NumeroRectificado, FechaRectificada: g.FechaRectificada,
@@ -43,13 +44,14 @@ public sealed record GastoDto(
         CentroId: g.CentroId,
         Moneda: g.Moneda,
         TasaCambio: g.TasaCambio,
-        TotalDivisa: g.TotalDivisa);
+        TotalDivisa: g.TotalDivisa,
+        Suplidos: g.Suplidos);
 
     /// <summary>Desglose por tipo. Un gasto antiguo sin líneas sale con una sola, la de su cabecera.</summary>
     public static IReadOnlyList<DesgloseIvaDto> DesgloseDe(Gasto g) =>
         g.Lineas.Count == 0
             ? [new DesgloseIvaDto(g.CodigoIva, g.PorcentajeIva, g.BaseImponible, g.CuotaIva, g.CuotaIva, 0m, false)]
-            : g.Lineas.GroupBy(l => (l.CodigoIva, l.PorcentajeIva, l.Autoliquidada))
+            : g.Lineas.Where(l => !l.Suplido).GroupBy(l => (l.CodigoIva, l.PorcentajeIva, l.Autoliquidada))
                 .Select(x => new DesgloseIvaDto(x.Key.CodigoIva, x.Key.PorcentajeIva, Redondeo.Dos(x.Sum(l => l.Base)), Redondeo.Dos(x.Sum(l => l.Cuota)),
                     Redondeo.Dos(x.Sum(l => l.CuotaDeducible)), Redondeo.Dos(x.Sum(l => l.CuotaRecargo)), x.Key.Autoliquidada))
                 .OrderByDescending(d => d.Base).ToList();
@@ -119,6 +121,10 @@ public interface IRepositorioCargosAcreedor
     void Agregar(AlxorCore.Gastos.Dominio.CargoAcreedorLiquidado cargo);
 
     Task<IReadOnlyList<AlxorCore.Gastos.Dominio.CargoAcreedorLiquidado>> DeGastoAsync(Guid gastoId, CancellationToken ct = default);
+
+    /// <summary>Documento y concepto de los cargos de esos documentos ya liquidados en una factura del acreedor no anulada.</summary>
+    Task<IReadOnlyList<(Guid DocumentoId, Guid ConceptoId)>> LiquidadosAsync(string origen, IReadOnlyCollection<Guid> documentos, CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<(Guid, Guid)>>([]);
 }
 
 /// <summary>Datos para registrar un gasto.</summary>
@@ -194,11 +200,13 @@ public static class GastoEnDivisa
             return (lineas, null);
         }
 
-        var baseDivisa = lineas.Sum(l => l.Base);
+        // Los suplidos suman al total sin impuesto ni retención.
+        var baseDivisa = lineas.Where(l => !l.Suplido).Sum(l => l.Base);
         var total = baseDivisa
             + lineas.Sum(l => l.Autoliquidada || l.SinCuota ? 0m : Redondeo.Dos(l.Base * l.PorcentajeIva / 100m))
             + lineas.Sum(l => Redondeo.Dos(l.Base * l.PorcentajeRecargo / 100m))
-            - Redondeo.Dos(baseDivisa * porcentajeIrpf / 100m);
+            - Redondeo.Dos(baseDivisa * porcentajeIrpf / 100m)
+            + lineas.Where(l => l.Suplido).Sum(l => l.Base);
         return (lineas.Select(l => l with { Base = Redondeo.Dos(l.Base * divisa.Tasa) }).ToList(), Redondeo.Dos(total));
     }
 }
@@ -213,7 +221,8 @@ public sealed record LineaGastoComando(
     string? Descripcion = null,
     decimal? PorcentajeIva = null,
     decimal PorcentajeDeducible = 100m,
-    string? CuentaGasto = null);
+    string? CuentaGasto = null,
+    bool Suplido = false);
 
 /// <summary>Caso de uso: registrar un gasto. Si se indica un proveedor, se copia su nombre.</summary>
 public sealed class RegistrarGasto
@@ -283,6 +292,14 @@ public sealed class RegistrarGasto
         foreach (var (l, i) in lineas.Select((l, i) => (l, i + 1)))
         {
             var codigo = string.IsNullOrWhiteSpace(l.CodigoIva) ? general.Codigo : l.CodigoIva.Trim().ToUpperInvariant();
+            if (l.Suplido)
+            {
+                // Suplido: fuera de la base y sin impuesto, a su cuenta.
+                resultado.Add(new NuevaLineaGasto(l.Descripcion, l.Base, codigo, 0m, impuestoEmpresa, SinCuota: true, PorcentajeDeducible: 0m, CuentaGasto: l.CuentaGasto,
+                    Suplido: true));
+                continue;
+            }
+
             AlxorCore.Catalogo.Aplicacion.IvaResuelto? iva = resolverIva is null ? null : await resolverIva.ResolverAsync(empresaId, codigo, ct).ConfigureAwait(false);
             if (iva is null)
             {
@@ -348,7 +365,7 @@ public sealed class RegistrarGasto
     /// <summary>Documento a contabilizar de un gasto (con sus líneas si tiene más de una o alguna especial).</summary>
     internal static DocumentoContabilizable Documento(Gasto g, string? tipoTercero, bool anulacion)
     {
-        var especial = g.Lineas.Count > 1 || g.Lineas.Any(l => l.Autoliquidada || l.CuotaRecargo != 0m || l.PorcentajeDeducible != 100m || l.CuentaGasto is not null);
+        var especial = g.Lineas.Count > 1 || g.Lineas.Any(l => l.Autoliquidada || l.CuotaRecargo != 0m || l.PorcentajeDeducible != 100m || l.CuentaGasto is not null || l.Suplido);
         var referencia = anulacion ? $"Anulación: {g.NumeroFactura ?? g.Concepto}" : g.NumeroFactura is null ? g.Concepto : $"Fra. {g.NumeroFactura}";
         return new DocumentoContabilizable(
             SentidoContable.Compra, (anulacion ? "AnulacionGasto" : "Gasto") + (g.Revision == 0 ? string.Empty : $"#{g.Revision}"), g.Id, referencia.Length > 80 ? referencia[..80] : referencia, g.ProveedorId, g.ProveedorTexto ?? g.Concepto,

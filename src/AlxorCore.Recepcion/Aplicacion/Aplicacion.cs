@@ -1,4 +1,4 @@
-using AlxorCore.Nucleo.Aplicacion;
+﻿using AlxorCore.Nucleo.Aplicacion;
 using AlxorCore.Nucleo.Resultados;
 using AlxorCore.Nucleo.Tiempo;
 using AlxorCore.Recepcion.Dominio;
@@ -12,13 +12,13 @@ public sealed record FacturaRecibidaDto(
     string NombreArchivo, string TipoContenido, long TamanoBytes, string Estado,
     Guid? ProveedorId, string? ProveedorTexto, string? NumeroFactura, DateOnly? FechaFactura,
     decimal? BaseImponible, string? CodigoIva, decimal? PorcentajeIrpf, Guid? GastoId, string? MotivoRechazo,
-    Guid? EmpresaOrigenId = null, Guid? FacturaOrigenId = null)
+    Guid? EmpresaOrigenId = null, Guid? FacturaOrigenId = null, IReadOnlyList<AlxorCore.Nucleo.Comun.ConceptoAplicado>? Conceptos = null)
 {
     public static FacturaRecibidaDto Desde(FacturaRecibida f) => new(
         f.Id, f.Origen.ToString(), f.FechaRecepcion, f.RemitenteCorreo, f.AsuntoCorreo,
         f.NombreArchivo, f.TipoContenido, f.Contenido.LongLength, f.Estado.ToString(),
         f.ProveedorId, f.ProveedorTexto, f.NumeroFactura, f.FechaFactura,
-        f.BaseImponible, f.CodigoIva, f.PorcentajeIrpf, f.GastoId, f.MotivoRechazo, f.EmpresaOrigenId, f.FacturaOrigenId);
+        f.BaseImponible, f.CodigoIva, f.PorcentajeIrpf, f.GastoId, f.MotivoRechazo, f.EmpresaOrigenId, f.FacturaOrigenId, f.Conceptos);
 }
 
 /// <summary>Contenido descargable de un adjunto.</summary>
@@ -59,7 +59,8 @@ public interface IUnidadDeTrabajoRecepcion : IUnidadDeTrabajo;
 public sealed record DatosContabilizacion(
     Guid? ProveedorId, string? ProveedorTexto, string Concepto, DateOnly Fecha,
     decimal BaseImponible, string CodigoIva, decimal PorcentajeIrpf, string? NumeroFactura = null, DateOnly? FechaFactura = null,
-    IReadOnlyList<(decimal Base, string? Cuenta, string? Descripcion)>? Lineas = null, DatosRectificacionRecibida? Rectificacion = null);
+    IReadOnlyList<(decimal Base, string? Cuenta, string? Descripcion)>? Lineas = null, DatosRectificacionRecibida? Rectificacion = null,
+    IReadOnlyList<(decimal Importe, string Cuenta, string? Descripcion)>? Suplidos = null);
 
 /// <summary>Una factura rectificativa recibida (abono del proveedor): base en negativo y la factura que rectifica.</summary>
 public sealed record DatosRectificacionRecibida(Guid? RectificaGastoId, string? NumeroRectificado, DateOnly? FechaRectificada, string? Motivo);
@@ -115,7 +116,8 @@ public sealed record RecibirFacturaComando(
 /// <summary>Validación (revisión humana) de una factura recibida.</summary>
 public sealed record ValidarFacturaComando(
     decimal BaseImponible, DateOnly? FechaFactura, Guid? ProveedorId = null, string? ProveedorTexto = null,
-    string? NumeroFactura = null, string? CodigoIva = null, decimal PorcentajeIrpf = 0m);
+    string? NumeroFactura = null, string? CodigoIva = null, decimal PorcentajeIrpf = 0m,
+    IReadOnlyList<AlxorCore.Catalogo.Aplicacion.ConceptoSolicitado>? Conceptos = null);
 
 /// <summary>Rechazo de una factura recibida.</summary>
 public sealed record RechazarFacturaComando(string? Motivo = null);
@@ -170,9 +172,12 @@ public sealed class ValidarFactura
     private readonly IRepositorioFacturasRecibidas _facturas;
     private readonly IConsultaProveedores _proveedores;
     private readonly IUnidadDeTrabajoRecepcion _unidad;
+    private readonly AlxorCore.Catalogo.Aplicacion.IResolverConceptos? _conceptos;
 
-    public ValidarFactura(IRepositorioFacturasRecibidas facturas, IConsultaProveedores proveedores, IUnidadDeTrabajoRecepcion unidad)
+    public ValidarFactura(IRepositorioFacturasRecibidas facturas, IConsultaProveedores proveedores, IUnidadDeTrabajoRecepcion unidad,
+        AlxorCore.Catalogo.Aplicacion.IResolverConceptos? conceptos = null)
     {
+        _conceptos = conceptos;
         _facturas = facturas;
         _proveedores = proveedores;
         _unidad = unidad;
@@ -205,6 +210,23 @@ public sealed class ValidarFactura
         {
             return Resultado.Fallo<FacturaRecibidaDto>(validado.Error);
         }
+
+        // Cargos y abonos elegidos (solo los pedidos: el importe de la factura ya es el que cobra el proveedor).
+        var conceptos = new List<AlxorCore.Nucleo.Comun.ConceptoAplicado>();
+        if (comando.Conceptos is { Count: > 0 } pedidos && _conceptos is not null)
+        {
+            var r = await _conceptos.ResolverAsync(AlxorCore.Nucleo.Comun.AmbitoConcepto.Compras, comando.ProveedorId,
+                [new AlxorCore.Catalogo.Aplicacion.LineaConceptos(null, 1m, comando.BaseImponible, pedidos)], null, false,
+                new AlxorCore.Catalogo.Aplicacion.ContextoConceptos(null, comando.FechaFactura), ct).ConfigureAwait(false);
+            if (r.EsFallo)
+            {
+                return Resultado.Fallo<FacturaRecibidaDto>(r.Error);
+            }
+
+            conceptos.AddRange(r.Valor[0].Where(c => c.Efecto != AlxorCore.Nucleo.Comun.EfectoConcepto.Coste));
+        }
+
+        factura.FijarConceptos(conceptos);
 
         await _unidad.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return Resultado.Ok(FacturaRecibidaDto.Desde(factura));
@@ -241,8 +263,18 @@ public sealed class ContabilizarFactura
         }
 
         var concepto = ComponerConcepto(factura);
+        // Los cargos y abonos de importe con cuenta van en su propia línea (a su cuenta); los demás, en la base; los
+        // suplidos, aparte (sin impuesto).
+        var precio = factura.Conceptos.Where(c => c.Efecto == AlxorCore.Nucleo.Comun.EfectoConcepto.Precio).ToList();
+        var propios = precio.Where(c => !string.IsNullOrWhiteSpace(c.CuentaContable))
+            .Select(c => (c.Importe, (string?)c.CuentaContable, (string?)c.Nombre)).ToList();
+        var baseResto = AlxorCore.Nucleo.Comun.Redondeo.Dos(factura.BaseImponible!.Value + precio.Where(c => string.IsNullOrWhiteSpace(c.CuentaContable)).Sum(c => c.Importe));
+        var suplidos = factura.Conceptos.Where(c => c.Efecto == AlxorCore.Nucleo.Comun.EfectoConcepto.Suplido && c.Importe != 0m)
+            .Select(c => (c.Importe, c.CuentaContable ?? "4709", (string?)c.Nombre)).ToList();
+        IReadOnlyList<(decimal Base, string? Cuenta, string? Descripcion)>? lineas = propios.Count > 0 ? [(baseResto, null, concepto), .. propios] : null;
         var datos = new DatosContabilizacion(factura.ProveedorId, factura.ProveedorTexto, concepto,
-            factura.FechaFactura!.Value, factura.BaseImponible!.Value, factura.CodigoIva!, factura.PorcentajeIrpf ?? 0m, factura.NumeroFactura, factura.FechaFactura);
+            factura.FechaFactura!.Value, AlxorCore.Nucleo.Comun.Redondeo.Dos(baseResto + propios.Sum(p => p.Importe)), factura.CodigoIva!, factura.PorcentajeIrpf ?? 0m,
+            factura.NumeroFactura, factura.FechaFactura, lineas, Suplidos: suplidos.Count > 0 ? suplidos : null);
 
         var contabilizado = await _contabilizador.ContabilizarAsync(empresaId, datos, ct).ConfigureAwait(false);
         if (contabilizado.EsFallo)

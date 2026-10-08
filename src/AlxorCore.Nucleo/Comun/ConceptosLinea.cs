@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace AlxorCore.Nucleo.Comun;
@@ -75,6 +75,10 @@ public enum RepartoConcepto
 /// Concepto aplicado a una línea de un documento: copia de la definición del concepto en ese momento
 /// (código, nombre, efecto, sentido y cálculo), el valor usado y el importe resultante, con signo
 /// (negativo si resta). <see cref="Repartido"/> indica que viene de un concepto puesto al documento.
+/// El valor y el importe van en la moneda del documento. En una factura en divisa, <see cref="ImporteDivisa"/> es el
+/// importe en la divisa y <see cref="Importe"/> su contravalor en euros, al tipo de la factura.
+/// <see cref="Provisionado"/>: el coste con acreedor ya se contabilizó como provisión (gasto / 4009) en la factura de venta;
+/// al liquidarlo, la factura del acreedor cancela la 4009 en lugar de cargar otra vez el gasto.
 /// </summary>
 public sealed record ConceptoAplicado(
     Guid ConceptoId,
@@ -90,7 +94,9 @@ public sealed record ConceptoAplicado(
     Guid? AcreedorId = null,
     string? CuentaContable = null,
     decimal? Unidades = null,
-    string? CodigoIva = null);
+    string? CodigoIva = null,
+    decimal? ImporteDivisa = null,
+    bool Provisionado = false);
 
 /// <summary>Cálculo, reparto y serialización de los conceptos de línea (común a ventas y compras).</summary>
 public static class ConceptosLinea
@@ -121,7 +127,7 @@ public static class ConceptosLinea
     public static ConceptoAplicado Recalcular(ConceptoAplicado c, decimal baseLinea, decimal cantidad, decimal? kilos)
     {
         ArgumentNullException.ThrowIfNull(c);
-        return c with { Importe = Calcular(c.Calculo, c.Sentido, c.Valor, baseLinea, cantidad, kilos, c.Unidades) };
+        return c with { Importe = Calcular(c.Calculo, c.Sentido, c.Valor, baseLinea, cantidad, kilos, c.Unidades), ImporteDivisa = null };
     }
 
     /// <summary>
@@ -135,7 +141,8 @@ public static class ConceptosLinea
         {
             if (c.Calculo == CalculoConcepto.Importe && c.Repartido)
             {
-                resultado.Add(c);
+                // El importe en la moneda del documento (en una factura en divisa, el de la divisa).
+                resultado.Add(c with { Importe = c.ImporteDivisa ?? c.Importe, ImporteDivisa = null });
                 continue;
             }
 
@@ -187,6 +194,28 @@ public static class ConceptosLinea
 
         return partes.Select(p => p / 100m).ToList();
     }
+
+    /// <summary>
+    /// Valor de un concepto del maestro o de una regla (en euros) en un documento en otra divisa: los porcentajes no
+    /// cambian; los importes (por unidad, kilo, bulto, palé o fijos) se pasan a la divisa al tipo dado (euros por unidad).
+    /// </summary>
+    public static decimal ValorEnDivisa(decimal valor, CalculoConcepto calculo, decimal tasa) =>
+        calculo == CalculoConcepto.Porcentaje || tasa <= 0m ? valor : Math.Round(valor / tasa, 4, MidpointRounding.AwayFromZero);
+
+    /// <summary>
+    /// Conceptos de una línea de factura en divisa: el importe calculado (en la divisa) pasa a <see cref="ConceptoAplicado.ImporteDivisa"/>
+    /// y el importe queda en euros, al tipo de la factura.
+    /// </summary>
+    public static List<ConceptoAplicado> AEuros(IEnumerable<ConceptoAplicado>? conceptos, decimal tasa) =>
+        (conceptos ?? []).Select(c => c with { ImporteDivisa = c.Importe, Importe = Redondeo.Dos(c.Importe * tasa) }).ToList();
+
+    /// <summary>Suma en la divisa de los conceptos que cambian el importe (factura en divisa).</summary>
+    public static decimal SumaPrecioDivisa(IEnumerable<ConceptoAplicado>? conceptos) =>
+        Redondeo.Dos((conceptos ?? []).Where(c => c.Efecto == EfectoConcepto.Precio).Sum(c => c.ImporteDivisa ?? 0m));
+
+    /// <summary>Suma en la divisa de los suplidos (factura en divisa).</summary>
+    public static decimal SumaSuplidosDivisa(IEnumerable<ConceptoAplicado>? conceptos) =>
+        Redondeo.Dos((conceptos ?? []).Where(c => c.Efecto == EfectoConcepto.Suplido).Sum(c => c.ImporteDivisa ?? 0m));
 
     /// <summary>Si el concepto va por bultos o por palés (su importe depende de <see cref="ConceptoAplicado.Unidades"/>).</summary>
     public static bool PorUnidadesLogisticas(CalculoConcepto calculo) => calculo is CalculoConcepto.PorBulto or CalculoConcepto.PorPale;

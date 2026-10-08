@@ -70,12 +70,25 @@ luego todos. A igualdad, gana la regla con vigencia acotada. Por ejemplo, «clie
 
 Un concepto sin reglas solo se pone a mano.
 
+### Reglas por envase
+
+Una regla puede llevar un **envase** (un artículo, como la caja IFCO o el palé): entonces solo encaja en las líneas de
+venta con ese envase (recargo por caja retornable, fianza del palé…). A igualdad de tercero y artículo, la regla del
+envase gana a la general, y después cuenta la vigencia.
+
+- Las líneas de presupuesto, pedido de venta, albarán de venta y factura llevan `envaseProductoId`. Al pasar de un
+  documento a otro (presupuesto → pedido → albarán → factura) el envase va con la línea.
+- `GET /conceptos-linea/sugeridos?envaseProductoId=` da los que se pondrían en una línea con ese envase.
+- Un envase que no existe da 400 `concepto.envase_no_encontrado`.
+- En el editor de ventas, el envase se elige bajo la línea (±), entre los envases que usan las reglas.
+
 ## Después de la base: suplidos y fianzas
 
 Con el efecto **Suplido** (Hispatec: aplicación después de la base imponible) el concepto no forma parte de la base ni
 paga impuesto: es un gasto que se repercute al cliente tal cual (un suplido, la fianza de los envases).
 
-- Es de ventas, suma y lleva su **cuenta contable** (por ejemplo, 4709 o 5550); si no, falla con `concepto.suplido`.
+- Suma y lleva su **cuenta contable** (por ejemplo, 4709 o 5550 en ventas; 631 o 4709 en compras); si no, falla con
+  `concepto.suplido`.
 - En la factura: `suplidos` = suma de los suplidos de las líneas, y **total = base + impuesto + recargo − retención +
   suplidos**. La base de datos lo comprueba (`ck_factura_total`, `ck_linea_factura_suplidos` y el cuadre con las líneas).
 - En el asiento: el cliente al debe por el total; el suplido, al haber de su cuenta, sin IVA.
@@ -84,13 +97,43 @@ paga impuesto: es un gasto que se repercute al cliente tal cual (un suplido, la 
 - En el PDF salen después de los impuestos; en Facturae, como `TotalReimbursableExpenses`.
 - El libro de IVA, el SII y los modelos no los incluyen en la base.
 
+### Suplidos en compras
+
+Un suplido de compras (tasas portuarias o aranceles que paga el transitario por la empresa) va en el pedido de compra
+aparte de su total (`suplidos`). Al facturar el pedido, la factura del proveedor lleva una **línea de suplido** por
+cuenta: sin impuesto, fuera de la base y a su cuenta.
+
+- **Gasto:** `total = base + impuesto + recargo − retención + suplidos`. La línea lleva `suplido: true` y su cuenta es
+  obligatoria (400 `gasto.suplido`). La base de datos lo comprueba (`ck_linea_gasto_suplido`).
+- **Asiento:** el suplido va al debe de su cuenta y el proveedor al haber por el total.
+- El libro de IVA, el SII (`ImporteTotal`) y el 347 no lo cuentan.
+- Una factura recibida registrada a mano también admite líneas de suplido (en el editor, la casilla «Suplido»).
+
 ## En los documentos
 
 Se aplican en:
 
-- presupuestos, pedidos de venta, **albaranes de venta** y facturas (salvo tickets y rectificativas, que solo llevan los
-  que se pongan a mano);
+- presupuestos, pedidos de venta, **albaranes de venta**, facturas y **tickets** (los automáticos del cliente o, en uno
+  de contado, los de cualquiera);
+- **rectificativas** (ver abajo), **facturas periódicas** (con sus propias reglas) y **facturas del buzón**;
 - pedidos de compra.
+
+**Rectificativa.** Es por sustitución: lleva las líneas corregidas. Una línea con conceptos pedidos lleva exactamente
+esos. Si no, la del mismo artículo (o, sin artículo, la misma descripción) en la factura original le pasa los suyos,
+recalculados sobre la línea corregida como al pasar un documento a otro. Los cargos con acreedor pierden el acreedor:
+el servicio ya se prestó y su cargo es el de la original.
+
+**Factura periódica.** Cada línea de la plantilla puede llevar sus conceptos (`conceptos`) y la plantilla los del
+documento (`conceptosDocumento`). Sin indicarlos, se ponen los automáticos al emitir; con una lista (también vacía),
+exactamente esos. Se comprueban al guardar la plantilla.
+
+**Factura del buzón.** Al validarla (`POST /recepcion/facturas/{id}/validar` con `conceptos`) se eligen los cargos y
+abonos de compras que trae; no se ponen automáticos, porque el importe de la factura ya es el que cobra el proveedor.
+Al contabilizarla, los de importe con cuenta van a su propia línea del gasto (los demás suman a la base) y los suplidos
+van fuera de la base. Los de solo coste no aplican.
+
+**Divisa.** En un documento en divisa los conceptos van en la divisa: ver *Cargos y abonos en divisa* en
+[divisas.md](divisas.md).
 
 En los albaranes de venta:
 
@@ -167,6 +210,18 @@ comisionista. Suelen ser de efecto «solo coste», pero también puede llevarlo 
 Lo que se paga al acreedor es el **importe del cargo** (a diferencia de Hispatec, no hay un segundo importe distinto
 para el acreedor).
 
+### Provisión del coste con acreedor
+
+Un concepto de **solo coste con acreedor** (los portes al transportista, la comisión del comisionista) se contabiliza
+al emitir la factura de venta, sin esperar a la factura del acreedor:
+
+- **En la venta:** asiento aparte con el gasto al debe (la cuenta del concepto o, sin ella, la 629) y la **4009**
+  «Proveedores, facturas pendientes de recibir» al haber; uno por acreedor y cuenta. El concepto queda marcado
+  `provisionado`.
+- **Al liquidar:** en la factura del acreedor, los cargos provisionados van a la 4009 (la cancelan); los demás, a la
+  cuenta de gasto del concepto (si es del grupo 6) o a la de gastos. La pantalla de cargos los marca «provisionado».
+- Un cargo de albarán liquidado antes de facturar el albarán ya cargó el gasto: la factura no lo provisiona otra vez.
+
 ## Cuenta propia en la contabilidad
 
 Un concepto de importe con **cuenta contable** se contabiliza en ella en el asiento de la factura de venta. Por
@@ -222,9 +277,7 @@ revés) y `concepto.linea_negativa`.
 
 ## Pendiente
 
-- Suplidos en compras (hoy solo en ventas).
-- Reglas por **envase** en las ventas.
-- La provisión contable del cargo de coste con acreedor en el documento (hoy el coste se contabiliza al registrar la
-  factura del acreedor).
-- Conceptos en tickets, facturas periódicas con reglas propias, rectificativas por diferencias y buzón de facturas
-  recibidas.
+- Rectificativas **por diferencias** (con importes negativos): hoy las rectificativas son por sustitución (ver
+  facturación); cuando existan, sus conceptos irán en proporción a la diferencia.
+- La provisión en las rectificativas y en la anulación de la factura de venta (hoy no generan contraasiento).
+- Elegir los conceptos del documento de una factura periódica desde la pantalla (la API ya los admite).

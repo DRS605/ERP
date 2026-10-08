@@ -1,4 +1,4 @@
-using AlxorCore.Nucleo.Comun;
+﻿using AlxorCore.Nucleo.Comun;
 using AlxorCore.Nucleo.Dominio;
 using AlxorCore.Nucleo.Resultados;
 using AlxorCore.Nucleo.Tiempo;
@@ -7,7 +7,7 @@ namespace AlxorCore.Catalogo.Dominio;
 
 /// <summary>Datos de una asignación automática de un concepto (para crear o sustituir las asignaciones).</summary>
 public sealed record DatosAsignacionConcepto(Guid? TerceroId = null, Guid? FamiliaId = null, Guid? ProductoId = null, decimal? Valor = null,
-    string? TipoTercero = null, DateOnly? Desde = null, DateOnly? Hasta = null, Guid? AcreedorId = null);
+    string? TipoTercero = null, DateOnly? Desde = null, DateOnly? Hasta = null, Guid? AcreedorId = null, Guid? EnvaseProductoId = null);
 
 /// <summary>
 /// Cuándo se pone solo un concepto en las líneas: para un cliente o proveedor, un tipo de cliente o proveedor, o
@@ -32,7 +32,14 @@ public sealed class AsignacionConcepto
         Desde = d.Desde;
         Hasta = d.Hasta;
         AcreedorId = d.AcreedorId;
+        EnvaseProductoId = d.EnvaseProductoId;
     }
+
+    /// <summary>
+    /// Envase (un artículo) de las líneas en que vale, como las reglas por envase de Hispatec (recargo por caja IFCO,
+    /// fianza del palé…): solo encaja en las líneas con ese envase. Null: en cualquiera.
+    /// </summary>
+    public Guid? EnvaseProductoId { get; private set; }
 
     /// <summary>Tipo de cliente o proveedor (el campo «Tipo» de su ficha) para el que vale, si no es para uno concreto.</summary>
     public string? TipoTercero { get; private set; }
@@ -60,9 +67,14 @@ public sealed class AsignacionConcepto
     /// nivel, el artículo (el artículo, luego la familia más cercana, luego todos). A igualdad, la de vigencia acotada.
     /// Null si no vale (otro tercero, otro tipo, otro artículo o fuera de fechas).
     /// </summary>
-    internal int? Encaje(Guid? terceroId, string? tipoTercero, Guid? productoId, IReadOnlyList<Guid> familias, DateOnly? fecha)
+    internal int? Encaje(Guid? terceroId, string? tipoTercero, Guid? productoId, IReadOnlyList<Guid> familias, DateOnly? fecha, Guid? envaseId = null)
     {
         if (fecha is { } dia && ((Desde is { } d && dia < d) || (Hasta is { } h && dia > h)))
+        {
+            return null;
+        }
+
+        if (EnvaseProductoId is { } envase && envase != envaseId)
         {
             return null;
         }
@@ -116,7 +128,8 @@ public sealed class AsignacionConcepto
             nivelArticulo = 0;
         }
 
-        return (nivelTercero * 10000 + nivelArticulo) * 2 + (Desde is not null || Hasta is not null ? 1 : 0);
+        // A igualdad de tercero y artículo, la regla de un envase gana a la general; y luego, la de vigencia acotada.
+        return (((nivelTercero * 10000) + nivelArticulo) * 2 + (EnvaseProductoId is not null ? 1 : 0)) * 2 + (Desde is not null || Hasta is not null ? 1 : 0);
     }
 }
 
@@ -244,11 +257,10 @@ public sealed class ConceptoLinea : RaizAgregadoGrupo<Guid>
             return Resultado.Fallo(Error.Validacion("concepto.impuesto_propio", "Solo un concepto que suma al importe puede llevar su propio impuesto."));
         }
 
-        if (datos.Efecto == EfectoConcepto.Suplido
-            && (datos.Ambito != AmbitoConcepto.Ventas || datos.Sentido != SentidoConcepto.Suma || string.IsNullOrWhiteSpace(datos.CuentaContable)))
+        if (datos.Efecto == EfectoConcepto.Suplido && (datos.Sentido != SentidoConcepto.Suma || string.IsNullOrWhiteSpace(datos.CuentaContable)))
         {
             return Resultado.Fallo(Error.Validacion("concepto.suplido",
-                "Un concepto después de la base (suplido o fianza) es de ventas, suma y lleva su cuenta contable (p. ej. 4709 o 5550)."));
+                "Un concepto después de la base (suplido o fianza) suma y lleva su cuenta contable (p. ej. 4709 o 5550 en ventas, 631 o 4709 en compras)."));
         }
 
         if (ErrorValor(datos.Valor, datos.Calculo) is { } error)
@@ -277,7 +289,8 @@ public sealed class ConceptoLinea : RaizAgregadoGrupo<Guid>
 
             var nueva = new AsignacionConcepto(a);
             if (asignaciones.Any(o => o.TerceroId == nueva.TerceroId && string.Equals(o.TipoTercero, nueva.TipoTercero, StringComparison.OrdinalIgnoreCase)
-                && o.FamiliaId == nueva.FamiliaId && o.ProductoId == nueva.ProductoId && o.Desde == nueva.Desde && o.Hasta == nueva.Hasta))
+                && o.FamiliaId == nueva.FamiliaId && o.ProductoId == nueva.ProductoId && o.Desde == nueva.Desde && o.Hasta == nueva.Hasta
+                && o.EnvaseProductoId == nueva.EnvaseProductoId))
             {
                 return Resultado.Fallo(Error.Validacion("concepto.asignacion_repetida", $"La asignación {i} repite el tercero y el artículo o la familia de otra."));
             }
@@ -313,8 +326,9 @@ public sealed class ConceptoLinea : RaizAgregadoGrupo<Guid>
     }
 
     /// <summary>La asignación más específica que vale para la línea (tercero, tipo de tercero, artículo y fecha), o null si ninguna.</summary>
-    public AsignacionConcepto? AsignacionPara(Guid? terceroId, Guid? productoId, IReadOnlyList<Guid> familias, string? tipoTercero = null, DateOnly? fecha = null) =>
-        _asignaciones.Select(a => (a, Encaje: a.Encaje(terceroId, tipoTercero, productoId, familias, fecha)))
+    public AsignacionConcepto? AsignacionPara(Guid? terceroId, Guid? productoId, IReadOnlyList<Guid> familias, string? tipoTercero = null, DateOnly? fecha = null,
+        Guid? envaseId = null) =>
+        _asignaciones.Select(a => (a, Encaje: a.Encaje(terceroId, tipoTercero, productoId, familias, fecha, envaseId)))
             .Where(x => x.Encaje is not null)
             .OrderByDescending(x => x.Encaje)
             .Select(x => x.a)

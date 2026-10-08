@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <RootNamespace>AlxorCore.Recepcion</RootNamespace>
     <AssemblyName>AlxorCore.Recepcion</AssemblyName>
@@ -6,5 +6,6 @@
   <ItemGroup>
     <ProjectReference Include="..\AlxorCore.Nucleo\AlxorCore.Nucleo.csproj" />
     <ProjectReference Include="..\AlxorCore.Terceros\AlxorCore.Terceros.csproj" />
+    <ProjectReference Include="..\AlxorCore.Catalogo\AlxorCore.Catalogo.csproj" />
   </ItemGroup>
 </Project>

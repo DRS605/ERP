@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text;
 using System.Xml;
 using AlxorCore.Facturacion.Aplicacion;
@@ -469,7 +469,7 @@ public sealed class GenerarSii
             // Clave 02: compensaciones del régimen especial de la agricultura (autofacturas o recibos REAGP a agricultores).
             var reagp = g.DesgloseIva.Any(d => d.CodigoIva.StartsWith("REAGP", StringComparison.OrdinalIgnoreCase));
             w.WriteElementString("ClaveRegimenEspecialOTrascendencia", NsLr, reagp ? "02" : "01");
-            w.WriteElementString("ImporteTotal", NsLr, Importe(g.Total));
+            w.WriteElementString("ImporteTotal", NsLr, Importe(g.Total - g.Suplidos));
             w.WriteElementString("DescripcionOperacion", NsLr, string.IsNullOrWhiteSpace(g.Concepto) ? "Gasto" : g.Concepto);
 
             // Un detalle por tipo; lo autoliquidado (inversión del sujeto pasivo) va en su bloque.

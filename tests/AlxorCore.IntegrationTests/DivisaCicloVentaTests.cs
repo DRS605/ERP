@@ -171,4 +171,65 @@ public sealed class DivisaCicloVentaTests : IClassFixture<FabricaApiPruebas>
         (await api.GetFromJsonAsync<List<RevResp>>("/divisas/revalorizaciones"))!.Should().ContainSingle(r => r.Anulada);
         (await api.PostAsJsonAsync("/divisas/revalorizaciones", new { Ejercicio = 2026 })).StatusCode.Should().Be(HttpStatusCode.Created);
     }
+
+    private sealed record ConceptoDivResp(string Codigo, string Efecto, decimal Valor, decimal Importe, decimal? ImporteDivisa);
+    private sealed record LineaDivResp(decimal Base, decimal? BaseDivisa, decimal CosteConceptos, List<ConceptoDivResp> Conceptos);
+    private sealed record FacturaConceptosResp(Guid Id, decimal BaseImponible, decimal Total, string? Moneda, decimal? BaseDivisa, decimal? TotalDivisa, List<LineaDivResp> Lineas);
+    private sealed record AlbaranConceptosResp(Guid Id, string? Moneda, List<LineaDivResp> Lineas);
+    private sealed record CargoResp(string Origen, string Codigo, decimal Importe);
+    private sealed record SugeridoResp(string Codigo, decimal Valor);
+
+    private static object ConceptoVenta(string codigo, string efecto, string sentido, string calculo, decimal valor, Guid? acreedorId = null) => new
+    {
+        Codigo = codigo,
+        Datos = new { Nombre = codigo.ToLowerInvariant(), Ambito = "Ventas", Efecto = efecto, Sentido = sentido, Calculo = calculo, Valor = valor, Asignaciones = new[] { new { } }, AcreedorId = acreedorId },
+    };
+
+    [Fact]
+    public async Task Los_cargos_y_abonos_en_divisa_van_en_la_divisa_y_su_contravalor_en_euros()
+    {
+        var api = await CompletaAsync(_fabrica);
+        (await api.PostAsJsonAsync("/tipos-cambio", new { Divisa = "USD", Fecha = "2026-01-01", TasaEur = 0.8m })).EnsureSuccessStatusCode();
+        var cliente = (await (await api.PostAsJsonAsync("/clientes", new { Nombre = "Fresh Fruit Inc", Pais = "US" })).Content.ReadFromJsonAsync<IdResp>())!.Id;
+        var transportista = (await (await api.PostAsJsonAsync("/proveedores", new { Nombre = "Transportes Levante SL" })).Content.ReadFromJsonAsync<IdResp>())!.Id;
+
+        // Portes 0,10 €/ud con acreedor, rappel del 2 % y comisión (solo coste) de 0,04 €/ud: todos automáticos.
+        foreach (var c in new[]
+        {
+            ConceptoVenta("PORTES", "Precio", "Suma", "PorUnidad", 0.10m, transportista), ConceptoVenta("RAPPEL", "Precio", "Resta", "Porcentaje", 2m),
+            ConceptoVenta("COMIS", "Coste", "Suma", "PorUnidad", 0.04m),
+        })
+        {
+            (await api.PostAsJsonAsync("/conceptos-linea", c)).StatusCode.Should().Be(HttpStatusCode.Created);
+        }
+
+        (await api.GetFromJsonAsync<List<SugeridoResp>>($"/conceptos-linea/sugeridos?terceroId={cliente}&moneda=USD&fecha=2026-03-10"))!
+            .Single(x => x.Codigo == "PORTES").Valor.Should().Be(0.125m, "0,10 € al 0,80 son 0,125 USD");
+
+        // 100 ud a 2 USD: portes 12,50 USD (10 €), rappel −4 USD (−3,20 €), comisión 5 USD (4 €, solo coste).
+        var f = await OkAsync<FacturaConceptosResp>(api.PostAsJsonAsync("/facturas", new
+        {
+            ClienteId = cliente, FechaEmision = "2026-03-10", Moneda = "USD", Lineas = new[] { Linea(100m, 2m) },
+        }), HttpStatusCode.Created);
+        f.Should().Match<FacturaConceptosResp>(x => x.BaseDivisa == 208.5m && x.TotalDivisa == 208.5m && x.BaseImponible == 166.8m && x.Total == 166.8m);
+        var linea = f.Lineas.Single();
+        linea.Should().Match<LineaDivResp>(l => l.BaseDivisa == 208.5m && l.Base == 166.8m && l.CosteConceptos == 4m);
+        linea.Conceptos.Select(c => (c.Codigo, c.Valor, c.ImporteDivisa, c.Importe)).Should().BeEquivalentTo(new[]
+        {
+            ("PORTES", 0.125m, (decimal?)12.5m, 10m), ("RAPPEL", 2m, (decimal?)(-4m), -3.2m), ("COMIS", 0.05m, (decimal?)5m, 4m),
+        });
+        (await api.GetAsync(new Uri($"/facturas/{f.Id}/pdf", UriKind.Relative))).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // El albarán en dólares lleva los conceptos en dólares; su factura, otra vez con el contravalor.
+        var a = await OkAsync<AlbaranConceptosResp>(api.PostAsJsonAsync("/albaranes-venta", new { ClienteId = cliente, Fecha = "2026-03-10", Moneda = "USD", Lineas = new[] { Linea(100m, 2m) } }),
+            HttpStatusCode.Created);
+        a.Lineas.Single().Should().Match<LineaDivResp>(l => l.Base == 208.5m && l.CosteConceptos == 5m);
+        a.Lineas.Single().Conceptos.Select(c => (c.Codigo, c.Importe)).Should().BeEquivalentTo(new[] { ("PORTES", 12.5m), ("RAPPEL", -4m), ("COMIS", 5m) });
+        var fa = await OkAsync<FacturaConceptosResp>(api.PostAsJsonAsync("/albaranes-venta/facturar", new { AlbaranIds = new[] { a.Id } }), HttpStatusCode.Created);
+        fa.Should().Match<FacturaConceptosResp>(x => x.Moneda == "USD" && x.BaseDivisa == 208.5m && x.BaseImponible == 166.8m);
+
+        // Lo que se debe al transportista va en euros: 10 € de la factura directa y 10 € del albarán (su factura no cuenta otra vez).
+        (await api.GetFromJsonAsync<List<CargoResp>>($"/gastos/cargos-acreedores?acreedorId={transportista}"))!
+            .Select(c => (c.Origen, c.Importe)).Should().BeEquivalentTo(new[] { ("FacturaVenta", 10m), ("AlbaranVenta", 10m) });
+    }
 }

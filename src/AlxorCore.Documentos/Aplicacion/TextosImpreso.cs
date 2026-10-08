@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using AlxorCore.Nucleo.Comun;
 
 namespace AlxorCore.Documentos.Aplicacion;
@@ -32,6 +32,7 @@ public static class TextosImpreso
         ["Dto."] = ["Dto.", "Disc.", "Rem.", "Rabatt", "Sconto", "Desc."],
         ["Importe"] = ["Importe", "Amount", "Montant", "Betrag", "Importo", "Montante"],
         ["Base"] = ["Base", "Net", "Montant HT", "Netto", "Imponibile", "Valor líquido"],
+        ["Suplidos"] = ["Suplidos", "Disbursements", "Débours", "Durchlaufende Posten", "Anticipazioni", "Despesas reembolsáveis"],
         ["Base imponible"] = ["Base imponible", "Taxable amount", "Total HT", "Nettobetrag", "Imponibile", "Base tributável"],
         ["TOTAL"] = ["TOTAL", "TOTAL", "TOTAL TTC", "GESAMTBETRAG", "TOTALE", "TOTAL"],
         ["Recargo de equivalencia"] = ["Recargo de equivalencia", "Equivalence surcharge", "Supplément d'équivalence", "Ausgleichszuschlag", "Sovrapprezzo di equivalenza", "Recargo de equivalência"],

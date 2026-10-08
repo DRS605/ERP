@@ -1,4 +1,4 @@
-using AlxorCore.Nucleo.Comun;
+﻿using AlxorCore.Nucleo.Comun;
 using AlxorCore.Nucleo.Dominio;
 using AlxorCore.Nucleo.Resultados;
 using AlxorCore.Nucleo.Tiempo;
@@ -107,6 +107,15 @@ public sealed class FacturaRecibida : RaizAgregadoEmpresa<Guid>
     public Guid? GastoId { get; private set; }
 
     public string? MotivoRechazo { get; private set; }
+
+    /// <summary>
+    /// Cargos y abonos de compras elegidos al validarla (portes a su cuenta, suplidos…), calculados sobre la base: al
+    /// contabilizarla salen como líneas propias del gasto.
+    /// </summary>
+    public IReadOnlyList<ConceptoAplicado> Conceptos { get; private set; } = [];
+
+    /// <summary>Fija los conceptos de la factura (mientras no esté contabilizada).</summary>
+    public void FijarConceptos(IReadOnlyList<ConceptoAplicado>? conceptos) => Conceptos = conceptos?.ToList() ?? [];
 
     /// <summary>Empresa del grupo que emitió la factura (solo en las intragrupo).</summary>
     public Guid? EmpresaOrigenId { get; private set; }

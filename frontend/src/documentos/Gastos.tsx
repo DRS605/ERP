@@ -17,9 +17,11 @@ interface LineaEd {
   codigoIva: string;
   porcentajeIva: number | null;
   porcentajeDeducible: number;
+  /** Suplido: lo pagó el proveedor por la empresa y lo factura sin impuesto, fuera de la base, a su cuenta. */
+  suplido: boolean;
 }
 
-const lineaNueva = (codigo = ""): LineaEd => ({ clave: nuevaClave(), descripcion: "", cuentaGasto: "", base: 0, codigoIva: codigo, porcentajeIva: null, porcentajeDeducible: 100 });
+const lineaNueva = (codigo = ""): LineaEd => ({ clave: nuevaClave(), descripcion: "", cuentaGasto: "", base: 0, codigoIva: codigo, porcentajeIva: null, porcentajeDeducible: 100, suplido: false });
 const autoliquidable = (clase?: string) => clase === "InversionSujetoPasivo" || clase === "Intracomunitario";
 
 export function EditorGasto(props: { id?: string | null; semilla?: Gasto; alGuardar: (id: string) => void; alCancelar: () => void }) {
@@ -49,7 +51,7 @@ export function EditorGasto(props: { id?: string | null; semilla?: Gasto; alGuar
   const enDivisa = (b: number) => (s?.moneda && s.tasaCambio ? redondear2(b / s.tasaCambio) : b);
   const [lineas, setLineas] = useState<LineaEd[]>(() =>
     s?.lineas?.length
-      ? s.lineas.map((l) => ({ clave: nuevaClave(), descripcion: l.descripcion ?? "", cuentaGasto: l.cuentaGasto ?? "", base: enDivisa(l.base), codigoIva: l.codigoIva, porcentajeIva: l.autoliquidada ? l.porcentajeIva : null, porcentajeDeducible: l.porcentajeDeducible }))
+      ? s.lineas.map((l) => ({ clave: nuevaClave(), descripcion: l.descripcion ?? "", cuentaGasto: l.cuentaGasto ?? "", base: enDivisa(l.base), codigoIva: l.codigoIva, porcentajeIva: l.autoliquidada ? l.porcentajeIva : null, porcentajeDeducible: l.porcentajeDeducible, suplido: !!l.suplido }))
       : [lineaNueva()],
   );
   const [plazosManual, setPlazosManual] = useState<{ fecha: string; importe: number }[] | null>(props.id && s?.vencimientos && s.vencimientos.length > 1 ? s.vencimientos : null);
@@ -98,6 +100,7 @@ export function EditorGasto(props: { id?: string | null; semilla?: Gasto; alGuar
         porcentajeIva: l.porcentajeIva,
         porcentajeDeducible: l.porcentajeDeducible,
         cuentaGasto: l.cuentaGasto.trim() || null,
+        suplido: l.suplido,
       })),
       vencimientos: plazosManual,
       rectificaGastoId: rectificativa ? s?.rectificaGastoId ?? null : null,
@@ -225,10 +228,15 @@ export function EditorGasto(props: { id?: string | null; semilla?: Gasto; alGuar
                   <td><input list="dx-cuentas-gasto" value={l.cuentaGasto} onChange={(e) => cambiar(l.clave, { cuentaGasto: e.target.value })} placeholder="la de la regla" /></td>
                   <td><input className="num" type="number" step="0.01" value={l.base || ""} onChange={(e) => cambiar(l.clave, { base: Number(e.target.value) })} /></td>
                   <td>
-                    <select value={l.codigoIva} onChange={(e) => cambiar(l.clave, { codigoIva: e.target.value, porcentajeIva: null })}>
-                      <option value="">General</option>
-                      {ivas.map((x) => <option key={x.codigo} value={x.codigo}>{x.nombre}</option>)}
-                    </select>
+                    {!l.suplido && (
+                      <select value={l.codigoIva} onChange={(e) => cambiar(l.clave, { codigoIva: e.target.value, porcentajeIva: null })}>
+                        <option value="">General</option>
+                        {ivas.map((x) => <option key={x.codigo} value={x.codigo}>{x.nombre}</option>)}
+                      </select>
+                    )}
+                    <label className="dx-check" title="Pagado por el proveedor por cuenta de la empresa: sin impuesto, fuera de la base y a su cuenta (obligatoria)">
+                      <input type="checkbox" checked={l.suplido} onChange={(e) => cambiar(l.clave, { suplido: e.target.checked })} /> Suplido
+                    </label>
                   </td>
                   <td>
                     {autoliquidable(t?.clase)
@@ -281,6 +289,7 @@ export function EditorGasto(props: { id?: string | null; semilla?: Gasto; alGuar
           <div className="dx-tot"><span className="muted">Impuestos</span><span>{eur(calculo?.cuotaIva)}</span></div>
           {!!calculo?.recargoTotal && <div className="dx-tot"><span className="muted">Recargo de equivalencia</span><span>{eur(calculo.recargoTotal)}</span></div>}
           {!!calculo?.retencionIrpf && <div className="dx-tot"><span className="muted">Retención IRPF</span><span>−{eur(calculo.retencionIrpf)}</span></div>}
+          {!!calculo?.suplidos && <div className="dx-tot"><span className="muted">Suplidos (sin impuesto)</span><span>{eur(calculo.suplidos)}</span></div>}
           <div className="dx-tot dx-grande"><span>{(calculo?.total ?? 0) < 0 ? "A favor (abono del proveedor)" : "Total a pagar"}</span><span>{eur(calculo?.total)}</span></div>
           {calculo?.moneda && <div className="dx-tot dx-grande"><span>Total en {calculo.moneda} (1 {calculo.moneda} = {String(calculo.tasaCambio ?? 0).replace(".", ",")} €)</span><span>{num2(calculo.totalDivisa ?? 0)} {calculo.moneda}</span></div>}
           {calculo && (calculo.desglose ?? []).some((d) => d.cuotaDeducible !== d.cuota) && (
@@ -340,7 +349,7 @@ export function VistaGasto(props: { id: string }) {
           <thead><tr><th>Descripción</th><th>Cuenta</th><th className="num">Base</th><th>Impuesto</th><th className="num">Cuota</th><th className="num">Deducible</th></tr></thead>
           <tbody>{(g.lineas ?? []).map((l, i) => (
             <tr key={i}><td>{l.descripcion ?? ""}</td><td className="mono muted">{l.cuentaGasto ?? "regla"}</td><td className="num">{eur(l.base)}</td>
-              <td>{l.codigoIva} · {num2(l.porcentajeIva)} %{l.autoliquidada ? " · autoliquidada" : ""}{l.cuotaRecargo ? ` · recargo ${eur(l.cuotaRecargo)}` : ""}</td>
+              <td>{l.suplido ? "Suplido · sin impuesto" : <>{l.codigoIva} · {num2(l.porcentajeIva)} %{l.autoliquidada ? " · autoliquidada" : ""}{l.cuotaRecargo ? ` · recargo ${eur(l.cuotaRecargo)}` : ""}</>}</td>
               <td className="num">{eur(l.cuota)}</td><td className="num muted">{l.porcentajeDeducible !== 100 ? `${num2(l.porcentajeDeducible)} % · ` : ""}{eur(l.cuotaDeducible)}</td></tr>
           ))}</tbody>
         </table>
@@ -348,6 +357,7 @@ export function VistaGasto(props: { id: string }) {
           <div className="dx-tot"><span className="muted">Base imponible</span><span>{eur(g.baseImponible)}</span></div>
           <div className="dx-tot"><span className="muted">Impuestos</span><span>{eur(g.cuotaIva)}</span></div>
           {!!g.recargoTotal && <div className="dx-tot"><span className="muted">Recargo de equivalencia</span><span>{eur(g.recargoTotal)}</span></div>}
+          {!!g.suplidos && <div className="dx-tot"><span className="muted">Suplidos (sin impuesto)</span><span>{eur(g.suplidos)}</span></div>}
           {!!g.retencionIrpf && <div className="dx-tot"><span className="muted">Retención IRPF ({num2(g.porcentajeIrpf)} %)</span><span>−{eur(g.retencionIrpf)}</span></div>}
           <div className="dx-tot dx-grande"><span>{g.total < 0 ? "A favor (abono del proveedor)" : "Total a pagar"}</span><span>{eur(g.total)}</span></div>
         </div>

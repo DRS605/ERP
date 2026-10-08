@@ -31,6 +31,8 @@ export function Rejilla(props: {
   sugeridos: Record<string, ConceptoSolicitado[]>;
   alElegirArticulo: (clave: string, p: Producto) => void;
   soloLectura?: boolean;
+  /** Envases que deciden reglas de conceptos (en ventas, cada línea puede llevar el suyo). */
+  envases?: { id: string; nombre: string }[];
 }) {
   const contenedor = useRef<HTMLDivElement>(null);
   const [abiertas, setAbiertas] = useState<Set<string>>(new Set());
@@ -178,6 +180,15 @@ export function Rejilla(props: {
               abiertas.has(l.clave) && (
                 <tr key={l.clave + "c"} className="dx-fila-conc">
                   <td colSpan={venta ? 9 : 7}>
+                    {venta && !!props.envases?.length && (
+                      <label className="dx-envase">
+                        Envase{" "}
+                        <select value={l.envaseProductoId ?? ""} onChange={(e) => cambiar(l.clave, { envaseProductoId: e.target.value || null, conceptos: undefined })}>
+                          <option value="">sin envase</option>
+                          {props.envases.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+                        </select>
+                      </label>
+                    )}
                     <EditorConceptos catalogo={props.catalogo} lista={l.conceptos} sugeridos={props.sugeridos[l.clave]} alCambiar={(c) => cambiar(l.clave, { conceptos: c })} />
                   </td>
                 </tr>

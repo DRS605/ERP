@@ -8,6 +8,8 @@ export const ESTILOS = `
 .dx-fila { display:grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap:10px; }
 .dx-check { display:flex !important; align-items:center; gap:8px; margin-top:12px !important; color:var(--ink) !important; cursor:pointer; }
 .dx-check input { width:auto; }
+.dx-envase { display:inline-flex; align-items:center; gap:6px; margin:0 12px 6px 0; font-size:12px; color:var(--muted); }
+.dx-envase select { width:auto; min-width:160px; }
 .dx-ficha { background:var(--bg,#f4f6f9); border:1px solid var(--line); border-radius:12px; padding:12px 14px; font-size:13px; line-height:1.55; min-height:80px; }
 .dx-aviso { margin-top:8px; color:#b45309; font-weight:600; }
 .dx-anticipo { margin-top:8px; padding:8px 10px; border-radius:10px; background:var(--accent-soft); color:var(--ink); font-size:12.5px; }

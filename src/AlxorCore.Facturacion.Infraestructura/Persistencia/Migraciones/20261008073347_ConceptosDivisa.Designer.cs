@@ -3,6 +3,7 @@ using System;
 using AlxorCore.Facturacion.Infraestructura;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AlxorCore.Facturacion.Infraestructura.Persistencia.Migraciones
 {
     [DbContext(typeof(FacturacionDbContext))]
-    partial class FacturacionDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261008073347_ConceptosDivisa")]
+    partial class ConceptosDivisa
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -973,13 +976,6 @@ namespace AlxorCore.Facturacion.Infraestructura.Persistencia.Migraciones
                         .HasColumnType("uuid")
                         .HasColumnName("cliente_id");
 
-                    b.Property<string>("ConceptosDocumento")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("jsonb")
-                        .HasColumnName("conceptos_documento")
-                        .HasDefaultValueSql("'[]'::jsonb");
-
                     b.Property<DateTimeOffset>("CreadoEn")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("creado_en");
@@ -1675,10 +1671,6 @@ namespace AlxorCore.Facturacion.Infraestructura.Persistencia.Migraciones
                                 .HasColumnType("character varying(300)")
                                 .HasColumnName("descripcion");
 
-                            b1.Property<Guid?>("EnvaseProductoId")
-                                .HasColumnType("uuid")
-                                .HasColumnName("envase_producto_id");
-
                             b1.Property<decimal>("ImporteConceptos")
                                 .ValueGeneratedOnAdd()
                                 .HasColumnType("numeric(14,2)")
@@ -1935,10 +1927,6 @@ namespace AlxorCore.Facturacion.Infraestructura.Persistencia.Migraciones
                                 .HasColumnType("uuid")
                                 .HasColumnName("empresa_id");
 
-                            b1.Property<Guid?>("EnvaseProductoId")
-                                .HasColumnType("uuid")
-                                .HasColumnName("envase_producto_id");
-
                             b1.Property<decimal>("ImporteConceptos")
                                 .ValueGeneratedOnAdd()
                                 .HasColumnType("numeric(14,2)")
@@ -2024,10 +2012,6 @@ namespace AlxorCore.Facturacion.Infraestructura.Persistencia.Migraciones
                                 .HasMaxLength(10)
                                 .HasColumnType("character varying(10)")
                                 .HasColumnName("codigo_iva");
-
-                            b1.Property<string>("Conceptos")
-                                .HasColumnType("jsonb")
-                                .HasColumnName("conceptos");
 
                             b1.Property<decimal>("CuotaIva")
                                 .HasColumnType("numeric(14,2)")
@@ -2320,10 +2304,6 @@ namespace AlxorCore.Facturacion.Infraestructura.Persistencia.Migraciones
                                 .HasColumnType("character varying(300)")
                                 .HasColumnName("descripcion");
 
-                            b1.Property<Guid?>("EnvaseProductoId")
-                                .HasColumnType("uuid")
-                                .HasColumnName("envase_producto_id");
-
                             b1.Property<decimal>("ImporteConceptos")
                                 .ValueGeneratedOnAdd()
                                 .HasColumnType("numeric(14,2)")
@@ -2412,10 +2392,6 @@ namespace AlxorCore.Facturacion.Infraestructura.Persistencia.Migraciones
                             b1.Property<Guid>("EmpresaId")
                                 .HasColumnType("uuid")
                                 .HasColumnName("empresa_id");
-
-                            b1.Property<Guid?>("EnvaseProductoId")
-                                .HasColumnType("uuid")
-                                .HasColumnName("envase_producto_id");
 
                             b1.Property<decimal>("ImporteConceptos")
                                 .ValueGeneratedOnAdd()

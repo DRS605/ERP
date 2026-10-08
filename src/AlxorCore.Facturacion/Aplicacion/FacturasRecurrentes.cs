@@ -1,4 +1,4 @@
-using AlxorCore.Catalogo.Aplicacion;
+﻿using AlxorCore.Catalogo.Aplicacion;
 using AlxorCore.Facturacion.Dominio;
 using AlxorCore.Nucleo.Comun;
 using AlxorCore.Nucleo.Resultados;
@@ -18,7 +18,8 @@ public sealed record LineaRecurrenteComando(
     decimal? PrecioUnitario = null,
     string? CodigoIva = null,
     decimal PorcentajeDescuento = 0m,
-    Guid? ProductoId = null);
+    Guid? ProductoId = null,
+    IReadOnlyList<ConceptoSolicitado>? Conceptos = null);
 
 /// <summary>Datos para crear/actualizar una factura recurrente.</summary>
 public sealed record DatosFacturaRecurrente(
@@ -28,12 +29,13 @@ public sealed record DatosFacturaRecurrente(
     DateOnly PrimeraEmision,
     IReadOnlyList<LineaRecurrenteComando> Lineas,
     DateOnly? FechaFin = null,
-    decimal? PorcentajeIrpf = null);
+    decimal? PorcentajeIrpf = null,
+    IReadOnlyList<ConceptoSolicitado>? ConceptosDocumento = null);
 
 /// <summary>Vista de una línea de plantilla recurrente.</summary>
 public sealed record LineaRecurrenteDto(
     string Descripcion, decimal Cantidad, decimal PrecioUnitario, decimal PorcentajeDescuento,
-    string CodigoIva, decimal PorcentajeIva, decimal Base, decimal CuotaIva);
+    string CodigoIva, decimal PorcentajeIva, decimal Base, decimal CuotaIva, IReadOnlyList<ConceptoSolicitado>? Conceptos = null);
 
 /// <summary>Vista completa de una factura recurrente.</summary>
 public sealed record FacturaRecurrenteDto(
@@ -51,7 +53,8 @@ public sealed record FacturaRecurrenteDto(
     decimal CuotaIva,
     decimal RetencionIrpf,
     decimal Total,
-    IReadOnlyList<LineaRecurrenteDto> Lineas)
+    IReadOnlyList<LineaRecurrenteDto> Lineas,
+    IReadOnlyList<ConceptoSolicitado>? ConceptosDocumento = null)
 {
     public static FacturaRecurrenteDto Desde(FacturaRecurrente r)
     {
@@ -64,8 +67,10 @@ public sealed record FacturaRecurrenteDto(
             r.Id, r.Nombre, r.ClienteId, r.Periodicidad.ToString(), r.ProximaEmision, r.FechaFin,
             r.PorcentajeIrpf, r.Activa, r.FacturasGeneradas, r.UltimaEmision,
             baseImponible, cuotaIva, retencion, total,
-            r.Lineas.Select(l => new LineaRecurrenteDto(
-                l.Descripcion, l.Cantidad, l.PrecioUnitario, l.PorcentajeDescuento, l.CodigoIva, l.PorcentajeIva, l.Base, l.CuotaIva)).ToList());
+            r.Lineas.OrderBy(l => l.Orden).Select(l => new LineaRecurrenteDto(
+                l.Descripcion, l.Cantidad, l.PrecioUnitario, l.PorcentajeDescuento, l.CodigoIva, l.PorcentajeIva, l.Base, l.CuotaIva,
+                ResolucionLineasRecurrentes.Solicitados(l.Conceptos))).ToList(),
+            ResolucionLineasRecurrentes.Solicitados(r.ConceptosDocumento));
     }
 }
 
@@ -145,10 +150,32 @@ internal static class ResolucionLineasRecurrentes
             }
 
             resueltas.Add(new LineaPlantilla(
-                descripcion, linea.Cantidad, precio.Value, impuesto.Valor.Codigo, impuesto.Valor.Porcentaje, linea.PorcentajeDescuento, linea.ProductoId));
+                descripcion, linea.Cantidad, precio.Value, impuesto.Valor.Codigo, impuesto.Valor.Porcentaje, linea.PorcentajeDescuento, linea.ProductoId,
+                Plantilla(linea.Conceptos)));
         }
 
         return Resultado.Ok(resueltas);
+    }
+
+    public static List<ConceptoPlantilla>? Plantilla(IReadOnlyList<ConceptoSolicitado>? conceptos) =>
+        conceptos?.Select(c => new ConceptoPlantilla(c.ConceptoId, c.Valor)).ToList();
+
+    public static List<ConceptoSolicitado>? Solicitados(IReadOnlyList<ConceptoPlantilla>? conceptos) =>
+        conceptos?.Select(c => new ConceptoSolicitado(c.ConceptoId, c.Valor)).ToList();
+
+    /// <summary>Comprueba que los conceptos propios de la plantilla existen y son de ventas (los calcula sobre sus líneas).</summary>
+    public static async Task<Error?> ValidarConceptosAsync(IResolverConceptos? conceptos, Guid clienteId, IReadOnlyList<LineaRecurrenteComando> lineas,
+        IReadOnlyList<ConceptoSolicitado>? documento, CancellationToken ct)
+    {
+        if (conceptos is null || (lineas.All(l => l.Conceptos is null) && documento is not { Count: > 0 }))
+        {
+            return null;
+        }
+
+        var entrada = lineas.Select(l => new LineaConceptos(l.ProductoId, l.Cantidad,
+            Redondeo.Dos(l.Cantidad * (l.PrecioUnitario ?? 0m) * (1m - l.PorcentajeDescuento / 100m)), l.Conceptos ?? [])).ToList();
+        var r = await conceptos.ResolverAsync(AmbitoConcepto.Ventas, clienteId, entrada, documento, false, null, ct).ConfigureAwait(false);
+        return r.EsFallo ? r.Error : null;
     }
 }
 
@@ -160,11 +187,13 @@ public sealed class CrearFacturaRecurrente
     private readonly IRepositorioFacturasRecurrentes _repositorio;
     private readonly IUnidadDeTrabajoFacturacion _unidadDeTrabajo;
     private readonly IReloj _reloj;
+    private readonly IResolverConceptos? _conceptos;
 
     public CrearFacturaRecurrente(
         IConsultaClientes clientes, IConsultaProductos productos, IRepositorioFacturasRecurrentes repositorio,
-        IUnidadDeTrabajoFacturacion unidadDeTrabajo, IReloj reloj)
+        IUnidadDeTrabajoFacturacion unidadDeTrabajo, IReloj reloj, IResolverConceptos? conceptos = null)
     {
+        _conceptos = conceptos;
         _clientes = clientes;
         _productos = productos;
         _repositorio = repositorio;
@@ -193,6 +222,11 @@ public sealed class CrearFacturaRecurrente
             return Resultado.Fallo<FacturaRecurrenteDto>(lineas.Error);
         }
 
+        if (await ResolucionLineasRecurrentes.ValidarConceptosAsync(_conceptos, cliente.Id, datos.Lineas, datos.ConceptosDocumento, ct).ConfigureAwait(false) is { } error)
+        {
+            return Resultado.Fallo<FacturaRecurrenteDto>(error);
+        }
+
         var irpf = datos.PorcentajeIrpf ?? cliente.PorcentajeIrpfDefecto;
         var recurrente = FacturaRecurrente.Crear(
             empresaId, datos.Nombre, datos.ClienteId, datos.Periodicidad, datos.PrimeraEmision, datos.FechaFin, irpf, lineas.Valor, _reloj);
@@ -201,6 +235,7 @@ public sealed class CrearFacturaRecurrente
             return Resultado.Fallo<FacturaRecurrenteDto>(recurrente.Error);
         }
 
+        recurrente.Valor.FijarConceptosDocumento(ResolucionLineasRecurrentes.Plantilla(datos.ConceptosDocumento));
         _repositorio.Agregar(recurrente.Valor);
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return Resultado.Ok(FacturaRecurrenteDto.Desde(recurrente.Valor));
@@ -214,9 +249,12 @@ public sealed class ActualizarFacturaRecurrente
     private readonly IRepositorioFacturasRecurrentes _repositorio;
     private readonly IUnidadDeTrabajoFacturacion _unidadDeTrabajo;
 
+    private readonly IResolverConceptos? _conceptos;
+
     public ActualizarFacturaRecurrente(
-        IConsultaProductos productos, IRepositorioFacturasRecurrentes repositorio, IUnidadDeTrabajoFacturacion unidadDeTrabajo)
+        IConsultaProductos productos, IRepositorioFacturasRecurrentes repositorio, IUnidadDeTrabajoFacturacion unidadDeTrabajo, IResolverConceptos? conceptos = null)
     {
+        _conceptos = conceptos;
         _productos = productos;
         _repositorio = repositorio;
         _unidadDeTrabajo = unidadDeTrabajo;
@@ -238,6 +276,12 @@ public sealed class ActualizarFacturaRecurrente
             return Resultado.Fallo<FacturaRecurrenteDto>(lineas.Error);
         }
 
+        if (await ResolucionLineasRecurrentes.ValidarConceptosAsync(_conceptos, recurrente.ClienteId, datos.Lineas ?? [], datos.ConceptosDocumento, ct)
+                .ConfigureAwait(false) is { } error)
+        {
+            return Resultado.Fallo<FacturaRecurrenteDto>(error);
+        }
+
         var actualizacion = recurrente.Actualizar(
             datos.Nombre, datos.Periodicidad, datos.PrimeraEmision, datos.FechaFin, datos.PorcentajeIrpf ?? recurrente.PorcentajeIrpf, lineas.Valor);
         if (actualizacion.EsFallo)
@@ -245,6 +289,7 @@ public sealed class ActualizarFacturaRecurrente
             return Resultado.Fallo<FacturaRecurrenteDto>(actualizacion.Error);
         }
 
+        recurrente.FijarConceptosDocumento(ResolucionLineasRecurrentes.Plantilla(datos.ConceptosDocumento));
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
         return Resultado.Ok(FacturaRecurrenteDto.Desde(recurrente));
     }
@@ -377,11 +422,13 @@ public sealed class EmitirFacturasRecurrentesVencidas
         {
             var comando = new EmitirFacturaComando(
                 recurrente.ClienteId,
-                recurrente.Lineas
-                    .Select(l => new LineaComando(l.Cantidad, l.Descripcion, l.PrecioUnitario, l.CodigoIva, l.PorcentajeDescuento, l.ProductoId))
+                recurrente.Lineas.OrderBy(l => l.Orden)
+                    .Select(l => new LineaComando(l.Cantidad, l.Descripcion, l.PrecioUnitario, l.CodigoIva, l.PorcentajeDescuento, l.ProductoId,
+                        Conceptos: ResolucionLineasRecurrentes.Solicitados(l.Conceptos)))
                     .ToList(),
                 FechaEmision: hoy,
-                PorcentajeIrpf: recurrente.PorcentajeIrpf);
+                PorcentajeIrpf: recurrente.PorcentajeIrpf,
+                ConceptosDocumento: ResolucionLineasRecurrentes.Solicitados(recurrente.ConceptosDocumento));
 
             var factura = await _emitir.EjecutarAsync(empresaId, comando, ct).ConfigureAwait(false);
             if (factura.EsFallo)

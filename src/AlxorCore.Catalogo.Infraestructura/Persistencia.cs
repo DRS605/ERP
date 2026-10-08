@@ -1,4 +1,4 @@
-using AlxorCore.Catalogo.Aplicacion;
+﻿using AlxorCore.Catalogo.Aplicacion;
 using AlxorCore.Catalogo.Dominio;
 using AlxorCore.Nucleo.Comun;
 using AlxorCore.Nucleo.Aplicacion;
@@ -603,6 +603,7 @@ internal sealed class ConfiguracionConceptoLinea : IEntityTypeConfiguration<Conc
             a.Property(x => x.Desde).HasColumnName("desde");
             a.Property(x => x.Hasta).HasColumnName("hasta");
             a.Property(x => x.AcreedorId).HasColumnName("acreedor_id");
+            a.Property(x => x.EnvaseProductoId).HasColumnName("envase_producto_id");
             a.HasIndex("concepto_linea_id").HasDatabaseName("ix_asignacion_concepto_concepto");
         });
         builder.Navigation(c => c.Asignaciones).UsePropertyAccessMode(PropertyAccessMode.Field);

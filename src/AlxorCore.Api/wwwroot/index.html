@@ -2377,13 +2377,15 @@
       const prods=(window._concProds||[]).map(p=>`<option value="p:${p.id}"${a&&a.productoId===p.id?" selected":""}>${agEsc(p.nombre)}</option>`).join("");
       const fams=(window._concFams||[]).map(f=>`<option value="f:${f.id}"${a&&a.familiaId===f.id?" selected":""}>Familia · ${agEsc(f.nombre)}</option>`).join("");
       const acr=(window._concProvs||[]).map(p=>`<option value="${p.id}"${a&&a.acreedorId===p.id?" selected":""}>${agEsc(p.nombre)}</option>`).join("");
+      const env=(window._concProds||[]).map(p=>`<option value="${p.id}"${a&&a.envaseProductoId===p.id?" selected":""}>${agEsc(p.nombre)}</option>`).join("");
       return `<div class="conc-asig" style="border:1px solid var(--line);border-radius:10px;padding:8px;margin-bottom:6px">
         <div style="display:grid;grid-template-columns:2fr 2fr 1fr auto;gap:6px;align-items:center">
         <select class="ca-ter"><option value="">Cualquier cliente o proveedor</option>${tipos}${ter}</select><select class="ca-obj"><option value="">Todos los artículos</option>${prods}${fams}</select>
         <input class="ca-val" type="number" step="0.0001" placeholder="Valor (el del concepto)" value="${a&&a.valor!=null?a.valor:""}"/><button class="btn small ghost" onclick="this.closest('.conc-asig').remove()" title="Quitar">✕</button></div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 2fr;gap:6px;margin-top:6px;align-items:center">
+        <div style="display:grid;grid-template-columns:1fr 1fr 2fr 2fr;gap:6px;margin-top:6px;align-items:center">
         <input class="ca-des" type="date" title="Vigente desde" value="${a&&a.desde?a.desde:""}"/><input class="ca-has" type="date" title="Vigente hasta" value="${a&&a.hasta?a.hasta:""}"/>
-        <select class="ca-acr"><option value="">Acreedor: el del concepto</option>${acr}</select></div></div>`;
+        <select class="ca-acr"><option value="">Acreedor: el del concepto</option>${acr}</select>
+        <select class="ca-env" title="Solo en las líneas de venta con este envase"><option value="">En cualquier envase</option>${env}</select></div></div>`;
     }
     function modalConceptoLinea(id){
       const c=id?(window._conceptos||[]).find(x=>x.id===id):null;
@@ -2397,13 +2399,14 @@
         <div class="grid2"><div><label>Acreedor (a quien se paga: transportista, comisionista…)</label><select id="cl_acr"><option value="">Ninguno</option>${(window._concProvs||[]).map(p=>`<option value="${p.id}"${c&&c.acreedorId===p.id?" selected":""}>${agEsc(p.nombre)}</option>`).join("")}</select></div><div><label>Cuenta contable propia (vacío: la de la línea)</label><input id="cl_cta" value="${c&&c.cuentaContable?c.cuentaContable:""}" placeholder="7590"/></div></div>
         <div class="grid2"><div><label>Impuesto propio (vacío: el de la línea; solo importe que suma)</label><input id="cl_iva" value="${c&&c.codigoIva?c.codigoIva:""}" placeholder="IVA21"/></div><div></div></div>
         ${c?`<label style="display:flex;gap:8px;align-items:center;margin-top:8px"><input id="cl_act" type="checkbox" style="width:auto" ${c.activo?"checked":""}/> Activo</label>`:""}
-        <label style="margin-top:12px">Se pone solo <span class="muted" style="font-weight:400;font-size:12px">— cada regla: cliente o proveedor, tipo de tercero o cualquiera · artículo, familia o todos · valor · vigencia · acreedor. Manda la del tercero y, dentro, la del artículo. Sin reglas, solo se pone a mano.</span></label>
+        <label style="margin-top:12px">Se pone solo <span class="muted" style="font-weight:400;font-size:12px">— cada regla: cliente o proveedor, tipo de tercero o cualquiera · artículo, familia o todos · valor · vigencia · acreedor · envase. Manda la del tercero y, dentro, la del artículo; a igualdad, la del envase. Sin reglas, solo se pone a mano.</span></label>
         <div id="cl_asig">${(c?c.asignaciones:[]).map(lineaAsignacionHtml).join("")}</div>
         <button class="btn small ghost" style="margin-top:4px" onclick="document.getElementById('cl_asig').insertAdjacentHTML('beforeend',lineaAsignacionHtml())">+ Añadir regla</button>`,
         async()=>{ const asignaciones=[...document.querySelectorAll('#cl_asig .conc-asig')].map(r=>{ const [tipo,oid]=(r.querySelector('.ca-obj').value||":").split(":"); const v=r.querySelector('.ca-val').value;
             const ter=r.querySelector('.ca-ter').value||""; const i=ter.indexOf(":"); const tt=i<0?"":ter.slice(0,i), tv=i<0?"":ter.slice(i+1);
             return {terceroId:tt==="t"?tv:null,tipoTercero:tt==="k"?tv:null,productoId:tipo==="p"?oid:null,familiaId:tipo==="f"?oid:null,valor:v===""?null:Number(v),
-              desde:r.querySelector('.ca-des').value||null,hasta:r.querySelector('.ca-has').value||null,acreedorId:r.querySelector('.ca-acr').value||null}; });
+              desde:r.querySelector('.ca-des').value||null,hasta:r.querySelector('.ca-has').value||null,acreedorId:r.querySelector('.ca-acr').value||null,
+              envaseProductoId:r.querySelector('.ca-env').value||null}; });
           const datos={nombre:val("cl_nom"),textoDocumento:val("cl_txt")||null,ambito:val("cl_amb"),efecto:val("cl_efe"),sentido:val("cl_sen"),calculo:val("cl_cal"),valor:Number(val("cl_val")||0),reparto:val("cl_rep"),asignaciones,
             orden:Number(val("cl_ord")||0),basePorcentaje:val("cl_bas"),acreedorId:val("cl_acr")||null,cuentaContable:val("cl_cta")||null,codigoIva:val("cl_iva")||null};
           if(c) await api("/conceptos-linea/"+c.id,{method:"PUT",body:JSON.stringify({datos,activo:document.getElementById("cl_act").checked})});
@@ -3805,8 +3808,11 @@
         const u=URL.createObjectURL(await r.blob()); window.open(u,"_blank");
         setTimeout(()=>URL.revokeObjectURL(u),60000);
       }catch(e){ toast(e.message,"err"); } }
-    function modalValidarRecibida(id){
+    async function modalValidarRecibida(id){
       const f=_cacheRecibidas.find(x=>x.id===id)||{};
+      // Cargos y abonos de compras que trae la factura (portes a su cuenta, suplidos…): solo los que se elijan.
+      await cargarConceptosActivos("Compras");
+      const kc=concNuevo("Compras",(f.conceptos||[]).filter(c=>!c.repartido).map(c=>({conceptoId:c.conceptoId,valor:c.valor})),{doc:true});
       const opts=_cacheProvRec.map(p=>`<option value="${p.id}"${p.id===f.proveedorId?" selected":""}>${p.nombre}</option>`).join("");
       const iva=ivaOpciones(f.codigoIva);
       abrir("Revisar factura recibida",`
@@ -3817,11 +3823,13 @@
         <input id="vr_provtxt" value="${f.proveedorTexto||""}" placeholder="Proveedor SL"/>
         <div class="grid2"><div><label>Nº de factura</label><input id="vr_num" value="${f.numeroFactura||""}"/></div><div><label>Fecha</label><input id="vr_fecha" type="date" value="${(f.fechaFactura||"").slice(0,10)}"/></div></div>
         <div class="grid2"><div><label>Base imponible (€)</label><input id="vr_base" type="number" step="0.01" value="${f.baseImponible!=null?f.baseImponible:""}"/></div><div><label>IVA</label><select id="vr_iva">${iva}</select></div></div>
-        <label>Retención IRPF (%)</label><input id="vr_irpf" type="number" step="0.01" value="${f.porcentajeIrpf!=null?f.porcentajeIrpf:0}"/>`,
+        <label>Retención IRPF (%)</label><input id="vr_irpf" type="number" step="0.01" value="${f.porcentajeIrpf!=null?f.porcentajeIrpf:0}"/>
+        ${(_concCat.Compras||[]).length?`<div style="margin-top:10px">${concBloque(kc)}<div class="muted" style="font-size:11.5px">Los de importe con cuenta van a su propia línea del gasto; los suplidos, fuera de la base y sin impuesto.</div></div>`:""}`,
         async()=>{
           const provId=val("vr_prov")||null;
           const body={ proveedorId:provId, proveedorTexto:provId?null:(val("vr_provtxt")||null), numeroFactura:val("vr_num")||null,
-            fechaFactura:val("vr_fecha")||null, baseImponible:Number(val("vr_base")||0), codigoIva:val("vr_iva"), porcentajeIrpf:Number(val("vr_irpf")||0) };
+            fechaFactura:val("vr_fecha")||null, baseImponible:Number(val("vr_base")||0), codigoIva:val("vr_iva"), porcentajeIrpf:Number(val("vr_irpf")||0),
+            conceptos:concPayload(kc)||null };
           await api("/recepcion/facturas/"+id+"/validar",{method:"POST",body:JSON.stringify(body)});
           toast("Factura validada. Ya puedes contabilizarla.","ok"); vRecepcion();
         });
@@ -4775,7 +4783,7 @@
       window._cacLista=lista;
       const optAcr=`<option value="">Todos los acreedores</option>`+provs.map(p=>`<option value="${p.id}"${p.id===cacFiltro.acreedorId?" selected":""}>${agEsc(p.nombre)}</option>`).join("");
       const ORIGEN={FacturaVenta:"Factura",AlbaranVenta:"Albarán de venta",PedidoCompra:"Pedido de compra"};
-      const filas=lista.map((c,i)=>`<tr><td>${cacFiltro.todos?"":`<input type="checkbox" class="cac_sel" value="${i}" style="width:auto;margin:0"/>`}</td><td>${agEsc(c.acreedorNombre)}</td><td class="muted">${fdate(c.fecha)}</td><td>${ORIGEN[c.origen]||c.origen} <span class="mono">${agEsc(c.numero)}</span></td><td>${agEsc(c.tercero)}</td><td>${agEsc(c.linea)}</td><td><span class="mono">${agEsc(c.codigo)}</span> ${agEsc(c.concepto)}</td><td class="num">${eur(Math.abs(c.importe))}</td></tr>`).join("");
+      const filas=lista.map((c,i)=>`<tr><td>${cacFiltro.todos?"":`<input type="checkbox" class="cac_sel" value="${i}" style="width:auto;margin:0"/>`}</td><td>${agEsc(c.acreedorNombre)}</td><td class="muted">${fdate(c.fecha)}</td><td>${ORIGEN[c.origen]||c.origen} <span class="mono">${agEsc(c.numero)}</span></td><td>${agEsc(c.tercero)}</td><td>${agEsc(c.linea)}</td><td><span class="mono">${agEsc(c.codigo)}</span> ${agEsc(c.concepto)}${c.provisionado?' <span class="pill" title="El coste ya está contabilizado en la venta contra la 4009: su factura cancela la provisión">provisionado</span>':""}</td><td class="num">${eur(Math.abs(c.importe))}</td></tr>`).join("");
       const filtros=`<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-bottom:12px">
         <div><label>Acreedor</label><select id="cac_acr" onchange="filtrarCargosAcreedor()">${optAcr}</select></div>
         <div><label>Desde</label><input id="cac_des" type="date" value="${cacFiltro.desde}" onchange="filtrarCargosAcreedor()"/></div>
@@ -9096,8 +9104,10 @@
       abrir(`Anular ${numero}`,`<p class="muted" style="margin:0 0 14px">La factura <strong>no se borra</strong> (ley antifraude): pasará a estado <em>Anulada</em> y se generará un <strong>registro de anulación</strong> con su huella encadenada. Para corregir importes usa mejor una <em>rectificativa</em>.</p>
         <label>Motivo de la anulación</label><input id="an_motivo" placeholder="Ej. Factura duplicada, emitida por error…"/>`,
         async()=>{ await api("/facturas/"+id+"/anular",{method:"POST",body:JSON.stringify({motivo:val("an_motivo")})}); toast("Factura anulada.","ok"); vFacturas(); }); }
-    function lineaRecHtml(l,i){ return `<div class="row rec-lin"><div><input class="rl-desc" placeholder="Descripción" value="${agEsc(l?.descripcion||"")}"/></div><div><label>Cant.</label><input class="rl-cant" type="number" value="${l?l.cantidad:1}"/></div><div><label>Precio €</label><input class="rl-prec" type="number" step="0.01" value="${l?l.precioUnitario:0}"/></div><div><label>IVA</label>${ivaSel("rl_iva"+i,l?l.codigoIva:undefined)}</div></div>`; }
-    async function modalRecurrente(id){ const [cs,r]=await Promise.all([api("/clientes"),id?api("/facturas-recurrentes/"+id):null]);
+    // Cada línea de la plantilla puede llevar sus propios cargos y abonos (sin elegir: los automáticos al emitir).
+    function lineaRecHtml(l,i){ const k=concNuevo("Ventas",l&&l.conceptos?l.conceptos.map(c=>({conceptoId:c.conceptoId,valor:c.valor??""})):undefined,{terceroSel:"r_cli"});
+      return `<div class="rec-lin" data-ck="${k}"><div class="row"><div><input class="rl-desc" placeholder="Descripción" value="${agEsc(l?.descripcion||"")}"/></div><div><label>Cant.</label><input class="rl-cant" type="number" value="${l?l.cantidad:1}"/></div><div><label>Precio €</label><input class="rl-prec" type="number" step="0.01" value="${l?l.precioUnitario:0}"/></div><div><label>IVA</label>${ivaSel("rl_iva"+i,l?l.codigoIva:undefined)}</div></div>${concBloque(k)}</div>`; }
+    async function modalRecurrente(id){ const [cs,r]=await Promise.all([api("/clientes"),id?api("/facturas-recurrentes/"+id):null,cargarConceptosActivos("Ventas")]);
       if(!cs.length){ alert("Primero crea un cliente para poder facturarle de forma periódica."); return; }
       const opts=cs.map(c=>`<option value="${c.id}"${r&&r.clienteId===c.id?" selected":""}>${c.nombre}</option>`).join("");
       const per=`<select id="r_per">${["Semanal","Mensual","Trimestral","Semestral","Anual"].map(p=>`<option value="${p}"${(r?r.periodicidad:"Mensual")===p?" selected":""}>${p}</option>`).join("")}</select>`;
@@ -9108,7 +9118,7 @@
         <label>Fecha de fin (opcional)</label><input id="r_fin" type="date" value="${r&&r.fechaFin?r.fechaFin:""}"/>
         <label style="margin-top:16px">Conceptos a facturar</label><div id="r_lineas">${lineas.map(lineaRecHtml).join("")}</div>
         <button class="btn small ghost" style="margin-top:4px" onclick="document.getElementById('r_lineas').insertAdjacentHTML('beforeend',lineaRecHtml(null,window._recN++))">+ Añadir concepto</button>`,
-        async()=>{ const lins=[...document.querySelectorAll('#r_lineas .rec-lin')].map(f=>({descripcion:f.querySelector('.rl-desc').value,cantidad:Number(f.querySelector('.rl-cant').value),precioUnitario:Number(f.querySelector('.rl-prec').value),codigoIva:f.querySelector('select').value})).filter(l=>l.descripcion.trim()&&l.cantidad>0);
+        async()=>{ const lins=[...document.querySelectorAll('#r_lineas .rec-lin')].map(f=>({descripcion:f.querySelector('.rl-desc').value,cantidad:Number(f.querySelector('.rl-cant').value),precioUnitario:Number(f.querySelector('.rl-prec').value),codigoIva:f.querySelector('select').value,conceptos:concPayload(f.dataset.ck)})).filter(l=>l.descripcion.trim()&&l.cantidad>0);
           if(!lins.length) throw new Error("Añade al menos un concepto.");
           const body=JSON.stringify({nombre:val("r_nom"),clienteId:val("r_cli"),periodicidad:val("r_per"),primeraEmision:val("r_fecha"),fechaFin:val("r_fin")||null,porcentajeIrpf:Number(val("r_irpf")),lineas:lins});
           await api(r?"/facturas-recurrentes/"+r.id:"/facturas-recurrentes",{method:r?"PUT":"POST",body}); toast(r?"Factura periódica guardada.":"Factura periódica creada.","ok"); vRecurrentes(); });

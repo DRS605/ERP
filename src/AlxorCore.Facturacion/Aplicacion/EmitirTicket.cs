@@ -1,4 +1,4 @@
-using AlxorCore.Catalogo.Aplicacion;
+﻿using AlxorCore.Catalogo.Aplicacion;
 using AlxorCore.Facturacion.Dominio;
 using AlxorCore.Nucleo.Comun;
 using AlxorCore.Nucleo.Aplicacion;
@@ -44,6 +44,7 @@ public sealed class EmitirTicket
     private readonly IPagosAutomaticos _pagos;
     private readonly IResolverIvaEmpresa _resolverIva;
     private readonly IReloj _reloj;
+    private readonly IResolverConceptos? _conceptos;
 
     public EmitirTicket(
         IConsultaClientes clientes,
@@ -58,8 +59,10 @@ public sealed class EmitirTicket
         IConsultaFormasPago formasPago,
         IPagosAutomaticos pagos,
         IResolverIvaEmpresa resolverIva,
-        IReloj reloj)
+        IReloj reloj,
+        IResolverConceptos? conceptos = null)
     {
+        _conceptos = conceptos;
         _clientes = clientes;
         _productos = productos;
         _resolverSerie = resolverSerie;
@@ -114,9 +117,26 @@ public sealed class EmitirTicket
             return Resultado.Fallo<FacturaDto>(resolucion.Error);
         }
 
-        var mencionFiscal = await ResolucionLineasFactura.MencionFiscalAsync(empresaId, resolucion.Valor, _resolverIva, ct).ConfigureAwait(false);
         var hoy = DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
         var fecha = comando.FechaEmision ?? hoy;
+
+        // Cargos y abonos: los automáticos (los del cliente, si lo hay, o los de cualquiera) y los pedidos en cada línea.
+        var conConceptos = await ResolucionLineasFactura.AplicarConceptosAsync(_conceptos, comando.ClienteId, comando.Lineas, resolucion.Valor, null, true,
+            new ContextoConceptos(tipoTercero, fecha), ct).ConfigureAwait(false);
+        if (conConceptos.EsFallo)
+        {
+            return Resultado.Fallo<FacturaDto>(conConceptos.Error);
+        }
+
+        var separadas = await ResolucionLineasFactura.SepararImpuestoPropioAsync(conConceptos.Valor, _productos, false, empresaId, _resolverIva, impuesto, ct)
+            .ConfigureAwait(false);
+        if (separadas.EsFallo)
+        {
+            return Resultado.Fallo<FacturaDto>(separadas.Error);
+        }
+
+        var lineas = separadas.Valor;
+        var mencionFiscal = await ResolucionLineasFactura.MencionFiscalAsync(empresaId, lineas, _resolverIva, ct).ConfigureAwait(false);
         var serie = comando.Serie;
         if (string.IsNullOrWhiteSpace(serie))
         {
@@ -135,7 +155,7 @@ public sealed class EmitirTicket
         }
 
         var numeroFactura = numero.Valor;
-        var ticket = Factura.EmitirSimplificada(empresaId, numeroFactura, fecha, cliente, resolucion.Valor, _reloj);
+        var ticket = Factura.EmitirSimplificada(empresaId, numeroFactura, fecha, cliente, lineas, _reloj);
         if (ticket.EsFallo)
         {
             return Resultado.Fallo<FacturaDto>(ticket.Error);

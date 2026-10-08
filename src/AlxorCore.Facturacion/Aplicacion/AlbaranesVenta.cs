@@ -1,5 +1,6 @@
 ﻿using AlxorCore.Catalogo.Aplicacion;
 using AlxorCore.Facturacion.Dominio;
+using AlxorCore.Nucleo.Aplicacion;
 using AlxorCore.Nucleo.Comun;
 using AlxorCore.Nucleo.Resultados;
 using AlxorCore.Nucleo.Tiempo;
@@ -16,7 +17,7 @@ namespace AlxorCore.Facturacion.Aplicacion;
 /// </summary>
 public sealed record LineaAlbaranComando(decimal Cantidad, string? Descripcion = null, decimal? PrecioUnitario = null, string? CodigoIva = null,
     decimal PorcentajeDescuento = 0m, Guid? ProductoId = null, bool PrecioPorFijar = false, IReadOnlyList<ConceptoSolicitado>? Conceptos = null,
-    decimal? Bultos = null, decimal? Pales = null);
+    decimal? Bultos = null, decimal? Pales = null, Guid? EnvaseProductoId = null);
 
 /// <summary>Albarán directo. Sin conceptos en una línea se ponen los automáticos del cliente y el artículo (sus reglas).</summary>
 public sealed record CrearAlbaranVentaComando(Guid ClienteId, IReadOnlyList<LineaAlbaranComando> Lineas, DateOnly? Fecha = null, string? Referencia = null,
@@ -84,7 +85,8 @@ internal static class AlbaranesVentaStock
         .Where(x => x.Cantidad > 0m)
         .Select(x => new LineaComando(
             x.Cantidad, $"Alb. {a.NumeroCompleto} · {x.Linea.Descripcion}", x.Linea.PrecioUnitario, x.Linea.CodigoIva, x.Linea.PorcentajeDescuento, x.Linea.ProductoId,
-            ConceptosCopiados: x.Linea.Conceptos, AlbaranVentaId: a.Id, SinSalidaStock: a.StockDescontado, CosteUnitario: x.Linea.CosteUnitario));
+            ConceptosCopiados: x.Linea.Conceptos, AlbaranVentaId: a.Id, SinSalidaStock: a.StockDescontado, CosteUnitario: x.Linea.CosteUnitario,
+            EnvaseProductoId: x.Linea.EnvaseProductoId));
 
     /// <summary>
     /// Conceptos de una línea de pedido para la parte entregada: los porcentajes sobre la nueva base (en su orden, con la
@@ -134,12 +136,14 @@ public sealed class CrearAlbaranVenta
     private readonly IStockVentas _stock;
     private readonly IReloj _reloj;
     private readonly IResolverConceptos? _conceptos;
+    private readonly IConversorDivisa? _conversor;
     private readonly AlxorCore.Organizacion.Aplicacion.Puertos.IConsultaEmpresas? _empresas;
 
     public CrearAlbaranVenta(IRepositorioAlbaranesVenta albaranes, IConsultaClientes clientes, IConsultaProductos productos, IResolverPrecioVenta precios,
         IResolverSerie resolverSerie, IUnidadDeTrabajoFacturacion unidad, IStockVentas stock, IReloj reloj, IResolverConceptos? conceptos = null,
-        AlxorCore.Organizacion.Aplicacion.Puertos.IConsultaEmpresas? empresas = null)
+        AlxorCore.Organizacion.Aplicacion.Puertos.IConsultaEmpresas? empresas = null, IConversorDivisa? conversor = null)
     {
+        _conversor = conversor;
         _conceptos = conceptos;
         _empresas = empresas;
         _albaranes = albaranes;
@@ -161,9 +165,8 @@ public sealed class CrearAlbaranVenta
             return Resultado.Fallo<AlbaranVentaDto>(Error.NoEncontrado("cliente.no_encontrado", "El cliente no existe."));
         }
 
-        // En divisa los precios van en la divisa (o por fijar) y no hay conceptos, que se definen en euros.
-        var moneda = FacturaEnDivisa.ValidarDocumento(comando.Moneda, (comando.Lineas ?? []).Any(l => l.PrecioUnitario is null && !l.PrecioPorFijar),
-            (comando.ConceptosDocumento ?? []).Count > 0 || (comando.Lineas ?? []).Any(l => (l.Conceptos ?? []).Count > 0));
+        // En divisa los precios van en la divisa (o por fijar).
+        var moneda = FacturaEnDivisa.ValidarDocumento(comando.Moneda, (comando.Lineas ?? []).Any(l => l.PrecioUnitario is null && !l.PrecioPorFijar));
         if (moneda.EsFallo)
         {
             return Resultado.Fallo<AlbaranVentaDto>(moneda.Error);
@@ -222,17 +225,20 @@ public sealed class CrearAlbaranVenta
                 codigoIva = tipo.Valor;
             }
 
-            lineas.Add(new NuevaLineaAlbaran(null, l.ProductoId, descripcion ?? string.Empty, l.Cantidad, precio ?? 0m, descuento, codigoIva, l.PrecioPorFijar));
+            lineas.Add(new NuevaLineaAlbaran(null, l.ProductoId, descripcion ?? string.Empty, l.Cantidad, precio ?? 0m, descuento, codigoIva, l.PrecioPorFijar,
+                EnvaseProductoId: l.EnvaseProductoId));
         }
 
         // Cargos y abonos: los pedidos en cada línea o los automáticos del cliente (reglas por cliente, tipo y artículo), y los del documento.
-        if (_conceptos is not null && lineas.Count > 0 && moneda.Valor is null)
+        if (_conceptos is not null && lineas.Count > 0)
         {
             var entrada = lineas.Select((l, i) => new LineaConceptos(l.ProductoId, l.Cantidad,
                 AlxorCore.Nucleo.Comun.Redondeo.Dos(l.Cantidad * (l.PrecioUnitario ?? 0m) * (1m - l.PorcentajeDescuento / 100m)), comando.Lineas![i].Conceptos,
-                Bultos: comando.Lineas[i].Bultos, Pales: comando.Lineas[i].Pales)).ToList();
-            var r = await _conceptos.ResolverAsync(AmbitoConcepto.Ventas, cliente.Id, entrada, comando.ConceptosDocumento, true,
-                new ContextoConceptos(cliente.Tipo, fecha), ct).ConfigureAwait(false);
+                Bultos: comando.Lineas[i].Bultos, Pales: comando.Lineas[i].Pales, EnvaseProductoId: l.EnvaseProductoId)).ToList();
+            // En divisa, los valores en euros del maestro y de las reglas pasan a la divisa al tipo del día del albarán.
+            var contexto = await FacturaEnDivisa.ContextoAsync(_conversor, empresaId, moneda.Valor, null, new ContextoConceptos(cliente.Tipo, fecha), ct)
+                .ConfigureAwait(false);
+            var r = await _conceptos.ResolverAsync(AmbitoConcepto.Ventas, cliente.Id, entrada, comando.ConceptosDocumento, true, contexto, ct).ConfigureAwait(false);
             if (r.EsFallo)
             {
                 return Resultado.Fallo<AlbaranVentaDto>(r.Error);

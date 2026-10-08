@@ -110,7 +110,9 @@ public sealed class ImpresosComerciales
         var nombres = await TraduccionLineas.NombresAsync(_idiomas, p.Lineas.Select(l => l.ProductoId), i, ct).ConfigureAwait(false);
         var lineas = p.Lineas.Select(l => new LineaImpresa(TraduccionLineas.Descripcion(l.Descripcion, l.ProductoId, nombres), l.Cantidad, null, l.PrecioUnitario, null, l.Importe)).ToList();
         var doc = new DocumentoImpreso(T("Pedido de compra"), p.NumeroCompleto, p.Fecha, tercero, lineas,
-            [new TotalImpreso(T("Total"), p.Total, Destacado: true)], i == IdiomasDocumento.Castellano ? [("Estado", p.Estado)] : [], Leyenda: T("Leyenda pedido compra"), Idioma: i);
+            p.Suplidos == 0m ? [new TotalImpreso(T("Total"), p.Total, Destacado: true)]
+                : [new TotalImpreso(T("Base"), p.Total), new TotalImpreso(T("Suplidos"), p.Suplidos), new TotalImpreso(T("Total"), Redondeo.Dos(p.Total + p.Suplidos), Destacado: true)],
+            i == IdiomasDocumento.Castellano ? [("Estado", p.Estado)] : [], Leyenda: T("Leyenda pedido compra"), Idioma: i);
         return await PdfAsync(empresaId, doc, $"pedido-compra-{p.NumeroCompleto}", ct).ConfigureAwait(false);
     }
 

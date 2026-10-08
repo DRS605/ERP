@@ -1,4 +1,4 @@
-using AlxorCore.Nucleo.Comun;
+﻿using AlxorCore.Nucleo.Comun;
 using AlxorCore.Nucleo.Dominio;
 using AlxorCore.Nucleo.Resultados;
 using AlxorCore.Nucleo.Tiempo;
@@ -36,6 +36,7 @@ public sealed class LineaPresupuesto : EntidadBase<Guid>
     {
         EmpresaId = empresaId;
         ProductoId = datos.ProductoId;
+        EnvaseProductoId = datos.EnvaseProductoId;
         Descripcion = datos.Descripcion.Trim();
         Cantidad = datos.Cantidad;
         PrecioUnitario = datos.PrecioUnitario;
@@ -65,6 +66,9 @@ public sealed class LineaPresupuesto : EntidadBase<Guid>
     public Guid EmpresaId { get; private set; }
 
     public Guid? ProductoId { get; private set; }
+
+    /// <summary>Envase de la línea (un artículo): decide las reglas de conceptos por envase.</summary>
+    public Guid? EnvaseProductoId { get; private set; }
 
     public string Descripcion { get; private set; }
 

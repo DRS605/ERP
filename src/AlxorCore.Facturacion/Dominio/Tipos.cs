@@ -1,4 +1,4 @@
-using AlxorCore.Nucleo.Comun;
+﻿using AlxorCore.Nucleo.Comun;
 using AlxorCore.Nucleo.Dominio;
 
 namespace AlxorCore.Facturacion.Dominio;
@@ -63,7 +63,8 @@ public sealed record NuevaLinea(
     Guid? AnticipoId = null,
     Guid? AlbaranVentaId = null,
     decimal? PrecioDivisa = null,
-    decimal? TasaCambio = null);
+    decimal? TasaCambio = null,
+    Guid? EnvaseProductoId = null);
 
 /// <summary>Se ha emitido un albarán de venta (entrega de mercancía).</summary>
 public sealed record AlbaranVentaEmitido(Guid AlbaranId, Guid EmpresaId, Guid? PedidoId, Guid ClienteId, DateTimeOffset OcurridoEn) : IEventoDominio;

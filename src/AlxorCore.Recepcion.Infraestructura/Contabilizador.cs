@@ -1,4 +1,4 @@
-using AlxorCore.Gastos.Aplicacion;
+﻿using AlxorCore.Gastos.Aplicacion;
 using AlxorCore.Nucleo.Resultados;
 using AlxorCore.Recepcion.Aplicacion;
 
@@ -34,13 +34,26 @@ internal sealed class ContabilizadorGastos : IContabilizador
             NumeroRectificado: datos.Rectificacion?.NumeroRectificado,
             FechaRectificada: datos.Rectificacion?.FechaRectificada,
             MotivoRectificacion: datos.Rectificacion?.Motivo,
-            Lineas: datos.Lineas is { Count: > 0 } l
-                ? l.Select(x => new LineaGastoComando(x.Base, datos.CodigoIva, x.Descripcion, CuentaGasto: x.Cuenta)).ToList()
-                : null);
+            Lineas: Lineas(datos));
 
         var resultado = await _registrarGasto.EjecutarAsync(empresaId, comando, ct).ConfigureAwait(false);
         return resultado.EsFallo
             ? Resultado.Fallo<ResultadoContabilizacion>(resultado.Error)
             : Resultado.Ok(new ResultadoContabilizacion(resultado.Valor.Id));
+    }
+
+    /// <summary>Las líneas del gasto: las indicadas (o una con la base) y, aparte, los suplidos (sin impuesto, a su cuenta).</summary>
+    private static List<LineaGastoComando>? Lineas(DatosContabilizacion datos)
+    {
+        if (datos.Lineas is not { Count: > 0 } && datos.Suplidos is not { Count: > 0 })
+        {
+            return null;
+        }
+
+        var lineas = datos.Lineas is { Count: > 0 } l
+            ? l.Select(x => new LineaGastoComando(x.Base, datos.CodigoIva, x.Descripcion, CuentaGasto: x.Cuenta)).ToList()
+            : [new LineaGastoComando(datos.BaseImponible, datos.CodigoIva, datos.Concepto)];
+        lineas.AddRange((datos.Suplidos ?? []).Select(s => new LineaGastoComando(s.Importe, datos.CodigoIva, s.Descripcion, CuentaGasto: s.Cuenta, Suplido: true)));
+        return lineas;
     }
 }

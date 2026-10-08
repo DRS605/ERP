@@ -68,14 +68,15 @@ indica, el vigente a la fecha de emisión o de la factura del proveedor. Sin tip
 - **Línea.** La línea guarda su precio y su base en la divisa (`precioDivisa`, `baseDivisa`). La base en euros es
   `round(baseDivisa × tasa, 2)`. El precio en euros es orientativo.
 - **Restricción en la base de datos.** `ck_linea_factura_base` comprueba la base en divisa a partir del precio en
-  divisa. En las facturas en euros sigue comprobando la de siempre.
+  divisa y de los conceptos en la divisa (`public.alxor_suma_conceptos_divisa`). En las facturas en euros sigue
+  comprobando la de siempre.
 - **Totales.** La factura guarda `baseDivisa`, `cuotaDivisa` y `totalDivisa`. Se calculan con el mismo redondeo línea a
   línea que en euros (impuesto, recargo y retención). `ck_factura_divisa` exige que vayan todos o ninguno.
 - **Qué va en euros.** Los importes en euros son el contravalor. La contabilidad, el SII, los libros de IVA y
   VeriFactu siguen en euros, y la cuota que vale es la de euros.
-- **Qué no admite.** Una factura en divisa no admite conceptos de línea, suplidos ni descuento de anticipos, porque se
-  definen en euros (400 `factura.divisa_conceptos`).
-- **Rectificativas y facturas desde albaranes o pedidos.** Se emiten en euros.
+- **Qué no admite.** Una factura en divisa no descuenta anticipos, porque se facturaron en euros (400
+  `factura.divisa_anticipos`).
+- **Rectificativas y facturas desde albaranes o pedidos.** Conservan la divisa (ver más abajo).
 - **PDF.** Las líneas y los totales salen en la divisa. Debajo va el contravalor en euros: base, impuesto y total, con
   el tipo de cambio.
 
@@ -120,8 +121,7 @@ importes están en esa divisa. El tipo de cambio no se guarda en ellos: se fija 
 - **Precios.** Cada línea lleva su precio en la divisa, porque la tarifa y el precio del artículo están en euros. Una
   línea sin precio da 400 `documento.divisa_precio`. En el albarán se admite la línea «por fijar»: se valora después,
   también en la divisa.
-- **Conceptos.** Los conceptos de línea se definen en euros, así que no se ponen: los automáticos del cliente no se
-  aplican y pedirlos expresamente da 400 `documento.divisa_conceptos`.
+- **Cargos y abonos.** Van en la divisa del documento (ver «Cargos y abonos en divisa»).
 - **Código.** Un código que no sea de tres letras da 400 `documento.moneda`.
 - **De un documento a otro.**
   - El pedido creado desde un presupuesto hereda su divisa, y los albaranes de entrega, la del pedido.
@@ -131,6 +131,24 @@ importes están en esa divisa. El tipo de cambio no se guarda en ellos: se fija 
 - **Varios albaranes.** No se facturan juntos albaranes en divisas distintas (409 `albaranventa.monedas_distintas`).
   La facturación masiva los agrupa por cliente, centro y divisa.
 - **PDF.** Los importes llevan el código de la divisa en lugar de «€».
+
+### Cargos y abonos en divisa
+
+En un documento en divisa (presupuesto, pedido, albarán o factura), los conceptos de línea van en la divisa, como el
+resto de sus importes.
+
+- **Valores.** Los porcentajes no cambian. Los valores en euros del maestro y de las reglas (por unidad, por kilo, por
+  bulto, por palé o importe fijo) se pasan a la divisa al tipo de cambio: en la factura, el suyo; en el presupuesto, el
+  pedido y el albarán, el vigente en su fecha. Sin tipo de cambio da 400 `concepto.sin_tipo_cambio`, salvo que el valor
+  se escriba en el documento, que ya va en la divisa. `GET /conceptos-linea/sugeridos?moneda=&tasaCambio=` devuelve
+  los valores ya en la divisa.
+- **Factura.** Cada concepto guarda su importe en la divisa (`importeDivisa`) y su contravalor en euros (`importe`, al
+  tipo de la factura). La base de la línea en divisa suma los conceptos en la divisa; la base en euros, el contravalor
+  de la mercancía más los conceptos en euros. Los suplidos en divisa suman al total en divisa.
+- **Lo que va en euros.** La contabilidad (cuentas propias y suplidos), el informe de conceptos y los cargos de
+  acreedores usan el importe en euros. En un albarán en divisa sin facturar, el informe y los cargos lo pasan a euros
+  al tipo del día del albarán.
+- **PDF y pantallas.** Los conceptos salen en la divisa.
 
 ### Rectificativa de una factura en divisa
 

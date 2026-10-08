@@ -1,4 +1,4 @@
-using AlxorCore.Catalogo.Aplicacion;
+﻿using AlxorCore.Catalogo.Aplicacion;
 using AlxorCore.Compras.Aplicacion;
 using AlxorCore.Facturacion.Aplicacion;
 using AlxorCore.Nucleo.Comun;
@@ -35,9 +35,12 @@ public sealed class InformeConceptosLinea
     private readonly IConsultaFacturas _facturas;
     private readonly IRepositorioPedidos _pedidos;
     private readonly IRepositorioAlbaranesVenta? _albaranes;
+    private readonly AlxorCore.Nucleo.Aplicacion.IConversorDivisa? _conversor;
 
-    public InformeConceptosLinea(IConsultaFacturas facturas, IRepositorioPedidos pedidos, IRepositorioAlbaranesVenta? albaranes = null)
+    public InformeConceptosLinea(IConsultaFacturas facturas, IRepositorioPedidos pedidos, IRepositorioAlbaranesVenta? albaranes = null,
+        AlxorCore.Nucleo.Aplicacion.IConversorDivisa? conversor = null)
     {
+        _conversor = conversor;
         _facturas = facturas;
         _pedidos = pedidos;
         _albaranes = albaranes;
@@ -57,9 +60,14 @@ public sealed class InformeConceptosLinea
             foreach (var a in (await _albaranes.ListarAsync(empresaId, new FiltroAlbaranesVenta(Desde: desde, Hasta: hasta), ct).ConfigureAwait(false))
                 .Where(a => !a.Anulado && a.FacturaId is null && a.Estado != nameof(AlxorCore.Facturacion.Dominio.EstadoAlbaranVenta.Facturado)))
             {
+                // Un albarán en divisa lleva sus conceptos en la divisa: el informe los pasa a euros al tipo del día del albarán.
+                var tasa = a.Moneda is { } moneda && _conversor is not null
+                    ? await _conversor.TasaVigenteAsync(empresaId, moneda, a.Fecha, ct).ConfigureAwait(false) ?? 1m
+                    : 1m;
                 foreach (var l in a.Lineas)
                 {
-                    detalle.AddRange((l.Conceptos ?? []).Select(c => Detalle("Ventas", a.Id, $"Albarán {a.NumeroCompleto}", a.Fecha, a.ClienteNombre, l.Descripcion, c) with { SinFacturar = true }));
+                    detalle.AddRange((l.Conceptos ?? []).Select(c => Detalle("Ventas", a.Id, $"Albarán {a.NumeroCompleto}", a.Fecha, a.ClienteNombre, l.Descripcion,
+                        tasa == 1m ? c : c with { Importe = Redondeo.Dos(c.Importe * tasa) }) with { SinFacturar = true }));
                 }
             }
         }

@@ -26,7 +26,8 @@ public sealed record LineaComando(
     string? CuentaContable = null,
     Guid? AnticipoId = null,
     Guid? AlbaranVentaId = null,
-    bool SinSalidaStock = false);
+    bool SinSalidaStock = false,
+    Guid? EnvaseProductoId = null);
 
 /// <summary>Datos para emitir una factura. <c>DiasVencimiento</c> es el plazo de pago (0 = contado).</summary>
 public sealed record EmitirFacturaComando(
@@ -74,9 +75,9 @@ public static class FacturaEnDivisa
 
     /// <summary>
     /// Divisa de un presupuesto, pedido o albarán con sus líneas: los precios se escriben en la divisa (la tarifa está en
-    /// euros) y no se ponen conceptos de línea, que se definen en euros.
+    /// euros), así que cada línea lleva el suyo.
     /// </summary>
-    public static Resultado<string?> ValidarDocumento(string? moneda, bool lineasSinPrecio, bool conConceptos)
+    public static Resultado<string?> ValidarDocumento(string? moneda, bool lineasSinPrecio)
     {
         var codigo = ValidarMoneda(moneda);
         if (codigo.EsFallo || codigo.Valor is null)
@@ -84,19 +85,36 @@ public static class FacturaEnDivisa
             return codigo;
         }
 
-        if (lineasSinPrecio)
-        {
-            return Resultado.Fallo<string?>(Error.Validacion("documento.divisa_precio", $"En un documento en {codigo.Valor} cada línea lleva su precio en esa divisa."));
-        }
-
-        return conConceptos
-            ? Resultado.Fallo<string?>(Error.Validacion("documento.divisa_conceptos", "Un documento en divisa no lleva conceptos de línea (se definen en euros)."))
+        return lineasSinPrecio
+            ? Resultado.Fallo<string?>(Error.Validacion("documento.divisa_precio", $"En un documento en {codigo.Valor} cada línea lleva su precio en esa divisa."))
             : codigo;
     }
 
     /// <summary>
+    /// Contexto de los conceptos de un documento en divisa: los valores en euros del maestro y de las reglas se pasan a la
+    /// divisa al tipo vigente en la fecha del documento (o al indicado). Sin divisa, el contexto tal cual.
+    /// </summary>
+    public static async Task<ContextoConceptos> ContextoAsync(IConversorDivisa? conversor, Guid empresaId, string? moneda, decimal? tasa, ContextoConceptos contexto,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(contexto);
+        if (Normalizar(moneda) is not { } codigo)
+        {
+            return contexto;
+        }
+
+        var t = tasa;
+        if (t is null && conversor is not null && contexto.Fecha is { } fecha)
+        {
+            t = await conversor.TasaVigenteAsync(empresaId, codigo, fecha, ct).ConfigureAwait(false);
+        }
+
+        return contexto with { Moneda = codigo, TasaDivisa = t };
+    }
+
+    /// <summary>
     /// Null si la factura va en euros. La tasa es la indicada o la vigente a la fecha en el módulo de Divisas. Una
-    /// factura en divisa no admite conceptos de línea, suplidos ni descuento de anticipos (que se definen en euros).
+    /// factura en divisa no admite el descuento de anticipos (se facturaron en euros).
     /// </summary>
     public static async Task<Resultado<DivisaFactura?>> ResolverAsync(IConversorDivisa? conversor, Guid empresaId, string? moneda, decimal? tasa, DateOnly fecha,
         IReadOnlyList<NuevaLinea> lineas, CancellationToken ct)
@@ -113,10 +131,10 @@ public static class FacturaEnDivisa
             return Resultado.Fallo<DivisaFactura?>(Error.Validacion("factura.moneda", $"«{moneda}» no es un código de divisa (USD, GBP, CHF…)."));
         }
 
-        if (lineas.Any(l => l.AnticipoId is not null || (l.Conceptos ?? []).Any(c => c.Importe != 0m)))
+        if (lineas.Any(l => l.AnticipoId is not null))
         {
-            return Resultado.Fallo<DivisaFactura?>(Error.Validacion("factura.divisa_conceptos",
-                "Una factura en divisa no lleva conceptos de línea, suplidos ni descuento de anticipos (se definen en euros)."));
+            return Resultado.Fallo<DivisaFactura?>(Error.Validacion("factura.divisa_anticipos",
+                "Una factura en divisa no descuenta anticipos: se facturaron en euros."));
         }
 
         var t = tasa;
@@ -188,6 +206,7 @@ public sealed class EmitirFactura
     private readonly IAnticiposFactura? _anticipos;
     private readonly IPermisosUsuario? _permisos;
     private readonly IConversorDivisa? _conversor;
+    private readonly ICargosAcreedorLiquidados? _liquidados;
 
     public EmitirFactura(
         IConsultaClientes clientes,
@@ -208,8 +227,10 @@ public sealed class EmitirFactura
         IResolverConceptos? conceptos = null,
         IAnticiposFactura? anticipos = null,
         IPermisosUsuario? permisos = null,
-        IConversorDivisa? conversor = null)
+        IConversorDivisa? conversor = null,
+        ICargosAcreedorLiquidados? liquidados = null)
     {
+        _liquidados = liquidados;
         _conversor = conversor;
         _permisos = permisos;
         _conceptos = conceptos;
@@ -321,9 +342,37 @@ public sealed class EmitirFactura
             return Resultado.Fallo<FacturaDto>(resolucion.Error);
         }
 
-        var conConceptos = await ResolucionLineasFactura.AplicarConceptosAsync(_conceptos, cliente.Id, comando.Lineas, resolucion.Valor, comando.ConceptosDocumento,
-            FacturaEnDivisa.Normalizar(comando.Moneda) is null, new ContextoConceptos(cliente.Tipo, fechaPrecio), ct)
-            .ConfigureAwait(false);
+        var hoy = DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
+        var fechaEmision = comando.FechaEmision ?? hoy;
+
+        // Factura en divisa: los precios de las líneas vienen en la divisa; se congela el tipo de cambio de la fecha.
+        var divisa = await FacturaEnDivisa.ResolverAsync(_conversor, empresaId, comando.Moneda, comando.TasaCambio, fechaEmision, resolucion.Valor, ct).ConfigureAwait(false);
+        if (divisa.EsFallo)
+        {
+            return Resultado.Fallo<FacturaDto>(divisa.Error);
+        }
+
+        var resueltas = resolucion.Valor;
+        if (divisa.Valor is { } div)
+        {
+            if (comando.DescontarAnticipos is { Count: > 0 })
+            {
+                return Resultado.Fallo<FacturaDto>(Error.Validacion("factura.divisa_anticipos", "Una factura en divisa no descuenta anticipos: se facturaron en euros."));
+            }
+
+            // El precio escrito en la línea es en la divisa; el de la tarifa o del artículo (sin precio en la línea) está en
+            // euros y se pasa a la divisa. Los conceptos se calculan después, sobre la línea en la divisa.
+            var conPrecio = comando.Lineas.Count == resueltas.Count ? comando.Lineas.Select(l => l.PrecioUnitario is not null).ToList() : null;
+            resueltas = resueltas.Select((l, i) =>
+            {
+                var precio = conPrecio is null || conPrecio[i] ? l.PrecioUnitario : Math.Round(l.PrecioUnitario / div.Tasa, 4, MidpointRounding.AwayFromZero);
+                return l with { PrecioUnitario = precio, PrecioDivisa = precio, TasaCambio = div.Tasa };
+            }).ToList();
+        }
+
+        var contextoConceptos = new ContextoConceptos(cliente.Tipo, fechaPrecio, divisa.Valor?.Moneda, divisa.Valor?.Tasa);
+        var conConceptos = await ResolucionLineasFactura.AplicarConceptosAsync(_conceptos, cliente.Id, comando.Lineas, resueltas, comando.ConceptosDocumento,
+            true, contextoConceptos, ct).ConfigureAwait(false);
         if (conConceptos.EsFallo)
         {
             return Resultado.Fallo<FacturaDto>(conConceptos.Error);
@@ -337,6 +386,11 @@ public sealed class EmitirFactura
         }
 
         var lineas = separadas.Valor;
+        if (divisa.Valor is { } divSeparadas)
+        {
+            // Las líneas de los conceptos con impuesto propio también van en la divisa (su precio es el importe en la divisa).
+            lineas = lineas.Select(l => l.PrecioDivisa is null ? l with { PrecioDivisa = l.PrecioUnitario, TasaCambio = divSeparadas.Tasa } : l).ToList();
+        }
 
         // Anticipos facturados que se descuentan: líneas negativas con su base e impuesto (cuenta 438), como mucho la base de la factura.
         if (comando.DescontarAnticipos is { Count: > 0 } descontar)
@@ -364,27 +418,9 @@ public sealed class EmitirFactura
         }
 
         var mencionFiscal = await ResolucionLineasFactura.MencionFiscalAsync(empresaId, lineas, _resolverIva, ct).ConfigureAwait(false);
-        var hoy = DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime);
-        var fechaEmision = comando.FechaEmision ?? hoy;
 
-        // Factura en divisa: los precios de las líneas vienen en la divisa; se congela el tipo de cambio de la fecha.
-        var divisa = await FacturaEnDivisa.ResolverAsync(_conversor, empresaId, comando.Moneda, comando.TasaCambio, fechaEmision, lineas, ct).ConfigureAwait(false);
-        if (divisa.EsFallo)
-        {
-            return Resultado.Fallo<FacturaDto>(divisa.Error);
-        }
-
-        if (divisa.Valor is { } div)
-        {
-            // El precio escrito en la línea es en la divisa; el de la tarifa o del artículo (sin precio en la línea) está en
-            // euros y se pasa a la divisa.
-            var conPrecio = comando.Lineas.Count == lineas.Count ? comando.Lineas.Select(l => l.PrecioUnitario is not null).ToList() : null;
-            lineas = lineas.Select((l, i) => l with
-            {
-                PrecioDivisa = conPrecio is null || conPrecio[i] ? l.PrecioUnitario : Math.Round(l.PrecioUnitario / div.Tasa, 4, MidpointRounding.AwayFromZero),
-                TasaCambio = div.Tasa,
-            }).ToList();
-        }
+        // Costes con acreedor: se provisionan en la contabilidad de la venta (salvo los del albarán ya liquidados).
+        lineas = await ProvisionCargos.MarcarAsync(_liquidados, lineas, ct).ConfigureAwait(false);
 
         var fechaOperacion = comando.FechaOperacion ?? fechaEmision;
 
@@ -534,6 +570,10 @@ public sealed class EmitirFactura
             SentidoContable.Venta, "FacturaVenta", f.Id, f.NumeroCompleto, f.ClienteId, f.ClienteNombre,
             f.FechaEmision, f.BaseImponible, codigoIva, f.CuotaIva, f.PorcentajeIrpf, f.RetencionIrpf, f.Total, productoId, familia, cliente.Tipo,
             ActividadNegocioId: f.ActividadNegocioId, Lineas: LineasConCuenta(f, await ProductosAsync(_productos, f, ct).ConfigureAwait(false))));
+        foreach (var provision in ProvisionCargos.Documentos(f))
+        {
+            _encolarSalida.Contabilizacion(empresaId, provision);
+        }
 
         await _unidadDeTrabajo.GuardarCambiosAsync(ct).ConfigureAwait(false);
 
@@ -695,7 +735,7 @@ internal static class ResolucionLineasFactura
 
             resueltas.Add(new NuevaLinea(
                 descripcion, linea.Cantidad, precio.Value, codigoResuelto, porcentaje, descuento, linea.ProductoId, coste ?? 0m, porcentajeRecargo,
-                CuentaContable: linea.CuentaContable, AnticipoId: linea.AnticipoId, AlbaranVentaId: linea.AlbaranVentaId));
+                CuentaContable: linea.CuentaContable, AnticipoId: linea.AnticipoId, AlbaranVentaId: linea.AlbaranVentaId, EnvaseProductoId: linea.EnvaseProductoId));
         }
 
         return Resultado.Ok(resueltas);
@@ -754,7 +794,8 @@ internal static class ResolucionLineasFactura
         }
 
         var entrada = lineas.Select((l, i) => new LineaConceptos(l.ProductoId, l.Cantidad,
-            LineaFactura.CalcularBaseBruta(l.Cantidad, l.PrecioUnitario, l.PorcentajeDescuento), comandos[i].Conceptos, comandos[i].ConceptosCopiados)).ToList();
+            LineaFactura.CalcularBaseBruta(l.Cantidad, l.PrecioUnitario, l.PorcentajeDescuento), comandos[i].Conceptos, comandos[i].ConceptosCopiados,
+            EnvaseProductoId: l.EnvaseProductoId)).ToList();
         var r = await conceptos.ResolverAsync(AmbitoConcepto.Ventas, clienteId, entrada, documento, automaticos, contexto, ct).ConfigureAwait(false);
         return r.EsFallo
             ? Resultado.Fallo<List<NuevaLinea>>(r.Error)

@@ -1,4 +1,4 @@
-using AlxorCore.Nucleo.Comun;
+﻿using AlxorCore.Nucleo.Comun;
 using AlxorCore.Nucleo.Dominio;
 using AlxorCore.Nucleo.Resultados;
 using AlxorCore.Nucleo.Tiempo;
@@ -66,6 +66,9 @@ public sealed class LineaPedido
 
     /// <summary>Importe de la línea (el que factura el proveedor): bruto + conceptos que cambian el importe.</summary>
     public decimal Importe => ImporteBruto + ImporteConceptos;
+
+    /// <summary>Suplidos de la línea: los paga el proveedor por cuenta de la empresa y los factura aparte, sin impuesto.</summary>
+    public decimal SuplidosConceptos => ConceptosLinea.SumaSuplidos(Conceptos);
 
     /// <summary>Coste unitario con que entra en almacén: importe y conceptos de coste repartidos por unidad.</summary>
     public decimal CosteUnitarioEntrada => Cantidad == 0m ? PrecioUnitario : Math.Round((Importe + CosteConceptos) / Cantidad, 4, MidpointRounding.AwayFromZero);
@@ -227,6 +230,9 @@ public sealed class PedidoCompra : RaizAgregadoEmpresa<Guid>
     }
 
     public decimal Total => Redondeo.Dos(_lineas.Sum(l => l.Importe));
+
+    /// <summary>Suplidos del pedido (fuera de la base): van en la factura del proveedor aparte, sin impuesto y a su cuenta.</summary>
+    public decimal Suplidos => Redondeo.Dos(_lineas.Sum(l => l.SuplidosConceptos));
 
     /// <summary>Pone los conceptos de cada línea (en el orden de las líneas) mientras el pedido no tiene recepciones.</summary>
     public Resultado PonerConceptos(IReadOnlyList<IReadOnlyList<ConceptoAplicado>> conceptos)

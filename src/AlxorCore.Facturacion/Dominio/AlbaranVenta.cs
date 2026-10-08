@@ -1,4 +1,4 @@
-using AlxorCore.Nucleo.Comun;
+﻿using AlxorCore.Nucleo.Comun;
 using AlxorCore.Nucleo.Dominio;
 using AlxorCore.Nucleo.Resultados;
 using AlxorCore.Nucleo.Tiempo;
@@ -24,6 +24,7 @@ public sealed class LineaAlbaranVenta
         Id = id;
         LineaPedidoId = datos.LineaPedidoId;
         ProductoId = datos.ProductoId;
+        EnvaseProductoId = datos.EnvaseProductoId;
         Descripcion = datos.Descripcion?.Trim() ?? string.Empty;
         Cantidad = Math.Round(datos.Cantidad, 3, MidpointRounding.AwayFromZero);
         PrecioUnitario = Math.Round(datos.PrecioUnitario ?? 0m, 4, MidpointRounding.AwayFromZero);
@@ -36,6 +37,9 @@ public sealed class LineaAlbaranVenta
 
     /// <summary>Coste unitario real de lo entregado (p. ej. el de los palés expedidos); null: el del artículo al facturar.</summary>
     public decimal? CosteUnitario { get; private set; }
+
+    /// <summary>Envase de la línea (un artículo): decide las reglas de conceptos por envase y pasa a la factura.</summary>
+    public Guid? EnvaseProductoId { get; private set; }
 
     /// <summary>Conceptos de línea (cargos y abonos) aplicados: copia de su definición, valor, importe y acreedor.</summary>
     public IReadOnlyList<ConceptoAplicado> Conceptos { get; private set; } = [];
@@ -104,7 +108,7 @@ public sealed class LineaAlbaranVenta
 /// <summary>Datos de una línea al crear un albarán. Sin precio (o con <c>PrecioEstimado</c>), la línea queda por valorar.</summary>
 public sealed record NuevaLineaAlbaran(Guid? LineaPedidoId, Guid? ProductoId, string Descripcion, decimal Cantidad,
     decimal? PrecioUnitario = null, decimal PorcentajeDescuento = 0m, string? CodigoIva = null, bool PrecioEstimado = false,
-    IReadOnlyList<ConceptoAplicado>? Conceptos = null, decimal? CosteUnitario = null);
+    IReadOnlyList<ConceptoAplicado>? Conceptos = null, decimal? CosteUnitario = null, Guid? EnvaseProductoId = null);
 
 /// <summary>Estado de un albarán de venta.</summary>
 public enum EstadoAlbaranVenta

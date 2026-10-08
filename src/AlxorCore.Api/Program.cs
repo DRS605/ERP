@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.DataProtection;
+﻿using Microsoft.AspNetCore.DataProtection;
 using System.IdentityModel.Tokens.Jwt;
 using System.Text.Json.Serialization;
 using AlxorCore.Api.Comun;
@@ -75,6 +75,7 @@ builder.Services.AddScoped<AlxorCore.Tesoreria.Aplicacion.IPendientesLiquidacion
 builder.Services.AddScoped<AlxorCore.Api.Comun.CargosAcreedores>();
 builder.Services.AddScoped<AlxorCore.Tesoreria.Aplicacion.DescuentosAnticipo>();
 builder.Services.AddScoped<AlxorCore.Facturacion.Aplicacion.IAnticiposFactura, AlxorCore.Api.Comun.AnticiposFacturacion>();
+builder.Services.AddScoped<AlxorCore.Facturacion.Aplicacion.ICargosAcreedorLiquidados, AlxorCore.Api.Comun.CargosLiquidadosFacturacion>();
 builder.Services.AddScoped<AlxorCore.Api.Comun.RegistrarAnticipoFacturado>();
 builder.Services.AgregarModuloTesoreria(builder.Configuration);
 builder.Services.AgregarModuloAgro(builder.Configuration);

@@ -11,7 +11,8 @@ namespace AlxorCore.Facturacion.Aplicacion;
 /// <summary>Vista de una línea de presupuesto.</summary>
 public sealed record LineaPresupuestoDto(
     string Descripcion, decimal Cantidad, decimal PrecioUnitario, decimal PorcentajeDescuento,
-    string CodigoIva, decimal PorcentajeIva, decimal Base, decimal CuotaIva, Guid? ProductoId = null, IReadOnlyList<ConceptoAplicado>? Conceptos = null, decimal ImporteConceptos = 0m, decimal CosteConceptos = 0m);
+    string CodigoIva, decimal PorcentajeIva, decimal Base, decimal CuotaIva, Guid? ProductoId = null, IReadOnlyList<ConceptoAplicado>? Conceptos = null, decimal ImporteConceptos = 0m, decimal CosteConceptos = 0m,
+    Guid? EnvaseProductoId = null);
 
 /// <summary>Vista de un presupuesto.</summary>
 public sealed record PresupuestoDto(
@@ -22,7 +23,7 @@ public sealed record PresupuestoDto(
     public static PresupuestoDto Desde(Presupuesto p) => new(
         p.Id, p.NumeroCompleto, p.ClienteId, p.ClienteNombre, p.Fecha, p.Validez, p.Estado.ToString(),
         p.BaseImponible, p.CuotaIva, p.Total, p.FacturaId,
-        p.Lineas.Select(l => new LineaPresupuestoDto(l.Descripcion, l.Cantidad, l.PrecioUnitario, l.PorcentajeDescuento, l.CodigoIva, l.PorcentajeIva, l.Base, l.CuotaIva, l.ProductoId, l.Conceptos, l.ImporteConceptos, l.CosteConceptos)).ToList(), p.Suplidos, p.CentroId, p.Moneda);
+        p.Lineas.Select(l => new LineaPresupuestoDto(l.Descripcion, l.Cantidad, l.PrecioUnitario, l.PorcentajeDescuento, l.CodigoIva, l.PorcentajeIva, l.Base, l.CuotaIva, l.ProductoId, l.Conceptos, l.ImporteConceptos, l.CosteConceptos, l.EnvaseProductoId)).ToList(), p.Suplidos, p.CentroId, p.Moneda);
 }
 
 /// <summary>Resumen de presupuesto para listados.</summary>
@@ -54,8 +55,7 @@ public sealed record DatosPresupuesto(Guid ClienteId, IReadOnlyList<LineaComando
     AlxorCore.Nucleo.Comun.TipoImpuesto? Impuesto = null, Guid? CentroId = null, string? Moneda = null)
 {
     /// <summary>La divisa validada (null en euros).</summary>
-    internal Resultado<string?> MonedaValidada() => FacturaEnDivisa.ValidarDocumento(Moneda, (Lineas ?? []).Any(l => l.PrecioUnitario is null),
-        (ConceptosDocumento ?? []).Count > 0 || (Lineas ?? []).Any(l => (l.Conceptos ?? []).Count > 0));
+    internal Resultado<string?> MonedaValidada() => FacturaEnDivisa.ValidarDocumento(Moneda, (Lineas ?? []).Any(l => l.PrecioUnitario is null));
 }
 
 /// <summary>Caso de uso: crear un presupuesto.</summary>
@@ -69,12 +69,15 @@ public sealed class CrearPresupuesto
     private readonly IReloj _reloj;
 
     private readonly IResolverConceptos? _conceptos;
+    private readonly IConversorDivisa? _conversor;
     private readonly AlxorCore.Organizacion.Aplicacion.Puertos.IConsultaEmpresas? _empresas;
     private readonly IResolverIvaEmpresa? _resolverIva;
 
     public CrearPresupuesto(IConsultaClientes clientes, IConsultaProductos productos, IRepositorioPresupuestos presupuestos, IUnidadDeTrabajoFacturacion unidadDeTrabajo, IResolverPrecioVenta precios, IReloj reloj,
-        IResolverConceptos? conceptos = null, AlxorCore.Organizacion.Aplicacion.Puertos.IConsultaEmpresas? empresas = null, IResolverIvaEmpresa? resolverIva = null)
+        IResolverConceptos? conceptos = null, AlxorCore.Organizacion.Aplicacion.Puertos.IConsultaEmpresas? empresas = null, IResolverIvaEmpresa? resolverIva = null,
+        IConversorDivisa? conversor = null)
     {
+        _conversor = conversor;
         _resolverIva = resolverIva;
         _conceptos = conceptos;
         _empresas = empresas;
@@ -118,8 +121,8 @@ public sealed class CrearPresupuesto
             return Resultado.Fallo<PresupuestoDto>(resolucion.Error);
         }
 
-        var conConceptos = await ResolucionLineasFactura.AplicarConceptosAsync(_conceptos, cliente.Id, datos.Lineas ?? [], resolucion.Valor, datos.ConceptosDocumento,
-            moneda.Valor is null, new ContextoConceptos(cliente.Tipo, DateOnly.FromDateTime(_reloj.AhoraUtc.UtcDateTime)), ct)
+        var conConceptos = await ResolucionLineasFactura.AplicarConceptosAsync(_conceptos, cliente.Id, datos.Lineas ?? [], resolucion.Valor, datos.ConceptosDocumento, true,
+            await FacturaEnDivisa.ContextoAsync(_conversor, empresaId, moneda.Valor, null, new ContextoConceptos(cliente.Tipo, fechaPrecio), ct).ConfigureAwait(false), ct)
             .ConfigureAwait(false);
         if (conConceptos.EsFallo)
         {
@@ -155,12 +158,15 @@ public sealed class ActualizarPresupuesto
     private readonly IResolverPrecioVenta _precios;
 
     private readonly IResolverConceptos? _conceptos;
+    private readonly IConversorDivisa? _conversor;
     private readonly AlxorCore.Organizacion.Aplicacion.Puertos.IConsultaEmpresas? _empresas;
     private readonly IResolverIvaEmpresa? _resolverIva;
 
     public ActualizarPresupuesto(IConsultaClientes clientes, IConsultaProductos productos, IRepositorioPresupuestos presupuestos, IUnidadDeTrabajoFacturacion unidadDeTrabajo, IResolverPrecioVenta precios,
-        IResolverConceptos? conceptos = null, AlxorCore.Organizacion.Aplicacion.Puertos.IConsultaEmpresas? empresas = null, IResolverIvaEmpresa? resolverIva = null)
+        IResolverConceptos? conceptos = null, AlxorCore.Organizacion.Aplicacion.Puertos.IConsultaEmpresas? empresas = null, IResolverIvaEmpresa? resolverIva = null,
+        IConversorDivisa? conversor = null)
     {
+        _conversor = conversor;
         _resolverIva = resolverIva;
         _conceptos = conceptos;
         _empresas = empresas;
@@ -207,8 +213,9 @@ public sealed class ActualizarPresupuesto
             return Resultado.Fallo<PresupuestoDto>(resolucion.Error);
         }
 
-        var conConceptos = await ResolucionLineasFactura.AplicarConceptosAsync(_conceptos, cliente.Id, datos.Lineas ?? [], resolucion.Valor, datos.ConceptosDocumento,
-            moneda.Valor is null, new ContextoConceptos(cliente.Tipo, presupuesto.Fecha), ct)
+        var conConceptos = await ResolucionLineasFactura.AplicarConceptosAsync(_conceptos, cliente.Id, datos.Lineas ?? [], resolucion.Valor, datos.ConceptosDocumento, true,
+            await FacturaEnDivisa.ContextoAsync(_conversor, presupuesto.EmpresaId, moneda.Valor, null, new ContextoConceptos(cliente.Tipo, presupuesto.Fecha), ct)
+                .ConfigureAwait(false), ct)
             .ConfigureAwait(false);
         if (conConceptos.EsFallo)
         {
@@ -312,7 +319,8 @@ public sealed class AceptarPresupuesto
         }
 
         var lineas = presupuesto.Lineas
-            .Select(l => new LineaComando(l.Cantidad, l.Descripcion, l.PrecioUnitario, l.CodigoIva, l.PorcentajeDescuento, l.ProductoId, ConceptosCopiados: l.Conceptos))
+            .Select(l => new LineaComando(l.Cantidad, l.Descripcion, l.PrecioUnitario, l.CodigoIva, l.PorcentajeDescuento, l.ProductoId, ConceptosCopiados: l.Conceptos,
+                EnvaseProductoId: l.EnvaseProductoId))
             .ToList();
 
         var comando = new EmitirFacturaComando(presupuesto.ClienteId, lineas, Serie: serie, DiasVencimiento: diasVencimiento, CentroId: presupuesto.CentroId,

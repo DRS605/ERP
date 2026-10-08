@@ -1,4 +1,4 @@
-using AlxorCore.Nucleo.Comun;
+﻿using AlxorCore.Nucleo.Comun;
 using AlxorCore.Nucleo.Dominio;
 using AlxorCore.Nucleo.Resultados;
 using AlxorCore.Nucleo.Tiempo;
@@ -43,6 +43,9 @@ public sealed class LineaPedidoVenta
     public Guid Id { get; private set; }
 
     public Guid? ProductoId { get; private set; }
+
+    /// <summary>Envase de la línea (un artículo): decide las reglas de conceptos por envase y pasa al albarán y a la factura.</summary>
+    public Guid? EnvaseProductoId { get; internal set; }
 
     public string Descripcion { get; private set; }
 
@@ -169,6 +172,16 @@ public sealed class PedidoVenta : RaizAgregadoEmpresa<Guid>
 
     /// <summary>Suplidos y fianzas de las líneas: fuera de la base y sin impuesto (la factura los suma al total).</summary>
     public decimal Suplidos => Redondeo.Dos(_lineas.Sum(l => ConceptosLinea.SumaSuplidos(l.Conceptos)));
+
+    /// <summary>Envase de cada línea (en el orden de las líneas); las que falten quedan sin envase.</summary>
+    public void FijarEnvases(IReadOnlyList<Guid?> envases)
+    {
+        ArgumentNullException.ThrowIfNull(envases);
+        for (var i = 0; i < _lineas.Count; i++)
+        {
+            _lineas[i].EnvaseProductoId = i < envases.Count ? envases[i] : null;
+        }
+    }
 
     /// <summary>Pone los conceptos de cada línea (en el orden de las líneas) mientras se puede modificar el pedido.</summary>
     public Resultado PonerConceptos(IReadOnlyList<IReadOnlyList<ConceptoAplicado>> conceptos)

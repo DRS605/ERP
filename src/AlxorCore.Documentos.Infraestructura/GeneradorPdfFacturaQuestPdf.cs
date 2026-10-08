@@ -1,4 +1,4 @@
-using AlxorCore.Documentos.Aplicacion;
+﻿using AlxorCore.Documentos.Aplicacion;
 using AlxorCore.Facturacion.Aplicacion;
 using AlxorCore.Facturacion.Dominio;
 using AlxorCore.Nucleo.Comun;
@@ -102,14 +102,15 @@ internal sealed class GeneradorPdfFacturaQuestPdf : IGeneradorPdfFactura
                             tabla.Cell().AlignRight().Text(N(linea.Cantidad));
                             tabla.Cell().AlignRight().Text(N(linea.PrecioDivisa ?? linea.PrecioUnitario));
                             tabla.Cell().AlignRight().Text($"{Porcentaje(linea.PorcentajeIva)}%");
-                            tabla.Cell().AlignRight().Text(N(linea.BaseDivisa ?? (linea.Base - linea.ImporteConceptos)));
+                            // El importe de la mercancía; los conceptos van debajo (en divisa, sus importes en la divisa).
+                            tabla.Cell().AlignRight().Text(N(linea.BaseDivisa is { } bd ? bd - ConceptosLinea.SumaPrecioDivisa(linea.Conceptos) : linea.Base - linea.ImporteConceptos));
                             foreach (var c in (linea.Conceptos ?? []).Where(c => c.Efecto == EfectoConcepto.Precio))
                             {
                                 tabla.Cell().PaddingLeft(10).Text($"· {c.Nombre}{(c.Calculo == CalculoConcepto.Porcentaje ? $" ({N(c.Valor)} %)" : string.Empty)}").FontSize(8).FontColor(Colors.Grey.Darken2);
                                 tabla.Cell();
                                 tabla.Cell();
                                 tabla.Cell();
-                                tabla.Cell().AlignRight().Text(N(c.Importe)).FontSize(8).FontColor(Colors.Grey.Darken2);
+                                tabla.Cell().AlignRight().Text(N(c.ImporteDivisa ?? c.Importe)).FontSize(8).FontColor(Colors.Grey.Darken2);
                             }
                         }
                     });
@@ -125,6 +126,12 @@ internal sealed class GeneradorPdfFacturaQuestPdf : IGeneradorPdfFactura
                             if (retencionDivisa > 0m)
                             {
                                 totales.Item().Text($"{T("Retención IRPF")} ({factura.PorcentajeIrpf:0}%): -{N(retencionDivisa)} {moneda}");
+                            }
+
+                            foreach (var g in factura.Lineas.SelectMany(l => l.Conceptos ?? []).Where(c => c.Efecto == EfectoConcepto.Suplido && c.Importe != 0m)
+                                         .GroupBy(c => c.Nombre))
+                            {
+                                totales.Item().Text($"{TextosImpreso.T(idioma, "suplido", g.Key, siglas)}: {N(g.Sum(c => c.ImporteDivisa ?? c.Importe))} {moneda}");
                             }
 
                             totales.Item().Text($"{T("TOTAL")}: {N(factura.TotalDivisa ?? 0m)} {moneda}").Bold().FontSize(13).FontColor(color);

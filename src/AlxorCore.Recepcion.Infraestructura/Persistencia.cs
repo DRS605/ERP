@@ -1,4 +1,4 @@
-using AlxorCore.Nucleo.Aplicacion;
+﻿using AlxorCore.Nucleo.Aplicacion;
 using AlxorCore.Nucleo.Dominio;
 using AlxorCore.Nucleo.Multiempresa;
 using AlxorCore.Persistencia;
@@ -55,6 +55,7 @@ internal sealed class ConfiguracionFacturaRecibida : IEntityTypeConfiguration<Fa
         builder.Property(f => f.PorcentajeIrpf).HasColumnName("porcentaje_irpf").HasColumnType("numeric(5,2)");
         builder.Property(f => f.GastoId).HasColumnName("gasto_id");
         builder.Property(f => f.MotivoRechazo).HasColumnName("motivo_rechazo").HasMaxLength(500);
+        builder.Property(f => f.Conceptos).ComoConceptos();
         builder.Property(f => f.EmpresaOrigenId).HasColumnName("empresa_origen_id");
         builder.Property(f => f.FacturaOrigenId).HasColumnName("factura_origen_id");
         builder.HasIndex(f => new { f.EmpresaId, f.FacturaOrigenId }).IsUnique().HasFilter("factura_origen_id IS NOT NULL")
