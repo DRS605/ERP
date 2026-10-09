@@ -1052,7 +1052,7 @@
       if(p){ tpvAdd(p.id); e.target.value=""; tpvPintarResultados(); } }
     function tpvPintarResultados(){ const q=(document.getElementById("tpvBuscar")?.value||"").toLowerCase().trim();
       const lista=tpvProductos.filter(p=>!q||(p.nombre+" "+(p.referencia||"")).toLowerCase().includes(q)).slice(0,12);
-      const html=lista.map(p=>`<div class="tpv-card" onclick="tpvAdd('${p.id}')"><div class="n">${p.nombre}</div><div class="c mono">${p.referencia||"—"}</div><div class="p">${eur(p.precioUnitario)}</div></div>`).join("");
+      const html=lista.map(p=>`<div class="tpv-card" onclick="tpvAdd('${p.id}')"><div class="n">${p.nombre}</div><div class="c mono">${p.referencia||"—"}</div><div class="p">${eur(p.precioUnitario*(1+(p.porcentajeIva||0)/100))}</div></div>`).join("");
       const el=document.getElementById("tpvResultados"); if(el) el.innerHTML=html||`<div class="muted" style="padding:10px">Sin artículos. Créalos en Artículos con su código.</div>`; }
     function tpvAdd(id){ const p=tpvProductos.find(x=>x.id===id); if(!p)return;
       const ex=tpvCart.find(l=>l.productoId===id); if(ex) ex.cantidad++; else tpvCart.push({productoId:id,descripcion:p.nombre,referencia:p.referencia,precioUnitario:p.precioUnitario,codigoIva:p.codigoIva,porcentajeIva:p.porcentajeIva,cantidad:1});
