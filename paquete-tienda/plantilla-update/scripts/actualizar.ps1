@@ -25,7 +25,7 @@ Get-Process AlxorCore.Api -ErrorAction SilentlyContinue | Stop-Process -Force
 Start-Sleep -Seconds 1
 
 # Copiar las novedades (DLLs de código, appsettings y la web) sobre la instalación.
-robocopy $Src $Dest /E /IS /IT /NFL /NDL /NJH /NJS | Out-Null
+robocopy $Src $Dest /E /IS /IT /R:2 /W:2 /NFL /NDL /NJH /NJS | Out-Null
 Write-Host "Archivos actualizados." -ForegroundColor Green
 
 # Rearrancar.

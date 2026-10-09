@@ -199,7 +199,20 @@ if (!app.Environment.IsDevelopment())
 
 // Sirve la interfaz web (SPA) desde wwwroot, en el mismo origen que la API (sin CORS).
 app.UseDefaultFiles();
-app.UseStaticFiles();
+app.UseStaticFiles(new Microsoft.AspNetCore.Builder.StaticFileOptions
+{
+    // Las páginas HTML no se cachean: así una actualización se ve con una recarga normal,
+    // sin tener que forzar Ctrl+Shift+R. Los assets con hash en el nombre (JS/CSS) sí se cachean.
+    OnPrepareResponse = ctx =>
+    {
+        if (ctx.File.Name.EndsWith(".html", StringComparison.OrdinalIgnoreCase))
+        {
+            ctx.Context.Response.Headers.CacheControl = "no-cache, no-store, must-revalidate";
+            ctx.Context.Response.Headers.Pragma = "no-cache";
+            ctx.Context.Response.Headers.Expires = "0";
+        }
+    },
+});
 
 app.UseRateLimiter();
 
