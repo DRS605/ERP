@@ -17,3 +17,16 @@ COMO ACTUALIZAR (1 minuto, no borra datos):
 4) En el navegador, pulsa Ctrl+F5 para recargar la pagina.
 
 Eso es todo. La base de datos y PostgreSQL no se tocan.
+
+
+IMPRESION SILENCIOSA DEL TICKET (sin dialogo, un solo clic)
+-----------------------------------------------------------
+1) Doble clic en "CrearAccesoKiosko.bat". Crea en el Escritorio el acceso
+   "Core Evolution (Tienda)".
+2) Pon tu impresora de tickets como PREDETERMINADA en Windows
+   (Configuracion > Impresoras y escaneres; desactiva que Windows administre
+   la predeterminada).
+3) A partir de ahora abre la tienda SIEMPRE con ese acceso del Escritorio
+   (no con el navegador normal).
+Al pulsar "Imprimir ticket" saldra directo a la impresora, sin ningun clic mas.
+

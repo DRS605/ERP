@@ -1164,8 +1164,9 @@
         const html=ticketHtml(f,emp);
         let ifr=document.getElementById("ticketPrint"); if(ifr) ifr.remove();
         ifr=document.createElement("iframe"); ifr.id="ticketPrint";
-        ifr.style.cssText="position:fixed;right:0;bottom:0;width:0;height:0;border:0";
-        ifr.onload=()=>{ try{ ifr.contentWindow.focus(); ifr.contentWindow.print(); }catch(e){} };
+        // Fuera de pantalla pero con tamaño real (más fiable que 0×0 para que renderice e imprima).
+        ifr.style.cssText="position:fixed;left:-9999px;top:0;width:80mm;height:600px;border:0";
+        ifr.onload=()=>{ setTimeout(()=>{ try{ ifr.contentWindow.focus(); ifr.contentWindow.print(); }catch(e){} }, 120); };
         document.body.appendChild(ifr); ifr.srcdoc=html;
       }catch(e){ toast(e.message,"err"); } }
     async function tpvEscanear(){ if(!('BarcodeDetector' in window)){ tpvSinCamara(); return; }

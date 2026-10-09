@@ -10,7 +10,7 @@ PUB="$PT/_update/publish"; OUT="$PT/_update/AlxorCore-Update"
 # SPA primero (vuelca a wwwroot/app), luego publish.
 ( cd frontend && npm run build )
 rm -rf "$PT/_update"
-dotnet publish src/AlxorCore.Api/AlxorCore.Api.csproj -c Release -o "$PUB" -p:TreatWarningsAsErrors=false
+dotnet publish src/AlxorCore.Api/AlxorCore.Api.csproj -c Release -o paquete-tienda/_update/publish -p:TreatWarningsAsErrors=false
 
 mkdir -p "$OUT/app" "$OUT/scripts"
 cp "$PUB"/AlxorCore.*.dll "$OUT/app/"
