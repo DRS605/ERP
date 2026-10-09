@@ -22,7 +22,7 @@ public sealed class OpcionesCorreo
     /// <summary>Dirección del remitente (p. ej. no-responder@tudominio.com).</summary>
     public string Remitente { get; set; } = "no-responder@alxor.local";
 
-    public string RemitenteNombre { get; set; } = "ALXOR Core";
+    public string RemitenteNombre { get; set; } = "Core Evolution";
 
     /// <summary>URL base de la aplicación para construir los enlaces de los correos.</summary>
     public string BaseUrl { get; set; } = "http://localhost:8080";

@@ -64,7 +64,7 @@ internal static class PlantillaImpreso
         }
         else
         {
-            texto.Span("ALXOR Core · ").FontColor(Colors.Grey.Medium);
+            texto.Span("Core Evolution · ").FontColor(Colors.Grey.Medium);
             texto.Span(e.RazonSocial).FontColor(Colors.Grey.Medium);
         }
     }

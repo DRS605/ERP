@@ -1,0 +1,19 @@
+ACTUALIZACION de Core Evolution
+================================
+
+Novedades de esta version:
+- Marca: ahora "Core Evolution" (by Map Technology).
+- Ficha de articulo: puedes teclear el precio CON IVA (precio final) ademas de la base.
+- Ticket: sale TODO en negro, SIN QR, con el % de IVA y el precio final en cada linea,
+  y el pie "Emitido con Core Evolution - Map Technology".
+- TPV: al imprimir sale directo a la impresora (sin pasar por Adobe).
+- TPV: para cambiar una cantidad, toca el numero entre los botones - y + y escribela
+  (ejemplo: 1 lata -> escribes 8).
+
+COMO ACTUALIZAR (1 minuto, no borra datos):
+1) Descomprime esta carpeta "AlxorCore-Update" en cualquier sitio.
+2) Doble clic en "Actualizar.bat" y acepta el aviso de Administrador.
+3) Espera a que diga "Core Evolution actualizado".
+4) En el navegador, pulsa Ctrl+F5 para recargar la pagina.
+
+Eso es todo. La base de datos y PostgreSQL no se tocan.

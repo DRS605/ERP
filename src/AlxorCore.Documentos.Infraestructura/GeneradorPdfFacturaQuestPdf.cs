@@ -160,7 +160,8 @@ internal sealed class GeneradorPdfFacturaQuestPdf : IGeneradorPdfFactura
             {
                 pagina.ContinuousSize(72, Unit.Millimetre);
                 pagina.Margin(6, Unit.Millimetre);
-                pagina.DefaultTextStyle(x => x.FontSize(8).FontFamily(Fonts.Calibri));
+                // Todo el texto del ticket en NEGRO: el gris no imprime bien en impresora térmica.
+                pagina.DefaultTextStyle(x => x.FontSize(8).FontFamily(Fonts.Calibri).FontColor(Colors.Black));
 
                 pagina.Content().Column(col =>
                 {
@@ -177,24 +178,26 @@ internal sealed class GeneradorPdfFacturaQuestPdf : IGeneradorPdfFactura
                     if (dirTicket is not null) col.Item().AlignCenter().Text(dirTicket).FontSize(7);
                     var contactoTicket = PlantillaImpreso.LineaContacto(emisor);
                     if (contactoTicket is not null) col.Item().AlignCenter().Text(contactoTicket).FontSize(7);
-                    col.Item().PaddingVertical(3).LineHorizontal(0.5f).LineColor(Colors.Grey.Medium);
+                    col.Item().PaddingVertical(3).LineHorizontal(0.5f).LineColor(Colors.Black);
 
                     col.Item().AlignCenter().Text("TICKET · FACTURA SIMPLIFICADA").Bold();
                     col.Item().AlignCenter().Text(factura.NumeroCompleto);
                     col.Item().AlignCenter().Text($"{factura.FechaEmision:dd/MM/yyyy}");
-                    col.Item().PaddingVertical(3).LineHorizontal(0.5f).LineColor(Colors.Grey.Medium);
+                    col.Item().PaddingVertical(3).LineHorizontal(0.5f).LineColor(Colors.Black);
 
                     foreach (var linea in factura.Lineas)
                     {
+                        // Precio final unitario (con IVA) y total de línea con IVA; % de IVA visible.
+                        var precioFinalUnidad = linea.PrecioUnitario * (1 + (linea.PorcentajeIva / 100m));
                         col.Item().Text(linea.Descripcion);
                         col.Item().Row(fila =>
                         {
-                            fila.RelativeItem().Text($"{Redondeo.Formatear(linea.Cantidad)} × {Redondeo.Formatear(linea.PrecioUnitario)} €  (IVA {linea.PorcentajeIva:0}%)").FontColor(Colors.Grey.Darken1);
+                            fila.RelativeItem().Text($"{Redondeo.Formatear(linea.Cantidad)} × {Redondeo.Formatear(precioFinalUnidad)} €  ·  IVA {linea.PorcentajeIva:0}%");
                             fila.ConstantItem(70).AlignRight().Text($"{Redondeo.Formatear(linea.Base + linea.CuotaIva)} €");
                         });
                     }
 
-                    col.Item().PaddingVertical(3).LineHorizontal(0.5f).LineColor(Colors.Grey.Medium);
+                    col.Item().PaddingVertical(3).LineHorizontal(0.5f).LineColor(Colors.Black);
 
                     col.Item().Row(f => { f.RelativeItem().Text("Base"); f.ConstantItem(70).AlignRight().Text($"{Redondeo.Formatear(factura.BaseImponible)} €"); });
                     col.Item().Row(f => { f.RelativeItem().Text("IVA"); f.ConstantItem(70).AlignRight().Text($"{Redondeo.Formatear(factura.CuotaIva)} €"); });
@@ -203,23 +206,16 @@ internal sealed class GeneradorPdfFacturaQuestPdf : IGeneradorPdfFactura
                         f.RelativeItem().Text("TOTAL").Bold().FontSize(11);
                         f.ConstantItem(80).AlignRight().Text($"{Redondeo.Formatear(factura.Total)} €").Bold().FontSize(11);
                     });
-                    col.Item().AlignCenter().PaddingTop(2).Text("IVA incluido").FontColor(Colors.Grey.Darken1);
+                    col.Item().AlignCenter().PaddingTop(2).Text("IVA incluido");
 
                     if (!string.IsNullOrWhiteSpace(factura.MencionFiscal))
                     {
-                        col.Item().PaddingTop(3).AlignCenter().Text(factura.MencionFiscal).FontSize(7).Italic().FontColor(Colors.Grey.Darken1);
+                        col.Item().PaddingTop(3).AlignCenter().Text(factura.MencionFiscal).FontSize(7).Italic();
                     }
 
-                    var qr = GenerarQr(factura, emisor);
-                    if (qr is not null)
-                    {
-                        col.Item().PaddingTop(6).AlignCenter().Width(90).Image(qr);
-                        col.Item().AlignCenter().Text("VERI*FACTU").Bold().FontSize(8);
-                        col.Item().AlignCenter().Text("Verificable en la sede de la AEAT").FontSize(7).FontColor(Colors.Grey.Darken1);
-                    }
-
-                    col.Item().PaddingVertical(4).LineHorizontal(0.5f).LineColor(Colors.Grey.Medium);
+                    col.Item().PaddingVertical(4).LineHorizontal(0.5f).LineColor(Colors.Black);
                     col.Item().AlignCenter().Text(string.IsNullOrWhiteSpace(emisor.TextoPie) ? "¡Gracias por su compra!" : emisor.TextoPie).Bold();
+                    col.Item().AlignCenter().PaddingTop(4).Text("Emitido con Core Evolution · Map Technology").FontSize(7);
                 });
             });
         });

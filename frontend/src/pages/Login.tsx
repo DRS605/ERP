@@ -47,7 +47,7 @@ export function Login() {
       <div style={{ width: "min(400px, 100%)", background: "var(--surface)", border: "1px solid var(--line)", borderRadius: "var(--radius)", padding: 28, boxShadow: "var(--shadow)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
           <div style={{ width: 40, height: 40, borderRadius: 12, background: "linear-gradient(120deg, var(--brand1), var(--brand2))", display: "grid", placeItems: "center", color: "#fff", fontWeight: 800 }}>A</div>
-          <h1 style={{ margin: 0, fontSize: 22 }}>ALXOR Core</h1>
+          <h1 style={{ margin: 0, fontSize: 22 }}>Core Evolution</h1>
         </div>
 
         {empresas ? (

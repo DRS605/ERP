@@ -14,7 +14,7 @@ public sealed record EstadoDobleFactor(bool Activo, int CodigosRecuperacionPendi
 /// <summary>Emisor que aparece en la app de autenticación (Google Authenticator, etc.).</summary>
 internal static class Emisor2fa
 {
-    public const string Nombre = "ALXOR Core";
+    public const string Nombre = "Core Evolution";
 }
 
 /// <summary>Caso de uso: preparar el 2FA (genera el secreto y el URI; aún no queda activo).</summary>

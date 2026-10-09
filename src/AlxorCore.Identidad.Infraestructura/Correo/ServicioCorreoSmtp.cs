@@ -28,9 +28,9 @@ internal sealed class ServicioCorreoSmtp : IServicioVerificacionEmail
         var enlace = $"{_opciones.BaseUrl.TrimEnd('/')}/?verificar={Uri.EscapeDataString(token)}";
         var html = Cuerpo(
             $"Hola {usuario.Nombre}, confirma tu correo",
-            "Gracias por crear tu cuenta en ALXOR Core. Confirma tu correo para activarla:",
+            "Gracias por crear tu cuenta en Core Evolution. Confirma tu correo para activarla:",
             "Verificar correo", enlace);
-        return EnviarAsync(usuario.Email.Valor, "Confirma tu correo · ALXOR Core", html, ct);
+        return EnviarAsync(usuario.Email.Valor, "Confirma tu correo · Core Evolution", html, ct);
     }
 
     public Task EnviarRestablecimientoAsync(Usuario usuario, string token, CancellationToken ct = default)
@@ -40,7 +40,7 @@ internal sealed class ServicioCorreoSmtp : IServicioVerificacionEmail
             $"Hola {usuario.Nombre}",
             "Has solicitado (o te han invitado a) establecer tu contraseña. Pulsa el botón para hacerlo:",
             "Establecer contraseña", enlace);
-        return EnviarAsync(usuario.Email.Valor, "Tu contraseña de ALXOR Core", html, ct);
+        return EnviarAsync(usuario.Email.Valor, "Tu contraseña de Core Evolution", html, ct);
     }
 
     private async Task EnviarAsync(string destino, string asunto, string html, CancellationToken ct)
@@ -67,7 +67,7 @@ internal sealed class ServicioCorreoSmtp : IServicioVerificacionEmail
     private static string Cuerpo(string titulo, string texto, string cta, string enlace) =>
         $"""
         <div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:auto;color:#0b2a4a">
-          <h2 style="color:#0b6ea4">ALXOR Core</h2>
+          <h2 style="color:#0b6ea4">Core Evolution</h2>
           <h3>{titulo}</h3>
           <p>{texto}</p>
           <p style="margin:24px 0"><a href="{enlace}" style="background:#0d94ba;color:#fff;padding:12px 20px;border-radius:10px;text-decoration:none;font-weight:bold">{cta}</a></p>

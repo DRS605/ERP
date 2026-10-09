@@ -31,7 +31,7 @@ export function Shell() {
       <aside style={{ background: "var(--surface)", borderRight: "1px solid var(--line)", padding: "18px 12px", position: "sticky", top: 0, height: "100vh" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "4px 8px 18px", cursor: "pointer" }} onClick={() => setAbierto((v) => !v)}>
           <div style={{ width: 34, height: 34, borderRadius: 10, background: "linear-gradient(120deg, var(--brand1), var(--brand2))", display: "grid", placeItems: "center", color: "#fff", fontWeight: 800, flex: "none" }}>A</div>
-          {abierto && <strong style={{ color: "var(--navy)" }}>ALXOR Core</strong>}
+          {abierto && <strong style={{ color: "var(--navy)" }}>Core Evolution</strong>}
         </div>
         <nav style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           {NAV.map((n) => (

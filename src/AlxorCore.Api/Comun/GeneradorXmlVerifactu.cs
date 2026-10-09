@@ -100,8 +100,8 @@ public static class GeneradorXmlVerifactu
         w.WriteEndElement();
 
         w.WriteStartElement("SistemaInformatico");
-        w.WriteElementString("NombreRazon", "ALXOR Core");
-        w.WriteElementString("NombreSistemaInformatico", "ALXOR Core");
+        w.WriteElementString("NombreRazon", "Map Technology");
+        w.WriteElementString("NombreSistemaInformatico", "Core Evolution");
         w.WriteElementString("Version", "1.0");
         w.WriteEndElement();
 
