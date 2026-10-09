@@ -1119,44 +1119,50 @@
     // Impresión DIRECTA del ticket: construye el ticket como HTML (80 mm, todo en negro, sin QR)
     // y lo manda a la impresora sin pasar por el visor de PDF (Adobe).
     const escTk=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+    // Emblema por defecto (cesta de la compra, negro) cuando la empresa no tiene logo subido.
+    const EMBLEMA_CESTA='<svg width="46" height="46" viewBox="0 0 64 64"><g fill="none" stroke="#000" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M14 26 h36 l-4 26 h-28 z"/><path d="M20 26 a12 11 0 0 1 24 0"/><line x1="24" y1="31" x2="22" y2="47"/><line x1="32" y1="31" x2="32" y2="47"/><line x1="40" y1="31" x2="42" y2="47"/></g></svg>';
     function ticketHtml(f, emp){
       const e=emp||{};
       const dir=[e.calle,[e.codigoPostal,e.poblacion].filter(Boolean).join(" "),e.provincia].filter(Boolean).join(" · ");
       const contacto=[e.telefono,e.web,e.emailContacto].filter(Boolean).join(" · ");
-      const logo=e.logoPng?`<div class="c" style="margin-bottom:4px"><img src="data:image/png;base64,${e.logoPng}" style="max-height:48px;max-width:60%"/></div>`:"";
+      const icono=e.logoPng?`<img src="data:image/png;base64,${e.logoPng}" style="max-height:52px;max-width:62%"/>`:EMBLEMA_CESTA;
       const lineas=(f.lineas||[]).map(l=>{ const pct=l.porcentajeIva||0; const pFinalU=l.precioUnitario*(1+pct/100); const lineaFinal=(l.base+l.cuotaIva);
-        return `<div style="margin-top:4px">${escTk(l.descripcion)}</div><div class="row"><span>${numCant(l.cantidad)} × ${eur(pFinalU)} · IVA ${pct}%</span><span>${eur(lineaFinal)}</span></div>`; }).join("");
-      const mencion=f.mencionFiscal?`<div style="margin-top:6px;font-style:italic;font-size:10px">${escTk(f.mencionFiscal)}</div>`:"";
-      const pie=(e.textoPie&&e.textoPie.trim())?e.textoPie:"¡Gracias por su compra!";
+        return `<div class="it"><div class="row"><span class="b">${escTk(l.descripcion)}</span><span class="b">${eur(lineaFinal)}</span></div><div class="row s"><span>${numCant(l.cantidad)} × ${eur(pFinalU)}</span><span>IVA ${pct}%</span></div></div>`; }).join("");
+      const mencion=f.mencionFiscal?`<div class="s" style="margin-top:6px;font-style:italic">${escTk(f.mencionFiscal)}</div>`:"";
+      const pie=(e.textoPie&&e.textoPie.trim())?escTk(e.textoPie):"Gracias por su compra";
       const fecha=new Date(f.fechaEmision).toLocaleDateString("es-ES");
+      const cab=[e.nif?("NIF "+escTk(e.nif)):"",dir?escTk(dir):""].filter(Boolean).join(" · ");
       return `<!doctype html><html><head><meta charset="utf-8"><style>
         @page{size:72mm auto;margin:0}
         html,body{margin:0;padding:0}
-        body{width:72mm;padding:4mm 3mm;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+        body{width:72mm;padding:5mm 3mm;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#000;-webkit-print-color-adjust:exact;print-color-adjust:exact}
         *{color:#000!important}
-        .c{text-align:center} .b{font-weight:700} .sep{border-top:1px dashed #000;margin:6px 0}
-        .row{display:flex;justify-content:space-between} .big{font-size:14px;font-weight:700}
+        .c{text-align:center} .b{font-weight:700} .s{font-size:10px}
+        .row{display:flex;justify-content:space-between;gap:8px}
+        .dot{border-top:1.5px dotted #000;margin:8px 0}
+        .dbl{border-top:3px double #000;margin:7px 0}
+        .big{font-size:16px;font-weight:800}
+        .name{font-size:15px;font-weight:800;margin-top:4px}
+        .it{margin-top:6px}
       </style></head><body>
-        ${logo}
-        <div class="c b" style="font-size:13px">${escTk(e.razonSocial||"")}</div>
-        ${e.nif?`<div class="c">NIF: ${escTk(e.nif)}</div>`:""}
-        ${dir?`<div class="c" style="font-size:10px">${escTk(dir)}</div>`:""}
-        ${contacto?`<div class="c" style="font-size:10px">${escTk(contacto)}</div>`:""}
-        <div class="sep"></div>
-        <div class="c b">TICKET · FACTURA SIMPLIFICADA</div>
-        <div class="c">${escTk(f.numeroCompleto)}</div>
-        <div class="c">${fecha}</div>
-        <div class="sep"></div>
+        <div class="c">${icono}</div>
+        <div class="c name">${escTk(e.razonSocial||"")}</div>
+        ${cab?`<div class="c s">${cab}</div>`:""}
+        ${contacto?`<div class="c s">${contacto}</div>`:""}
+        <div class="dot"></div>
+        <div class="c s">Ticket ${escTk(f.numeroCompleto)} · ${fecha}</div>
+        <div class="dot"></div>
         ${lineas}
-        <div class="sep"></div>
-        <div class="row"><span>Base</span><span>${eur(f.baseImponible)}</span></div>
-        <div class="row"><span>IVA</span><span>${eur(f.cuotaIva)}</span></div>
+        <div class="dot"></div>
+        <div class="row s"><span>Base imponible</span><span>${eur(f.baseImponible)}</span></div>
+        <div class="row s"><span>Cuota IVA</span><span>${eur(f.cuotaIva)}</span></div>
+        <div class="dbl"></div>
         <div class="row big"><span>TOTAL</span><span>${eur(f.total)}</span></div>
-        <div class="c" style="font-size:10px;margin-top:2px">IVA incluido</div>
+        <div class="c s">IVA incluido</div>
         ${mencion}
-        <div class="sep"></div>
-        <div class="c b">${escTk(pie)}</div>
-        <div class="c" style="font-size:9px;margin-top:6px">Emitido con Core Evolution · Map Technology</div>
+        <div class="dot"></div>
+        <div class="c b" style="font-size:13px">${pie}</div>
+        <div class="c s" style="margin-top:6px">Emitido con Core Evolution · Map Technology</div>
       </body></html>`;
     }
     async function imprimirTicket(id){ try{
