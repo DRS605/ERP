@@ -1096,6 +1096,7 @@
         try{ await api("/cobros",{method:"POST",body:JSON.stringify({facturaId:t.id,importe:t.total,metodo:tpvMetodo})}); }catch(e){ toast("Ticket emitido, pero el cobro no se registró: "+e.message,"err"); }
         tpvUltimoTicket={id:t.id,numero:t.numeroCompleto,total:t.total,metodo:tpvMetodo};
         tpvCart=[]; tpvPintarCarrito(); tpvPintarUltimo();
+        imprimirTicket(t.id);   // imprime el ticket automáticamente al emitir (silencioso con el acceso de tienda)
         toast(`Ticket ${t.numeroCompleto} cobrado (${tpvMetodo}) · ${eur(t.total)}`,"ok"); }
       catch(e){ toast(e.message,"err"); } }
     async function abrirXml(id){ try{
@@ -3073,25 +3074,27 @@
       if(editar&&p.esCompuesto){ try{ const c=await api(`/productos/${p.id}/composicion`); compIni=c.componentes.map(x=>({id:x.componenteId,cant:x.cantidad})); }catch(e){} }
       abrir(editar?"Editar artículo":(p?"Nuevo artículo (copia)":"Nuevo artículo"),`<label>Nombre</label><input id="p_nombre" placeholder="Nombre del producto o servicio"/>
       <div class="grid2"><div><label>Código / EAN (opcional)</label><input id="p_ref" placeholder="Ej. 8412345678901"/></div><div><label>IVA</label>${ivaSel("p_iva")}</div></div>
-      <div class="grid2">
-        <div><label>Precio de venta</label>
-          <div style="display:flex;gap:6px;align-items:center">
-            <input id="p_precio" type="number" step="0.0001" value="0" title="Base (sin IVA)" oninput="pFinalDesdeBase('p_precio','p_precio_f')" style="flex:1"/>
-            <span class="muted" style="font-size:12px">sin IVA</span>
-            <input id="p_precio_f" type="number" step="0.01" value="0" title="Precio final con IVA" oninput="pBaseDesdeFinal('p_precio','p_precio_f')" style="flex:1"/>
-            <span class="muted" style="font-size:12px">con IVA</span>
+      <div class="grid2" style="margin-top:4px">
+        <fieldset style="border:1px solid var(--line);border-radius:11px;padding:10px 12px;margin:0">
+          <legend style="font-size:13px;font-weight:600;padding:0 6px">Precio de venta</legend>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <label style="font-size:12px;color:var(--muted)">Sin IVA (base)
+              <input id="p_precio" type="number" step="0.0001" value="0" oninput="pFinalDesdeBase('p_precio','p_precio_f')"/></label>
+            <label style="font-size:12px;color:var(--muted)">Con IVA (lo que paga)
+              <input id="p_precio_f" type="number" step="0.01" value="0" oninput="pBaseDesdeFinal('p_precio','p_precio_f')"/></label>
           </div>
-        </div>
-        <div><label>Precio de compra / coste</label>
-          <div style="display:flex;gap:6px;align-items:center">
-            <input id="p_compra" type="number" step="0.0001" value="0" title="Coste base (sin IVA)" oninput="pFinalDesdeBase('p_compra','p_compra_f')" style="flex:1"/>
-            <span class="muted" style="font-size:12px">sin IVA</span>
-            <input id="p_compra_f" type="number" step="0.01" value="0" title="Coste final con IVA" oninput="pBaseDesdeFinal('p_compra','p_compra_f')" style="flex:1"/>
-            <span class="muted" style="font-size:12px">con IVA</span>
+        </fieldset>
+        <fieldset style="border:1px solid var(--line);border-radius:11px;padding:10px 12px;margin:0">
+          <legend style="font-size:13px;font-weight:600;padding:0 6px">Precio de compra / coste</legend>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <label style="font-size:12px;color:var(--muted)">Sin IVA (base)
+              <input id="p_compra" type="number" step="0.0001" value="0" oninput="pFinalDesdeBase('p_compra','p_compra_f')"/></label>
+            <label style="font-size:12px;color:var(--muted)">Con IVA
+              <input id="p_compra_f" type="number" step="0.01" value="0" oninput="pBaseDesdeFinal('p_compra','p_compra_f')"/></label>
           </div>
-        </div>
+        </fieldset>
       </div>
-      <p class="muted" style="font-size:12px;margin:4px 0 0">Puedes teclear el precio <strong>con IVA</strong> (lo que paga el cliente) y se calcula la base automáticamente, o al revés. Se guarda la base.</p>
+      <p class="muted" style="font-size:12px;margin:8px 0 0">💡 Escribe el precio en la casilla que prefieras (normalmente <strong>Con IVA</strong>, lo que paga el cliente): la otra se calcula sola según el IVA del artículo.</p>
       <label>Proveedor habitual (opcional)</label><select id="p_prov">${provOpts}</select>
       <label style="margin-top:14px">Familia (opcional, para reglas de contabilización)</label>
       <select id="p_familiaId">${famOpts}</select>
