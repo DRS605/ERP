@@ -2,6 +2,14 @@ ACTUALIZACION de Core Evolution
 ================================
 
 Novedades de esta version:
+- NUEVO: Importar factura de proveedor (Excel/CSV con EAN). En Articulos, boton
+  "Importar factura proveedor": lee las lineas (ean, descripcion, cantidad, coste, iva),
+  CREA los articulos cuyo EAN no exista (con su IVA y coste), suma el stock y registra
+  el gasto automaticamente. Primero muestra una previsualizacion y luego aplicas con Guardar.
+- NUEVO: Importar precios de venta (Excel/CSV con columnas ean, precio). Boton
+  "Importar precios". Si marcas "precios con IVA", calcula solo la base automaticamente.
+- Correccion: las importaciones ya leen bien los decimales con punto (p. ej. 0.80) ademas
+  de con coma (0,80), que es como Excel guarda los numeros.
 - Marca: ahora "Core Evolution" (by Map Technology).
 - Ficha de articulo: puedes teclear el precio CON IVA (precio final) ademas de la base.
 - Ticket: sale TODO en negro, SIN QR, con el % de IVA y el precio final en cada linea,
