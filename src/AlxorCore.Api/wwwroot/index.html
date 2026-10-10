@@ -425,31 +425,31 @@
     ICON.proyectos = '<svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M8 13h8M8 16h5"/></svg>';
     ICON.aprobaciones = '<svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>';
     ICON.integraciones = '<svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>';
+    // Iconos de los grupos nuevos (reaprovechan los existentes).
+    ICON.tesoreria = ICON.prevision;
+    ICON.finanzas = ICON.contabilidad;
+    ICON.informespanel = ICON.informes;
+    ICON.equipo = ICON.personal;
+    ICON.config = ICON.ajustes;
 
     // Menú agrupado en carpetas: Ventas, Compras y Artículos.
     const NAV = [
       { t:"item", k:"inicio", l:"Inicio" },
-      { t:"grupo", k:"ventas", l:"Ventas", items:[["presupuestos","Presupuestos"],["pedidosventa","Pedidos de venta"],["facturas","Facturas"],["tpv","TPV · Tickets"],["recurrentes","Periódicas"],["clientes","Clientes"],["cobros","Cobros"],["remesas","Remesas SEPA"]] },
-      { t:"grupo", k:"compras", l:"Compras", items:[["solicitudes","Solicitudes"],["pedidos","Pedidos de compra"],["recepcion","Buzón de facturas"],["gastos","Gastos"],["proveedores","Proveedores"],["pagos","Pagos"],["conciliacion","Conciliación banco"]] },
-      { t:"grupo", k:"articulos", l:"Artículos", items:[["productos","Productos"],["familias","Familias"],["inventario","Inventario / Almacenes"],["produccion","Producción"]] },
-      { t:"item", k:"personal", l:"Personal" },
-      { t:"item", k:"proyectos", l:"Proyectos" },
-      { t:"item", k:"prevision", l:"Previsión de tesorería" },
-      { t:"item", k:"informes", l:"Informes" },
-      { t:"item", k:"gestion", l:"Análisis de gestión" },
-      { t:"item", k:"contabilidad", l:"Contabilidad" },
-      { t:"item", k:"inmovilizado", l:"Inmovilizado" },
-      { t:"item", k:"divisas", l:"Divisas" },
-      { t:"item", k:"aprobaciones", l:"Aprobaciones" },
-      { t:"item", k:"integraciones", l:"API y webhooks" },
-      { t:"item", k:"ajustes", l:"Ajustes" },
+      { t:"grupo", k:"ventas", l:"Ventas", items:[["tpv","TPV · Tickets"],["facturas","Facturas"],["presupuestos","Presupuestos"],["pedidosventa","Pedidos de venta"],["recurrentes","Facturación periódica"],["clientes","Clientes"],["cobros","Cobros"]] },
+      { t:"grupo", k:"compras", l:"Compras y gastos", items:[["gastos","Gastos"],["recepcion","Buzón de facturas"],["proveedores","Proveedores"],["pagos","Pagos"],["solicitudes","Solicitudes"],["pedidos","Pedidos de compra"]] },
+      { t:"grupo", k:"articulos", l:"Artículos y almacén", items:[["productos","Artículos"],["familias","Familias"],["inventario","Inventario / Almacenes"],["produccion","Producción"]] },
+      { t:"grupo", k:"tesoreria", l:"Tesorería", cerrado:true, items:[["prevision","Previsión de tesorería"],["remesas","Remesas SEPA"],["conciliacion","Conciliación bancaria"]] },
+      { t:"grupo", k:"finanzas", l:"Contabilidad", cerrado:true, items:[["contabilidad","Contabilidad"],["inmovilizado","Inmovilizado"],["divisas","Divisas"]] },
+      { t:"grupo", k:"informespanel", l:"Informes", cerrado:true, items:[["informes","Informes"],["gestion","Análisis de gestión"]] },
+      { t:"grupo", k:"equipo", l:"Equipo y proyectos", cerrado:true, items:[["personal","Personal"],["proyectos","Proyectos"]] },
+      { t:"grupo", k:"config", l:"Configuración", cerrado:true, items:[["ajustes","Ajustes"],["aprobaciones","Aprobaciones"],["integraciones","API y webhooks"]] },
     ];
     const TITULOS = { inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", gestion:"Análisis de gestión", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", divisas:"Divisas y tipos de cambio", aprobaciones:"Aprobaciones y control de firmas", integraciones:"API pública y webhooks", ajustes:"Ajustes" };
     function renderNav() {
       return NAV.map(n => {
         if (n.t === "item") return `<a class="navitem" data-k="${n.k}" onclick="ir('${n.k}')">${ICON[n.k]}<span>${n.l}</span></a>`;
         const links = n.items.map(([k,l]) => `<a class="navsub" data-k="${k}" onclick="ir('${k}')"><span>${l}</span></a>`).join("");
-        return `<div class="navgroup" data-g="${n.k}"><div class="navhead" onclick="toggleGrupo('${n.k}')">${ICON[n.k]}<span>${n.l}</span><svg class="chev" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6"/></svg></div><div class="subnav">${links}</div></div>`;
+        return `<div class="navgroup${n.cerrado?' closed':''}" data-g="${n.k}"><div class="navhead" onclick="toggleGrupo('${n.k}')">${ICON[n.k]}<span>${n.l}</span><svg class="chev" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6"/></svg></div><div class="subnav">${links}</div></div>`;
       }).join("");
     }
     function toggleGrupo(g){ document.querySelector(`.navgroup[data-g="${g}"]`).classList.toggle("closed"); }
@@ -546,6 +546,8 @@
     function closeMenu(){ const s=document.querySelector(".sidebar"), b=document.getElementById("backdrop"); if(s)s.classList.remove("open"); if(b)b.classList.remove("show"); }
     function ir(k){ closeMenu(); if(vista==="tpv" && k!=="tpv" && typeof tpvParar==="function") tpvParar(); vista=k;
       document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("active",a.dataset.k===k));
+      // Si la sección activa está dentro de una carpeta cerrada, la abrimos para que se vea resaltada.
+      const act=document.querySelector("#nav a.active"); const grp=act&&act.closest(".navgroup"); if(grp) grp.classList.remove("closed");
       document.getElementById("viewTitle").textContent=TITULOS[k]||k;
       ({inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:vPedidosVenta,clientes:vClientes,productos:vProductos,familias:vFamilias,gastos:vGastos,solicitudes:vSolicitudes,pedidos:vPedidos,inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,gestion:vGestion,contabilidad:vContabilidad,inmovilizado:vInmovilizado,divisas:vDivisas,aprobaciones:vAprobaciones,integraciones:vIntegraciones,ajustes:vAjustes}[k])();
     }
