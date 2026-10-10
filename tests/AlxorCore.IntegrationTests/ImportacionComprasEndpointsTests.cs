@@ -18,7 +18,7 @@ public sealed class ImportacionComprasEndpointsTests : IClassFixture<FabricaApiP
     public ImportacionComprasEndpointsTests(FabricaApiPruebas fabrica) => _fabrica = fabrica;
 
     private sealed record ResultadoResp(int Total, int Correctas, int Errores, bool Aplicado, List<string> Mensajes);
-    private sealed record ProductoResp(Guid Id, string? Referencia, string Nombre, decimal Stock, decimal PrecioUnitario, string CodigoIva, decimal PorcentajeIva, bool ControlarStock);
+    private sealed record ProductoResp(Guid Id, string? Referencia, string Nombre, decimal Stock, decimal PrecioUnitario, decimal PrecioCompra, string CodigoIva, decimal PorcentajeIva, bool ControlarStock);
     private sealed record GastoResp(Guid Id, string Concepto, decimal BaseImponible, string CodigoIva);
 
     /// <summary>Genera un .xlsx mínimo (una hoja, celdas inline) desde una rejilla de textos.</summary>
@@ -88,6 +88,28 @@ public sealed class ImportacionComprasEndpointsTests : IClassFixture<FabricaApiP
         // Dos tipos de IVA ⇒ dos gastos; base = Σ(cantidad·coste) por tipo.
         gastos!.Should().Contain(g => g.CodigoIva == "IVA4" && g.BaseImponible == 9.60m);
         gastos.Should().Contain(g => g.CodigoIva == "IVA10" && g.BaseImponible == 9.00m);
+    }
+
+    [Fact]
+    public async Task Factura_proveedor_modo_solo_articulos_no_toca_stock_ni_gasto()
+    {
+        var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+        var csv = CsvBase64("ean;descripcion;cantidad;coste;iva\n8490000000019;Producto A;10;0.80;21\n8490000000026;Producto B;5;1.20;10\n");
+
+        var apl = await cliente.PostAsJsonAsync("/importar/factura-proveedor", new { ContenidoBase64 = csv, Previsualizar = false, SoloArticulos = true });
+        apl.StatusCode.Should().Be(HttpStatusCode.OK);
+        var res = await apl.Content.ReadFromJsonAsync<ResultadoResp>();
+        res!.Aplicado.Should().BeTrue();
+
+        var productos = await cliente.GetFromJsonAsync<List<ProductoResp>>("/productos");
+        var a = productos!.Single(p => p.Referencia == "8490000000019");
+        a.PrecioCompra.Should().Be(0.80m);
+        a.Stock.Should().Be(0m); // no se suma stock en modo solo artículos
+        productos.Single(p => p.Referencia == "8490000000026").Stock.Should().Be(0m);
+
+        // No se registra ningún gasto.
+        var gastos = await cliente.GetFromJsonAsync<List<GastoResp>>("/gastos");
+        gastos!.Should().BeEmpty();
     }
 
     [Fact]

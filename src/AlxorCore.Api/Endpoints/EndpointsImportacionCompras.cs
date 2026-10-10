@@ -9,7 +9,7 @@ using AlxorCore.Nucleo.Resultados;
 namespace AlxorCore.Api.Endpoints;
 
 /// <summary>Petición de importación de factura de proveedor (Excel/CSV en base64).</summary>
-public sealed record ImportarFacturaPeticion(string ContenidoBase64, bool Previsualizar = true, string? ProveedorTexto = null, string? Fecha = null);
+public sealed record ImportarFacturaPeticion(string ContenidoBase64, bool Previsualizar = true, string? ProveedorTexto = null, string? Fecha = null, bool SoloArticulos = false);
 
 /// <summary>Petición de importación de precios de venta por EAN.</summary>
 public sealed record ImportarPreciosPeticion(string ContenidoBase64, bool Previsualizar = true, bool PreciosConIva = true);
@@ -130,7 +130,9 @@ public static class EndpointsImportacionCompras
         var nuevos = lineas.Count(l => l.Nuevo);
         var existentes = lineas.Count(l => !l.Nuevo);
         var totalBase = lineas.Sum(l => l.Cantidad * l.Coste);
-        mensajes.Insert(0, $"{lineas.Count} línea(s): {nuevos} artículo(s) nuevo(s), {existentes} ya existente(s). Base total {totalBase:F2} €.");
+        mensajes.Insert(0, peticion.SoloArticulos
+            ? $"{lineas.Count} línea(s): se crearán {nuevos} artículo(s) nuevo(s); {existentes} ya existen (se omiten). Sin stock ni gasto."
+            : $"{lineas.Count} línea(s): {nuevos} artículo(s) nuevo(s), {existentes} ya existente(s). Base total {totalBase:F2} €.");
 
         if (peticion.Previsualizar)
         {
@@ -165,13 +167,19 @@ public static class EndpointsImportacionCompras
                 creados++;
             }
 
-            if (productoId is { } pid && controlaStock)
+            if (!peticion.SoloArticulos && productoId is { } pid && controlaStock)
             {
                 await stock.EjecutarAsync(empresaId, pid, new DatosMovimientoStock(TipoMovimientoStock.Entrada, l.Cantidad, "Importación factura proveedor"), ct).ConfigureAwait(false);
             }
 
             var iva = l.Nuevo ? l.CodigoIva : (porRef.TryGetValue(l.Ean, out var pe) ? pe.CodigoIva : l.CodigoIva);
             baseporIva[iva] = baseporIva.GetValueOrDefault(iva) + (l.Cantidad * l.Coste);
+        }
+
+        if (peticion.SoloArticulos)
+        {
+            mensajes.Add($"Creados {creados} artículo(s) nuevo(s). No se ha tocado el stock ni se ha registrado ningún gasto.");
+            return Results.Ok(new ResultadoImportacionExcel(filas.Count, lineas.Count, filas.Count - lineas.Count, true, mensajes));
         }
 
         var concepto = string.IsNullOrWhiteSpace(peticion.ProveedorTexto)

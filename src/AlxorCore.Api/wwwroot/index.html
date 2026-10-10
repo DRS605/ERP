@@ -3269,13 +3269,14 @@
     function modalImportarFactura(){ _impB64=null;
       abrir("Importar factura de proveedor",`<p class="muted" style="margin:0 0 6px">Sube el Excel/CSV de la factura. Columnas: <strong>ean, descripción, cantidad, coste, iva</strong>. Crea los artículos que no existan (con su IVA y coste), da entrada de stock y registra el gasto.</p>
         <div class="grid2"><div><label>Proveedor (texto)</label><input id="imf_prov" placeholder="Nombre del proveedor"/></div><div><label>Fecha de la factura</label><input id="imf_fecha" type="date"/></div></div>
+        <label style="display:flex;align-items:center;gap:8px;margin:8px 0 2px"><input type="checkbox" id="imf_solo" style="width:auto"/> <strong>Solo crear artículos</strong> (sin sumar stock ni registrar gasto) — ideal para dar de alta EANs de facturas antiguas</label>
         <label class="btn small" style="cursor:pointer;width:auto;margin:10px 0 0">Elegir archivo…<input type="file" accept=".xlsx,.csv,text/csv,text/plain" style="display:none" onchange="_leerB64(this,n=>imfPrever(n))"/></label> <span id="imf_fname" class="muted" style="font-size:12.5px;margin-left:8px"></span>
         <div id="imf_res" style="margin-top:14px"></div>`, imfConfirmar); }
     async function imfPrever(nombre){ document.getElementById("imf_fname").textContent=nombre;
-      try{ const r=await api("/importar/factura-proveedor",{method:"POST",body:JSON.stringify({contenidoBase64:_impB64,previsualizar:true,proveedorTexto:val("imf_prov")||null,fecha:val("imf_fecha")||null})}); _impMsgs("imf_res",r); }
+      try{ const r=await api("/importar/factura-proveedor",{method:"POST",body:JSON.stringify({contenidoBase64:_impB64,previsualizar:true,proveedorTexto:val("imf_prov")||null,fecha:val("imf_fecha")||null,soloArticulos:document.getElementById("imf_solo").checked})}); _impMsgs("imf_res",r); }
       catch(e){ document.getElementById("imf_res").innerHTML=`<div class="muted">${e.message}</div>`; } }
     async function imfConfirmar(){ if(!_impB64) throw new Error("Elige un archivo primero.");
-      const r=await api("/importar/factura-proveedor",{method:"POST",body:JSON.stringify({contenidoBase64:_impB64,previsualizar:false,proveedorTexto:val("imf_prov")||null,fecha:val("imf_fecha")||null})});
+      const r=await api("/importar/factura-proveedor",{method:"POST",body:JSON.stringify({contenidoBase64:_impB64,previsualizar:false,proveedorTexto:val("imf_prov")||null,fecha:val("imf_fecha")||null,soloArticulos:document.getElementById("imf_solo").checked})});
       toast((r.mensajes&&r.mensajes[0])||"Factura importada","ok"); vProductos(); }
     function modalImportarPrecios(){ _impB64=null;
       abrir("Importar precios de venta",`<p class="muted" style="margin:0 0 6px">Sube el Excel/CSV con columnas <strong>ean, precio</strong>. Actualiza el precio de venta de los artículos por su EAN.</p>
