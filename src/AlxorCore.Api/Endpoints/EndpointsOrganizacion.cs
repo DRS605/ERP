@@ -52,6 +52,10 @@ public static class EndpointsOrganizacion
             .WithSummary("Fija el control de riesgo de la empresa (avisar o bloquear al superar el límite).")
             .RequierePermiso(Permisos.EmpresaAjustes);
 
+        empresas.MapPut("/actual/plan", PlanAsync)
+            .WithSummary("Cambia el plan de suscripción de la empresa (Autónomo, Pyme o Empresa).")
+            .RequierePermiso(Permisos.EmpresaAjustes);
+
         empresas.MapPut("/actual/plantilla", PlantillaAsync)
             .WithSummary("Configura la plantilla de documentos (datos de cabecera, contacto, color, pie y logotipo).")
             .RequierePermiso(Permisos.EmpresaAjustes);
@@ -232,6 +236,16 @@ public static class EndpointsOrganizacion
     }
 
     private static async Task<IResult> ControlRiesgoAsync(ControlRiesgoComando comando, IContextoEmpresa contexto, ActualizarControlRiesgo caso, CancellationToken ct)
+    {
+        if (contexto.EmpresaId is null)
+        {
+            return ResultadosHttp.AProblema(Error.Validacion("empresa.no_seleccionada", "Selecciona una empresa primero."));
+        }
+
+        return (await caso.EjecutarAsync(contexto.EmpresaId.Value, comando, ct).ConfigureAwait(false)).AOk();
+    }
+
+    private static async Task<IResult> PlanAsync(CambiarPlanComando comando, IContextoEmpresa contexto, CambiarPlan caso, CancellationToken ct)
     {
         if (contexto.EmpresaId is null)
         {

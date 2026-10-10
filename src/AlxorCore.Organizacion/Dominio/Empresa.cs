@@ -37,6 +37,7 @@ public sealed class Empresa : RaizAgregado<Guid>
         Moneda = "EUR";
         Pais = "ES";
         MetodoValoracion = MetodoValoracion.Estandar;
+        Plan = PlanSuscripcion.Autonomo;
         CreadoEn = ahora;
         ActualizadoEn = ahora;
     }
@@ -67,6 +68,9 @@ public sealed class Empresa : RaizAgregado<Guid>
 
     /// <summary>Cómo actúa ante el exceso de límite de riesgo de un tercero (avisar o bloquear).</summary>
     public ControlRiesgo ControlRiesgo { get; private set; } = ControlRiesgo.Aviso;
+
+    /// <summary>Plan de suscripción contratado. Determina los módulos/pantallas disponibles.</summary>
+    public PlanSuscripcion Plan { get; private set; } = PlanSuscripcion.Autonomo;
 
     // --- Plantilla de documentos (lo que aparece en facturas, tickets y presupuestos) ---
 
@@ -127,6 +131,14 @@ public sealed class Empresa : RaizAgregado<Guid>
 
         Direccion = direccion;
         RegimenIva = regimenIva;
+        ActualizadoEn = reloj.AhoraUtc;
+    }
+
+    /// <summary>Cambia el plan de suscripción contratado.</summary>
+    public void CambiarPlan(PlanSuscripcion plan, IReloj reloj)
+    {
+        ArgumentNullException.ThrowIfNull(reloj);
+        Plan = plan;
         ActualizadoEn = reloj.AhoraUtc;
     }
 

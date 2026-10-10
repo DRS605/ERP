@@ -433,22 +433,30 @@
     ICON.config = ICON.ajustes;
 
     // Menú agrupado en carpetas: Ventas, Compras y Artículos.
+    // Plan de suscripción: 1 Autónomo · 2 Pyme · 3 Empresa. Cada opción lleva su plan mínimo.
+    const NIVEL_PLAN = { Autonomo:1, Pyme:2, Empresa:3 };
+    let PLAN = 3; // nivel actual (se ajusta al entrar según la empresa).
     const NAV = [
-      { t:"item", k:"inicio", l:"Inicio" },
-      { t:"grupo", k:"ventas", l:"Ventas", items:[["tpv","TPV · Tickets"],["facturas","Facturas"],["presupuestos","Presupuestos"],["pedidosventa","Pedidos de venta"],["recurrentes","Facturación periódica"],["clientes","Clientes"],["cobros","Cobros"]] },
-      { t:"grupo", k:"compras", l:"Compras y gastos", items:[["gastos","Gastos"],["recepcion","Buzón de facturas"],["proveedores","Proveedores"],["pagos","Pagos"],["solicitudes","Solicitudes"],["pedidos","Pedidos de compra"]] },
-      { t:"grupo", k:"articulos", l:"Artículos y almacén", items:[["productos","Artículos"],["familias","Familias"],["inventario","Inventario / Almacenes"],["produccion","Producción"]] },
-      { t:"grupo", k:"tesoreria", l:"Tesorería", cerrado:true, items:[["prevision","Previsión de tesorería"],["remesas","Remesas SEPA"],["conciliacion","Conciliación bancaria"]] },
-      { t:"grupo", k:"finanzas", l:"Contabilidad", cerrado:true, items:[["contabilidad","Contabilidad"],["inmovilizado","Inmovilizado"],["divisas","Divisas"]] },
-      { t:"grupo", k:"informespanel", l:"Informes", cerrado:true, items:[["informes","Informes"],["gestion","Análisis de gestión"]] },
-      { t:"grupo", k:"equipo", l:"Equipo y proyectos", cerrado:true, items:[["personal","Personal"],["proyectos","Proyectos"]] },
-      { t:"grupo", k:"config", l:"Configuración", cerrado:true, items:[["ajustes","Ajustes"],["aprobaciones","Aprobaciones"],["integraciones","API y webhooks"]] },
+      { t:"item", k:"inicio", l:"Inicio", min:1 },
+      { t:"grupo", k:"ventas", l:"Ventas", items:[["tpv","TPV · Tickets",1],["facturas","Facturas",1],["presupuestos","Presupuestos",1],["pedidosventa","Pedidos de venta",2],["recurrentes","Facturación periódica",1],["clientes","Clientes",1],["cobros","Cobros",1]] },
+      { t:"grupo", k:"compras", l:"Compras y gastos", items:[["gastos","Gastos",1],["recepcion","Buzón de facturas",1],["proveedores","Proveedores",1],["pagos","Pagos",1],["solicitudes","Solicitudes",2],["pedidos","Pedidos de compra",2]] },
+      { t:"grupo", k:"articulos", l:"Artículos y almacén", items:[["productos","Artículos",1],["familias","Familias",1],["inventario","Inventario / Almacenes",2],["produccion","Producción",3]] },
+      { t:"grupo", k:"tesoreria", l:"Tesorería", cerrado:true, items:[["prevision","Previsión de tesorería",1],["remesas","Remesas SEPA",2],["conciliacion","Conciliación bancaria",2]] },
+      { t:"grupo", k:"finanzas", l:"Contabilidad", cerrado:true, items:[["contabilidad","Contabilidad",2],["inmovilizado","Inmovilizado",2],["divisas","Divisas",2]] },
+      { t:"grupo", k:"informespanel", l:"Informes", cerrado:true, items:[["informes","Informes",1],["gestion","Análisis de gestión",2]] },
+      { t:"grupo", k:"equipo", l:"Equipo y proyectos", cerrado:true, items:[["personal","Personal",3],["proyectos","Proyectos",3]] },
+      { t:"grupo", k:"config", l:"Configuración", cerrado:true, items:[["ajustes","Ajustes",1],["aprobaciones","Aprobaciones",3],["integraciones","API y webhooks",3]] },
     ];
     const TITULOS = { inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", gestion:"Análisis de gestión", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", divisas:"Divisas y tipos de cambio", aprobaciones:"Aprobaciones y control de firmas", integraciones:"API pública y webhooks", ajustes:"Ajustes" };
     function renderNav() {
       return NAV.map(n => {
-        if (n.t === "item") return `<a class="navitem" data-k="${n.k}" onclick="ir('${n.k}')">${ICON[n.k]}<span>${n.l}</span></a>`;
-        const links = n.items.map(([k,l]) => `<a class="navsub" data-k="${k}" onclick="ir('${k}')"><span>${l}</span></a>`).join("");
+        if (n.t === "item") {
+          if ((n.min||1) > PLAN) return "";
+          return `<a class="navitem" data-k="${n.k}" onclick="ir('${n.k}')">${ICON[n.k]}<span>${n.l}</span></a>`;
+        }
+        const visibles = n.items.filter(it => (it[2]||1) <= PLAN);
+        if (!visibles.length) return "";   // carpeta sin opciones para este plan: se oculta
+        const links = visibles.map(([k,l]) => `<a class="navsub" data-k="${k}" onclick="ir('${k}')"><span>${l}</span></a>`).join("");
         return `<div class="navgroup${n.cerrado?' closed':''}" data-g="${n.k}"><div class="navhead" onclick="toggleGrupo('${n.k}')">${ICON[n.k]}<span>${n.l}</span><svg class="chev" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6"/></svg></div><div class="subnav">${links}</div></div>`;
       }).join("");
     }
@@ -538,8 +546,11 @@
       const chip=document.getElementById("empresaChip");
       chip.innerHTML=`<span class="avatar mini">${empresa.razonSocial.slice(0,1)}</span><span class="cname">${empresa.razonSocial}</span> <span style="opacity:.6;margin-left:4px">▾</span>`;
       chip.style.cursor="pointer"; chip.title="Cambiar de empresa"; chip.onclick=modalEmpresas;
-      document.getElementById("nav").innerHTML=renderNav();
-      ir("inicio");
+      // Ajusta el menú al plan contratado por la empresa y luego pinta.
+      api("/empresas/actual").then(e=>{ PLAN = NIVEL_PLAN[e?.plan] || 3; }).catch(()=>{ PLAN = 3; }).finally(()=>{
+        document.getElementById("nav").innerHTML=renderNav();
+        ir("inicio");
+      });
     }
 
     function toggleMenu(){ const s=document.querySelector(".sidebar"), b=document.getElementById("backdrop"); const abierto=s.classList.toggle("open"); b.classList.toggle("show",abierto); }
@@ -2725,7 +2736,27 @@
       try{ panelValoracion=await panelValoracionHtml(); }catch(e){ panelValoracion=""; }
       let panelPlantilla="";
       try{ panelPlantilla=await panelPlantillaHtml(); }catch(e){ panelPlantilla=""; }
-      view(panelSeries+panelAsig+panelPlantilla+panelFormas+panelRiesgo+panelImport+panelValoracion+panelCobroHtml()+panelUsuarios+panelSeguridad+panelDatosHtml()+panelAudit);
+      let panelPlan="";
+      try{ panelPlan=await panelPlanHtml(); }catch(e){ panelPlan=""; }
+      view(panelPlan+panelSeries+panelAsig+panelPlantilla+panelFormas+panelRiesgo+panelImport+panelValoracion+panelCobroHtml()+panelUsuarios+panelSeguridad+panelDatosHtml()+panelAudit);
+    }
+    async function panelPlanHtml(){
+      const e=await api("/empresas/actual").catch(()=>null); const actual=e?.plan||"Autonomo";
+      const planes=[
+        ["Autonomo","Autónomo","19,95 €/mes","Facturas, TPV, gastos, clientes, periódicas e informes básicos."],
+        ["Pyme","Pyme","39 €/mes","Todo lo anterior + pedidos/albaranes, almacén, contabilidad y tesorería."],
+        ["Empresa","Empresa","79 €/mes","Todo + personal, proyectos, producción, aprobaciones y API."],
+      ];
+      const tarjetas=planes.map(([k,n,precio,d])=>`<label style="display:block;border:1.5px solid ${k===actual?'var(--brand1)':'var(--line)'};border-radius:12px;padding:12px 14px;margin-bottom:8px;cursor:pointer">
+        <div style="display:flex;align-items:center;gap:10px"><input type="radio" name="plan_sel" value="${k}" ${k===actual?'checked':''} style="width:auto" onchange="guardarPlan('${k}')"><strong>${n}</strong> <span class="muted" style="font-size:12.5px">· ${precio}</span>${k===actual?'<span class="pill ok" style="margin-left:auto">Actual</span>':''}</div>
+        <div class="muted" style="font-size:12.5px;margin:4px 0 0 26px">${d}</div></label>`).join("");
+      return panel("Plan de suscripción",`<p class="muted" style="margin:0 0 12px">El plan determina qué secciones aparecen en el menú. Puedes cambiarlo cuando quieras.</p>${tarjetas}`);
+    }
+    async function guardarPlan(plan){
+      try{ await api("/empresas/actual/plan",{method:"PUT",body:JSON.stringify({plan})});
+        PLAN=NIVEL_PLAN[plan]||1; document.getElementById("nav").innerHTML=renderNav();
+        toast("Plan actualizado: "+plan,"ok"); vAjustes();
+      }catch(e){ toast(e.message,"err"); }
     }
     async function panelSeguridadHtml(){
       const e=await api("/auth/2fa").catch(()=>({activo:false,codigosRecuperacionPendientes:0}));

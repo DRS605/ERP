@@ -10,6 +10,19 @@ public enum RegimenIva
     RecargoEquivalencia = 2,
 }
 
+/// <summary>Plan de suscripción de la empresa. Determina qué módulos/pantallas se ofrecen.</summary>
+public enum PlanSuscripcion
+{
+    /// <summary>Autónomo: facturación, gastos, clientes, TPV e informes básicos.</summary>
+    Autonomo = 1,
+
+    /// <summary>Pyme: añade ciclo completo de compra/venta, almacén, contabilidad y tesorería.</summary>
+    Pyme = 2,
+
+    /// <summary>Empresa: añade personal, proyectos, producción, aprobaciones y API.</summary>
+    Empresa = 3,
+}
+
 /// <summary>Tipo de documento numerado por una serie.</summary>
 public enum TipoDocumento
 {
