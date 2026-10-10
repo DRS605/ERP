@@ -113,6 +113,24 @@ public sealed class ImportacionComprasEndpointsTests : IClassFixture<FabricaApiP
     }
 
     [Fact]
+    public async Task Factura_proveedor_solo_articulos_crea_con_precio_de_venta_pvp()
+    {
+        var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);
+        // pvp con IVA: 21% -> base 1.00; 10% -> base 2.00
+        var csv = CsvBase64("ean;descripcion;coste;iva;pvp\n8495000000013;Articulo PVP 21;0.40;21;1.21\n8495000000020;Articulo PVP 10;0.90;10;2.20\n");
+
+        var apl = await cliente.PostAsJsonAsync("/importar/factura-proveedor", new { ContenidoBase64 = csv, Previsualizar = false, SoloArticulos = true, PreciosConIva = true });
+        apl.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var productos = await cliente.GetFromJsonAsync<List<ProductoResp>>("/productos");
+        var a = productos!.Single(p => p.Referencia == "8495000000013");
+        a.PrecioCompra.Should().Be(0.40m);
+        a.PrecioUnitario.Should().Be(1.00m); // 1.21 / 1.21
+        a.Stock.Should().Be(0m);
+        productos.Single(p => p.Referencia == "8495000000020").PrecioUnitario.Should().Be(2.00m); // 2.20 / 1.10
+    }
+
+    [Fact]
     public async Task Factura_proveedor_solo_suma_stock_a_los_ya_existentes()
     {
         var (cliente, _) = await Ayudas.ConEmpresaAsync(_fabrica);

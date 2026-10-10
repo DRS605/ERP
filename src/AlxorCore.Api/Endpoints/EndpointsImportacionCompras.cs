@@ -9,7 +9,7 @@ using AlxorCore.Nucleo.Resultados;
 namespace AlxorCore.Api.Endpoints;
 
 /// <summary>Petición de importación de factura de proveedor (Excel/CSV en base64).</summary>
-public sealed record ImportarFacturaPeticion(string ContenidoBase64, bool Previsualizar = true, string? ProveedorTexto = null, string? Fecha = null, bool SoloArticulos = false);
+public sealed record ImportarFacturaPeticion(string ContenidoBase64, bool Previsualizar = true, string? ProveedorTexto = null, string? Fecha = null, bool SoloArticulos = false, bool PreciosConIva = true);
 
 /// <summary>Petición de importación de precios de venta por EAN.</summary>
 public sealed record ImportarPreciosPeticion(string ContenidoBase64, bool Previsualizar = true, bool PreciosConIva = true);
@@ -68,11 +68,20 @@ public static class EndpointsImportacionCompras
         return true;
     }
 
-    private sealed record LineaFactura(string Ean, string Descripcion, decimal Cantidad, decimal Coste, string CodigoIva, bool Nuevo, Guid? ProductoId);
+    private sealed record LineaFactura(string Ean, string Descripcion, decimal Cantidad, decimal Coste, string CodigoIva, bool Nuevo, Guid? ProductoId, decimal? PrecioVentaBase);
+
+    /// <summary>Porcentaje de IVA a partir del código del catálogo (IVA21…).</summary>
+    private static decimal PorcentajeDe(string codigoIva) => codigoIva switch
+    {
+        "IVA21" => 21m,
+        "IVA10" => 10m,
+        "IVA4" => 4m,
+        _ => 0m,
+    };
 
     private static async Task<IResult> FacturaProveedorAsync(
         ImportarFacturaPeticion peticion, IContextoEmpresa contexto, IConsultaProductos productos,
-        CrearProducto crear, RegistrarMovimientoStock stock, RegistrarGasto gasto, CancellationToken ct)
+        CrearProducto crear, ActualizarProducto actualizar, RegistrarMovimientoStock stock, RegistrarGasto gasto, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(peticion);
         if (contexto.EmpresaId is null || contexto.GrupoId is null)
@@ -97,8 +106,11 @@ public static class EndpointsImportacionCompras
             var ean = f.Campo("ean", "codigo", "referencia", "sku", "código", "codigo de barras")?.Trim();
             var descripcion = f.Campo("descripcion", "nombre", "articulo", "artículo", "producto", "concepto");
             var cantidad = ImportacionCsv.Numero(f.Campo("cantidad", "uds", "unidades", "cant"));
-            var coste = ImportacionCsv.Numero(f.Campo("coste", "precio", "precio compra", "precio de compra", "importe", "neto"));
+            var coste = ImportacionCsv.Numero(f.Campo("coste", "precio compra", "precio de compra", "importe", "neto"));
             var codigoIva = ImportacionCsv.CodigoIva(f.Campo("iva", "tipo iva", "codigo iva", "% iva")) ?? "IVA21";
+            // Precio de venta opcional (PVP). No se usa el alias «precio» a secas para no chocar con el coste.
+            var pvpTexto = f.Campo("pvp", "precio venta", "precio de venta", "precioventa", "p.v.p", "pvp venta");
+            var pvp = string.IsNullOrWhiteSpace(pvpTexto) ? (decimal?)null : ImportacionCsv.Numero(pvpTexto);
 
             if (string.IsNullOrWhiteSpace(ean))
             {
@@ -112,9 +124,16 @@ public static class EndpointsImportacionCompras
             }
 
             var existe = porRef.TryGetValue(ean, out var prod);
+            var codigoIvaEfectivo = existe ? prod!.CodigoIva : codigoIva;
+            decimal? ventaBase = null;
+            if (pvp is { } p && p > 0m)
+            {
+                ventaBase = peticion.PreciosConIva ? Math.Round(p / (1 + (PorcentajeDe(codigoIvaEfectivo) / 100m)), 4) : p;
+            }
+
             if (existe)
             {
-                lineas.Add(new LineaFactura(ean, prod!.Nombre, cantidad, coste, prod.CodigoIva, false, prod.Id));
+                lineas.Add(new LineaFactura(ean, prod!.Nombre, cantidad, coste, prod.CodigoIva, false, prod.Id, ventaBase));
             }
             else
             {
@@ -123,7 +142,7 @@ public static class EndpointsImportacionCompras
                     descripcion = "Artículo " + ean;
                 }
 
-                lineas.Add(new LineaFactura(ean, descripcion!, cantidad, coste, codigoIva, true, null));
+                lineas.Add(new LineaFactura(ean, descripcion!, cantidad, coste, codigoIva, true, null, ventaBase));
             }
         }
 
@@ -144,16 +163,27 @@ public static class EndpointsImportacionCompras
         var grupoId = contexto.GrupoId.Value;
         var baseporIva = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
         var creados = 0;
+        var preciosActualizados = 0;
 
         foreach (var l in lineas)
         {
             var productoId = l.ProductoId;
             var controlaStock = !l.Nuevo && porRef.TryGetValue(l.Ean, out var p) && p.ControlarStock;
 
+            // En artículos ya existentes: si llega PVP, se actualiza el precio de venta.
+            if (!l.Nuevo && l.PrecioVentaBase is { } nuevoPrecio && porRef.TryGetValue(l.Ean, out var pex))
+            {
+                var r = await actualizar.EjecutarAsync(pex.Id, DesdeDto(pex, nuevoPrecio), ct).ConfigureAwait(false);
+                if (r.EsCorrecto)
+                {
+                    preciosActualizados++;
+                }
+            }
+
             if (l.Nuevo)
             {
                 var datos = new DatosProducto(
-                    Nombre: l.Descripcion, PrecioUnitario: 0m, Referencia: l.Ean, Tipo: TipoProducto.Bien,
+                    Nombre: l.Descripcion, PrecioUnitario: l.PrecioVentaBase ?? 0m, Referencia: l.Ean, Tipo: TipoProducto.Bien,
                     CodigoIva: l.CodigoIva, PrecioCompra: l.Coste, ControlarStock: true);
                 var creado = await crear.EjecutarAsync(grupoId, empresaId, datos, ct).ConfigureAwait(false);
                 if (creado.EsFallo)
@@ -178,7 +208,8 @@ public static class EndpointsImportacionCompras
 
         if (peticion.SoloArticulos)
         {
-            mensajes.Add($"Creados {creados} artículo(s) nuevo(s). No se ha tocado el stock ni se ha registrado ningún gasto.");
+            var notaPvp = preciosActualizados > 0 ? $" Precio de venta actualizado en {preciosActualizados} artículo(s) existente(s)." : string.Empty;
+            mensajes.Add($"Creados {creados} artículo(s) nuevo(s).{notaPvp} No se ha tocado el stock ni se ha registrado ningún gasto.");
             return Results.Ok(new ResultadoImportacionExcel(filas.Count, lineas.Count, filas.Count - lineas.Count, true, mensajes));
         }
 
