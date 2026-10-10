@@ -33,6 +33,10 @@ using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Config propia de la plataforma (administradores del panel de instalaciones). Vive en un fichero
+// aparte que las actualizaciones no sobrescriben; opcional (si no existe, no hay panel).
+builder.Configuration.AddJsonFile("plataforma.json", optional: true, reloadOnChange: true);
+
 // --- Contexto de empresa (multiempresa) ---
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ContextoEmpresaHttp>();
@@ -239,6 +243,7 @@ app.MapGet("/salud", () => Results.Ok(new { estado = "ok" }))
 
 app.MapearIdentidad();
 app.MapearOrganizacion();
+app.MapearPlataforma();
 app.MapearUsuarios();
 app.MapearTerceros();
 app.MapearActividades();

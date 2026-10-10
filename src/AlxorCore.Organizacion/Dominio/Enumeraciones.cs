@@ -23,6 +23,22 @@ public enum PlanSuscripcion
     Empresa = 3,
 }
 
+/// <summary>Estado comercial/operativo de una instalación vendida (panel de la plataforma).</summary>
+public enum EstadoInstalacion
+{
+    /// <summary>Posible cliente: aún no ha comprado (en negociación).</summary>
+    Prospecto = 1,
+
+    /// <summary>Instalación activa y al corriente de pago.</summary>
+    Activa = 2,
+
+    /// <summary>Suspendida (p. ej. por impago): la licencia no es válida.</summary>
+    Suspendida = 3,
+
+    /// <summary>Baja: el cliente ha dejado de usar el producto.</summary>
+    Baja = 4,
+}
+
 /// <summary>Tipo de documento numerado por una serie.</summary>
 public enum TipoDocumento
 {

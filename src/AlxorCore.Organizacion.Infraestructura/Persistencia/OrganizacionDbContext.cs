@@ -39,6 +39,9 @@ public sealed class OrganizacionDbContext : DbContextEmpresaBase, AlxorCore.Orga
 
     public DbSet<VisibilidadActividad> Visibilidades => Set<VisibilidadActividad>();
 
+    /// <summary>Instalaciones vendidas (panel de la plataforma). Dato global, no por empresa.</summary>
+    public DbSet<Instalacion> Instalaciones => Set<Instalacion>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Esquema);

@@ -431,11 +431,13 @@
     ICON.informespanel = ICON.informes;
     ICON.equipo = ICON.personal;
     ICON.config = ICON.ajustes;
+    ICON.instalaciones = '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/><path d="M7 7h.01M7 17h.01"/></svg>';
 
     // Menú agrupado en carpetas: Ventas, Compras y Artículos.
     // Plan de suscripción: 1 Autónomo · 2 Pyme · 3 Empresa. Cada opción lleva su plan mínimo.
     const NIVEL_PLAN = { Autonomo:1, Pyme:2, Empresa:3 };
     let PLAN = 3; // nivel actual (se ajusta al entrar según la empresa).
+    let ESADMIN = false; // ¿el usuario es administrador de la plataforma? (ve "Instalaciones")
     const NAV = [
       { t:"item", k:"inicio", l:"Inicio", min:1 },
       { t:"grupo", k:"ventas", l:"Ventas", items:[["tpv","TPV · Tickets",1],["facturas","Facturas",1],["presupuestos","Presupuestos",1],["pedidosventa","Pedidos de venta",2],["recurrentes","Facturación periódica",1],["clientes","Clientes",1],["cobros","Cobros",1]] },
@@ -446,11 +448,13 @@
       { t:"grupo", k:"informespanel", l:"Informes", cerrado:true, items:[["informes","Informes",1],["gestion","Análisis de gestión",2]] },
       { t:"grupo", k:"equipo", l:"Equipo y proyectos", cerrado:true, items:[["personal","Personal",3],["proyectos","Proyectos",3]] },
       { t:"grupo", k:"config", l:"Configuración", cerrado:true, items:[["ajustes","Ajustes",1],["aprobaciones","Aprobaciones",3],["integraciones","API y webhooks",3]] },
+      { t:"item", k:"instalaciones", l:"Instalaciones", min:1, soloAdmin:true },
     ];
-    const TITULOS = { inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", gestion:"Análisis de gestión", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", divisas:"Divisas y tipos de cambio", aprobaciones:"Aprobaciones y control de firmas", integraciones:"API pública y webhooks", ajustes:"Ajustes" };
+    const TITULOS = { inicio:"Inicio", presupuestos:"Presupuestos", facturas:"Facturas", tpv:"TPV · Tickets", recurrentes:"Facturación periódica", pedidosventa:"Pedidos de venta", clientes:"Clientes", cobros:"Cobros", remesas:"Remesas SEPA", gastos:"Gastos", solicitudes:"Solicitudes de compra", pedidos:"Pedidos de compra", recepcion:"Recepción de facturas", proveedores:"Proveedores", pagos:"Pagos", conciliacion:"Conciliación bancaria", productos:"Artículos", familias:"Familias de artículos", inventario:"Inventario / Almacenes", produccion:"Producción", personal:"Personal", proyectos:"Proyectos", prevision:"Previsión de tesorería", informes:"Informes", gestion:"Análisis de gestión", contabilidad:"Contabilidad", inmovilizado:"Inmovilizado y amortizaciones", divisas:"Divisas y tipos de cambio", aprobaciones:"Aprobaciones y control de firmas", integraciones:"API pública y webhooks", ajustes:"Ajustes", instalaciones:"Instalaciones · Panel de la plataforma" };
     function renderNav() {
       return NAV.map(n => {
         if (n.t === "item") {
+          if (n.soloAdmin && !ESADMIN) return "";
           if ((n.min||1) > PLAN) return "";
           return `<a class="navitem" data-k="${n.k}" onclick="ir('${n.k}')">${ICON[n.k]}<span>${n.l}</span></a>`;
         }
@@ -546,8 +550,11 @@
       const chip=document.getElementById("empresaChip");
       chip.innerHTML=`<span class="avatar mini">${empresa.razonSocial.slice(0,1)}</span><span class="cname">${empresa.razonSocial}</span> <span style="opacity:.6;margin-left:4px">▾</span>`;
       chip.style.cursor="pointer"; chip.title="Cambiar de empresa"; chip.onclick=modalEmpresas;
-      // Ajusta el menú al plan contratado por la empresa y luego pinta.
-      api("/empresas/actual").then(e=>{ PLAN = NIVEL_PLAN[e?.plan] || 3; }).catch(()=>{ PLAN = 3; }).finally(()=>{
+      // Ajusta el menú al plan y a si eres administrador de la plataforma, y luego pinta.
+      Promise.all([
+        api("/empresas/actual").then(e=>{ PLAN = NIVEL_PLAN[e?.plan] || 3; }).catch(()=>{ PLAN = 3; }),
+        api("/plataforma/soy-admin").then(r=>{ ESADMIN = !!r?.esAdmin; }).catch(()=>{ ESADMIN = false; }),
+      ]).finally(()=>{
         document.getElementById("nav").innerHTML=renderNav();
         ir("inicio");
       });
@@ -560,7 +567,7 @@
       // Si la sección activa está dentro de una carpeta cerrada, la abrimos para que se vea resaltada.
       const act=document.querySelector("#nav a.active"); const grp=act&&act.closest(".navgroup"); if(grp) grp.classList.remove("closed");
       document.getElementById("viewTitle").textContent=TITULOS[k]||k;
-      ({inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:vPedidosVenta,clientes:vClientes,productos:vProductos,familias:vFamilias,gastos:vGastos,solicitudes:vSolicitudes,pedidos:vPedidos,inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,gestion:vGestion,contabilidad:vContabilidad,inmovilizado:vInmovilizado,divisas:vDivisas,aprobaciones:vAprobaciones,integraciones:vIntegraciones,ajustes:vAjustes}[k])();
+      ({inicio:vInicio,presupuestos:vPresupuestos,facturas:vFacturas,tpv:vTpv,recurrentes:vRecurrentes,pedidosventa:vPedidosVenta,clientes:vClientes,productos:vProductos,familias:vFamilias,gastos:vGastos,solicitudes:vSolicitudes,pedidos:vPedidos,inventario:vInventario,recepcion:vRecepcion,proveedores:vProveedores,cobros:vCobros,remesas:vRemesa,pagos:vPagos,conciliacion:vConciliacion,produccion:vProduccion,personal:vPersonal,proyectos:vProyectos,prevision:vPrevision,informes:vInformes,gestion:vGestion,contabilidad:vContabilidad,inmovilizado:vInmovilizado,divisas:vDivisas,aprobaciones:vAprobaciones,integraciones:vIntegraciones,ajustes:vAjustes,instalaciones:vInstalaciones}[k])();
     }
     const view = h => { document.getElementById("view").innerHTML=h; try{ mejorarTablas(); }catch(e){} };
 
@@ -2707,6 +2714,45 @@
         <p class="muted" style="font-size:12px;margin:14px 0 0">Ayuda informativa para preparar la autoliquidación con tu gestoría; no es un envío oficial a la AEAT.</p>`;
       return panel(`Resumen trimestral · ${anio}`,cuerpo,selTrim(anio)+` <button class="btn small ghost" onclick="descargarCasillas('303',${anio},${trimSel})">↓ CSV 303</button>`);
     }
+    async function vInstalaciones() {
+      view('<div class="muted">Cargando…</div>');
+      const [res,lista]=await Promise.all([api("/plataforma/resumen").catch(()=>null),api("/plataforma/instalaciones").catch(()=>[])]);
+      window._instal=lista;
+      const tile=(n,v,c)=>`<div class="panel" style="padding:14px 16px"><div class="muted" style="font-size:12px">${n}</div><div style="font-size:22px;font-weight:800;${c?`color:${c}`:''}">${v}</div></div>`;
+      const dash=res?`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px">
+        ${tile("Activas",res.activas)}${tile("Prospectos",res.prospectos)}${tile("Suspendidas",res.suspendidas,"var(--neg)")}${tile("MRR activo",eur(res.mrrActivo),"var(--pos)")}${tile("Cobros ≤ 7 días",res.cobrosProximos7Dias)}</div>`:"";
+      const pill=e=>({Activa:'<span class="pill ok">Activa</span>',Prospecto:'<span class="pill part">Prospecto</span>',Suspendida:'<span class="pill neg">Suspendida</span>',Baja:'<span class="pill wait">Baja</span>'}[e]||e);
+      const filas=lista.map(i=>`<tr>
+        <td><strong>${i.nombre}</strong>${i.poblacion?`<div class="muted" style="font-size:12px">${i.poblacion}</div>`:''}</td>
+        <td class="muted">${i.contacto||"—"}${i.telefono?`<div class="muted" style="font-size:12px">${i.telefono}</div>`:''}</td>
+        <td>${i.plan}</td><td>${pill(i.estado)}</td>
+        <td class="num">${eur(i.cuotaMensual)}</td>
+        <td class="muted">${i.proximoCobro?fdate(i.proximoCobro):"—"}</td>
+        <td class="mono" style="font-size:12px">${i.clave}</td>
+        <td class="right" style="white-space:nowrap">
+          <button class="btn small secondary" onclick="modalInstalacion('${i.id}')">Editar</button>
+          ${i.estado==="Activa"?`<button class="btn small ghost" onclick="estadoInstalacion('${i.id}','Suspendida')" title="Suspender (impago)">⏸</button>`:`<button class="btn small ghost" onclick="estadoInstalacion('${i.id}','Activa')" title="Activar">▶</button>`}
+        </td></tr>`).join("");
+      const tabla=lista.length?`<table><thead><tr><th>Instalación</th><th>Contacto</th><th>Plan</th><th>Estado</th><th class="num">Cuota</th><th>Próx. cobro</th><th>Clave</th><th></th></tr></thead><tbody>${filas}</tbody></table>`
+        :vacio("instalaciones","Sin instalaciones todavía","Da de alta tu primera instalación vendida o un prospecto.",`<button class="btn small" onclick="modalInstalacion()">+ Nueva instalación</button>`);
+      view(dash+panel("Instalaciones vendidas",tabla,`<button class="btn small" onclick="modalInstalacion()">+ Nueva instalación</button>`));
+    }
+    function modalInstalacion(id){
+      const it=id?(window._instal||[]).find(x=>x.id===id):null;
+      const planSel=k=>`<select id="i_plan">${[["Autonomo","Autónomo"],["Pyme","Pyme"],["Empresa","Empresa"]].map(([v,n])=>`<option value="${v}"${k===v?" selected":""}>${n}</option>`).join("")}</select>`;
+      const estSel=k=>`<select id="i_estado">${["Prospecto","Activa","Suspendida","Baja"].map(e=>`<option value="${e}"${k===e?" selected":""}>${e}</option>`).join("")}</select>`;
+      abrir(id?"Editar instalación":"Nueva instalación",`<label>Nombre del comercio / cliente</label><input id="i_nombre" placeholder="Ej. La Alacena de María Alcázar"/>
+        <div class="grid2"><div><label>Persona de contacto</label><input id="i_contacto"/></div><div><label>Teléfono</label><input id="i_tel"/></div></div>
+        <div class="grid2"><div><label>Email</label><input id="i_email"/></div><div><label>Población</label><input id="i_pob"/></div></div>
+        <div class="grid2"><div><label>Plan</label>${planSel(it?.plan||"Autonomo")}</div><div><label>Estado</label>${estSel(it?.estado||"Prospecto")}</div></div>
+        <div class="grid2"><div><label>Cuota mensual (€)</label><input id="i_cuota" type="number" step="0.01" value="${it?.cuotaMensual??0}"/></div><div><label>Próximo cobro</label><input id="i_cobro" type="date"/></div></div>
+        <label>Notas</label><textarea id="i_notas" rows="3" style="width:100%"></textarea>
+        ${id?`<p class="muted" style="font-size:12px;margin-top:8px">Clave de licencia: <strong class="mono">${it?.clave||""}</strong></p>`:''}`,
+        async()=>{ const body={nombre:val("i_nombre"),contacto:val("i_contacto")||null,email:val("i_email")||null,telefono:val("i_tel")||null,poblacion:val("i_pob")||null,plan:val("i_plan"),estado:val("i_estado"),cuotaMensual:Number(val("i_cuota")||0),proximoCobro:val("i_cobro")||null,notas:val("i_notas")||null};
+          await api("/plataforma/instalaciones"+(id?"/"+id:""),{method:id?"PUT":"POST",body:JSON.stringify(body)}); toast("Instalación guardada","ok"); vInstalaciones(); });
+      if(it){ rellenar({i_nombre:it.nombre,i_contacto:it.contacto,i_email:it.email,i_tel:it.telefono,i_pob:it.poblacion,i_cuota:it.cuotaMensual,i_cobro:it.proximoCobro||"",i_notas:it.notas}); }
+    }
+    async function estadoInstalacion(id,estado){ try{ await api(`/plataforma/instalaciones/${id}/estado`,{method:"POST",body:JSON.stringify({estado})}); toast("Estado: "+estado,"ok"); vInstalaciones(); }catch(e){ toast(e.message,"err"); } }
     async function vAjustes() {
       view('<div class="muted">Cargando…</div>');
       const series=await api("/series");

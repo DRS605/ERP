@@ -63,6 +63,13 @@ public static class RegistroServicios
         servicios.AddScoped<ActualizarMetodoValoracion>();
         servicios.AddScoped<ActualizarControlRiesgo>();
         servicios.AddScoped<CambiarPlan>();
+        servicios.AddScoped<IRepositorioInstalaciones, RepositorioInstalaciones>();
+        servicios.AddScoped<ListarInstalaciones>();
+        servicios.AddScoped<ResumenPlataforma>();
+        servicios.AddScoped<CrearInstalacion>();
+        servicios.AddScoped<ActualizarInstalacion>();
+        servicios.AddScoped<CambiarEstadoInstalacion>();
+        servicios.AddScoped<VerificarLicencia>();
         servicios.AddScoped<ListarMisEmpresas>();
         servicios.AddScoped<ObtenerEmpresa>();
         servicios.AddScoped<SeleccionarEmpresa>();
