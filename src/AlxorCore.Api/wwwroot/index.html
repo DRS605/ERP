@@ -1083,11 +1083,18 @@
     const numCant=n=>Number.isInteger(n)?n:n.toLocaleString("es-ES",{maximumFractionDigits:3});
     function tpvPintarCarrito(){ const el=document.getElementById("tpvCart"); if(!el)return;
       if(!tpvCart.length){ el.innerHTML=`<div class="empty" style="padding:28px 6px"><div class="big">${ICON.tpv}</div><h3>Ticket vacío</h3><p>Escanea o toca un artículo para añadirlo.</p></div>`; return; }
+      // Precios de venta CON IVA incluido: el total es la suma de los precios de estantería (lo que paga
+      // el cliente). La base y el IVA se desglosan hacia atrás, igual que en el servidor, para que cuadre.
+      const r2=x=>Math.round((x+Number.EPSILON)*100)/100;
       let base=0,iva=0;
-      const filas=tpvCart.map((l,i)=>{ const b=l.cantidad*l.precioUnitario; base+=b; iva+=b*l.porcentajeIva/100;
-        const pFinalU=l.precioUnitario*(1+l.porcentajeIva/100); const lineaFinal=b*(1+l.porcentajeIva/100);
+      const filas=tpvCart.map((l,i)=>{
+        const pFinalU=l.precioUnitario*(1+l.porcentajeIva/100);
+        const lineaFinal=r2(l.cantidad*pFinalU);
+        const bLinea=r2(lineaFinal/(1+l.porcentajeIva/100));
+        base+=bLinea; iva+=lineaFinal-bLinea;
         return `<div class="cart-line"><div class="cl-n">${l.descripcion}<br><small>${eur(pFinalU)} · IVA ${l.porcentajeIva}%</small></div><div class="step"><button onclick="tpvPaso(${i},-1)">−</button><button onclick="tpvCantidad(${i})" title="Tocar para escribir la cantidad" style="min-width:50px;padding:6px 8px;font-weight:700;font-size:15px;cursor:pointer">${numCant(l.cantidad)}</button><button onclick="tpvPaso(${i},1)">+</button></div><div class="num" style="width:78px;text-align:right"><strong>${eur(lineaFinal)}</strong></div></div>`; }).join("");
-      const total=base+iva;
+      base=r2(base); iva=r2(iva);
+      const total=r2(base+iva);
       const metodos=["Efectivo","Tarjeta","Bizum"].map(m=>`<option value="${m}"${m===tpvMetodo?" selected":""}>${m}</option>`).join("");
       const cambio=tpvMetodo==="Efectivo"?`<div class="grid2" style="margin-top:10px"><div><label>Entregado (€)</label><input id="tpvEnt" type="number" step="0.01" placeholder="0,00" oninput="tpvCambio(${total})"/></div><div><label>Cambio a devolver</label><div id="tpvCambioOut" style="font-weight:750;font-size:18px;padding:8px 0">—</div></div></div>`:"";
       el.innerHTML=filas+`<div style="margin-top:12px">

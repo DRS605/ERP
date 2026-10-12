@@ -107,7 +107,9 @@ public sealed class EmitirTicket
             ? await _formasPago.ObtenerAsync(fpid, ct).ConfigureAwait(false)
             : null;
 
-        var resolucion = await ResolucionLineasFactura.ResolverAsync(comando.Lineas, _productos, ct, false, empresaId, _resolverIva).ConfigureAwait(false);
+        // En el TPV los precios de venta son CON IVA incluido (precio de estantería): el ticket se
+        // calcula desglosando hacia atrás para que el total cuadre al céntimo con lo que paga el cliente.
+        var resolucion = await ResolucionLineasFactura.ResolverAsync(comando.Lineas, _productos, ct, false, empresaId, _resolverIva, preciosConIvaIncluido: true).ConfigureAwait(false);
         if (resolucion.EsFallo)
         {
             return Resultado.Fallo<FacturaDto>(resolucion.Error);

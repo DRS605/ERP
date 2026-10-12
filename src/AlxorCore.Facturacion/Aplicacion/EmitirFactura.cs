@@ -265,7 +265,7 @@ internal static class ResolucionLineasFactura
 {
     public static async Task<Resultado<List<NuevaLinea>>> ResolverAsync(
         IReadOnlyList<LineaComando> lineas, IConsultaProductos productos, CancellationToken ct, bool recargoEquivalencia = false,
-        Guid? empresaId = null, IResolverIvaEmpresa? resolverIva = null)
+        Guid? empresaId = null, IResolverIvaEmpresa? resolverIva = null, bool preciosConIvaIncluido = false)
     {
         var resueltas = new List<NuevaLinea>(lineas.Count);
         foreach (var linea in lineas)
@@ -326,7 +326,7 @@ internal static class ResolucionLineasFactura
             }
 
             resueltas.Add(new NuevaLinea(
-                descripcion, linea.Cantidad, precio.Value, codigoResuelto, porcentaje, linea.PorcentajeDescuento, linea.ProductoId, coste ?? 0m, porcentajeRecargo));
+                descripcion, linea.Cantidad, precio.Value, codigoResuelto, porcentaje, linea.PorcentajeDescuento, linea.ProductoId, coste ?? 0m, porcentajeRecargo, preciosConIvaIncluido));
         }
 
         return Resultado.Ok(resueltas);

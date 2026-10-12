@@ -40,6 +40,35 @@ public class TicketTests
     }
 
     [Fact]
+    public void EmitirSimplificada_con_iva_incluido_el_total_cuadra_con_los_precios_de_estanteria()
+    {
+        // Precios de venta CON IVA (lo que ve el cliente): 1,35 (10%) + 1,00 (21%) + 1,15 (21%) = 3,50.
+        // El precio unitario es la base (1,35/1,10=1,2273 -> 1,23 redondeado, etc.). El total debe ser
+        // exactamente 3,50, no 3,51 (el "céntimo fantasma" del cálculo de abajo a arriba).
+        NuevaLinea LineaInc(decimal precioBase, decimal iva, string codigo) =>
+            new("Artículo", 1m, precioBase, codigo, iva, PreciosConIvaIncluido: true);
+
+        var t = Factura.EmitirSimplificada(Guid.NewGuid(), Numero(), Fecha, ClienteFacturado.Contado,
+            [LineaInc(1.23m, 10m, "IVA10"), LineaInc(0.83m, 21m, "IVA21"), LineaInc(0.95m, 21m, "IVA21")], Reloj).Valor;
+
+        t.BaseImponible.Should().Be(3.01m);
+        t.CuotaIva.Should().Be(0.49m);
+        t.Total.Should().Be(3.50m);
+    }
+
+    [Fact]
+    public void EmitirSimplificada_una_linea_con_iva_incluido_no_cambia_el_precio_de_venta()
+    {
+        // Un solo artículo a 1,00 € con IVA 21%: el ticket debe seguir siendo 1,00 € (base 0,83 + IVA 0,17).
+        var t = Factura.EmitirSimplificada(Guid.NewGuid(), Numero(), Fecha, ClienteFacturado.Contado,
+            [new("Refresco", 1m, 0.826446m, "IVA21", 21m, PreciosConIvaIncluido: true)], Reloj).Valor;
+
+        t.Total.Should().Be(1.00m);
+        t.BaseImponible.Should().Be(0.83m);
+        t.CuotaIva.Should().Be(0.17m);
+    }
+
+    [Fact]
     public void EmitirSimplificada_rechaza_importe_por_encima_del_tope()
     {
         // 3.000 € de base + IVA supera con creces el tope de 3.000 € de total.
