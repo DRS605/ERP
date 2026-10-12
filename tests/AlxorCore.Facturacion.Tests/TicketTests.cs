@@ -57,6 +57,19 @@ public class TicketTests
     }
 
     [Fact]
+    public void EmitirSimplificada_con_iva_incluido_dos_unidades_del_mismo_precio_no_descuadran()
+    {
+        // 2 uds. de un artículo cuyo precio de estantería es 1,35 € (base 1,23 + 10%): el total debe ser
+        // 2,70 €, no 2,71 €. El precio unitario con IVA se redondea antes de multiplicar por la cantidad.
+        var t = Factura.EmitirSimplificada(Guid.NewGuid(), Numero(), Fecha, ClienteFacturado.Contado,
+            [new("Aceitunas", 2m, 1.23m, "IVA10", 10m, PreciosConIvaIncluido: true)], Reloj).Valor;
+
+        t.Total.Should().Be(2.70m);
+        t.BaseImponible.Should().Be(2.45m);
+        t.CuotaIva.Should().Be(0.25m);
+    }
+
+    [Fact]
     public void EmitirSimplificada_una_linea_con_iva_incluido_no_cambia_el_precio_de_venta()
     {
         // Un solo artículo a 1,00 € con IVA 21%: el ticket debe seguir siendo 1,00 € (base 0,83 + IVA 0,17).

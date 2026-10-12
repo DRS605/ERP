@@ -32,10 +32,11 @@ public sealed class LineaFactura : EntidadBase<Guid>
 
         if (datos.PreciosConIvaIncluido)
         {
-            // Tickets de TPV: el precio de venta es CON IVA (precio de estantería). El importe bruto de
-            // la línea es el que manda y se "desglosa" hacia atrás, de modo que la suma de los totales de
-            // línea coincide exactamente con lo que paga el cliente (sin el céntimo de descuadre).
-            var brutoUnitario = PrecioUnitario * (1 + (PorcentajeIva / 100m));
+            // Tickets de TPV: el precio de venta es CON IVA (precio de estantería). El precio unitario con
+            // IVA se redondea a 2 decimales ANTES de multiplicar por la cantidad (es el precio que ve el
+            // cliente en la etiqueta), de modo que 2 uds. de 1,35 € son exactamente 2,70 € y no 2,71 €.
+            // Después se desglosa la base/IVA hacia atrás para que el total cuadre al céntimo.
+            var brutoUnitario = Redondeo.Dos(PrecioUnitario * (1 + (PorcentajeIva / 100m)));
             var brutoLinea = Redondeo.Dos(Cantidad * brutoUnitario * (1 - (PorcentajeDescuento / 100m)));
             Base = Redondeo.Dos(brutoLinea / (1 + (PorcentajeIva / 100m)));
             CuotaIva = brutoLinea - Base;
